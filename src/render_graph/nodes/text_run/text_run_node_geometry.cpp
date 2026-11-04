@@ -78,7 +78,7 @@ void TextRunNode::refresh_placement(
 // coordinate space by construction.
 
 Mat4 TextRunNode::world_matrix(const RenderGraphContext& ctx) const {
-    return text_run::build_world_matrix(ctx, m_placement);
+    return text_run::build_world_matrix(ctx, m_placement, ctx.node_exec.sampled_layer);
 }
 
 std::optional<raster::BBox> TextRunNode::predicted_bbox(
@@ -102,7 +102,8 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
             std::max(1, static_cast<i32>(std::ceil(m_placement.surface_size.y)))};
     }
 
-    const Mat4 matrix = text_run::build_world_matrix(ctx, m_placement);
+    const Mat4 matrix = text_run::build_world_matrix(
+        ctx, m_placement, ctx.node_exec.sampled_layer);
 
     f32 spread = 0.0f;
     spread += 8.0f;
@@ -374,6 +375,11 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
         key.params_hash = hash_combine(
             key.params_hash,
             hash_float_v2(*m_opacity_override));
+    }
+    if (const auto* sampled = ctx.node_exec.sampled_layer;
+        sampled && m_placement.replace_layer_matrix) {
+        key.params_hash = hash_combine(key.params_hash, hash_mat4_v2(sampled->matrix));
+        key.params_hash = hash_combine(key.params_hash, hash_float_v2(sampled->opacity));
     }
 
     // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B):

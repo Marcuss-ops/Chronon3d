@@ -20,8 +20,12 @@ could not name its own input. This tool is that missing step, and it is
 deliberately arithmetic: it refuses a file whose size is not a whole multiple of
 the frame size, instead of guessing a layout and reporting a wrong picture.
 
-The PNG is written verbatim (RGBA8, no colour transform, filter type 0), so
-`--out` is a byte-faithful projection of the renderer's frame. The profile it
+The raw sink stores RGBA8 with premultiplied RGB quantized through sRGB
+(`convert_fb_to_rgba8`), while PNG stores straight-alpha sRGB. Copying those
+bytes verbatim therefore produces a PNG with dark fringes around translucent
+text. By default this tool removes the premultiplication before writing;
+`--alpha straight` is only for artifacts that are already straight. The PNG is
+written with no further colour transform and filter type 0. The profile it
 prints are the same statistics the text-quality evidence uses (distinct levels,
 ink fraction, luma percentiles), which is what makes "contains text" and
 "uniform frame" distinguishable numbers rather than impressions.
@@ -51,6 +55,56 @@ from pathlib import Path
 
 CHANNELS = 4  # RGBA8, the raw sink's host format on the pixel-truth lane
 WHITE_LUMA = 0.72  # matches the text-quality evidence's white-pixel threshold
+
+
+def _build_linear_to_srgb8_lut() -> tuple[int, ...]:
+    """Mirror Color::linear_to_srgb8's 4096-entry quantizer."""
+    values: list[int] = []
+    for index in range(4096):
+        linear = index / 4095.0
+        srgb = (linear * 12.92 if linear <= 0.0031308
+                else 1.055 * linear ** (1.0 / 2.4) - 0.055)
+        values.append(max(0, min(255, round(srgb * 255.0))))
+    return tuple(values)
+
+
+_LINEAR_TO_SRGB8 = _build_linear_to_srgb8_lut()
+
+
+def _srgb_to_linear(byte: int) -> float:
+    value = byte / 255.0
+    return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+
+
+def _linear_to_srgb8(value: float) -> int:
+    clamped = max(0.0, min(1.0, value))
+    index = int(clamped * 4095.0 + 0.5)
+    return _LINEAR_TO_SRGB8[index]
+
+
+def unpremultiply_rgba8(pixels: bytes) -> bytes:
+    """Convert the raw sink's premultiplied sRGB bytes to straight-alpha sRGB.
+
+    Opaque pixels are copied verbatim so the mesh/opaque contract stays
+    byte-identical. At low alpha the 8-bit premultiplied raw cannot carry the
+    full straight-colour precision; the conversion is still the declared PNG
+    semantics and never touches alpha.
+    """
+    if len(pixels) % CHANNELS != 0:
+        raise ValueError("RGBA8 buffer size is not a multiple of 4")
+    out = bytearray(pixels)
+    for i in range(0, len(pixels), CHANNELS):
+        alpha_byte = pixels[i + 3]
+        if alpha_byte == 255:
+            continue
+        if alpha_byte == 0:
+            out[i] = out[i + 1] = out[i + 2] = 0
+            continue
+        alpha = alpha_byte / 255.0
+        for channel in range(3):
+            premultiplied_linear = _srgb_to_linear(pixels[i + channel])
+            out[i + channel] = _linear_to_srgb8(premultiplied_linear / alpha)
+    return bytes(out)
 
 
 def frame_bytes(width: int, height: int) -> int:
@@ -213,6 +267,18 @@ def self_test() -> int:
     if (rw, rh) != (width, height) or back != bytes(pixels):
         print("self-test FAILED: PNG round-trip changed the pixels", file=sys.stderr)
         return 1
+    opaque = bytes((1, 2, 3, 255))
+    if unpremultiply_rgba8(opaque) != opaque:
+        print("self-test FAILED: unpremultiply changed an opaque pixel", file=sys.stderr)
+        return 1
+    if unpremultiply_rgba8(bytes((10, 20, 30, 0))) != bytes((0, 0, 0, 0)):
+        print("self-test FAILED: unpremultiply kept colour at alpha zero", file=sys.stderr)
+        return 1
+    premultiplied = bytes((100, 50, 0, 128))
+    straight = unpremultiply_rgba8(premultiplied)
+    if straight[3] != 128 or straight == premultiplied:
+        print("self-test FAILED: premultiplied RGBA8 was not converted", file=sys.stderr)
+        return 1
     prof = profile_rgba8(bytes(pixels), width, height)
     if prof["distinct_levels"] < 2 or prof["content_fraction"] <= 0:
         print("self-test FAILED: profile collapsed a varied frame", file=sys.stderr)
@@ -227,8 +293,9 @@ def self_test() -> int:
             print(f"self-test FAILED: flat luma {level} was reported as content",
                   file=sys.stderr)
             return 1
-    print("self-test OK: PNG round-trip is byte-faithful; profile separates a "
-          "varied frame from a uniform one on any background")
+    print("self-test OK: PNG round-trip is byte-faithful; premultiplied RGBA8 "
+          "unpremultiplies without touching alpha; profile separates a varied "
+          "frame from a uniform one on any background")
     return 0
 
 
@@ -240,7 +307,11 @@ def main(argv: list[str]) -> int:
     # No short flag for --height: `-h` belongs to argparse's help.
     parser.add_argument("--height", type=int, help="frame height in pixels")
     parser.add_argument("--frame", type=int, default=0, help="frame index (default 0)")
-    parser.add_argument("--out", type=Path, help="PNG to write (verbatim frame bytes)")
+    parser.add_argument("--out", type=Path, help="PNG to write (straight-alpha RGBA8 by default)")
+    parser.add_argument("--alpha", choices=("premultiplied", "straight"),
+                        default="premultiplied",
+                        help="raw RGB storage; premultiplied (raw sink default) is "
+                             "unpremultiplied for the PNG")
     parser.add_argument("--require-content", type=float, default=None, dest="require_content",
                         help="exit non-zero when content_fraction (pixels differing "
                              "from the modal background luma) is below this value")
@@ -263,13 +334,15 @@ def main(argv: list[str]) -> int:
         print(f"raw_frame_to_png: {exc}", file=sys.stderr)
         return 2
 
+    if args.alpha == "premultiplied":
+        pixels = unpremultiply_rgba8(pixels)
     png = encode_png_rgba8(args.width, args.height, pixels)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(png)
 
     prof = profile_rgba8(pixels, args.width, args.height)
     print(f"raw: {args.raw} frames={frames} frame_bytes={frame_bytes(args.width, args.height)}")
-    print(f"png: {args.out} ({len(png)} bytes, verbatim RGBA8)")
+    print(f"png: {args.out} ({len(png)} bytes, straight RGBA8 from {args.alpha} raw)")
     print("profile: " + " ".join(f"{k}={v}" for k, v in prof.items()))
 
     if args.require_content is not None and prof["content_fraction"] < args.require_content:

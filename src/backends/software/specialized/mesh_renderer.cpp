@@ -43,6 +43,20 @@ struct LitStackPolygon {
     usize size{0};
 };
 
+// Closed-volume contract: the software rasterizer has no culling state of its
+// own, so a translucent solid composites its far and near surfaces into a
+// denser colour (a 50% box measures 75% instead of 50%). A triangle is
+// back-facing when its geometric normal points away from the camera, which
+// sits at the view-space origin.
+bool triangle_is_back_facing(const Vec4& a, const Vec4& b, const Vec4& c) {
+    const Vec3 av{a.x, a.y, a.z};
+    const Vec3 bv{b.x, b.y, b.z};
+    const Vec3 cv{c.x, c.y, c.z};
+    const Vec3 normal = glm::cross(bv - av, cv - av);
+    const Vec3 centroid = (av + bv + cv) / 3.0f;
+    return glm::dot(normal, centroid) > 0.0f;
+}
+
 // Clip a view-space polygon against one half-space. The signed distance
 // function must be non-negative for points inside the half-space.
 bool clip_polygon(StackPolygon& polygon, const auto& signed_distance) {
@@ -371,7 +385,8 @@ void render_mesh_wireframe(
 void render_mesh_filled(
     Framebuffer& fb, const Mesh& mesh, const Mat4& model,
     const Mat4& view, const Mat4& proj, const Color& color,
-    std::span<float> depth_buffer, f32 near_plane, f32 far_plane)
+    std::span<float> depth_buffer, f32 near_plane, f32 far_plane,
+    BackfaceCulling culling)
 {
     const auto& vertices = mesh.vertices();
     const auto& indices  = mesh.indices();
@@ -398,6 +413,8 @@ void render_mesh_filled(
             view_model * Vec4(vertices[ib].position, 1.0f),
             view_model * Vec4(vertices[ic].position, 1.0f),
         };
+        if (culling == BackfaceCulling::Enabled && triangle_is_back_facing(
+                view_triangle[0], view_triangle[1], view_triangle[2])) continue;
         render_clipped_triangle(
             fb, view_triangle, proj, color, depth_buffer,
             near_plane, far_plane);
@@ -408,17 +425,18 @@ void render_mesh_textured(
     Framebuffer& fb, const Mesh& mesh, const Mat4& model,
     const Mat4& view, const Mat4& proj, const Color& tint,
     std::span<float> depth_buffer, const Framebuffer& texture,
-    f32 near_plane, f32 far_plane)
+    f32 near_plane, f32 far_plane, BackfaceCulling culling)
 {
     render_mesh_textured(fb, mesh, model, view, proj, tint, depth_buffer,
-                         texture, near_plane, far_plane, std::nullopt);
+                         texture, near_plane, far_plane, std::nullopt, culling);
 }
 
 void render_mesh_textured(
     Framebuffer& fb, const Mesh& mesh, const Mat4& model,
     const Mat4& view, const Mat4& proj, const Color& tint,
     std::span<float> depth_buffer, const Framebuffer& texture,
-    f32 near_plane, f32 far_plane, std::optional<f32> alpha_cutoff)
+    f32 near_plane, f32 far_plane,    std::optional<f32> alpha_cutoff,
+    BackfaceCulling culling)
 {
     const auto& vertices = mesh.vertices();
     const auto& indices = mesh.indices();
@@ -461,8 +479,11 @@ void render_mesh_textured(
             }
             polygon.verts[corner] = {position, {}, {}, vertex.uv, {}};
         }
-        if (!valid ||
-            !clip_lit_polygon(polygon, [near_plane](const ViewVertex& v) { return -near_plane - v.z; }) ||
+        if (!valid) continue;
+        if (culling == BackfaceCulling::Enabled && triangle_is_back_facing(
+                polygon.verts[0].view_position, polygon.verts[1].view_position,
+                polygon.verts[2].view_position)) continue;
+        if (!clip_lit_polygon(polygon, [near_plane](const ViewVertex& v) { return -near_plane - v.z; }) ||
             !clip_lit_polygon(polygon, [far_plane](const ViewVertex& v) { return v.z + far_plane; }) ||
             polygon.size < 3) continue;
 
@@ -594,6 +615,9 @@ void render_mesh_filled_lit(
                 view_model * Vec4(vertices[id].position, 1.0f),
                 world_position(id), normal, vertices[id].uv, base};
         }
+        if (!source_material.double_sided && triangle_is_back_facing(
+                triangle[0].view_position, triangle[1].view_position,
+                triangle[2].view_position)) continue;
         render_clipped_lit_triangle(fb, triangle, proj, depth_buffer,
             near_plane, far_plane, light, material,
             active_rim.enabled ? &active_rim : nullptr,
@@ -604,12 +628,12 @@ void render_mesh_filled_lit(
 void render_mesh_filled(
     Framebuffer& fb, const Mesh& mesh, const Mat4& model,
     const Mat4& view, const Mat4& proj, const Color& color,
-    f32 near_plane, f32 far_plane)
+    f32 near_plane, f32 far_plane, BackfaceCulling culling)
 {
     std::vector<float> depth_buffer(
         static_cast<size_t>(fb.width()) * static_cast<size_t>(fb.height()), 0.0f);
     render_mesh_filled(fb, mesh, model, view, proj, color, depth_buffer,
-                       near_plane, far_plane);
+                       near_plane, far_plane, culling);
 }
 
 } // namespace renderer

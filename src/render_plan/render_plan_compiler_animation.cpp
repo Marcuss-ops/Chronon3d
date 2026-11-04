@@ -582,10 +582,10 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
     if (layer.start_frame) builder.from(*layer.start_frame);
     if (layer.duration_frames) builder.duration(*layer.duration_frames);
     if (layer.position_dimensions >= 2) {
-        // Render-plan geometry (Text, Shape) is authored in canvas coordinates
-        // with a top-left box origin, while LayerBuilder transforms are centred
-        // on the canvas. Convert the box origin once; motion tracks remain
-        // additive offsets from this resolved placement.
+        // Render-plan geometry (Text, Shape) is authored in absolute canvas
+        // coordinates, while LayerBuilder transforms are centred on the
+        // canvas. Convert it once; screen-space placement adds the canvas
+        // centre again when resolving framebuffer coordinates.
         if (layer.id.ends_with("__stroke")) {
             const float sw = layer.size_dimensions >= 2 ? layer.size[0] : 0.0f;
             const float sh = layer.size_dimensions >= 2 ? layer.size[1] : 0.0f;

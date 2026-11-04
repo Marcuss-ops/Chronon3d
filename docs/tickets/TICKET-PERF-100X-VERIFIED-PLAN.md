@@ -1,6 +1,6 @@
 # TICKET-PERF-100X-VERIFIED-PLAN — piano verificato per il salto di throughput overlay
 
-**Stato (2026-11-03):** OPEN — `[CODICE]` P0 implementato; `[MISURA]` i job r103/r104/r105 e il job r101-like P4 sono riusciti sul worker `host_57_129_132_133` e hanno emesso telemetria P0. `[MISURA]` P1 **non supera il gate**: tutti e tre i run hanno `evaluation_mode=compiled_program`, `timeline_eval_ms=null` e SHA overlay diversi. `[MISURA]` P4 è parziale: il percorso compilato è attribuito e `program_sample_ms` è presente, ma non sono dimostrati né il gate di attribuzione wall ≥90% né l'invarianza SHA pre/post P0. `[NOT RUN]` test C++ dello schema e confronto SHA pre/post strumentazione.
+**Stato (2026-11-03):** OPEN — `[CODICE]` P0 implementato; `[MISURA]` i job r103/r104/r105 e il job r101-like P4 sono riusciti sul worker `host_57_129_132_133` e hanno emesso telemetria P0. `[MISURA]` P1 **non supera il gate**: tutti e tre i run hanno `evaluation_mode=compiled_program`, `timeline_eval_ms=null` e SHA overlay diversi. `[MISURA]` P4 è parziale: il percorso compilato è attribuito e `program_sample_ms` è presente, ma non sono dimostrati né il gate di attribuzione wall ≥90% né l'invarianza SHA pre/post P0. `[NOT RUN]` test C++ dello schema e confronto SHA pre/post strumentazione. `[MISURA]` A14: due run r20minuti attribuiscono `prepare_join` al ramo semantico (`last_branch=semantic`, 86,9/60,0 s); il gate di ripetibilità ±10% **non passa** (−30,9%) e il contenuto è rigenerato.
 **Area:** Chronon3d render graph/timeline e telemetria CLI; confine RenderingGen/PipelineGen.
 **Owner:** maintainer del percorso overlay Chronon3d + maintainer throughput PipelineGen.
 **Dipende da:** niente per P0/P1. P2–P4 dipendono da P0/P1. P5–P7 dipendono dai gate misurati.
@@ -511,7 +511,7 @@ Scopo: elencare **tutto** ciò che oggi impedisce di arrivare al massimo guadagn
 | **A9** | `frames_over_budget = 126` su 126: **ogni** frame oltre budget, e nessun gate fallisce. | `[MISURA]` T03 | Il budget esiste, è violato al 100%, e non produce un verdetto: non è un budget. | O il budget è un gate, o è rumore da eliminare. |
 | **A10** | `identity_fallback_frames` presente in **7/24** sidecar item e 3/9 riepiloghi batch. | `[MISURA]` r102 | Un fallback non propagato è un fallback non misurato: il gate P2 «zero nei batch certificati» non è verificabile. | Propagazione completa prima di usarlo come gate. |
 | **A13** | Packed superbatch: **43,73 item/min** contro 69,45 (controllo) e 101,71 (picco), ancora nel tree come flag. | `[MISURA]` `refactored/ops/jobs/overlay_throughput_golden_100_20261022/results/superpack-20261030-r1/summary.json` (68 item / 93,307 s) e `superpack-control-20261030-r1` (70 item / 60,476 s) — verificati 2026-11-03 | **Percentuale corretta: −37% vs controllo, −57% vs picco**, non «peggiora del 43%»: 43,73 è item/min, non una percentuale. Resta una leva che peggiora e disponibile. | Se non si riprova con una spiegazione, si **elimina** il flag. |
-| **A14** | `prepare_join` da **2,000 s** a **12,302 s** tra r101 e r102 **con lo stesso SHA overlay** (`227da1b9…`); wall 46,482 → 66,736 s. | `[MISURA]` r101/r102 — **confermata 2026-11-03**: `duration_ms` 2000 → 12302, quota 4,30% → 18,43%, SHA identico ×34 in entrambi i file | Una fase che varia 6× sullo stesso payload rende non misurabile tutto ciò che sta a valle. La **causa non è attribuita** (`scene_analysis` cambia nello stesso intervallo). | Attribuire la fase prima di qualunque confronto tra run; resta fuori dai report come numero causale. |
+| **A14** | `prepare_join` da **2,000 s** a **12,302 s** tra r101 e r102 **con lo stesso SHA overlay** (`227da1b9…`); wall 46,482 → 66,736 s. | `[MISURA]` r101/r102 — **confermata 2026-11-03**: `duration_ms` 2000 → 12302, quota 4,30% → 18,43%, SHA identico ×34 in entrambi i file | Una fase che varia 6× sullo stesso payload rende non misurabile tutto ciò che sta a valle. La **causa è attribuita al ramo semantico**: due run 20 min hanno `last_branch=semantic`, `assets_ms=264/3` e `scene_analysis` 65,7/39,9 s; il residuo ~21,2/20,2 s non è ancora suddiviso. | Attribuzione fatta 2026-11-03; il gate ±10% **non passa** (`semantic_ms` −30,9%), quindi A14 resta fuori dai report come numero causale finché non c'è un replay same-content. |
 | **A15** | Run usato come base con `software_encode_frames = 126`, `video_pipe_fallback_frames = 126`, `vulkan_frames = 0`, `nvenc_frames = 0`. | `[MISURA]` T03 | Il «certified» è interamente software: i suoi tempi non sono il percorso GPU. | Dichiarare la lane nel summary e non mescolare baseline software e GPU. |
 
 ### 12.2 Cosa eliminare (non ottimizzare)
@@ -569,7 +569,7 @@ Conseguenze `[ARITMETICA]`:
 5. `graph_executed_frames == frames_total` oppure la differenza è spiegata nel sidecar.
 6. `identity_fallback_frames` è presente in **tutti** i sidecar e vale 0 nei batch certificati.
 7. `dirty_area_ratio < 1.0` su almeno un frame di un job reale, con parità pixel.
-8. A8 è chiusa il 2026-11-03 (doppio conteggio, `[MISURA]`): `graph_executed_frames` deve tornare `== frames_total` prima di usare qualunque derivata per-frame. A14 resta `[CAUSA NON ATTRIBUITA]`: i numeri sono verificati, la causa no.
+8. A8 è chiusa il 2026-11-03 (doppio conteggio, `[MISURA]`): `graph_executed_frames` deve tornare `== frames_total` prima di usare qualunque derivata per-frame. A14 è `[CAUSA ATTRIBUITA AL RAMO SEMANTICO]`: i numeri sono verificati; il gate ±10% non passa.
 
 Nessun punto si chiude con «sembra più veloce»: serve il before/after sullo stesso payload e sullo stesso SHA.
 
@@ -592,10 +592,10 @@ Ogni voce è stata riletta **sul codice e sugli artefatti locali**, non sulle ci
 | A11 | `[CORRETTO]` | float RGBA a piena risoluzione, cache key indipendente dal `dst_rect` | 8 upload = ~2,4 GB, **non 8,8 GB** |
 | A12 | `[CORRETTO]` | wiring:24, `freshRender`:218-224; `lookup.count=1`, `miss_stored:1`, `not_applicable:17` | la cache **è** interrogata: «spenta» è falso; i 65-76 s sono finestre overlay di altri run, non re-render misurato |
 | A13 | `[CORRETTO]` | 43,73 / 69,45 / 101,71 item/min su summary.json | −37% vs controllo e −57% vs picco, non «−43%» |
-| A14 | `[CONFERMATO]` | 2000 → 12302 ms, quota 4,30 → 18,43%, SHA identico ×34 | numeri solidi, **causa non attribuita** |
+| A14 | `[CONFERMATO]` | 2000 → 12302 ms, quota 4,30 → 18,43%, SHA identico ×34 | numeri solidi; **causa attribuita al ramo semantico**, ripetibilità ±10% non dimostrata |
 | A15 | `[CONFERMATO]` | 126 software, 126 fallback, 0 vulkan, 0 nvenc | — |
 
-Non resta nulla di «da verificare»: A8 è chiusa, A12 e A13 sono ricondotte ai loro artefatti. Restano **non quantificati** (non non-verificati) il costo del re-render identico (A12) e la causale di A14.
+Non resta nulla di «da verificare»: A8 è chiusa, A12 e A13 sono ricondotte ai loro artefatti. Resta **non quantificato** (non non-verificato) il costo del re-render identico (A12); la causale di A14 è attribuita, ma la ripetibilità ±10% non è dimostrata.
 
 ### 12.7 To-do per voce (chiusura verificabile)
 
@@ -679,8 +679,16 @@ Non resta nulla di «da verificare»: A8 è chiusa, A12 e A13 sono ricondotte ai
 
 **A14 — prepare_join** (owner: `TICKET-FINAL-JOB-SPEEDUP-LEVERS` L2)
 
-- [ ] attribuire la fase con telemetria dedicata, non per differenza
-- [ ] gate: due run consecutive con la stessa fase entro ±10%
+- [x] attribuire la fase con telemetria dedicata, non per differenza —
+  `[MISURA]` 2026-11-03: due run Garlasco 20 min
+  (`job_1793737130845286137_5bd2965f`, `job_1793737420046345110_e5cb94e8`)
+  hanno `last_branch=semantic`, `assets_ms=264/3`, `semantic_ms=86.943/60.049`,
+  `wall_ms=86.789/59.907`. La causa è il ramo semantico, non gli asset;
+  `scene_analysis` vale 65.745/39.862 ms.
+- [ ] gate: due run consecutive con la stessa fase entro ±10% — **NON PASSA**:
+  `semantic_ms` 86.943 → 60.049 (−30,9%) e `scene_analysis` 65.745 → 39.862
+  (−39,4%). Il contenuto è stato rigenerato; serve un replay same-content o
+  una cache del `scene_analysis` prima di dichiarare A14 chiuso.
 
 **A15 — lane dichiarata** (owner: questo ticket §8)
 
@@ -694,3 +702,72 @@ Non resta nulla di «da verificare»: A8 è chiusa, A12 e A13 sono ricondotte ai
 - `Chronon3d/docs/tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md`: perimetro dell'8,8 GB (lane video, non overlay).
 - `refactored/docs/operations/TICKET-MAX-THROUGHPUT-OVERLAY-ARCHITECTURE.md`: `cache_outcome` e percentuali packed.
 - `refactored/docs/operations/TICKET-FINAL-JOB-SPEEDUP-LEVERS-2026-11-02.md`: classe di ammissione dei frammenti L5.
+
+---
+
+## 13. Intervento 2026-11-03 — cache topologica condivisa (P4)
+
+**Fatto `[CODICE]`.** `SoftwareRenderer::render_program` costruiva un
+`runtime::RenderPipeline` temporaneo per ogni chiamata; la cache topologica
+(32 entry) era quindi per-pipeline e moriva con la chiamata. Nel job P4 le
+72 materializzazioni con 0 hit sono compatibili con tre passaggi per item
+(probe/warmup/loop) che ripartivano da una cache fredda.
+
+La cache ora vive in `SoftwareExecutionContext::topology_cache`
+(`std::shared_ptr<runtime::SceneTopologyCache>`), inizializzata dal
+`SoftwareRenderer` e condivisa da tutte le pipeline dello stesso renderer;
+resta il fallback per-pipeline quando il contesto non la porta. Il contatore
+`scene_materialize_count` continua a contare solo i miss; gli hit passano da
+`scene_materialize_cache_hit_count`.
+
+**Verifica locale `[MISURA]` (2026-11-03, render software 2 frame, piano
+`output/T16_chronon_render/scene.plan.json`, `--warmup-dummy-frame`):**
+`evaluation_mode=compiled_program`, `timeline_eval_ms=null`,
+`scene_materialize_count=1`, `scene_materialize_cache_hits=1`,
+`graph_executed_frames=2`. Prima della cache condivisa ogni chiamata
+`SoftwareRenderer::render_program` partiva da una pipeline nuova (miss).
+
+**Gate P4 — replay 2026-11-03 (job `job_1793735303280198261_6e226690`,
+payload `r101-like-p4` SHA `75e550c5…`, `SUCCEEDED`):** il conteggio scende
+da 72 a **9** batch unici (1 miss per batch) e gli hit passano da 0 a
+**1.720**; la somma `scene_materialize_ms` dei 9 batch è **2.007,764 ms**
+contro **15.418,692 ms** del P4 baseline (-87,0%). La cache condivisa è quindi
+la leva giusta e i fingerprint non sono tutti distinti: il profilo per-item di
+`SceneMaterializer` non è il passo successivo.
+
+**Ma il gate SHA non passa.** Il replay ha rigenerato contenuto diverso:
+`overlay_plan.fingerprint` `4742d7fe…` vs `49e7cb8a…` baseline; `scenes`
+canonico `04090041…` vs `6c24d27d…` (quest'ultimo coincide con il
+`scenes_sha256` del manifest); 8 overlay con SHA diverso e 16 artifact ID
+nuovi su 24. Il calo è una misura direzionale, non un A/B sullo stesso
+contenuto; `overlay_sha256` non è invariato. **P4 resta PARTIAL.**
+Prossimo passo: replay render-only con `scenes`/`overlay_plan` bloccati al
+baseline, oppure un job che non rigeneri il piano.
+
+**Garlasco 20 min — replay r20minuti 2026-11-03 (job
+`job_1793736188766904832_9fb6a467`):** stesso payload del baseline
+(`payload_equal=true`), 5 batch, **5 miss / 1.713 hit / 1.124,487 ms** contro
+**1.496 / 0 / 404.623,258 ms**; `overlay_render` 46,2 s vs 173,9 s; wall
+322,3 s vs 425,2 s (**−24,2%**). Il contenuto è stato rigenerato (`scenes`
+canonico `4e6ec2a1…` vs `def8839d…`, piano `e5496fe8…` vs `e90a11f8…`, 0
+overlay SHA uguali), quindi il −24,2% end-to-end è direzionale; la cache
+resta la leva.
+
+**A14 — `prepare_join` decomposto `[MISURA]` (2026-11-03).** Due run
+Garlasco 20 min sullo stesso payload (`r20minuti-cache-20261103.generate.json`,
+SHA `61b73145…`) hanno completato con `last_branch=semantic` in entrambi:
+`job_1793737130845286137_5bd2965f` → `prepare_join.wall_ms=86.789`,
+`semantic_ms=86.943`, `assets_ms=264`, `semantic_wait_ms=86.788`;
+`job_1793737420046345110_e5cb94e8` → `59.907`, `60.049`, `3`, `59.907`.
+`scene_analysis` è 65.745/39.862 ms; il wall del job è 240,7/147,5 s. Quindi
+il join aspetta il **ramo semantico** (VidRush join + preparazione + NLP
+localizzato), non il prefetch audio. Il gate di ripetibilità ±10% **non
+passa** (`semantic_ms` −30,9%, `scene_analysis` −39,4%) e il contenuto è
+stato rigenerato: A14 resta **CAUSA ATTRIBUITA / RIPETIBILITÀ NON
+DIMOSTRATA**. La parte residua del ramo semantico (~21,2/20,2 s) comprende
+`computeLocalizedAnnotations` e il geocode/enqueue, non ancora suddivisi.
+Prossimo passo: replay same-content o cache/parallelizzazione di
+`scene_analysis`; non ridurre il budget asset, che vale 264/3 ms.
+
+Evidenza: `docs/evidence/scene-topology-cache-20261103/` (render locale) e
+`ops/jobs/garlasco_editorial_e2e_20261030/p4-cache-20261103-*`.

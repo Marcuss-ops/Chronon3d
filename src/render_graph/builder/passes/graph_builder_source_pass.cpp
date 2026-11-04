@@ -299,7 +299,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 // per camera frame.
                 f32 resolved_opacity = 0.0f;
                 auto placement = resolve_text_run_placement(item, node, ctx, resolved_opacity);
-
                 // Canonical cache identity (TICKET-ae-cam-hash-collision
                 // Soluzione B). Tight-surface text is rasterized in a local
                 // surface owned downstream by TransformNode, so camera state

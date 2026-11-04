@@ -170,6 +170,36 @@ usato per la camera, dove i parametri sono baked per tutti i frame
   (`TICKET-STATIC-OVERLAY-DURATION-INVARIANT`, P1): questo ticket cambia *quando*
   si decide, non *cosa* è duplicabile.
 
+## Profilo 2026-11-03 — Garlasco 20 minuti: il duplicato costa l'encoder, non il timeline eval
+
+Misura su 15 sidecar `chronon3d.frame-timing.v3` delle run Garlasco r20l,
+r20k e cache 20261103 (`ops/jobs/garlasco_editorial_e2e_20261030/REPORT-2026-11-03-chronon-overlay-profile.md`,
+`chronon-overlay-profile-20261103.json`):
+
+| Run | Frame | Duplicati | Loop | Render | Overhead | Dup wall | Dup enc | Dup CPU |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| r20l | 2.540 | 73,9% | 19,65 s | 9,48 s | 51,8% | 4,72 ms | 4,87 ms | 0,00 ms |
+| r20k | 2.540 | 10,0% | 20,07 s | 14,97 s | 25,4% | 4,63 ms | 5,63 ms | 0,00 ms |
+| cache 20261103 | 1.718 | 95,5% | 16,74 s | 6,23 s | 62,8% | 6,34 ms | 6,48 ms | 0,00 ms |
+
+Nei batch ad alto riuso il frame duplicato ha `render.total_ms=0` e
+`unaccounted_cpu_ms=0`, ma `encoder_ms` 4,7–7,2 ms e `wall_duration_ms`
+praticamente uguale: il costo è encoder/writer, non la valutazione del
+timeline. Il preset misurato è `slow`, `async_depth=4`.
+
+`evaluation_mode=compiled_program`: `timeline_eval_ms` è assente per contratto.
+Il dato r49 di 42,6 ms/frame (92% del loop) appartiene a
+`compiled_composition`; non è il costo di queste run. Quindi **P1 “decide
+before evaluate” non è la leva misurata del workload Garlasco corrente**: la
+leva è la pipeline encoder/writer di B2 (preset/async depth) e, per r20k, il
+prepare/graph. P1 resta valido per il percorso `compiled_composition` e va
+riverificato su quel workload prima di implementarlo; il ticket resta APERTO.
+
+Caveat: `encoder_ms` può includere l'attesa del writer queue; la separazione
+NVENC-submit vs writer-wait richiede un A/B controllato. Per r20l i 5 batch
+sono seriali (somma 30,6 s = stage 31,0 s): la sovrapposizione vale ~20 s ma è
+scheduling RenderingGen, fuori dal motore.
+
 ## Decisione collegata
 
 [`ADR-DRAFT-DECIDE-BEFORE-EVALUATE`](ADR-DRAFT-DECIDE-BEFORE-EVALUATE.md).

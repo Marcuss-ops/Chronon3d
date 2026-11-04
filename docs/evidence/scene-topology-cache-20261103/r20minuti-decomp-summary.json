@@ -1,0 +1,62 @@
+{
+  "schema": "r20minuti-prepare-join-decomp.v1",
+  "created_at": "2026-11-03",
+  "payload": "r20minuti-cache-20261103.generate.json",
+  "payload_sha256": "61b7314523a214cf89b9215306404c99190a366a33d23cf3f6f5a41c642f8c13",
+  "content_regenerated": true,
+  "runs": [
+    {
+      "job": "job_1793737130845286137_5bd2965f",
+      "status": "SUCCEEDED",
+      "started_at": "2026-11-03T20:18:50.950113349Z",
+      "wall_ms": 240687,
+      "prepare_join": {
+        "wall_ms": 86789,
+        "semantic_ms": 86943,
+        "assets_ms": 264,
+        "semantic_wait_ms": 86788,
+        "assets_wait_ms": 109,
+        "last_branch": "semantic"
+      },
+      "stages_ms": {
+        "generate": 38002,
+        "scene_analysis": 65745,
+        "prepare_join": 86788,
+        "voiceover": 152,
+        "overlay_render": 23288,
+        "remote_final_job": 89478
+      },
+      "residual_semantic_derived_ms": 21198
+    },
+    {
+      "job": "job_1793737420046345110_e5cb94e8",
+      "status": "SUCCEEDED",
+      "started_at": "2026-11-03T20:23:40.405815673Z",
+      "wall_ms": 147500,
+      "prepare_join": {
+        "wall_ms": 59907,
+        "semantic_ms": 60049,
+        "assets_ms": 3,
+        "semantic_wait_ms": 59907,
+        "assets_wait_ms": 0,
+        "last_branch": "semantic"
+      },
+      "stages_ms": {
+        "generate": 35974,
+        "scene_analysis": 39862,
+        "prepare_join": 59907,
+        "voiceover": 141,
+        "overlay_render": 16413,
+        "remote_final_job": 32818
+      },
+      "residual_semantic_derived_ms": 20187
+    }
+  ],
+  "delta_pct": {
+    "semantic_ms": -30.9,
+    "scene_analysis": -39.4
+  },
+  "gate_10pct_pass": false,
+  "verdict": "A14_ATTRIBUTED_SEMANTIC_BRANCH_REPEATABILITY_FAILED",
+  "note": "Both runs join on the semantic branch; audio assets are negligible (264/3 ms). scene_analysis is the dominant measured component. The ~21.2/20.2 s residual includes computeLocalizedAnnotations plus geocode/enqueue and is derived by subtraction, not separately instrumented. The 10% repeatability gate fails and content was regenerated, so a same-content replay or scene_analysis cache is required before closing A14."
+}

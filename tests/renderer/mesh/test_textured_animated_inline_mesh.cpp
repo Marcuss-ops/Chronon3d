@@ -114,8 +114,12 @@ TEST_CASE("clipped textured mesh does not blend its fan diagonal twice") {
     projection[0][0] = 1.f;
     projection[1][1] = 1.f;
     projection[2][3] = -1.f;
+    // This fixture is wound towards -z on purpose: the case is about the
+    // clipped fan diagonal, not about which side of the mesh faces the camera,
+    // so backface culling is disabled to keep the geometry under test.
     renderer::render_mesh_textured(output, mesh, Mat4{1.f}, Mat4{1.f}, projection,
-                                   Color::white(), {}, texture, 1.f, 4.f);
+                                   Color::white(), {}, texture, 1.f, 4.f,
+                                   std::nullopt, renderer::BackfaceCulling::Disabled);
     // The clipped polygon's fan diagonal passes through this pixel center.
     CHECK(output.get_pixel(34, 42).a == doctest::Approx(0.5f));
 }

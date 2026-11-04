@@ -122,7 +122,7 @@ enum class CacheFamily : unsigned char {
 // LruCache is the shared primitive, not a family member.
 // CACHE_FAMILY_MEMBERS ContentCache: ConvertedFrameCache, PreparedAssetDigestCache, FrameCache, FrameValueCache, GpuAssetCache, GpuStyledGlyphCache, GpuTextRunPreparedCache, ImageCache, MeshPreparationCache, DirectYuvTextTextureCache, PreparationCache, NodeCache, TextLayoutCache, TypewriterLayoutCache, VideoFrameCache
 // CACHE_FAMILY_MEMBERS ResidencyCache: BLFontFaceCache, FreeTypeFaceCache
-// CACHE_FAMILY_MEMBERS ProgramCache: CompiledArtifactCache, CompiledGraphCache, CompiledTopologyCache, CurveCache, SceneProgramCache, TemplateProgramCache
+// CACHE_FAMILY_MEMBERS ProgramCache: CompiledArtifactCache, CompiledGraphCache, CompiledTopologyCache, CurveCache, SceneProgramCache, SceneTopologyCache, TemplateProgramCache
 
 // ── Compile-time annotation helper ──────────────────────────────────────────
 //

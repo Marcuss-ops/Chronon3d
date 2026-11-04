@@ -40,6 +40,7 @@ class RuntimeContext;
 class RenderSurfaceRegistry;
 class GpuTextRunPreparedCache;
 class GpuGlyphAtlas;
+class SceneTopologyCache;
 }
 
 /// Registry and policy lookup surface for one software execution job.
@@ -96,6 +97,11 @@ struct SoftwareExecutionContext {
     graph::RenderBackend* backend{nullptr};
     RenderCounters* counters{nullptr};
     media::MediaFrameProvider* video_decoder{nullptr};
+
+    // Engine/renderer-lifetime scene topology cache shared by every
+    // RenderPipeline built for this execution domain. Bounded (32 entries)
+    // and thread-safe; null in fixtures that do not need it.
+    std::shared_ptr<runtime::SceneTopologyCache> topology_cache;
 };
 
 } // namespace chronon3d

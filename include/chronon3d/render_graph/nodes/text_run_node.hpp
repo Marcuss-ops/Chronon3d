@@ -37,6 +37,14 @@ struct TextRunPlacement {
     Vec2 surface_origin{0.0f, 0.0f};
     Vec2 surface_size{0.0f, 0.0f};
     bool tight_surface{false};
+    // `matrix` is resolved from the layer pose of the build/refresh frame.
+    // Text nodes are cached independently, so execute() recomposes the layer
+    // part from the current sampled pose when this flag is set. Only the
+    // parentless screen-space canvas path opts in; tight, projected and local
+    // placements keep their pre-resolved basis.
+    Mat4 node_matrix{1.0f};
+    bool replace_layer_matrix{false};
+    bool canvas_centered{false};
 };
 
 class TextRunNode final : public RenderGraphNode {

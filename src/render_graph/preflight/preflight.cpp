@@ -54,6 +54,8 @@ GraphPreflightReport debug_preflight_render_graph(
     if (resolved_camera.enabled) {
         ctx.frame_input.camera_2_5d      = resolved_camera;
         ctx.frame_input.has_camera_2_5d  = true;
+        ctx.frame_input.camera.near_plane = resolved_camera.near_plane;
+        ctx.frame_input.camera.far_plane = resolved_camera.far_plane;
         ctx.frame_input.projection_ctx   = renderer::make_projection_context(ctx.frame_input.camera_2_5d, width, height);
         ctx.frame_input.projection_ctx.ready = true;
     }

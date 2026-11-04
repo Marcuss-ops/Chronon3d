@@ -1,0 +1,138 @@
+{
+  "schema": "p4-cache-replay.v1",
+  "created_at": "2026-11-03",
+  "job_id": "job_1793735303280198261_6e226690",
+  "status": "SUCCEEDED",
+  "payload": "verified-baseline-r103-r105/r101-like-p4.generate.json",
+  "payload_sha256": "75e550c5491869eafc277dc26dcd20b3b57470d7776e023569843e13bd14068e",
+  "started_at": "2026-11-03T19:48:23.619866815Z",
+  "completed_at": "2026-11-03T19:49:55.945810675Z",
+  "local_wall_ms": 92325.944,
+  "unique_batches": 9,
+  "scene_materialize_count": 9,
+  "scene_materialize_cache_hits": 1720,
+  "scene_materialize_ms": 2007.764,
+  "sum_batch_job_wall_ms": 28975.847,
+  "timeline_eval_ms": null,
+  "program_sample_ms_first_batch": 0.497,
+  "baseline": {
+    "run": "p4",
+    "local_job_id": "job_1793701186583939610_8ec8b898",
+    "local_wall_ms": 183889,
+    "scene_materialize_count": 72,
+    "scene_materialize_cache_hits": 0,
+    "scene_materialize_ms": 15418.692,
+    "overlay_sha256": "c5eab14a2f6cf28285614aa83ee524159fa1a796057443464a9919642bc94b6e"
+  },
+  "new_final_video_sha256": "fac6a82febd406c3817befe0208f515a10b52a9c7ae7dfde89075ca7f666825c",
+  "overlay_invariance": {
+    "overlay_count_old": 24,
+    "overlay_count_new": 24,
+    "same_sha": 0,
+    "diff_sha": 8,
+    "missing_new": 16,
+    "extra_new": 16,
+    "old_plan_fingerprint": "49e7cb8a498fbcf0b6193c1c14ae4ee7124d63ea19af059e670b574b8bcef435",
+    "new_plan_fingerprint": "4742d7fef4fc9e698731685e3d542d3aa34885b00e253ec09a86eeef10caa807",
+    "manifest_overlay_plan_sha256": "4d1096a550a10c6ec0c3b5f8cee09d838e3bbea221279dac5b79dde84d5724cb",
+    "old_scenes_canonical_sha256": "6c24d27da337a7f81368774b61dd62596daad90d2b7f9a8ba7364bf7f2ebfbdd",
+    "new_scenes_canonical_sha256": "040900419053368ff4846268ec0640e4c0480e6c8dad8a3e0fc54190962efaf2",
+    "manifest_scenes_sha256": "6c24d27da337a7f81368774b61dd62596daad90d2b7f9a8ba7364bf7f2ebfbdd"
+  },
+  "batches": [
+    {
+      "id": "run_40e06e96-a2af-46bd-b0cd-a2845cd3203a:item:000:batch-d4e3c74fe071b26fbf14ac47bbe99c0d0ada3843f2408638d7cb49eae959bb5d",
+      "sha256": "4973104fab3d0cb45ecd65c68f94c6c732574c5728401deb7ddbe9729c291f14",
+      "scene_materialize_count": 1,
+      "scene_materialize_cache_hits": 89,
+      "scene_materialize_ms": 253.719,
+      "job_wall_ms": 4823.452438,
+      "timeline_eval_ms": null,
+      "program_sample_ms": 0.497
+    },
+    {
+      "id": "run_40e06e96-a2af-46bd-b0cd-a2845cd3203a:item:001:batch-eaf9ae817f3631e97c59184b21725aa0ab9c752688ad7487f5b24c46ea3156b2",
+      "sha256": "384d8600cee536f542a710ad50cb560af4642ef8d014ecbe38fc41c6cccdd94b",
+      "scene_materialize_count": 1,
+      "scene_materialize_cache_hits": 353,
+      "scene_materialize_ms": 255.06,
+      "job_wall_ms": 6015.298373,
+      "timeline_eval_ms": null,
+      "program_sample_ms": 3.251
+    },
+    {
+      "id": "run_40e06e96-a2af-46bd-b0cd-a2845cd3203a:item:004:batch-e8ad578c83055dabc0c7360cf9583e0bfc5baa7127ca6fe6560d351cb957aa5c",
+      "sha256": "6b10ea24ab88fc4402c20ca2e67a19d7f6c10d1c1aaa2b11e4511e7745175153",
+      "scene_materialize_count": 1,
+      "scene_materialize_cache_hits": 264,
+      "scene_materialize_ms": 372.359,
+      "job_wall_ms": 3932.542676,
+      "timeline_eval_ms": null,
+      "program_sample_ms": 0.88
+    },
+    {
+      "id": "run_40e06e96-a2af-46bd-b0cd-a2845cd3203a:item:006:batch-0500886c7503768036bf40f501294137a8afa3bedd8c0b186f825e94a26a8c71",
+      "sha256": "bff9a11e6e1a19e038d18f66104933cfbbac0ca7f17c2f9cca1a6a353d9cf96b",
+      "scene_materialize_count": 1,
+      "scene_materialize_cache_hits": 204,
+      "scene_materialize_ms": 171.793,
+      "job_wall_ms": 2146.560474,
+      "timeline_eval_ms": null,
+      "program_sample_ms": 0.464
+    },
+    {
+      "id": "run_40e06e96-a2af-46bd-b0cd-a2845cd3203a:item:009:batch-45206f433c9e2b0dfe44e47b1c459879b5ed8d0464139be868deafd3a2bd5be0",
+      "sha256": "c6a5701440a42a7771bdd866912b8bcd4f59fca20c41ecde6ff8e77777d93e71",
+      "scene_materialize_count": 1,
+      "scene_materialize_cache_hits": 289,
+      "scene_materialize_ms": 167.905,
+      "job_wall_ms": 4179.476966,
+      "timeline_eval_ms": null,
+      "program_sample_ms": 3.973
+    },
+    {
+      "id": "run_40e06e96-a2af-46bd-b0cd-a2845cd3203a:item:012:batch-b7c13b821058d08e3ef73af4e0a9403724d5edd7e299def42109bc57078eff62",
+      "sha256": "8a54a5d1410a1d6c25e4f8d1239b07a1374b928fdd263ad2a9fed828692a056f",
+      "scene_materialize_count": 1,
+      "scene_materialize_cache_hits": 83,
+      "scene_materialize_ms": 152.55,
+      "job_wall_ms": 1697.392815,
+      "timeline_eval_ms": null,
+      "program_sample_ms": 0.201
+    },
+    {
+      "id": "run_40e06e96-a2af-46bd-b0cd-a2845cd3203a:item:013:batch-d082cf8e5e7788b9c6c0b7443aede3ce0bbebf3b6337a9ccc470a2eed51e56ea",
+      "sha256": "025f52abdf87f43afcd01f342eef1ff350ff59759ac99e1fffc783091540621c",
+      "scene_materialize_count": 1,
+      "scene_materialize_cache_hits": 183,
+      "scene_materialize_ms": 111.278,
+      "job_wall_ms": 1345.5746,
+      "timeline_eval_ms": null,
+      "program_sample_ms": 0.62
+    },
+    {
+      "id": "run_40e06e96-a2af-46bd-b0cd-a2845cd3203a:item:016:batch-a817af3e36b737cecfb964e154ddc23c0e28a6c585e86a5b44b62a0cecf303b9",
+      "sha256": "7da68c5fd62981bf4b137f0c7e4345bf1bca254b755b106943e10b5bd9396643",
+      "scene_materialize_count": 1,
+      "scene_materialize_cache_hits": 158,
+      "scene_materialize_ms": 371.11,
+      "job_wall_ms": 2100.664822,
+      "timeline_eval_ms": null,
+      "program_sample_ms": 0.822
+    },
+    {
+      "id": "run_40e06e96-a2af-46bd-b0cd-a2845cd3203a:item:018:batch-cf897a76f5f293923bc5575fea25beedb2e6fb34922cfec1ff95c4c846f9ed11",
+      "sha256": "7f09459634b5067cc3f5eb5731e0f6c58ac262ad5e4c6cd825f3b41422aa4e9b",
+      "scene_materialize_count": 1,
+      "scene_materialize_cache_hits": 97,
+      "scene_materialize_ms": 151.99,
+      "job_wall_ms": 2734.883967,
+      "timeline_eval_ms": null,
+      "program_sample_ms": 1.082
+    }
+  ],
+  "verdict": "P4_PARTIAL: cache_count_and_hits_pass; sha_invariance_fail_because_content_regenerated",
+  "note": "The replay regenerated scene/overlay content, so the 72->9 / 15418.692->2007.764 ms delta is directional, not a same-content A/B.",
+  "evaluation_mode": "compiled_program",
+  "telemetry_evaluation_mode_occurrences": 64
+}

@@ -1,0 +1,171 @@
+{
+  "schema": "r20minuti-cache-replay.v1",
+  "created_at": "2026-11-03",
+  "old_job": "job_1793702626332227395_1bef4be8",
+  "new_job": "job_1793736188766904832_9fb6a467",
+  "status_old": "SUCCEEDED",
+  "status_new": "SUCCEEDED",
+  "payload": "r20minuti-cache-20261103.generate.json",
+  "payload_sha256": "61b7314523a214cf89b9215306404c99190a366a33d23cf3f6f5a41c642f8c13",
+  "payload_equal": true,
+  "started_at": "2026-11-03T20:03:08.791909539Z",
+  "completed_at": "2026-11-03T20:08:31.110791995Z",
+  "local_wall_ms": {
+    "old": 425241.805,
+    "new": 322318.882,
+    "delta": -102922.923,
+    "pct": -24.2
+  },
+  "cache": {
+    "old": {
+      "batches": 5,
+      "count": 1496,
+      "hits": 0,
+      "ms": 404623.258,
+      "sum_batch_wall_ms": 410268.134,
+      "max_batch_wall_ms": 168575.094
+    },
+    "new": {
+      "batches": 5,
+      "count": 5,
+      "hits": 1713,
+      "ms": 1124.487,
+      "sum_batch_wall_ms": 25198.067,
+      "max_batch_wall_ms": 8074.247
+    },
+    "count_delta": -1491,
+    "hits_delta": 1713,
+    "ms_delta": -403498.771,
+    "ms_pct": -99.72
+  },
+  "stages_ms": {
+    "old": {
+      "normalize": 0,
+      "MEDIA_PREFLIGHT": 0,
+      "begin_vidrush": 1,
+      "generate": 31266,
+      "scene_analysis": 28617,
+      "prepare_join": 37835,
+      "checkpoint": 59,
+      "audio_compile": 62620,
+      "overlay_render": 173914,
+      "audio_finalize": 65,
+      "persistence": 205,
+      "remote_final_job": 168140,
+      "publish_pool_drain": 0,
+      "complete_finalize": 128,
+      "post_writer_finalize": 896
+    },
+    "new": {
+      "normalize": 1,
+      "MEDIA_PREFLIGHT": 0,
+      "begin_vidrush": 1,
+      "generate": 38057,
+      "scene_analysis": 86936,
+      "prepare_join": 108612,
+      "checkpoint": 68,
+      "audio_compile": 1133,
+      "overlay_render": 46229,
+      "audio_finalize": 60,
+      "persistence": 133,
+      "remote_final_job": 127137,
+      "publish_pool_drain": 0,
+      "complete_finalize": 170,
+      "post_writer_finalize": 1060
+    }
+  },
+  "content": {
+    "scenes_old": 7,
+    "scenes_new": 7,
+    "overlays_old": 18,
+    "overlays_new": 18,
+    "plan_fp_old": "e90a11f843db4df963879b845e6b637d1308d62b6f0d6c49c7ec832c0ae980d6",
+    "plan_fp_new": "e5496fe8f669249355e4d4f68b7d87b727aafce628ca554db4022e343f8d4eef",
+    "scenes_canon_old": "def8839d5417257a146c3ceb0551dcec16547e9aecc655fda3e839b66a91be33",
+    "scenes_canon_new": "4e6ec2a111dcded27eb891a478127dd237e4088bb3a0912d141b13ed53b40b2b",
+    "overlay_same_sha": 0,
+    "overlay_diff_sha": 4,
+    "overlay_missing_new": 14,
+    "overlay_extra_new": 14,
+    "final_video_sha_old": "eb5feabf3ebb77104dd515b037d77bd51974012fa438b4f0e722d1704952aa1f",
+    "final_video_sha_new": "67098c5254bdecee5d6e77665fda122b34a60bb1debce14ab228434715ffb8cc"
+  },
+  "batches": {
+    "old": [
+      {
+        "id": "run_d480ab76-0f33-46ff-a85c-86c78b95598b:item:000:batch-d8fe2c257d0253f5cc9764a19ec198584197a912697fbc02aed3085ba2648e7d",
+        "count": 324,
+        "hits": 0,
+        "ms": 17166.729,
+        "wall": 18244.331354
+      },
+      {
+        "id": "run_d480ab76-0f33-46ff-a85c-86c78b95598b:item:003:batch-aa0344cc5a87ae0396930c7e92ffc993e7df9818019b91414b53317becdac49b",
+        "count": 327,
+        "hits": 0,
+        "ms": 135721.737,
+        "wall": 137181.006331
+      },
+      {
+        "id": "run_d480ab76-0f33-46ff-a85c-86c78b95598b:item:005:batch-4db20c36cd84841769e2aba06929a08d6cf6a9c483e49e45579d2aad2a004ef0",
+        "count": 432,
+        "hits": 0,
+        "ms": 166930.057,
+        "wall": 168575.094126
+      },
+      {
+        "id": "run_d480ab76-0f33-46ff-a85c-86c78b95598b:item:009:batch-36495a356a8940ee2f024c42361ac9fb2d500beb135b612b818aa1430f4bd86a",
+        "count": 239,
+        "hits": 0,
+        "ms": 83673.863,
+        "wall": 84466.892566
+      },
+      {
+        "id": "run_d480ab76-0f33-46ff-a85c-86c78b95598b:item:011:batch-762323ef60ba300de111673a4b63a830e7178a2ece1b20475d7c1e869c312e1b",
+        "count": 174,
+        "hits": 0,
+        "ms": 1130.872,
+        "wall": 1800.810035
+      }
+    ],
+    "new": [
+      {
+        "id": "run_10704000-6daf-40b0-b8fe-4eb2a0a89811:item:000:batch-0cd415deeb0e2a7c646b33219a8e9bc6be68b3830c6bbdfedeae3fc553124d25",
+        "count": 1,
+        "hits": 455,
+        "ms": 20.973,
+        "wall": 6979.903141
+      },
+      {
+        "id": "run_10704000-6daf-40b0-b8fe-4eb2a0a89811:item:003:batch-a916df13f7638814258ef8ec0fae1d7589b364815f890debee4b4ace62db4d19",
+        "count": 1,
+        "hits": 326,
+        "ms": 489.633,
+        "wall": 8074.246827
+      },
+      {
+        "id": "run_10704000-6daf-40b0-b8fe-4eb2a0a89811:item:005:batch-8a80f0e10d6be798de95b137e3aa9e4d9be3f8e2165b1ec7e8c20de753072e91",
+        "count": 1,
+        "hits": 311,
+        "ms": 366.173,
+        "wall": 4024.239884
+      },
+      {
+        "id": "run_10704000-6daf-40b0-b8fe-4eb2a0a89811:item:008:batch-1eb39cf12084cf6b6f6fdcf86163a7f86cb013eacc1bea43414160a00da8eca8",
+        "count": 1,
+        "hits": 262,
+        "ms": 234.545,
+        "wall": 3092.423381
+      },
+      {
+        "id": "run_10704000-6daf-40b0-b8fe-4eb2a0a89811:item:010:batch-404061576f583af880b0bae66ae2645eb7bd9269c7a9eee73fab32e355096c91",
+        "count": 1,
+        "hits": 359,
+        "ms": 13.163,
+        "wall": 3027.254212
+      }
+    ]
+  },
+  "verdict": "CACHE_PASS_CONTENT_REGENERATED",
+  "note": "Same request but force_refresh=true regenerated scenes/overlays; cache counters are within-run measured, wall/stage deltas are directional."
+}
