@@ -41,6 +41,11 @@
 #include <cstdint>
 #include <cmath>
 #include <optional>
+#include <cstdlib>
+#include <fstream>
+#include <iomanip>
+#include <mutex>
+#include <unordered_set>
 
 // Forward-declare build_glyph_matrix in its canonical namespace so the
 // lambda (declared in text_run_stages) can call it via unqualified lookup.
@@ -243,6 +248,47 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
     const auto& shape = params.shape;
     const auto& layout = *shape.layout;
 
+    // Opt-in source geometry dump for range-highlight diagnostics. This is
+    // the actual HarfBuzz/FreeType placed layout consumed by this raster pass;
+    // it records byte cluster, advance and ink bounds without reconstructing
+    // them from the final bitmap.
+    if (const char* dump_path = std::getenv("CHRONON_TEXT_GEOMETRY_DUMP");
+        dump_path && *dump_path &&
+        (layout.source_text.find("they used $1 billion") != std::string::npos ||
+         layout.source_text.find("worth of military equipment") != std::string::npos)) {
+        static std::mutex dump_mutex;
+        static std::unordered_set<std::string> dumped_sources;
+        std::lock_guard lock(dump_mutex);
+        if (dumped_sources.insert(layout.source_text).second) {
+            std::ofstream dump(dump_path, std::ios::binary | std::ios::app);
+            if (dump) {
+                dump << "{\"source\":" << std::quoted(layout.source_text)
+                     << ",\"font_size\":" << layout.font_size << ",\"glyphs\":[";
+                for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
+                    const auto& placed = layout.placed.glyphs[i];
+                    const float line_y = i < shape.glyphs.size()
+                        ? shape.glyphs[i].layout_position.y : 0.0f;
+                    if (i) dump << ',';
+                    dump << "{\"glyph_id\":" << placed.glyph_id
+                         << ",\"cluster_id\":" << placed.cluster
+                         << ",\"byte_start\":" << placed.byte_offset
+                         << ",\"byte_length\":" << placed.byte_len
+                         << ",\"line_y\":" << line_y
+                         << ",\"advance_box\":[" << placed.x << ',' << placed.y << ','
+                         << placed.advance_x << ',' << placed.advance_y << ']'
+                         << ",\"ink_box\":[" << placed.bbox_x0 << ',' << placed.bbox_y0 << ','
+                         << placed.bbox_x1 << ',' << placed.bbox_y1 << ']';
+                    if (i < shape.glyphs.size()) {
+                        const auto& state = shape.glyphs[i];
+                        dump << ",\"highlight\":" << (state.background.a > 0.0f ? "true" : "false");
+                    }
+                    dump << '}';
+                }
+                dump << "]}\n";
+            }
+        }
+    }
+
     // ── Tier pre-classification (O(G) per side) ──────────────────────────
     s.active_tiers    = build_blur_tiers(shape.glyphs);
     s.dissolve_tiers = (shape.dissolve_layout && !shape.dissolve_glyphs.empty())
@@ -310,6 +356,7 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
         make_pattern_image(shape.paint.fill_pattern, fill_pattern_image);
         make_pattern_image(shape.paint.stroke_pattern, stroke_pattern_image);
 
+        std::vector<std::uint8_t> highlight_background_done(source_glyphs.size(), 0);
         for (std::uint32_t gi : tier_glyphs) {
             // Animated glyph state and immutable placed layout can briefly
             // differ while a text run is refreshed. Skip the orphan state
@@ -353,19 +400,69 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
             ctx.setTransform(glyph_mat);
 
 #ifdef CHRONON3D_ENABLE_TEXT
-            // Per-glyph animated background (drawn behind stroke/fill).
-            if (g.background.a > 0.0f && op_alpha > 0.0f) {
+            // A range highlight is one line rectangle derived from the same
+            // placed glyph advances as the text. Painting each ink box
+            // separately leaves visible gaps at spaces and makes words look
+            // like individual labels. Group only adjacent glyphs with the
+            // same paint and unchanged line transform; animated/transformed
+            // glyphs keep the conservative per-glyph path.
+            if (!override_color.has_value() && g.background.a > 0.0f &&
+                op_alpha > 0.0f && !highlight_background_done[gi]) {
                 const BLFont& span_font = s.span_fonts[glyph_span_indices[gi]];
                 const BLFontMetrics fm = span_font.metrics();
                 const double bg_y0 = -fm.ascent;
                 const double bg_h  = fm.ascent + fm.descent;
-                const double bg_x0 = source_placed.glyphs[gi].bbox_x0;
-                const double bg_w  = source_placed.glyphs[gi].bbox_x1 - bg_x0;
                 const double pad_x = span_font.size() * g.background_padding_em;
                 const double pad_y = span_font.size() * g.background_padding_em;
                 const double radius = span_font.size() * g.background_radius_em;
+                std::size_t group_end = gi;
+                for (std::size_t next = static_cast<std::size_t>(gi) + 1;
+                     next < source_glyphs.size() && next < source_placed.glyphs.size() &&
+                     next < glyph_span_indices.size(); ++next) {
+                    const auto& candidate = source_glyphs[next];
+                    const auto& candidate_placed = source_placed.glyphs[next];
+                    const auto& previous_placed = source_placed.glyphs[group_end];
+                    const bool same_background =
+                        std::abs(candidate.background.r - g.background.r) < 1e-5f &&
+                        std::abs(candidate.background.g - g.background.g) < 1e-5f &&
+                        std::abs(candidate.background.b - g.background.b) < 1e-5f &&
+                        std::abs(candidate.background.a - g.background.a) < 1e-5f &&
+                        std::abs(candidate.background_padding_em - g.background_padding_em) < 1e-5f &&
+                        std::abs(candidate.background_radius_em - g.background_radius_em) < 1e-5f;
+                    const bool same_line_transform =
+                        glyph_span_indices[next] == span_idx &&
+                        std::abs(candidate.layout_position.y - g.layout_position.y) < 1e-4f &&
+                        std::abs(candidate.position.y - g.position.y) < 1e-4f &&
+                        std::abs(candidate.position.x - g.position.x) < 1e-4f &&
+                        std::abs(candidate.rotation.z - g.rotation.z) < 1e-4f &&
+                        std::abs(candidate.scale.x - g.scale.x) < 1e-4f &&
+                        std::abs(candidate.scale.y - g.scale.y) < 1e-4f &&
+                        std::abs(candidate.opacity - g.opacity) < 1e-4f;
+                    const bool source_adjacent =
+                        candidate_placed.byte_offset <= previous_placed.byte_offset +
+                            previous_placed.byte_len;
+                    if (!same_background || !same_line_transform || !source_adjacent ||
+                        candidate.background.a <= 0.0f || candidate.opacity <= 0.0f)
+                        break;
+                    group_end = next;
+                }
+                // A single glyph keeps its original ink-box geometry. A
+                // contiguous selected range uses its complete shaped advance,
+                // including whitespace and kerning, as a single surface.
+                double bg_x0 = source_placed.glyphs[gi].bbox_x0;
+                double bg_w = source_placed.glyphs[gi].bbox_x1 - bg_x0;
+                if (group_end > gi) {
+                    const auto& first = source_placed.glyphs[gi];
+                    const auto& last = source_placed.glyphs[group_end];
+                    bg_x0 = 0.0;
+                    bg_w = static_cast<double>(last.x + last.advance_x - first.x);
+                    for (std::size_t mark = gi; mark <= group_end; ++mark)
+                        highlight_background_done[mark] = 1;
+                } else {
+                    highlight_background_done[gi] = 1;
+                }
                 ctx.setFillStyle(to_bl_rgba(g.background));
-                ctx.setGlobalAlpha(static_cast<double>(g.background.a * op_alpha));
+                ctx.setGlobalAlpha(static_cast<double>(g.background.a));
                 if (radius > 0.0) {
                     ctx.fillRoundRect(BLRect(bg_x0 - pad_x, bg_y0 - pad_y,
                                              bg_w + 2.0 * pad_x,
