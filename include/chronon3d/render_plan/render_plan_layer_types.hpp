@@ -131,6 +131,9 @@ struct CameraPlan {
 struct CameraSamplePlan {
     double frame{0.0};
     CameraPlan camera;
+    // A hard cut to this resolved camera sample. The interval before a cut
+    // holds the outgoing camera; interpolation resumes from the cut sample.
+    bool cut{false};
 };
 
 struct TransitionPlan {

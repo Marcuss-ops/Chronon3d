@@ -5,6 +5,7 @@
 #include <chronon3d/scene/model/camera/dof.hpp>
 
 #include <algorithm>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -50,7 +51,8 @@ inline chronon3d::Camera2_5D make_camera_value(
 // typed program sampler. Samples are validated and ordered at the boundary.
 inline chronon3d::Camera2_5D sample_resolved_camera(
     const std::vector<std::pair<double, chronon3d::Camera2_5D>>& samples,
-    double frame) {
+    double frame,
+    std::span<const double> cut_frames = {}) {
     const auto upper = std::lower_bound(samples.begin(), samples.end(), frame,
         [](const auto& sample, double value) { return sample.first < value; });
     if (upper == samples.begin()) return upper->second;
@@ -58,6 +60,8 @@ inline chronon3d::Camera2_5D sample_resolved_camera(
     if (upper->first == frame) return upper->second;
     const auto& right = upper->second;
     const auto& left = std::prev(upper)->second;
+    if (std::binary_search(cut_frames.begin(), cut_frames.end(), upper->first))
+        return left;
     const double span = upper->first - std::prev(upper)->first;
     const float t = static_cast<float>((frame - std::prev(upper)->first) / span);
     auto camera = left;

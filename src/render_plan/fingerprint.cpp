@@ -1,5 +1,6 @@
 #include "fingerprint_detail.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -15,10 +16,14 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
     CanonicalPlanWriter out{&scratch};
 
     const bool has_v40_camera_dof = plan.camera.has_value() && plan.camera->dof_enabled;
+    const bool has_v41_camera_cuts = plan.camera_samples && std::any_of(
+        plan.camera_samples->begin(), plan.camera_samples->end(),
+        [](const auto& sample) { return sample.cut; });
     const bool has_v39_fields = plan.environment_light.has_value();
     const bool has_v38_fields = plan.camera_samples.has_value() ||
                                 plan.temporal_motion_blur.has_value();
-    out.add_string(has_v40_camera_dof ? "chronon3d.render-plan.content-fingerprint.v40"
+    out.add_string(has_v41_camera_cuts ? "chronon3d.render-plan.content-fingerprint.v41"
+        : has_v40_camera_dof ? "chronon3d.render-plan.content-fingerprint.v40"
         : has_v39_fields ? "chronon3d.render-plan.content-fingerprint.v39" : has_v38_fields
         ? "chronon3d.render-plan.content-fingerprint.v38"
         : "chronon3d.render-plan.content-fingerprint.v37");
@@ -45,11 +50,12 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
     add_optional(out, plan.camera,
                  [](auto& writer, const CameraPlan& camera) { add_camera(writer, camera); });
     add_optional(out, plan.camera_samples,
-                 [](auto& writer, const std::vector<CameraSamplePlan>& samples) {
+                 [&](auto& writer, const std::vector<CameraSamplePlan>& samples) {
                      writer.add_size(samples.size());
                      for (const auto& sample : samples) {
                          writer.add_double(sample.frame);
                          add_camera(writer, sample.camera);
+                         if (has_v41_camera_cuts) writer.add_bool(sample.cut);
                      }
                  });
     add_optional(out, plan.lighting_rig, [](auto& writer, const LightingRigPlan& rig) {

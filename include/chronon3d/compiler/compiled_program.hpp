@@ -79,6 +79,8 @@ struct ProgramMetadata {
     std::optional<Camera2_5D> camera_2_5d;
     // Pre-resolved immutable camera samples, in strictly increasing frame order.
     std::vector<std::pair<double, Camera2_5D>> camera_samples;
+    // Frames whose camera sample begins a hard cut; never interpolate into it.
+    std::vector<double> camera_cut_frames;
 };
 
 struct ProgramFingerprint {

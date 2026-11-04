@@ -1223,7 +1223,7 @@ TEST_CASE("resolved camera samples carry DOF and physical optics") {
         {"dof", {{"enabled", true}, {"focus_distance", 720}, {"max_blur", 20}}}};
     source["camera_samples"] = nlohmann::json::array({
         {{"frame", 0}, {"camera", camera_sample_0}},
-        {{"frame", 1}, {"camera", camera_sample_1}}});
+        {{"frame", 1}, {"camera", camera_sample_1}, {"cut", true}}});
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     REQUIRE(decoded);
     REQUIRE(decoded->camera_samples);
@@ -1235,6 +1235,7 @@ TEST_CASE("resolved camera samples carry DOF and physical optics") {
     CHECK(decoded->camera_samples->at(1).camera.lens_shift[0] == doctest::Approx(-0.1f));
     CHECK(decoded->camera_samples->at(1).camera.lens_shift[1] == doctest::Approx(0.03f));
     CHECK(decoded->camera_samples->at(1).camera.dof_focus_distance == doctest::Approx(720.f));
+    CHECK(decoded->camera_samples->at(1).cut);
 
     // The legacy gain transport key retired together with its plan field.
     auto retired_aperture = source;
@@ -1244,6 +1245,12 @@ TEST_CASE("resolved camera samples carry DOF and physical optics") {
     auto bad_order = source;
     bad_order["camera_samples"][1]["frame"] = 0;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_order));
+    auto bad_cut = source;
+    bad_cut["camera_samples"][0]["cut"] = true;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_cut));
+    auto bad_cut_type = source;
+    bad_cut_type["camera_samples"][1]["cut"] = "hard";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_cut_type));
     auto bad_camera = source;
     bad_camera["camera_samples"][1]["camera"]["focal_length_mm"] = 400;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_camera));

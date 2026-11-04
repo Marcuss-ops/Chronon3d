@@ -156,13 +156,17 @@ Result<CompiledProgram, CompileError> Compiler::compile(
             return make_compile_error(CompileErrorCode::InvalidInput, "camera_samples",
                 "camera samples require a base camera and a non-empty bounded sequence", "render-plan-camera");
         double previous = -std::numeric_limits<double>::infinity();
-        for (const auto& sample : *plan.camera_samples) {
+        for (std::size_t i = 0; i < plan.camera_samples->size(); ++i) {
+            const auto& sample = (*plan.camera_samples)[i];
             if (const auto problem = render_plan::camera_contract_problem(sample.camera))
                 return make_compile_error(CompileErrorCode::InvalidInput, "camera_samples", *problem, "render-plan-camera");
             if (!std::isfinite(sample.frame) || sample.frame <= previous ||
                 sample.frame < -1'000'000.0 || sample.frame > 1'000'000.0)
                 return make_compile_error(CompileErrorCode::InvalidInput, "camera_samples",
                     "camera sample frames must be finite, strictly increasing, and within [-1000000, 1000000]", "render-plan-camera");
+            if (sample.cut && i == 0)
+                return make_compile_error(CompileErrorCode::InvalidInput, "camera_samples",
+                    "the first camera sample cannot be a cut because no outgoing camera exists", "render-plan-camera");
             previous = sample.frame;
         }
     }
@@ -233,11 +237,14 @@ Result<CompiledProgram, CompileError> Compiler::compile(
             *plan.camera, plan.canvas);
         if (plan.camera_samples) {
             auto& samples = data->metadata.camera_samples;
+            auto& cut_frames = data->metadata.camera_cut_frames;
             samples.reserve(plan.camera_samples->size());
+            cut_frames.reserve(plan.camera_samples->size());
             for (const auto& sample : *plan.camera_samples) {
                 auto camera = render_plan::detail::make_camera_value(sample.camera, plan.canvas);
                 camera.is_animated = plan.camera_samples->size() > 1;
                 samples.emplace_back(sample.frame, std::move(camera));
+                if (sample.cut) cut_frames.push_back(sample.frame);
             }
         }
     } else if (std::any_of(plan.layers.begin(), plan.layers.end(),
