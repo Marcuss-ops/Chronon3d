@@ -221,7 +221,7 @@ TEST_CASE("Typed program samples the same camera as the compatibility evaluator"
     last.near = 4.f;
     last.far = 5000.f;
     plan.camera = first;
-    plan.camera_samples = std::vector<CameraSamplePlan>{{0., first}, {2., last}};
+    plan.camera_samples = std::vector<CameraSamplePlan>{{0., first}, {2., last, true}};
     assets::AssetResolver resolver;
     auto compiled = compiler::compile(plan, resolver);
     REQUIRE(compiled);
@@ -229,7 +229,8 @@ TEST_CASE("Typed program samples the same camera as the compatibility evaluator"
     for (double frame : {-1., 0., 0.375, 1., 2., 3.}) {
         const auto expected = evaluator(frame);
         const auto sampled = chronon3d::render_plan::detail::sample_resolved_camera(
-            compiled->metadata().camera_samples, frame);
+            compiled->metadata().camera_samples, frame,
+            compiled->metadata().camera_cut_frames);
         CHECK(sampled.position.x == doctest::Approx(expected.position.x));
         CHECK(sampled.rotation.z == doctest::Approx(expected.rotation.z));
         CHECK(sampled.fov_deg == doctest::Approx(expected.fov_deg));
@@ -241,8 +242,21 @@ TEST_CASE("Typed program samples the same camera as the compatibility evaluator"
     auto other = compiler::compile(other_plan, resolver);
     REQUIRE(other);
     CHECK(compiled->fingerprint() != other->fingerprint());
+    auto interpolating_plan = plan;
+    interpolating_plan.camera_samples->back().cut = false;
+    auto interpolating = compiler::compile(interpolating_plan, resolver);
+    REQUIRE(interpolating);
+    CHECK(compiled->fingerprint() != interpolating->fingerprint());
+    const auto cut_evaluator = chronon3d::render_plan::detail::make_camera_evaluator(plan);
+    CHECK(cut_evaluator(1.999).position.x == doctest::Approx(first.position[0]));
+    CHECK(cut_evaluator(2.0).position.x == doctest::Approx(last.position[0]));
+    const auto mid_before = cut_evaluator(1.0).position.x;
+    (void)cut_evaluator(2.0);
+    CHECK(cut_evaluator(1.0).position.x == doctest::Approx(mid_before));
     auto invalid = plan;
     invalid.camera_samples = std::vector<CameraSamplePlan>{{1., first}, {1., last}};
+    CHECK_FALSE(compiler::compile(invalid, resolver));
+    invalid.camera_samples = std::vector<CameraSamplePlan>{{0., first, true}, {1., last}};
     CHECK_FALSE(compiler::compile(invalid, resolver));
 }
 

@@ -406,8 +406,11 @@ CameraTrackEvaluator make_camera_evaluator(const RenderPlan& plan) {
         camera.is_animated = plan.camera_samples->size() > 1;
         samples.emplace_back(sample.frame, std::move(camera));
     }
-    return [samples = std::move(samples)](double frame) {
-        return sample_resolved_camera(samples, frame);
+    std::vector<double> cut_frames;
+    for (const auto& sample : *plan.camera_samples)
+        if (sample.cut) cut_frames.push_back(sample.frame);
+    return [samples = std::move(samples), cut_frames = std::move(cut_frames)](double frame) {
+        return sample_resolved_camera(samples, frame, cut_frames);
     };
 }
 

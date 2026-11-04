@@ -150,7 +150,8 @@
       "required": ["frame", "camera"],
       "properties": {
         "frame": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
-        "camera": { "$ref": "#/$defs/camera" }
+        "camera": { "$ref": "#/$defs/camera" },
+        "cut": { "type": "boolean", "default": false }
       }
     }
   },

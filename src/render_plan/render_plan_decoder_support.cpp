@@ -277,7 +277,12 @@ std::vector<CameraSamplePlan> decode_camera_samples(const nlohmann::json& value)
         const double frame = raw.at("frame").get<double>();
         if (!std::isfinite(frame) || frame <= previous || frame < -1000000.0 || frame > 1000000.0)
             throw std::runtime_error("camera sample frames must be finite, strictly increasing, and in [-1000000, 1000000]");
-        samples.push_back(CameraSamplePlan{frame, decode_camera(raw.at("camera"))});
+        if (raw.contains("cut") && !raw.at("cut").is_boolean())
+            throw std::runtime_error("camera sample cut marker must be boolean");
+        const bool cut = raw.contains("cut") && raw.at("cut").get<bool>();
+        if (cut && samples.empty())
+            throw std::runtime_error("the first camera sample cannot be a cut because no outgoing camera exists");
+        samples.push_back(CameraSamplePlan{frame, decode_camera(raw.at("camera")), cut});
         previous = frame;
     }
     return samples;

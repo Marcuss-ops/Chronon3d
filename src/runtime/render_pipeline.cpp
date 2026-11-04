@@ -218,7 +218,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     const auto scene_at = [&](double sample_frame) -> const Scene& {
         if (!camera_scene) return *topology;
         camera_scene->set_camera_2_5d(render_plan::detail::sample_resolved_camera(
-            metadata.camera_samples, sample_frame));
+            metadata.camera_samples, sample_frame, metadata.camera_cut_frames));
         return *camera_scene;
     };
 
