@@ -237,7 +237,7 @@ Non-negotiable contracts:
 | P0-03 | CM3D/Template | Align unit/integration CI to consuming C3D versions | **PARTIAL:** local source compatibility pairing is now declared in [the Chronon 2.0 matrix](release/chronon-2.0-source-compatibility.md); CM3D adapter + 386 producer checks passed against C3D headers. Same-SHA CI receipts for CM3D and Template remain open. |
 | P0-04 | C3D/CM3D | Isolate camera yaw/pitch and `inline_mesh.animation` defect | **Local fixture PASS (2026-11-04):** camera orbit + pitch/yaw and a mixed skin/morph glTF primitive over 0–149, software + Vulkan, no empty/collapsed frame, bounded image coverage. [Evidence](../ChrononMotion3d/docs/evidence/camera-mesh-yaw-isolation-20261104/README.md). Not release certification; P0-02 same-SHA CI and P1-16 review remain open. |
 | P0-05 | C3D | Fix 2D image layer behind 3D mesh interference | **Local typed fixture PASS (2026-11-04):** image and `plane3d` software/Vulkan raw outputs match byte-for-byte after aligning Vulkan's depth epsilon with CPU. [Evidence](evidence/image-mesh-occlusion-20261103/README.md). Original showcase, strict-native video, same-SHA CI and human review remain release gates. |
-| P0-06 | C3D | Unify camera-space depth for plane, mesh, text and image | **Software matrix PASS:** one image, plane, mesh and text rendered across all 24 authoring orders with identical frame hashes (128 assertions); 2.5D text now retains camera projection. Full Vulkan 24-order matrix remains unverified. [Test](../../tests/renderer/camera/test_camera_motion.cpp) |
+| P0-06 | C3D | Unify camera-space depth for plane, mesh, text and image | **PASS local software + A4000 Vulkan:** 24/24 authored orders of one image, plane, crossing mesh and 3D text produce identical raw-frame hashes on each backend. [Evidence](evidence/p006-depth-order-vulkan-20261104.md) |
 | P0-07 | C3D | Separate alpha-test/cutout from blending; declare order and Z writes | **Local software + remote A4000 Vulkan E2E PASS:** 24 frames; binary cutout, stable opaque coverage, fractional blend against reference, two meshes/two planes and closed translucent box. Blend coverage is depth-tested but does not occlude later layers. [Evidence](evidence/p007-alpha-cutout-vulkan-20261104.md) |
 | P0-08 | C3D | Unify pixel-truth for raw/video and still/PNG | **PARTIAL:** raw→PNG conversion now maps premultiplied-linear raw RGBA to straight-alpha sRGB; a local 128×96 image+mesh+text fixture differs from still PNG at 12 pixels by at most one code value. Same-commit complete scene coverage and still-lane layer support remain open. [Evidence](evidence/p008-still-raw-parity-2026-11-04.md) |
 | P0-09 | C3D | Fix Vulkan frame leases, semaphores, descriptors and surface reuse lifetime | **Local GPU lifecycle PASS:** 100 A4000 Vulkan jobs with sync validation (0 VUID/validation errors), concurrent pair PASS, SIGINT cancellation cleans up without leaving raw output; focused ring/surface/descriptor tests pass. [Evidence](evidence/p009-vulkan-job-lifecycle-20261104.md). Same-SHA CI/release certification remains separate. |
@@ -379,9 +379,7 @@ and the scoped one-frame fixtures. It rendered through Vulkan with host raw
 readback (`gpu-hot-path-mode auto`); it did not certify strict-native NVENC.
 The measured evidence is in
 [`image-mesh-occlusion-20261103`](evidence/image-mesh-occlusion-20261103/README.md).
-The same fixture directory also records the P0-06 depth-order failure and
-post-fix pass for two 128×96 image/mesh layer orders, including raw software
-and Vulkan hashes. The final Vulkan readback pair is identical to software;
-GPU matte and native-occlusion registry tests pass on the A4000. This remains
-a minimized fixture, not strict-native video or the full Mixed 3D acceptance
-corpus, so P0-06 stays partial at release scope.
+The same fixture directory also records the earlier P0-06 depth-order failure
+and post-fix pass. The complete 24-order software/A4000 Vulkan check is recorded
+in [P0-06 evidence](evidence/p006-depth-order-vulkan-20261104.md). The wider
+Mixed 3D acceptance corpus remains a separate integration fixture.
