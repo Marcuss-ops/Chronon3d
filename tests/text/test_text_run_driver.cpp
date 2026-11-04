@@ -459,6 +459,28 @@ TEST_CASE("Hash PR10: static shape (no animated_doc) returns identical hash at a
     CHECK(h0 == h9999);
 }
 
+TEST_CASE("Hash PR10: animator-only shape is frame-variant") {
+    auto shape = make_hash_only_shape_pr10();
+
+    PositionProperty lift{AnimatedValue<Vec3>{Vec3{0.0f, 0.0f, 0.0f}}};
+    lift.value.add_keyframe(Frame{0}, Vec3{0.0f, 0.0f, 0.0f});
+    lift.value.add_keyframe(Frame{30}, Vec3{0.0f, -40.0f, 0.0f});
+    shape->animators.push_back(
+        make_global_spec("hash_word_lift", std::move(lift)));
+
+    // `animated_doc` is null: the old early return made these identical and
+    // let the node cache reuse frame 0 for the whole animation.
+    CHECK(hash_text_run_shape(*shape, Frame{0}) !=
+          hash_text_run_shape(*shape, Frame{30}));
+    CHECK(hash_text_run_shape(*shape, Frame{0}) ==
+          hash_text_run_shape(*shape, Frame{0}));
+
+    // A shape without animators stays frame-invariant (static control).
+    auto static_shape = make_hash_only_shape_pr10();
+    CHECK(hash_text_run_shape(*static_shape, Frame{0}) ==
+          hash_text_run_shape(*static_shape, Frame{30}));
+}
+
 TEST_CASE("Hash PR10: Hold/Cut boundaries produce distinct hashes") {
     auto shape = make_hash_only_shape_pr10();
     shape->animated_doc = make_hold_doc_pr10();
