@@ -3998,7 +3998,8 @@
         "required": ["frame", "camera"],
         "properties": {
           "frame": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
-          "camera": { "$ref": "chronon.render-plan.v2.schema.json#/$defs/camera" }
+          "camera": { "$ref": "chronon.render-plan.v2.schema.json#/$defs/camera" },
+          "cut": { "type": "boolean", "default": false }
         }
       }
     },

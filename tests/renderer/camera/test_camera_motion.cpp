@@ -206,6 +206,7 @@ TEST_CASE("Explicit camera samples preserve nonlinear poses at actual shutter ti
 TEST_CASE("Typed program samples the same camera as the compatibility evaluator") {
     using namespace chronon3d::render_plan;
     RenderPlan plan;
+    plan.schema = kRenderPlanSchemaV3;
     plan.job_id = "typed-camera-samples";
     plan.canvas = {.width = 96, .height = 64, .fps = FrameRate{30, 1}, .duration = Frame{3}};
     CameraPlan first;
