@@ -527,11 +527,10 @@ void append_text_layer_for_scene(
     const std::vector<std::optional<chronon3d::Vec2>>& prepared_text_bounds,
     const std::shared_ptr<chronon3d::FontEngine>& font_engine) {
     builder.kind(LayerKind::Text);
-    // The materializer is also reached by compiler paths that do not call
-    // apply_layer_primitives(), so the plan's screen_space flag must be
-    // declared here or an animated text layer falls back to the default
-    // (false) and loses the canvas-centre placement.
-    builder.screen_space(true);
+    // Text uses the screen-space canvas path by default, but an authored 2.5D
+    // text layer must retain camera projection and camera-space depth.
+    builder.enable_3d(layer.enable_3d);
+    builder.screen_space(layer.screen_space || !layer.enable_3d);
     // Text paint is authored in screen space; it is
     // not a lit 3D material. Keeping this semantic
     // contract at the layer boundary prevents the

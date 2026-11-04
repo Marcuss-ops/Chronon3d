@@ -50,13 +50,10 @@ TextRunBuilder& LayerBuilder::text_run(std::string name, PreparedText params) {
     // Keep the layer kind aligned with the primitive being registered;
     // otherwise a normal-layer canvas transform shifts glyphs off-screen.
     m_layer.kind = LayerKind::Text;
-    // Text paint is authored in screen space. Declaring it on the builder
-    // covers compiler paths that materialize a text run directly (the
-    // render-plan text compiler) instead of going through
-    // append_text_layer_for_scene/apply_layer_primitives. Without it an
-    // animated text layer keeps screen_space=false, the sampled matrix
-    // replaces the centred world matrix, and every overlay lands top-left.
-    m_layer.screen_space = true;
+    // Text paint defaults to screen space, except for authored 2.5D layers
+    // that need the shared camera projection/depth path. Preserve an explicit
+    // screen-space request already set by the caller/compiler.
+    m_layer.screen_space = m_layer.screen_space || !m_layer.uses_2_5d_projection;
 
     // Sequence V2: collect font asset reference
     if (!params.style.font.font_path.empty()) {

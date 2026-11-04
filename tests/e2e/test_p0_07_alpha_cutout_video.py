@@ -28,6 +28,7 @@ textures are generated here so the gate carries no external assets.
 Usage:
   python3 tests/e2e/test_p0_07_alpha_cutout_video.py \
       [--cli Chronon3d/build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli]
+      [--backend software|vulkan]
 """
 
 from __future__ import annotations
@@ -63,11 +64,18 @@ def generate_assets(root: Path) -> None:
 
 
 def render(cli: Path, plan: Path, assets: Path, output: Path,
-           last_frame: int = FRAMES - 1) -> None:
+           backend: str, last_frame: int = FRAMES - 1) -> None:
+    command = [str(cli), "render", "--plan", str(plan), "--assets-root", str(assets),
+               "--backend", backend, "--start-frame", "0", "--end-frame", str(last_frame),
+               "--video-sink", "raw", "--output", str(output), "-v", "error"]
+    if backend == "vulkan":
+        # Raw readback is intentional here: the fixture checks renderer output
+        # before any encoder conversion. This keeps the GPU gate usable on a
+        # Vulkan host even when that host has no NVENC/CUDA interop build.
+        command += ["--gpu-hot-path-mode", "auto", "--encoder-backend", "pipe",
+                    "--hardware", "none", "--codec", "libx264", "--pipe-pixfmt", "rgba"]
     subprocess.run(
-        [str(cli), "render", "--plan", str(plan), "--assets-root", str(assets),
-         "--backend", "software", "--start-frame", "0", "--end-frame", str(last_frame),
-         "--video-sink", "raw", "--output", str(output), "-v", "error"],
+        command,
         check=True,
     )
 
@@ -103,6 +111,7 @@ def inside(box: tuple[int, int, int, int], x: int, y: int) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cli", default="build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli")
+    parser.add_argument("--backend", choices=("software", "vulkan"), default="software")
     parser.add_argument("--keep", action="store_true", help="keep the rendered clips + probe frames")
     args = parser.parse_args()
 
@@ -120,7 +129,7 @@ def main() -> int:
         plan_path = work / "plan.json"
         plan_path.write_text(json.dumps(plan))
         raw = work / "clip.rgba"
-        render(cli, plan_path, assets, raw)
+        render(cli, plan_path, assets, raw, args.backend)
 
         # Opaque reference for the fractional mesh: same clip, opacity 1.0.
         reference = copy.deepcopy(plan)
@@ -131,7 +140,7 @@ def main() -> int:
         reference_path = work / "reference.json"
         reference_path.write_text(json.dumps(reference))
         ref_raw = work / "reference.rgba"
-        render(cli, reference_path, assets, ref_raw)
+        render(cli, reference_path, assets, ref_raw, args.backend)
 
         frames = load_frames(raw)
         ref_frames = load_frames(ref_raw)
@@ -239,7 +248,7 @@ def main() -> int:
         box_path = work / "box.json"
         box_path.write_text(json.dumps(box_plan))
         box_raw = work / "box.rgba"
-        render(cli, box_path, assets, box_raw, last_frame=0)
+        render(cli, box_path, assets, box_raw, args.backend, last_frame=0)
         box_frame = np.fromfile(box_raw, dtype=np.uint8).reshape(H, W, 4)
         box_alpha = int(box_frame[cyan_cy, cyan_cx, 3])
         print(f"closed-volume alpha at 0.5 opacity: {box_alpha}/255")
