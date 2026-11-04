@@ -7,9 +7,10 @@
 // rejected when a nearer surface was already composited at that pixel.
 //
 //   layer_depth : r = positive camera depth of this layer's covered pixels,
-//                 g >= 0 marks coverage (the shared depth-stamp encoding:
-//                 g is the blur radius for DOF stamps and the marker for
-//                 mesh stamps; a reset writes -1). Pixels without coverage
+//                 g > -1 marks coverage (the shared depth-stamp encoding:
+//                 g is the blur radius for DOF stamps; mesh stamps use g=1
+//                 for opaque/cutout occluders and g=-0.5 for blend-only
+//                 coverage). A reset writes -1. Pixels without coverage
 //                 have r <= 0 and never draw.
 //   frame_depth : the running accumulator, same encoding. r <= 0 (or g < 0)
 //                 means "nothing composited here yet".
@@ -37,8 +38,8 @@ void main() {
     vec2 layer = imageLoad(layer_depth_image, pixel).rg;
     vec2 frame = imageLoad(frame_depth_image, pixel).rg;
 
-    bool layer_present = layer.g >= 0.0 && layer.r > 0.0;
-    bool frame_present = frame.g >= 0.0 && frame.r > 0.0;
+    bool layer_present = layer.g > -1.0 && layer.r > 0.0;
+    bool frame_present = frame.g > -1.0 && frame.r > 0.0;
     float visible = 0.0;
     if (layer_present) {
         // Match build_depth_aware_top(): a later layer within the compositor
@@ -47,7 +48,9 @@ void main() {
     }
     imageStore(mask_image, pixel, vec4(0.0, 0.0, 0.0, visible));
 
-    if (params.merge != 0 && visible > 0.0) {
+    // Blend-only mesh coverage is depth-tested against prior opaque layers,
+    // but does not become an occluder for subsequent layers.
+    if (params.merge != 0 && visible > 0.0 && layer.g >= 0.0) {
         float nearest_depth = frame_present ? min(layer.r, frame.r) : layer.r;
         imageStore(frame_depth_image, pixel, vec4(nearest_depth, 1.0, 0.0, 1.0));
     }

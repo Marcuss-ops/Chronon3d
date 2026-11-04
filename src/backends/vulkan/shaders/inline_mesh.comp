@@ -120,11 +120,14 @@ void main() {
         vec4 destination = imageLoad(destination_image, pixel);
         imageStore(destination_image, pixel,
                    nearest_color + destination * (1.0 - nearest_color.a));
-        // MASK fragments that survive alpha_cutoff are opaque; BLEND
-        // fragments only contribute color and must not hide farther layers.
-        bool nearest_is_opaque = params.has_alpha_cutoff != 0 ||
-                                 nearest_color.a >= 1.0 - 1e-6;
-        if (params.write_depth != 0 && nearest_is_opaque && nearest_depth > 0.0 &&
+        // Publish coverage/depth for every contributing fragment so the
+        // camera compositor can keep its color visible. The coverage marker
+        // distinguishes opaque/cutout occluders (non-negative marker) from
+        // BLEND fragments (-0.5), which must not write occlusion depth. -1
+        // remains the compositor's no-coverage sentinel.
+        bool nearest_occludes = params.has_alpha_cutoff != 0 ||
+                                nearest_color.a >= 1.0 - 1e-6;
+        if (params.write_depth != 0 && nearest_depth > 0.0 &&
             nearest_depth < 3.402823e+38) {
             // Nearest-first, order independent: a farther fragment of the same
             // mesh never overwrites a nearer pixel already published for this
@@ -133,7 +136,9 @@ void main() {
             vec2 current = imageLoad(depth_image, pixel).rg;
             if (!(current.g > 0.0 && current.r > 0.0 && current.r <= nearest_depth)) {
                 imageStore(depth_image, pixel,
-                           vec4(nearest_depth, params.depth_marker, 0.0, 1.0));
+                           vec4(nearest_depth,
+                           nearest_occludes ? params.depth_marker : -0.5,
+                                0.0, 1.0));
             }
         }
     }
