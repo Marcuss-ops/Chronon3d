@@ -95,7 +95,7 @@ certificato.
 | P1-08 | C3D | Parità PBR software/Vulkan sul subset supportato | Golden metallo/plastica/gemma, texture base e metal-rough | **PARTIAL** |
 | P1-09 | C3D | Finalizzare shadow catcher e ombre native | Ground catcher con alpha corretto, pixel + review | **OPEN** — `TICKET-SHADOW-NATIVE-CATCHER` |
 | P1-10 | CM3D/C3D | CameraSequence/cut attivo E2E, focus/shutter subframe | Cut senza crossfade implicito, seek out-of-order, frame equivalenti | **PARTIAL** |
-| P1-11 | CM3D/C3D | Test focale/sensore/lens shift/near/far/DoF combinati | Golden numerici di proiezione e video casi limite | **PARTIAL** — F0–F5 locali |
+| P1-11 | CM3D/C3D | Test focale/sensore/lens shift/near/far/DoF combinati | Golden numerici di proiezione e video casi limite | **PARTIAL** — golden fisico numerico combinato locale (5 asserzioni, 2026-11-04); near/far animati e video limite restano aperti |
 | P1-12 | C3D | glTF 3D bounded su modelli realistici | Import supportato, esiti chiari per estensioni escluse | **PARTIAL** |
 | P1-13 | Template | FloatingNeonText + ProductPackshot | Golden 5 s, parallasse, alpha, bloom | **OPEN** |
 | P1-14 | Template | Preset misto PNG2.5D / glTF senza forzare mesh | A/B scene equivalenti + benchmark costi | **OPEN** |

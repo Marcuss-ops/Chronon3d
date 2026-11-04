@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/math/camera_projection_contract.hpp>
 #include <cmath>
 using namespace chronon3d;
 
@@ -52,4 +53,30 @@ TEST_CASE("Camera Projection logic check") {
 
         CHECK(std::abs(sp2.position.x - 960.0f) > std::abs(sp1.position.x - 960.0f));
     }
+}
+
+TEST_CASE("combined physical camera projection has a numeric lens-shift golden") {
+    Camera2_5D camera;
+    camera.enabled = true;
+    camera.position = {0.0f, 0.0f, -1000.0f};
+    camera.optics_mode = CameraOpticsMode::PhysicalLens;
+    camera.lens = LensModel{85.0f, 2.8f, 450.0f, 36.0f, 24.0f, GateFit::Fill};
+    camera.lens_shift = {0.025f, -0.01f};
+    camera.near_plane = 100.0f;
+    camera.far_plane = 1200.0f;
+    camera.dof.enabled = true;
+    camera.dof.focus_distance = 1100.0f;
+    camera.dof.max_blur = 12.0f;
+
+    const auto projected = camera_math::project_world_point(
+        camera, Vec3{110.0f, 55.0f, 100.0f}, camera_math::Viewport2D{1920.0f, 1080.0f});
+
+    // The physical gate maps the 36 mm width and 24 mm height independently
+    // to the requested viewport. Camera-space depth is 1100; lens shift is
+    // expressed as a viewport fraction.
+    CHECK(projected.visible);
+    CHECK(projected.depth == doctest::Approx(1100.0f));
+    CHECK(projected.perspective_scale == doctest::Approx(3825.0f / 1100.0f).epsilon(1e-5));
+    CHECK(projected.screen.x == doctest::Approx(1461.3334f).epsilon(1e-4));
+    CHECK(projected.screen.y == doctest::Approx(337.95f).epsilon(1e-4));
 }
