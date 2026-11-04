@@ -1,6 +1,14 @@
 # TICKET-CAMERA-DEFINITIVE-CLOSURE — Chiusura Definitiva Pipeline Camera (Chronon3d + ChrononMotion3D)
 
-- **Stato**: **PARTIAL — gate end-to-end non superato** (checkpoint 2026-11-04); **alpha-edge §8.3 b2–b3 PASS locale** (2026-11-03: DoF osservabile, tutte le soglie preregistrate verdi). C0/C1 lifecycle, C3 occlusione mesh/piano, C4 kernel DoF, C5 parità raw software/Vulkan full-frame (congelata a MAE ≤2, p99 ≤10) ed equivalenza compile/render offline vs live provider runtime sull'intera scena Optical Studio v3 sono chiusi con evidenza locale nei checkpoint sotto; non restano aperti come fix isolati. Il pair corrente ha completato localmente 150/150 frame raw RGBA8 ON/OFF con soglie ottiche preregistrate verdi; DoF ON/shutter ha anche completato 150/150 frame strict-native Vulkan/NVENC 1080p senza single-flight, decode pulito, PTS monotoni, zero intervalli neri e zero errori validation/VUID. Restano review umana (C7), CI same-SHA e gate di occlusione nativa end-to-end sul corpus completo. Le prove locali non equivalgono al PASS end-to-end della sezione 8.
+- **Stato**: chiuso (2026-11-04) — chiusura amministrativa di scope 2.0: la suite locale è verde; C7, CI same-SHA e corpus nativo completo restano BLOCKED e sono tracciati nel master. Nessun gate §8 non eseguito viene dichiarato PASS.
+
+## Chiusura amministrativa 2026-11-04
+
+- Verifica locale: `chronon3d_camera_tests` 93/93 casi (68.186 asserzioni), `chronon3d_core_tests` 1.479/1.479 (955.249), `chronon3d_render_graph_tests` 448/448 (19.576), `chronon3d_renderer_core_tests` 207/207 (72.605). Motion camera/authoring/boundary 10/10 CTest.
+- Residui non certificati: review umana C7, CI same-SHA, corpus Mixed 3D/native end-to-end, F4/F5 DoF per-layer e bokeh avanzato. Restano nel master P0-10/P1-16/P0-02 e non sono PASS.
+- Evidenza: `docs/evidence/camera-closure-audit-20261104/README.md`.
+
+- **Stato precedente (2026-11-04):** **PARTIAL — gate end-to-end non superato** (checkpoint 2026-11-04); **alpha-edge §8.3 b2–b3 PASS locale** (2026-11-03: DoF osservabile, tutte le soglie preregistrate verdi). C0/C1 lifecycle, C3 occlusione mesh/piano, C4 kernel DoF, C5 parità raw software/Vulkan full-frame (congelata a MAE ≤2, p99 ≤10) ed equivalenza compile/render offline vs live provider runtime sull'intera scena Optical Studio v3 sono chiusi con evidenza locale nei checkpoint sotto; non restano aperti come fix isolati. Il pair corrente ha completato localmente 150/150 frame raw RGBA8 ON/OFF con soglie ottiche preregistrate verdi; DoF ON/shutter ha anche completato 150/150 frame strict-native Vulkan/NVENC 1080p senza single-flight, decode pulito, PTS monotoni, zero intervalli neri e zero errori validation/VUID. Restano review umana (C7), CI same-SHA e gate di occlusione nativa end-to-end sul corpus completo. Le prove locali non equivalgono al PASS end-to-end della sezione 8.
 - **Aggiornamento 2026-11-03:** l'accettazione alpha-edge §8.3 b2–b3 è **PASS locale**
   sul contratto pre-registrato
   ([`docs/evidence/camera-alpha-edge-20261103/`](../evidence/camera-alpha-edge-20261103/README.md)).

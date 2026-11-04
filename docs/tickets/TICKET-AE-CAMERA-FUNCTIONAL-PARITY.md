@@ -1,6 +1,13 @@
 # TICKET-AE-CAMERA-FUNCTIONAL-PARITY — Camera 3D, Null, rig e DoF
 
-- **Stato:** OPEN — specifica e piano; il contratto di ammissione ottica condiviso è atterrato il 2026-10-31, la parità funzionale AE non è certificata.
+- **Stato**: chiuso (2026-11-04) — chiusura amministrativa: censimento A chiuso; B–J (reference AE, benchmark, sequencer, delivery) demandati a v2.1 / fuori perimetro 2.0. Parità AE non certificata.
+
+## Chiusura amministrativa 2026-11-04
+
+- Verifica locale: Motion camera/authoring/boundary 10/10 e suite C3D 4/4 (dettaglio in `docs/evidence/camera-closure-audit-20261104/README.md`).
+- Residui: riferimento AE indipendente, matrice B–J, benchmark e review demandati a v2.1; nessun PASS AE.
+
+- **Stato precedente (2026-11-04):** OPEN — specifica e piano; il contratto di ammissione ottica condiviso è atterrato il 2026-10-31, la parità funzionale AE non è certificata.
 - **Priorità:** P1, dopo i gate locali di [CAMERA-DEFINITIVE-CLOSURE](TICKET-CAMERA-DEFINITIVE-CLOSURE.md).
 - **Owner:** manutentore del confine ChrononMotion3D / Chronon3d; reviewer visivo da assegnare prima della certificazione.
 - **Obiettivo:** parità funzionale di un sottoinsieme dichiarato di camera After Effects, NON pixel identici, compatibilità universale AE o stessa velocità presunta.

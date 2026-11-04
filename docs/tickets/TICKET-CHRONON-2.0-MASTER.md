@@ -2,8 +2,9 @@
 
 - **Stato**: **APERTO — tracker canonico della release 2.0.** P0 locale chiuso o
   dichiarato `BLOCKED` dove dipende da runner/GPU/reviewer; P1-01/P1-02 chiusi
-  localmente e golden E2E Pareto verde localmente; P1 visivo, P2 e P3 restano
-  aperti con i gate sotto. Nessun task è
+  localmente, golden E2E Pareto verde localmente e backlog camera chiuso
+  amministrativamente il 2026-11-04; P1 visivo, P2 e P3 restano aperti con i
+  gate sotto. Nessun task è
   promosso a `PASS` senza l'evidenza indicata.
 - **Data di apertura**: 2026-11-03.
 - **Sostituisce**: la roadmap esterna "Chronon 2.0 — Master TODO" (52 task). Le
@@ -76,7 +77,7 @@ certificato.
 | P0-07 | C3D | Separare alpha-test/cutout da blending; ordine e scrittura Z dichiarati | Pixel golden su opaque, alpha-cutoff, alpha frazionario, due mesh, due piani | **PASS locale software + A4000 Vulkan** — 24 frame, cutout binario/stabile, blend frazionario, due mesh e due piani, box traslucido; marker depth separa coverage blend da occlusione. Evidenza `docs/evidence/p007-alpha-cutout-vulkan-20261104.md` |
 | P0-08 | C3D | Unificare pixel-truth raw/video vs still/PNG | Raw RGBA→PNG senza differenze salvo conversione documentata | **PARTIAL** — raw converter normalizza premultiplied-linear in straight-alpha sRGB; fixture locale immagine+mesh+testo 128×96 differisce in 12 pixel di massimo 1 LSB. Gate completo still-layer/same-commit ancora aperto. Evidenza `docs/evidence/p008-still-raw-parity-2026-11-04.md` |
 | P0-09 | C3D | Bonificare lifetime Vulkan: lease, semafori, descriptor, superfici | 100 job consecutivi, cancel, reset, teardown, zero validation error | **PASS locale A4000** — 100 job consecutivi con validation/sync validation, 0 VUID/errori; due job concorrenti PASS; SIGINT cancella e rilascia output parziale; submission/upload ring, surface materializer, descriptor arena PASS. Evidenza `docs/evidence/p009-vulkan-job-lifecycle-20261104.md`; CI stessa SHA separata |
-| P0-10 | C3D | Completare C6 DoF 150f e C7 review/same-SHA | Ticket camera aggiornato e gate realmente PASS | **PARTIAL** — C6 PASS locale (`c06-current-20261103`); C7 `BLOCKED` (reviewer/CI) |
+| P0-10 | C3D | Completare C6 DoF 150f e C7 review/same-SHA | Ticket camera aggiornato e gate realmente PASS | **PARTIAL** — C6 PASS locale (`c06-current-20261103`); C7 `BLOCKED` (reviewer/CI). Le schede camera sono chiuse amministrativamente il 2026-11-04; C7 resta nel master. |
 | P0-11 | C3D/CM3D | Unico placement immutabile dal campione camera/layer | Identità matrici e bounds in build/refresh/render; no double transform | **PASS locale** — resolver, predicted/executed bounds, diagnostica e cold/warm camera: 11 casi / 119 asserzioni; `docs/evidence/p011-placement-resolver-20261104.md` |
 | P0-12 | C3D | Crash/UAF, memory budget, fail-closed su job concorrenti | Sanitizer CPU, stress GPU, zero crash, metriche lifecycle | **PARTIAL** — `FrameArena` ASan/UBSan 10.000 cicli e overflow bounded PASS; stress Vulkan A4000 riferito a P0-09. Sanitizer runtime completo e budget/admission CPU/VRAM aperti. `docs/evidence/p012-memory-lifecycle-20261104.md` |
 | P0-13 | C3D | Video native Vulkan/NVENC senza black frame o fallback non dichiarato | MP4 decode, timestamp monotoni, 150/150f, zero validation | **PASS locale** — C06 150/150, 0 neri, 0 validation error |
@@ -224,9 +225,14 @@ esplicitamente. I task non bloccanti vanno in `v2.1`.
 | P0-04/06/09 test C3D | `chronon3d_camera_tests`; `chronon3d_render_graph_tests -tc=PR2-RG-DoF*`; `-tc=*lifetime*` | **PASS** — 89/89 casi (67 718 asserzioni), 16/16 (979), 6/6 (28) | `/tmp/build-tests.log`, output in sessione |
 | P0-07 video E2E | `python3 tests/e2e/test_p0_07_alpha_cutout_video.py --cli <cli>` | **PASS** — 24 frame, cutout binario (0 → 32 220 px), alpha frazionario 0.5, due piani con ordine Z, box chiuso 128/255 | `docs/evidence/chronon-2.0-local-20261103/P0-07-alpha-cutout-video-e2e.md` |
 | Golden E2E Pareto (testo/2.5D/mesh) | `ctest --test-dir build/chronon/linux-video-release -R '^chronon3d_golden_e2e_tests$'` | **PASS locale** — 3 scene, 36 frame 480×270, doppio render bit-identico, 36/36 hash SHA-256; fail-closed verificato: hash alterato → exit 1, ripristino → exit 0 | `docs/evidence/golden-e2e-20261104/README.md`; manifest `tests/e2e/golden/goldens.v1.json` |
+| Audit camera e chiusura backlog | `ctest -R '^(chronon3d_(camera|core|render_graph|renderer_core)_tests)$'` + CTest Motion | **PASS locale** — C3D 4/4 suite, 2.227 casi / 1.115.616 asserzioni; Motion camera/authoring/boundary 10/10. Quattro schede camera chiuse amministrativamente; residui C7/CI/AE/S2-S5/DoF avanzato restano BLOCKED | `docs/evidence/camera-closure-audit-20261104/README.md` |
 | Backface culling software | `chronon3d_renderer_core_tests` + variante `box` nel gate P0-07 | **PASS** — 206/206 casi, 74 294 asserzioni; box traslucido 191→128/255 | `/tmp/renderer-tests2.log` |
 | Chiusura sessione | `docs/evidence/chronon-2.0-local-20261103/REPORT.md` | report PASS / BLOCKED / NOT RUN | stesso percorso |
 | Baseline | `docs/evidence/chronon-2.0-baseline-20261103/README.md` | SHA, toolchain, RAM guard | stesso percorso |
+
+Le quattro schede camera sono chiuse amministrativamente il 2026-11-04. I
+residui non certificati restano nei task P0-10 (C7), P1-10/P1-11 (parità AE,
+sequencer, DoF avanzato) e P1-16 (review umana), e non sono `PASS`.
 
 Regola: `NOT RUN` e `BLOCKED` restano tali; il PASS locale non è una
 certificazione same-SHA.

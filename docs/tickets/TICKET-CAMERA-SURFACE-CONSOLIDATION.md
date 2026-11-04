@@ -1,6 +1,13 @@
 # TICKET-CAMERA-SURFACE-CONSOLIDATION — Snellimento della superficie camera (CM3D ↔ C3D)
 
-- **Stato:** OPEN — censimento e piano. **Nessun cambio di contratto:** le zone CLOSED
+- **Stato**: chiuso (2026-11-04) — chiusura amministrativa: S0/S1/S3/S4/S6 chiusi; S2 (13→≤6 header) e S5 equivalenza demandati a v2.1. Nessun cambio di contratto.
+
+## Chiusura amministrativa 2026-11-04
+
+- Verifica locale: suite C3D 4/4 e Motion camera/authoring/boundary 10/10 (dettaglio in `docs/evidence/camera-closure-audit-20261104/README.md`).
+- Residui: collasso applier 13→≤6 e confronto lowering-per-lowering S5 demandati a v2.1; non sono PASS.
+
+- **Stato precedente (2026-11-04):** OPEN — censimento e piano. **Nessun cambio di contratto:** le zone CLOSED
   C1–C7 di [`chrononmotion/docs/BOUNDARY_C3D.md`](../../../../ChrononMotion3D/docs/BOUNDARY_C3D.md)
   e i gate pinned (proiezione < 0.02 px, bake roundtrip bit-deterministico, gate schema
   camera-field) restano intatti. Questo ticket riorganizza le *superfici di authoring e
