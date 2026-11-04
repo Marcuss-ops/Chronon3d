@@ -2,7 +2,8 @@
 
 - **Stato**: **APERTO — tracker canonico della release 2.0.** P0 locale chiuso o
   dichiarato `BLOCKED` dove dipende da runner/GPU/reviewer; P1-01/P1-02 chiusi
-  localmente; P1 visivo, P2 e P3 restano aperti con i gate sotto. Nessun task è
+  localmente e golden E2E Pareto verde localmente; P1 visivo, P2 e P3 restano
+  aperti con i gate sotto. Nessun task è
   promosso a `PASS` senza l'evidenza indicata.
 - **Data di apertura**: 2026-11-03.
 - **Sostituisce**: la roadmap esterna "Chronon 2.0 — Master TODO" (52 task). Le
@@ -85,7 +86,7 @@ certificato.
 
 | ID | Repo | Azione atomica | Gate / evidenza | Stato |
 |---|---|---|---|---|
-| P1-01 | Template/C3D | Sostituire `estimateWidth` dei preset editoriali col layout shaped canonico | Highlight ON/OFF conserva le posizioni di tutti i glifi | **PASS locale** — `measuredWidth` (HarfBuzz, stesso shaper del renderer) in `WebHeadlineHighlightPack` e `WebPageHighlightPack`, tabella deterministica solo come fallback; `chronontemplate_web_headline_highlight_pack_test` **199 check, 0 failures** (2026-11-03) |
+| P1-01 | Template/C3D | Sostituire `estimateWidth` dei preset editoriali col layout shaped canonico | Highlight ON/OFF conserva le posizioni di tutti i glifi | **PASS locale (2026-11-04)** — `measuredTextWidth` (HarfBuzz, stesso shaper del renderer) in `WebHeadlineHighlightPack`, `WebPageHighlightPack`, `ChartsPack`, `WordLensPack` e `emit_web_article_fold`; tabella deterministica solo come fallback dichiarato. L'invariante highlight ON/OFF confronta ogni glifo (x, advance, cluster) e ogni riga prima/dopo lo span. Test verdi: `web_headline_highlight_pack`, `web_page_highlight_pack`, `web_text_layout`, `charts_pack`, `word_lens_pack`. Corretto anche il marker Highlight3D che aveva perso l'argomento `duration`: l'array delle track finiva in `durationFrames` e ogni piano H3D falliva con `get<int>` su array. |
 | P1-02 | Template/C3D | Range geometry per span con cluster, line-break, bidi, UTF-8, advance, baseline | Highlight a una banda per riga; nessuna parola incollata, nessun rilayout | **PASS locale** — banda per riga da advance misurati (`marker tracks the HarfBuzz advance width`, `stepped highlight blocks`); `chronontemplate_web_page_highlight_pack_test` exit 0 |
 | P1-03 | Template | Completare ArticleHighlighter, DarkQuote, ArticleSpotlight, EvidenceCard | Quattro golden 1080p fedeli, review visiva | **PARTIAL** — preset presenti; review umana mancante |
 | P1-04 | C3D | Shadow testo come silhouette dell'intero run | Niente clip/glow troncato o ombre moltiplicate | **OPEN** — `TICKET-TEXT-QUALITY-V2` P1-3 |
@@ -209,7 +210,7 @@ esplicitamente. I task non bloccanti vanno in `v2.1`.
 | Still vs raw | `tools/raw_frame_to_png.py` | Vedi §12 |
 | Template text layout | build + `ctest` del target web | Vedi §12 |
 
-## 12. Esito verificato (2026-11-03)
+## 12. Esito verificato (2026-11-03 / 2026-11-04)
 
 | Verifica | Comando | Esito | Evidenza |
 |---|---|---|---|
@@ -218,9 +219,11 @@ esplicitamente. I task non bloccanti vanno in `v2.1`.
 | P0-04 causa | dump view/projection/NDC | vertici corretti, NDC identici; il clip far-plane (`far=1000`) taglia la mesh a z<−1000 | stessa evidenza |
 | P0-04 fix | `Camera2_5D::near_plane/far_plane` dal `CameraPlan` → `frame_input.camera`; render 60 frame | **PASS locale** — copertura 20 100–20 254 px su tutti i 60 frame (f40: 276 → 20 247 px; f59: 0 → 20 249 px) | stessa evidenza |
 | P1-01/P1-02 | `chronontemplate_web_headline_highlight_pack_test` | **199 check, 0 failures**; `chronontemplate_web_page_highlight_pack_test` exit 0 | `/tmp/tpl-build2.log` e output test |
+| P1-01 consumer residui | build `dev-fast` `-j8` + `ctest -R 'chronontemplate_(charts_pack|word_lens_pack|web_text_layout|web_headline_highlight_pack|web_page_highlight_pack)_test'` + emitter web-page | **PASS** — `BUILD_EXIT=0`, **5/5 test**, emitter **6/6 piani**, article-fold **Δ +55,5 px** vs vecchia stima; RAM 19 GiB prima della build, nessun OOM | `/tmp/tpl-pareto-build2.log` |
 | P0-08 | `python3 tools/raw_frame_to_png.py --self-test`; estrazione frame 40 dal raw del repro | **PASS** — self-test `PNG round-trip byte-faithful`; frame 40 estratto 1056×588, 20 247 px mesh (identico al conteggio sul raw) | output in sessione |
 | P0-04/06/09 test C3D | `chronon3d_camera_tests`; `chronon3d_render_graph_tests -tc=PR2-RG-DoF*`; `-tc=*lifetime*` | **PASS** — 89/89 casi (67 718 asserzioni), 16/16 (979), 6/6 (28) | `/tmp/build-tests.log`, output in sessione |
 | P0-07 video E2E | `python3 tests/e2e/test_p0_07_alpha_cutout_video.py --cli <cli>` | **PASS** — 24 frame, cutout binario (0 → 32 220 px), alpha frazionario 0.5, due piani con ordine Z, box chiuso 128/255 | `docs/evidence/chronon-2.0-local-20261103/P0-07-alpha-cutout-video-e2e.md` |
+| Golden E2E Pareto (testo/2.5D/mesh) | `ctest --test-dir build/chronon/linux-video-release -R '^chronon3d_golden_e2e_tests$'` | **PASS locale** — 3 scene, 36 frame 480×270, doppio render bit-identico, 36/36 hash SHA-256; fail-closed verificato: hash alterato → exit 1, ripristino → exit 0 | `docs/evidence/golden-e2e-20261104/README.md`; manifest `tests/e2e/golden/goldens.v1.json` |
 | Backface culling software | `chronon3d_renderer_core_tests` + variante `box` nel gate P0-07 | **PASS** — 206/206 casi, 74 294 asserzioni; box traslucido 191→128/255 | `/tmp/renderer-tests2.log` |
 | Chiusura sessione | `docs/evidence/chronon-2.0-local-20261103/REPORT.md` | report PASS / BLOCKED / NOT RUN | stesso percorso |
 | Baseline | `docs/evidence/chronon-2.0-baseline-20261103/README.md` | SHA, toolchain, RAM guard | stesso percorso |
