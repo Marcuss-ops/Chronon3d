@@ -120,7 +120,11 @@ void main() {
         vec4 destination = imageLoad(destination_image, pixel);
         imageStore(destination_image, pixel,
                    nearest_color + destination * (1.0 - nearest_color.a));
-        if (params.write_depth != 0 && nearest_depth > 0.0 &&
+        // MASK fragments that survive alpha_cutoff are opaque; BLEND
+        // fragments only contribute color and must not hide farther layers.
+        bool nearest_is_opaque = params.has_alpha_cutoff != 0 ||
+                                 nearest_color.a >= 1.0 - 1e-6;
+        if (params.write_depth != 0 && nearest_is_opaque && nearest_depth > 0.0 &&
             nearest_depth < 3.402823e+38) {
             // Nearest-first, order independent: a farther fragment of the same
             // mesh never overwrites a nearer pixel already published for this

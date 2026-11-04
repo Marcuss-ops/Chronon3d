@@ -346,7 +346,13 @@ void render_clipped_lit_triangle(
                 }
                 if (src.a <= 0.0f || !std::isfinite(src.r) || !std::isfinite(src.g) ||
                     !std::isfinite(src.b) || !std::isfinite(src.a)) continue;
-                if (use_depth) depth_buffer[depth_index] = depth;
+                // Alpha-mask fragments are opaque after passing the cutoff;
+                // ordinary fractional-alpha fragments blend but do not
+                // occlude later camera-space layers.
+                if (use_depth && (source_material.alpha_cutoff.has_value() ||
+                                  src.a >= 1.0f - 1e-6f)) {
+                    depth_buffer[depth_index] = depth;
+                }
                 Color& dst = row[x];
                 const float inverse_alpha = 1.0f - src.a;
                 dst.r = src.r + dst.r * inverse_alpha;
@@ -543,7 +549,12 @@ void render_mesh_textured(
                     const Color src{texel.r * tint.r * tint.a, texel.g * tint.g * tint.a,
                                     texel.b * tint.b * tint.a, alpha};
                     if (src.a <= 1e-6f) continue;
-                    if (use_depth) depth_buffer[depth_index] = depth;
+                    // Cutout pixels that passed the cutoff are opaque and
+                    // write depth. Fractional-alpha pixels remain blend-only.
+                    if (use_depth && (alpha_cutoff.has_value() ||
+                                      src.a >= 1.0f - 1e-6f)) {
+                        depth_buffer[depth_index] = depth;
+                    }
                     Color& dst = row[x];
                     const float inverse_alpha = 1.0f - src.a;
                     dst.r = src.r + dst.r * inverse_alpha;

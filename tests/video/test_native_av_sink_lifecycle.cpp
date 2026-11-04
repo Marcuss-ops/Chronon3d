@@ -89,7 +89,11 @@ TEST_CASE("NativeAvSink RGB conversion pixels agree with emitted BT709 metadata"
     config.stream.submitted_format = PixelFormat::RGB24;
     config.encoder.codec = VideoCodec::H264;
     config.encoder.encoded_pixel_format = PixelFormat::YUV420P;
-    config.encoder.crf = 0;
+    // CRF 0 requires x264's High 4:4:4 profile, while the default encoder
+    // contract selects High 4:2:0. Keep this fixture compatible with the
+    // configured pixel format; the test validates BT.709 metadata and decoded
+    // channel values, not lossless coding.
+    config.encoder.crf = 1;
     config.output.container = VideoContainer::Mp4;
     config.output.output_path = path;
     config.output.overwrite = true;
