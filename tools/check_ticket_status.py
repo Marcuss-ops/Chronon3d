@@ -24,6 +24,8 @@ CMAKE_TESTS = ROOT / "tests"
 
 STATUS_RE = re.compile(r"^\s*(?:\*\*)?(?:Stato|Status)(?:\*\*)?\s*:?\s*(.*)$", re.IGNORECASE)
 BULLET_STATUS_RE = re.compile(r"^\s*[-*]\s+(?:\*\*)?(?:Stato|Status)(?:\*\*)?\s*:\s*(.*)$", re.IGNORECASE)
+TABLE_STATUS_RE = re.compile(r"^\s*\|\s*\*{0,2}(?:Stato|Status)\*{0,2}\s*\|\s*(.+?)\s*\|", re.IGNORECASE)
+HEADING_STATUS_RE = re.compile(r"^#{1,6}\s*(Stato|Status)\s*$", re.IGNORECASE)
 TARGET_RE = re.compile(r"`(chronon3d_[a-z0-9_]+_tests)`")
 REGISTERED_RE = re.compile(r"NAME\s+(chronon3d_[a-z0-9_]+_tests)")
 
@@ -38,9 +40,20 @@ def registered_targets() -> set[str]:
 
 
 def declared_status(text: str) -> str:
-    """Read the sheet-level status from the first lines, including bullets."""
-    for line in text.splitlines()[:15]:
-        match = STATUS_RE.match(line) or BULLET_STATUS_RE.match(line)
+    """Read the sheet-level status from the first lines, including bullets
+    and the ``## Stato`` heading followed by its value."""
+    lines = text.splitlines()[:15]
+    for index, line in enumerate(lines):
+        if HEADING_STATUS_RE.match(line):
+            for following in lines[index + 1 : index + 4]:
+                if following.strip():
+                    return following
+            return ""
+        match = (
+            STATUS_RE.match(line)
+            or BULLET_STATUS_RE.match(line)
+            or TABLE_STATUS_RE.match(line)
+        )
         if match:
             return match.group(1)
     return ""
@@ -81,7 +94,7 @@ def main() -> int:
         for line in stale:
             print("  " + line)
         return 1
-    print("no stale DONE claims")
+    print("no stale CLOSED/DONE claims")
     return 0
 
 

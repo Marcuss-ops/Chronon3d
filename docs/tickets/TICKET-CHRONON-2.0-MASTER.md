@@ -42,7 +42,7 @@ certificato.
 
 | Voce | Valore al 2026-11-03 |
 |---|---|
-| Chronon3d | `a180b6fc6` (`test(camera): lock the shared camera contract frontier`), working tree dirty: `docs/tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md`, `src/render_plan/render_plan_compiler_animation.cpp`, `tools/raw_frame_to_png.py` |
+| Chronon3d | `a180b6fc6` (`test(camera): lock the shared camera contract frontier`), working tree dirty: `docs/tickets/archive/TICKET-CAMERA-DEFINITIVE-CLOSURE.md`, `src/render_plan/render_plan_compiler_animation.cpp`, `tools/raw_frame_to_png.py` |
 | ChrononMotion3D | `ffa81ba` (`docs(camera): publish the Motion to RenderPlan contract`) |
 | ChrononTemplate | `d0df684` (`fix(camera): resolve runtime template layer samples`), working tree dirty (text layout, camera packs, backgrounds) |
 | Host | Linux, 24 core, 29 GiB RAM + 4 GiB swap, RTX A4000 |
