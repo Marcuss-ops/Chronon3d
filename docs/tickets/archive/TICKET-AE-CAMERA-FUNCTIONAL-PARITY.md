@@ -85,7 +85,7 @@ copre la matrice funzionale dichiarata; non equivale a supporto AE certificato.
 | Preview/export tipizzato | piano tipizzato → preparazione CLI | FullGraph, DirectYUV e GOP consumano `CompiledProgram` direttamente | `PARTIAL`: export diretto implementato; parità raw/shutter, GOP e reference AE ancora da certificare |
 
 La fonte file-by-file per gli header e gli include consumer rimane il
-[censimento superficie camera](../evidence/camera-surface-consolidation/README.md);
+[censimento superficie camera](../../evidence/camera-surface-consolidation/README.md);
 questa tabella completa il collegamento ai confini wire e ai gate funzionali.
 Non è stato usato un progetto/reference After Effects: il punto B resta aperto e
 nessuna riga `PARTIAL` viene rinominata “parità AE”.

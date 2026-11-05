@@ -30,7 +30,7 @@ differenza al sorgente DoF di produzione è solo commento. Nessuna compilazione
 è stata fatta in questa verifica. I test confermano i casi software CoC/ROI,
 near/far, foreground spill/halo, alpha e occlusione 2.5D; non confrontano la
 stessa fixture integrata con Vulkan strict-native. Tracce e digest sono in
-[`p2-gpu-vulkan-2026-11-02.md`](../evidence/p2-gpu-vulkan-2026-11-02.md).
+[`p2-gpu-vulkan-2026-11-02.md`](../../evidence/p2-gpu-vulkan-2026-11-02.md).
 
 **Allineamento producer/contract in corso:** la review ha trovato che Motion
 `applyFocusSequence` rifiutava ogni `highlightGain` nonzero benché i kernel e il
@@ -53,7 +53,7 @@ test Vulkan del disco bokeh contro l'oracolo CPU (1.169/1.169; delta massimo
 `1.34576e-07`, soglia `1e-3`). L'evidenza usa il binario locale Vulkan-enabled
 con runtime glibc 2.39 temporaneo sul server Ubuntu 22.04; deriva da un build
 tree dirty e non è certificazione clean-SHA. Dettagli:
-[`p2-gpu-vulkan-2026-11-02.md`](../evidence/p2-gpu-vulkan-2026-11-02.md).
+[`p2-gpu-vulkan-2026-11-02.md`](../../evidence/p2-gpu-vulkan-2026-11-02.md).
 Questi due probe non coprono i gate completi sottostanti.
 
 - [ ] Fixture sintetica a più piani di profondità: ROI di nitidezza sul piano focale e crescita del CoC vicino/lontano, con soglie registrate prima dei fix.
