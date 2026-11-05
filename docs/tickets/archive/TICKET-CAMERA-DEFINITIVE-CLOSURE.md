@@ -684,7 +684,7 @@ sviluppo CUDA sull'host locale), quindi eseguito sull'A4000 con validation
 layer. Il test inline mesh alpha-cutoff/source-over passa 23/23 asserzioni,
 matte alpha/luma 25/25 e occlusione mesh/piano 75/75. Binary SHA
 `58561e356cd0a9e58dea1814f1795dc5712261695e25c2d5959f896637ce4fb6`; log in
-[evidence](../../evidence/image-mesh-occlusion-20261103/p007-alpha-depth-tests-20261104.log).
+[evidence](../../evidence/image-mesh-occlusion-20261103/README.md).
 
 P0-07 resta **PARTIAL**: manca ancora la matrice golden esplicita per opaque,
 cutoff e alpha frazionario con due mesh e due piani, inclusi ordine e scrittura
@@ -699,9 +699,11 @@ prima del compute 50/50 e ordinamento di tre upload ticket 14/14. Totale cinque
 casi e 181 asserzioni. In aggiunta, il test di 100 cicli sullo stesso
 surface handle (create/upload async/wait/readback/compare/release) passa
 702/702 asserzioni sullo stesso A4000 con validation. Log in [evidence 100
-cicli](../../evidence/image-mesh-occlusion-20261103/p009-100-cycles-20261104.log),
-[evidence lifecycle](../../evidence/image-mesh-occlusion-20261103/p009-lifecycle-tests-20261104.log)
-e [evidence upload async](../../evidence/image-mesh-occlusion-20261103/p009-async-tests-20261104.log).
+cicli](../../evidence/image-mesh-occlusion-20261103/README.md),
+[evidence lifecycle](../../evidence/image-mesh-occlusion-20261103/README.md)
+e [evidence upload async](../../evidence/image-mesh-occlusion-20261103/README.md). I file
+`.log` citati sono artefatti locali ignorati da git: i link puntano al README
+della evidence.
 Questo è un sub-gate, non chiusura: 100 job completi, cancel/reset/teardown,
 contatori di risorsa e gate CI same-SHA restano da eseguire. P0-09 resta
 **PARTIAL**.
@@ -720,8 +722,8 @@ segnala intervalli neri; zero match `Vulkan Validation ERROR`, `Validation
 Error` e `VUID-`. Questo è PASS locale del run strict-native P0-13 e del
 sub-gate C6 video. Report, video, log e sidecar con hash:
 [`c6-v3-native-verification.json`](../../evidence/camera-closure-final/c6-v3-native-verification.json),
-[`c6-v3-native.mp4`](../../evidence/camera-closure-final/c6-v3-native.mp4),
-[`c6-v3-native.log`](../../evidence/camera-closure-final/c6-v3-native.log),
+`c6-v3-native.mp4` (artefatto locale, non committato),
+`c6-v3-native.log` (artefatto locale, non committato),
 [`c6-v3-native-timing.json`](../../evidence/camera-closure-final/c6-v3-native-timing.json).
 
 Il raw ON/OFF del pair corrente e le metriche ottiche congelate sono registrati

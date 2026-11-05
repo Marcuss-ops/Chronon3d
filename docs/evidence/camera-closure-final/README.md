@@ -225,7 +225,7 @@ There are zero `Vulkan Validation ERROR`, `Validation Error`, or `VUID-`
 matches in the run log. Video SHA-256 is
 `1c6e43b19c00bbf175b2204341ef6f71de2186ac4f10d8a1e11c92fa5d00cc83`.
 See the [native verification report](c6-v3-native-verification.json),
-[video](c6-v3-native.mp4), [timing sidecar](c6-v3-native-timing.json), and
-[run log](c6-v3-native.log). This closes the local strict-native C6/P0-13
+video `c6-v3-native.mp4` (local, uncommitted), [timing sidecar](c6-v3-native-timing.json), and
+run log `c6-v3-native.log` (local, uncommitted). This closes the local strict-native C6/P0-13
 run subgate, not the overall ticket: C7 human review and same-SHA CI remain
 open.
