@@ -11,7 +11,7 @@
 - **Stato precedente (2026-11-04):** **PARTIAL — gate end-to-end non superato** (checkpoint 2026-11-04); **alpha-edge §8.3 b2–b3 PASS locale** (2026-11-03: DoF osservabile, tutte le soglie preregistrate verdi). C0/C1 lifecycle, C3 occlusione mesh/piano, C4 kernel DoF, C5 parità raw software/Vulkan full-frame (congelata a MAE ≤2, p99 ≤10) ed equivalenza compile/render offline vs live provider runtime sull'intera scena Optical Studio v3 sono chiusi con evidenza locale nei checkpoint sotto; non restano aperti come fix isolati. Il pair corrente ha completato localmente 150/150 frame raw RGBA8 ON/OFF con soglie ottiche preregistrate verdi; DoF ON/shutter ha anche completato 150/150 frame strict-native Vulkan/NVENC 1080p senza single-flight, decode pulito, PTS monotoni, zero intervalli neri e zero errori validation/VUID. Restano review umana (C7), CI same-SHA e gate di occlusione nativa end-to-end sul corpus completo. Le prove locali non equivalgono al PASS end-to-end della sezione 8.
 - **Aggiornamento 2026-11-03:** l'accettazione alpha-edge §8.3 b2–b3 è **PASS locale**
   sul contratto pre-registrato
-  ([`docs/evidence/camera-alpha-edge-20261103/`](../evidence/camera-alpha-edge-20261103/README.md)).
+  ([`docs/evidence/camera-alpha-edge-20261103/`](../../evidence/camera-alpha-edge-20261103/README.md)).
   Il primo verdetto `BLOCKED_DOF_INERT` era un difetto dell'harness, non del renderer:
   `make_probe_plans.py` spegneva `camera.dof.enabled` solo nel blocco `camera`, mentre
   il piano porta 1350 `camera_samples` che il runtime valuta e che restavano con DoF
@@ -22,7 +22,7 @@
   0,5%), G4 246,55 px, zero validation error. C7 resta esterno: review umana senza
   reviewer nominato e CI same-SHA senza runner, con entrambi gli alberi **dirty**
   (C3D `b38f7e8f9`, 29 file; CM3D `83af9628`, 3 file).
-- **Checkpoint locale 2026-10-30:** [report camera-closure-final](../evidence/camera-closure-final/README.md): camera 82/82, Motion 3/3, architettura 6/6 e nodo DoF 5/5; raw software/Vulkan e rack-focus ROI PASS. Corrette precisione double dei timestamp layer e copia DoF verso intermedi shutter. Due MP4 1080p caricati; shutter unico FAIL exit 139 dopo 75 frame, delivery segmentata in corso (workaround, non fix). Nessuna chiusura same-SHA/umana implicita. L'espansione funzionale AE-style ha un [ticket separato](TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md).
+- **Checkpoint locale 2026-10-30:** [report camera-closure-final](../../evidence/camera-closure-final/README.md): camera 82/82, Motion 3/3, architettura 6/6 e nodo DoF 5/5; raw software/Vulkan e rack-focus ROI PASS. Corrette precisione double dei timestamp layer e copia DoF verso intermedi shutter. Due MP4 1080p caricati; shutter unico FAIL exit 139 dopo 75 frame, delivery segmentata in corso (workaround, non fix). Nessuna chiusura same-SHA/umana implicita. L'espansione funzionale AE-style ha un [ticket separato](TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md).
 - **Checkpoint locale 2026-10-31:** contratto unico di ammissione camera/ottica applicato ai due confini producer/compiler (test `Camera capability contract rejects unsupported optics at both compiler boundaries`), provider runtime passato al compiler canonico e risoluzione camera/layer sul calendario shutter; pubblicato anche il timing GPU per pass. I gate §8 restano aperti: la suite camera 82/82 e Motion 3/3 sono del 2026-10-30, il job shutter completo è ancora FAIL e la CI same-SHA è BLOCKED.
 - **Priorità**: P0
 - **Repository**: `ChrononMotion3D`, `Chronon3d`
@@ -53,7 +53,7 @@ test or Vulkan run has been made; P0-04/C6/C7 and this ticket remain
 The first reproduction conflated camera motion and mesh deformation. Four
 frozen RenderPlans now separate them; the plans, commands, raw-frame counts and
 limitations are recorded in
-[`camera-mesh-yaw-isolation-20261103`](../evidence/camera-mesh-yaw-isolation-20261103/README.md).
+[`camera-mesh-yaw-isolation-20261103`](../../evidence/camera-mesh-yaw-isolation-20261103/README.md).
 On the same existing software CLI, frames 0/1/5/15/30 had non-transparent
 pixel counts: animated mesh + fixed 0° camera **501/452/477/452/477**;
 animated mesh + camera yaw 0°→0.02° **501/350/171/0/0**; frozen mesh + camera
@@ -105,7 +105,7 @@ submission order. The compositor now groups depths within its existing
 occlusion epsilon and restores submission order within each bounded group.
 The typed test passes 16/16 assertions after the fix: 144/144/144 red pixels,
 zero coverage or interior mismatches. Evidence and fixture are in
-[`image-mesh-occlusion-20261103`](../evidence/image-mesh-occlusion-20261103/README.md).
+[`image-mesh-occlusion-20261103`](../../evidence/image-mesh-occlusion-20261103/README.md).
 
 Post-fix remote A4000 Vulkan raw captures of both minimized plans now exactly
 match their software captures byte-for-byte (49,152-byte RGBA8, matching
@@ -269,7 +269,7 @@ Questa sezione è il criterio finale di chiusura. Le verifiche e i PASS locali d
 
 #### Verifica locale aggiornata 2026-11-01 — ownership e gate
 
-- Ownership target aggiornata 2026-11-01: ChrononMotion3D è l’unica autorità semantica per camera, calendario, layer, alpha/depth, policy DoF/shutter e composizione; Chronon3d resta backend pixel/GPU con kernel, risorse e sincronizzazione, senza un secondo modello authoring. La migrazione non è completata e i gate di questo ticket restano obbligatori. Decisione canonica: [`ADR-CAMERA-PIPELINE-OWNERSHIP.md`](../../../ChrononMotion3D/docs/ADR-CAMERA-PIPELINE-OWNERSHIP.md); il confine nel codice corrente è descritto come legacy in [`BOUNDARY_C3D.md`](../../../ChrononMotion3D/docs/BOUNDARY_C3D.md).
+- Ownership target aggiornata 2026-11-01: ChrononMotion3D è l’unica autorità semantica per camera, calendario, layer, alpha/depth, policy DoF/shutter e composizione; Chronon3d resta backend pixel/GPU con kernel, risorse e sincronizzazione, senza un secondo modello authoring. La migrazione non è completata e i gate di questo ticket restano obbligatori. Decisione canonica: [`ADR-CAMERA-PIPELINE-OWNERSHIP.md`](../../../../ChrononMotion3D/docs/ADR-CAMERA-PIPELINE-OWNERSHIP.md); il confine nel codice corrente è descritto come legacy in [`BOUNDARY_C3D.md`](../../../../ChrononMotion3D/docs/BOUNDARY_C3D.md).
 - Verifiche locali rieseguite: `chronon3d_renderer_core_tests` **204/204 casi, 74.268 asserzioni PASS**; `chronon3d_camera_tests` **84/84 casi, 66.232 asserzioni PASS**; `chronon3d_render_graph_tests` **444/444 casi, 19.510 asserzioni PASS**; canary mesh/piano **46/46 asserzioni PASS**. Motion `chrononmotion_authoring`, `chrononmotion_camera_bake_roundtrip`, `chrononmotion_renderplan_camera_parity` **3/3 PASS** e `chrononmotion_boundary` **1/1 PASS** (run precedente). Strict-native typed è fallito con errori Vulkan/layout come riportato sopra.
 - La build Release di `chronon3d_cli` è disponibile localmente, ma da sola non dimostra l'accettazione. I vecchi video 1080p nella cartella `camera-closure-final` appartengono a un pair di revisioni precedente e non valgono come prova per questo working tree.
 - Restano da completare: integrazione dell'occlusione alpha con DoF e backend nativo; prova end-to-end offline/runtime e random-access sul pair corrente; accumulo shutter GPU strict-native con layout/lifecycle validi; acceptance originale 150 frame a 1920×1080 con metriche/manifest; zero errori Vulkan sul medesimo run; review umana e CI verde sullo stesso pair di SHA. Il ticket rimane **PARTIAL** finché ogni gate §8 non ha evidenza riproducibile.
@@ -609,7 +609,7 @@ coverage sulla depth full-canvas e campiona la matte alla stessa origine. I
 due nuovi raw Vulkan post-fix sono byte-identici fra loro e ai due raw software
 (SHA-256 `0fecc3a872256fac7dd9a6500a83725e9a2057cae47a851c89854fa926da9efe`).
 Vedi
-[`image-mesh-occlusion-20261103/README.md`](../evidence/image-mesh-occlusion-20261103/README.md)
+[`image-mesh-occlusion-20261103/README.md`](../../evidence/image-mesh-occlusion-20261103/README.md)
 e i plan/raw conservati accanto. P0-06 è **PASS per il fixture minimo, PARTIAL
 per il gate di release**; il fixture usa Vulkan con host readback. Il test GPU
 `Vulkan alpha and luma matte match the CPU coverage formulas` passa 25/25
@@ -639,7 +639,7 @@ eseguito per 150/150 frame sia nel renderer software sia in Vulkan su RTX A4000
 con `VK_LAYER_KHRONOS_validation` caricato. Entrambi hanno 0 frame vuoti, 150
 hash distinti e bounds uniti x=320–429, y=83–188; conteggio di pixel alpha
 visibili 510–950 software e 540–969 Vulkan. Log, metriche, raw compressi e PNG
-campione sono nella [cartella evidence CM3D](../../ChrononMotion3d/docs/evidence/camera-mesh-yaw-isolation-20261104/README.md).
+campione sono nella [cartella evidence CM3D](../../../../ChrononMotion3D/docs/evidence/camera-mesh-yaw-isolation-20261104/README.md).
 
 **P0-04 è PASS sul fixture acceptance locale.** Questo non attesta un asset
 personaggio di produzione, un export video strict-native, CI same-SHA o review
@@ -657,7 +657,7 @@ A4000 con validation layer e software oracle: image e `plane3d` corrispondono
 ai rispettivi golden byte per byte (144 pixel mesh rossi per caso). SHA raw
 image `6821f682fba2726ab3903c1c2ffae755a48b15be54af103cbfb4b397f72b3a20`,
 plane `efef5e9845f2cb7cd6a173c65ac6b0969db7688ba4e254260719555fc8b1b3cb`.
-Log, sidecar e raw sono nella [evidence P0-05](../evidence/image-mesh-occlusion-20261103/README.md).
+Log, sidecar e raw sono nella [evidence P0-05](../../evidence/image-mesh-occlusion-20261103/README.md).
 
 **P0-05 è PASS sul fixture minimo locale / PARTIAL per release**. Showcase
 originale, video strict-native, CI same-SHA e review umana restano gate aperti.
@@ -670,7 +670,7 @@ lo stesso raw byte per byte su entrambi i backend e coincidono col golden
 software SHA-256
 `0fecc3a872256fac7dd9a6500a83725e9a2057cae47a851c89854fa926da9efe` (84
 pixel mesh rossi, 130 blu). Raw e log sono nella
-[evidence P0-06](../evidence/image-mesh-occlusion-20261103/README.md).
+[evidence P0-06](../../evidence/image-mesh-occlusion-20261103/README.md).
 
 Questo riconferma **P0-06 PASS per la fixture minima / PARTIAL per release**;
 non copre tutte le permutazioni con testo, image, plane e mesh né il video
@@ -684,7 +684,7 @@ sviluppo CUDA sull'host locale), quindi eseguito sull'A4000 con validation
 layer. Il test inline mesh alpha-cutoff/source-over passa 23/23 asserzioni,
 matte alpha/luma 25/25 e occlusione mesh/piano 75/75. Binary SHA
 `58561e356cd0a9e58dea1814f1795dc5712261695e25c2d5959f896637ce4fb6`; log in
-[evidence](../evidence/image-mesh-occlusion-20261103/p007-alpha-depth-tests-20261104.log).
+[evidence](../../evidence/image-mesh-occlusion-20261103/p007-alpha-depth-tests-20261104.log).
 
 P0-07 resta **PARTIAL**: manca ancora la matrice golden esplicita per opaque,
 cutoff e alpha frazionario con due mesh e due piani, inclusi ordine e scrittura
@@ -699,9 +699,9 @@ prima del compute 50/50 e ordinamento di tre upload ticket 14/14. Totale cinque
 casi e 181 asserzioni. In aggiunta, il test di 100 cicli sullo stesso
 surface handle (create/upload async/wait/readback/compare/release) passa
 702/702 asserzioni sullo stesso A4000 con validation. Log in [evidence 100
-cicli](../evidence/image-mesh-occlusion-20261103/p009-100-cycles-20261104.log),
-[evidence lifecycle](../evidence/image-mesh-occlusion-20261103/p009-lifecycle-tests-20261104.log)
-e [evidence upload async](../evidence/image-mesh-occlusion-20261103/p009-async-tests-20261104.log).
+cicli](../../evidence/image-mesh-occlusion-20261103/p009-100-cycles-20261104.log),
+[evidence lifecycle](../../evidence/image-mesh-occlusion-20261103/p009-lifecycle-tests-20261104.log)
+e [evidence upload async](../../evidence/image-mesh-occlusion-20261103/p009-async-tests-20261104.log).
 Questo è un sub-gate, non chiusura: 100 job completi, cancel/reset/teardown,
 contatori di risorsa e gate CI same-SHA restano da eseguire. P0-09 resta
 **PARTIAL**.
@@ -719,10 +719,10 @@ H.264/yuv420p, 150 frame decodificati; decode FFmpeg pulito; blackdetect non
 segnala intervalli neri; zero match `Vulkan Validation ERROR`, `Validation
 Error` e `VUID-`. Questo è PASS locale del run strict-native P0-13 e del
 sub-gate C6 video. Report, video, log e sidecar con hash:
-[`c6-v3-native-verification.json`](../evidence/camera-closure-final/c6-v3-native-verification.json),
-[`c6-v3-native.mp4`](../evidence/camera-closure-final/c6-v3-native.mp4),
-[`c6-v3-native.log`](../evidence/camera-closure-final/c6-v3-native.log),
-[`c6-v3-native-timing.json`](../evidence/camera-closure-final/c6-v3-native-timing.json).
+[`c6-v3-native-verification.json`](../../evidence/camera-closure-final/c6-v3-native-verification.json),
+[`c6-v3-native.mp4`](../../evidence/camera-closure-final/c6-v3-native.mp4),
+[`c6-v3-native.log`](../../evidence/camera-closure-final/c6-v3-native.log),
+[`c6-v3-native-timing.json`](../../evidence/camera-closure-final/c6-v3-native-timing.json).
 
 Il raw ON/OFF del pair corrente e le metriche ottiche congelate sono registrati
 nel checkpoint precedente e in `c6-v3-raw-focus-report.json`. Questi artefatti

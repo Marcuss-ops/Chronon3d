@@ -2,7 +2,7 @@
 
 ## Goal and identity
 
-Complete the existing [camera closeout §8](../../tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md), not universal After Effects equivalence. Motion owns authored evaluation; Chronon3d owns projection, compositing, depth and supported DoF. Functional expansion and typed-video demolition are tracked separately in [AE camera functional parity](../../tickets/TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md).
+Complete the existing [camera closeout §8](../../tickets/archive/TICKET-CAMERA-DEFINITIVE-CLOSURE.md), not universal After Effects equivalence. Motion owns authored evaluation; Chronon3d owns projection, compositing, depth and supported DoF. Functional expansion and typed-video demolition are tracked separately in [AE camera functional parity](../../tickets/archive/TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md).
 
 Initial/source HEAD pair: Motion `b778afc8b21ec61c7d2d5152319ca7bea8d01872`, C3D `9b5d23833ee48c1b5b8e0a3ca76b90303eb10825`, BOTH WITH DIRTY CHANGES. See `revisions.json` for binary and tracked-diff digests; these do not replace a commit including untracked headers. No commit/push or same-SHA CI certification is implied. Pre-existing unrelated Vulkan/performance and Template work is preserved.
 

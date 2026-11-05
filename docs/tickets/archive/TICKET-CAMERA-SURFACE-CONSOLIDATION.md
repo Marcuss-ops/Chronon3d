@@ -234,7 +234,7 @@ EffectComposer DoF/bloom; glTF loader animato/skinning/meshopt; serializzazione 
   `CHRONONMOTION.md` e matrice camera in
   `Chronon3d/docs/architecture/RUNTIME-OWNERSHIP-MATRIX.md`.
 - [x] **S1 — Inventario file-by-file con tabella consumatori** →
-  [docs/evidence/camera-surface-consolidation](../evidence/camera-surface-consolidation/README.md).
+  [docs/evidence/camera-surface-consolidation](../../evidence/camera-surface-consolidation/README.md).
   Confluisce col censimento **A** del ticket AE: *una sola tabella, in entrambi i
   ticket con link, mai due censimenti divisi*.
 - [ ] **S2 — Collasso applier → dati (CM3D).** Un meccanismo: CameraRig + waypoint +
@@ -277,12 +277,12 @@ EffectComposer DoF/bloom; glTF loader animato/skinning/meshopt; serializzazione 
   consumer. Documentary emette 151 campioni sui 14 layer visuali animati; Adjustment
   resta statico e senza track Motion. Word Lens emette 361 campioni per ciascuno di 8
   layer visuali, Showreel 151 per ciascuno di 11 testi. Inventario/prove in
-  [`resolved-sample-migration.json`](../evidence/camera-surface-consolidation/resolved-sample-migration.json).
+  [`resolved-sample-migration.json`](../../evidence/camera-surface-consolidation/resolved-sample-migration.json).
   La view video di compatibilità è stata rimossa; il gate di equivalenza resta aperto (§3 G del ticket AE). S2
   può procedere ora che F3 ha anche la prova di ordine/profondità 2.5D.
 - [x] **S6 — Allineamento documenti.** `FOLLOWUP_TICKETS.md` indicizza questo ticket;
   le voci F1/F2 non sono più elencate come blocker aperti: il ticket camera §5 e
-  l'[evidenza del 30-10](../evidence/closeout-20261030/README.md) documentano F1
+  l'[evidenza del 30-10](../../evidence/closeout-20261030/README.md) documentano F1
   risolto localmente e F2 chiuso come scelta di lane. Il ticket camera complessivo
   resta PARTIAL e i suoi gate di accettazione rimangono aperti.
 

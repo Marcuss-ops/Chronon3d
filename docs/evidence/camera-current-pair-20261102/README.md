@@ -88,7 +88,7 @@ new numbers a re-pin rather than a new measurement with a new baseline.
 ## What this certifies
 
 - The frozen sentinel parity gate C5 of
-  [`TICKET-CAMERA-DEFINITIVE-CLOSURE`](../../tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md)
+  [`TICKET-CAMERA-DEFINITIVE-CLOSURE`](../../tickets/archive/TICKET-CAMERA-DEFINITIVE-CLOSURE.md)
   §8.3 reproduces on the current pair, with validation enabled and zero
   validation errors.
 - The two defects fixed in this session did not move the parity:

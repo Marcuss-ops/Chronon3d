@@ -85,10 +85,11 @@ sessione: sono la demo visiva dello stato attuale, non una certificazione.
 | `10_cinematic_parallax_scene.mp4` | 7 s | 126.222 | `6f17701b5a55b96ad4788fe6fdfbb06c71b59e54cfe7bbde490a911c14c1d962` | [Drive](https://drive.google.com/file/d/1ltXXnGQ374dhA1-kQJVf0jLuSjehxOnV/view) |
 | `16_jerusalem_tactical_fill.mp4` | 4 s | 806.667 | `2f09b45e960162f7e2adf6800c3dc71d3bd5b821f68ac9dc2641c8a25872456c` | [Drive](https://drive.google.com/file/d/1NiOJU2jAU5tUn_Dmj6vBqeApscxwPM3q/view) |
 
-## Perché le schede restano in `docs/tickets/`
+## Archiviazione (2026-11-05)
 
-I file non sono stati spostati in `archive/` per non rompere i link relativi
-cross-repo (Motion, template, evidenze storiche). La dichiarazione `Stato:
-chiuso` è la fonte dell'indice generato; lo script di riconciliazione nella
-root del superprogetto, eseguito con `--write`, le classifica come chiuse e le
-toglie dall'elenco degli aperti.
+Le quattro schede sono state spostate in `archive/` il 2026-11-05 e i link
+relativi interni (evidenze, ADR e confine C3D/CM3D) sono stati riallineati.
+Il tracker `TICKET-CAMERA-3D-V1-CLOSURE` è ricostruito e archiviato nello
+stesso giorno: l'originale era un file untracked mai committato. La
+dichiarazione `Stato: chiuso` resta la fonte dell'indice generato: la scheda
+non compare più tra quelle non archiviate.
