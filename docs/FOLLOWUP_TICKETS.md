@@ -14,6 +14,7 @@
 | Legacy `Composition` executor migration | P1 | OPEN — pixel equivalence NOT RUN | [COMPOSITION-LEGACY-EXECUTOR-DEMOLITION](tickets/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md) |
 | Maintenance hotspots (W0–W5) | P1 | ACTIVE — umbrella: GPU lifetime/teardown, text hot-path fixes, certification-truthfulness decisions (B.1/B.2/F.2), effects-lane arch gate; coordinates C22/C23 and MAIN-TRUTH owners | [MAINTENANCE-HOTSPOTS-BONIFICATION](tickets/TICKET-MAINTENANCE-HOTSPOTS-BONIFICATION.md) |
 | Cache identity / invalidation | P1 | ACTIVE — all taxonomy entries mapped to identity owners/dependency axes; remaining V2 schemas, mutation fixtures and test execution remain | [CACHE-IDENTITY-KEYS](tickets/TICKET-CACHE-IDENTITY-KEYS.md) |
+| Gel text surface / AE-style parity | P1 | OPEN — composed TextRun surface, glossy shading and effect compositing remain unverified | [TEXT-COMPOSITE-GEL-SURFACE](tickets/TICKET-TEXT-COMPOSITE-GEL-SURFACE.md) |
 
 Camera: the four camera sheets were closed administratively on 2026-11-04.
 C7/CI, AE parity, S2/S5 and advanced DoF are tracked in the
