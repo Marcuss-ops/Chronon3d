@@ -427,32 +427,9 @@ NodeExecResult PerPixelDofNode::execute(
                 "PerPixelDofNode",
                 "failed to preserve input surface residency"};
         }
-        auto scratch = ctx.acquire_owned_fb(frame_w, frame_h, false);
-        if (!scratch || !ensure_empty_native_surface(ctx, *scratch)) {
-            return NodeExecutionError{
-                RenderBackendErrorCode::ExecutionFailure,
-                "PerPixelDofNode",
-                "failed to allocate native DOF scratch surface"};
-        }
-
-        const auto depth_handle = native_depth.surface->surface_handle();
-        const bool normalize_opaque = blurred->is_opaque();
-        const auto horizontal = ctx.backend_surface_api()->dof_blur_surface(
-            scratch->surface_handle(), blurred->surface_handle(), depth_handle,
-            false, roi.x0, roi.y0, roi.x1, roi.y1,
-            coverage.max_radius, normalize_opaque);
-        const auto vertical = horizontal.ok()
-            ? ctx.backend_surface_api()->dof_blur_surface(
-                  blurred->surface_handle(), scratch->surface_handle(), depth_handle,
-                  true, roi.x0, roi.y0, roi.x1, roi.y1,
-                  coverage.max_radius, normalize_opaque)
-            : horizontal;
-        release_native_surface(ctx, *scratch);
-        if (!horizontal.ok() || !vertical.ok()) {
-            spdlog::error(
-                "[PerPixelDofNode] native DOF blur failed: horizontal='{}' vertical='{}'",
-                horizontal.ok() ? "ok" : horizontal.error().message,
-                vertical.ok() ? "ok" : vertical.error().message);
+        auto& native_source = const_cast<Framebuffer&>(*inputs[0]);
+        if (!ensure_native_surface(ctx, native_source,
+                                   "PerPixelDofNode.native_blur_input")) {
             if (blurred->surface_handle() !=
                 ctx.policy.native_video_encode_surface) {
                 release_native_surface(ctx, *blurred);
@@ -460,7 +437,28 @@ NodeExecResult PerPixelDofNode::execute(
             return NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,
                 "PerPixelDofNode",
-                "native DOF blur dispatch failed"};
+                "failed to materialize the circular DOF input surface"};
+        }
+        const auto depth_handle = native_depth.surface->surface_handle();
+        const auto source_handle = native_source.surface_handle();
+        const bool normalize_opaque = blurred->is_opaque();
+        const auto disk = ctx.backend_surface_api()->dof_blur_disk_surface(
+            blurred->surface_handle(), source_handle, depth_handle,
+            roi.x0, roi.y0, roi.x1, roi.y1,
+            coverage.max_radius, normalize_opaque,
+            std::max(0.0f, camera.dof.highlight_gain));
+        if (!disk.ok()) {
+            spdlog::error(
+                "[PerPixelDofNode] native circular DOF blur failed: '{}'",
+                disk.error().message);
+            if (blurred->surface_handle() !=
+                ctx.policy.native_video_encode_surface) {
+                release_native_surface(ctx, *blurred);
+            }
+            return NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "PerPixelDofNode",
+                "native circular DOF blur dispatch failed"};
         }
         blurred->mark_gpu_authoritative();
         return NodeExecResult{std::move(blurred)};

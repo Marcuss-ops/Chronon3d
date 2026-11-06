@@ -92,27 +92,35 @@ void disk_blur(ivec2 pixel) {
         imageStore(destination_image, pixel, centre);
         return;
     }
-    int radius = int(ceil(params.max_radius));
-    ivec2 lo = max(ivec2(params.roi_x0, params.roi_y0), pixel - ivec2(radius));
-    ivec2 hi = min(ivec2(params.roi_x1 - 1, params.roi_y1 - 1), pixel + ivec2(radius));
+    // Deterministic Vogel disk sampling keeps the optical support circular
+    // without the quadratic full-kernel loop. The bounded sample count scales
+    // with CoC area up to 128 taps; a minimum of 16 avoids angular holes on
+    // small highlights.
+    const float golden_angle = 2.39996322972865332;
+    int sample_count = clamp(int(ceil(0.78539816339 * params.max_radius * params.max_radius)),
+                             16, 128);
+    float sample_extent = max(params.max_radius, 0.5);
     vec4 sum = vec4(0.0);
     float total_weight = 0.0;
-    for (int y = lo.y; y <= hi.y; ++y) {
-        for (int x = lo.x; x <= hi.x; ++x) {
-            ivec2 sample_pixel = ivec2(x, y);
-            vec2 sample_dr = imageLoad(depth_image, sample_pixel).rg;
-            if (sample_dr.y < 0.0) continue;
-            float distance_px = length(vec2(sample_pixel - pixel));
-            float weight = dof_disk_pair_weight(
-                distance_px, centre_dr.y, centre_dr.x,
-                sample_dr.y, sample_dr.x);
-            if (weight <= 0.0) continue;
-            vec4 sample_color = imageLoad(source_image, sample_pixel);
-            if (params.normalize_opaque != 0) weight *= sample_color.a;
-            weight *= highlight_weight(sample_color);
-            sum += sample_color * weight;
-            total_weight += weight;
-        }
+    for (int i = 0; i < sample_count; ++i) {
+        float radial = sqrt((float(i) + 0.5) / float(sample_count));
+        float angle = float(i) * golden_angle;
+        vec2 offset = vec2(cos(angle), sin(angle)) * (radial * sample_extent);
+        ivec2 sample_pixel = clamp(ivec2(round(vec2(pixel) + offset)),
+                                  ivec2(params.roi_x0, params.roi_y0),
+                                  ivec2(params.roi_x1 - 1, params.roi_y1 - 1));
+        vec2 sample_dr = imageLoad(depth_image, sample_pixel).rg;
+        if (sample_dr.y < 0.0) continue;
+        float distance_px = length(vec2(sample_pixel - pixel));
+        float weight = dof_disk_pair_weight(
+            distance_px, centre_dr.y, centre_dr.x,
+            sample_dr.y, sample_dr.x);
+        if (weight <= 0.0) continue;
+        vec4 sample_color = imageLoad(source_image, sample_pixel);
+        if (params.normalize_opaque != 0) weight *= sample_color.a;
+        weight *= highlight_weight(sample_color);
+        sum += sample_color * weight;
+        total_weight += weight;
     }
     imageStore(destination_image, pixel,
                total_weight > 1e-6 ? sum / total_weight : centre);
