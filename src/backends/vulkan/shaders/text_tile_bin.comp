@@ -135,6 +135,14 @@ void main() {
             extent_x += max_sh * (abs(g.plane_bottom - g.plane_top) + 32.0);
             extent_y += max_sh * (abs(g.plane_right - g.plane_left) + 32.0);
         }
+        if ((r.effect_flags & 8u) != 0u) {
+            // The composite gel field samples up to two pixels outside the
+            // 16x16 tile and the SDF union accepts contributors within four
+            // pixels. Keep the bin envelope aligned with that reach so a
+            // neighbour glyph cannot be missing at a tile boundary.
+            extent_x += 4.0;
+            extent_y += 4.0;
+        }
         x0 = r.tx + g.plane_left * r.sx - extent_x;
         y0 = r.ty + g.plane_top * r.sy - extent_y;
         x1 = r.tx + g.plane_right * r.sx + extent_x;

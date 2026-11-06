@@ -18,7 +18,7 @@ namespace chronon3d::graph::detail {
 bool try_native_affine_composite(
     RenderGraphContext& ctx, Framebuffer& destination,
     const Framebuffer& source, const std::optional<raster::BBox>& clip,
-    BlendMode mode = BlendMode::Normal) {
+    BlendMode mode = BlendMode::Normal, bool gel_transmission = false) {
     if (!ctx.backend || !ctx.surface_registry) return false;
     if (source.width() == destination.width() &&
         source.height() == destination.height() &&
@@ -29,7 +29,7 @@ bool try_native_affine_composite(
     const auto original_destination = destination.surface_handle();
     OwnedFB affine_layer;
     Framebuffer* affine_destination = &destination;
-    if (mode != BlendMode::Normal) {
+    if (mode != BlendMode::Normal || gel_transmission) {
         // Affine sampling has source-over semantics. Rasterize the cropped
         // source onto a transparent canvas first, then apply the requested
         // blend mode against the already-seeded destination.
@@ -148,7 +148,7 @@ bool try_native_affine_composite(
     if (affine_layer) {
         const auto blended = ctx.backend_surface_api()->composite_surfaces(
             destination.surface_handle(), affine_layer->surface_handle(), mode,
-            CompositeOperator::SourceOver, clip);
+            CompositeOperator::SourceOver, clip, gel_transmission);
         if (!blended.ok()) {
             spdlog::error(
                 "[native-composite] affine blend failed: [{}] {}",
@@ -163,7 +163,8 @@ bool try_native_affine_composite(
 bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
                           Framebuffer& source, BlendMode mode,
                           CompositeOperator op,
-                          const std::optional<raster::BBox>& clip) {
+                          const std::optional<raster::BBox>& clip,
+                          bool gel_transmission = false) {
     // Vulkan's surface compositor supports both the ordinary source-over
     // path and additive overlays. Keeping Add on the CPU fallback would call
     // composite_layer(), whose legacy contract intentionally rejects it.
@@ -190,7 +191,8 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
         return false;
     }
     const auto result = ctx.backend_surface_api()->composite_surfaces(
-        destination.surface_handle(), source.surface_handle(), mode, op, clip);
+        destination.surface_handle(), source.surface_handle(), mode, op, clip,
+        gel_transmission);
     if (result.ok()) {
         return true;
     }

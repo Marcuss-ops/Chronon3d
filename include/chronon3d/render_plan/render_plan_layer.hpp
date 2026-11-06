@@ -122,6 +122,7 @@ struct LayerPlan {
     // the historical compiler behavior and therefore old fingerprints stable.
     std::optional<bool> casts_shadows;
     std::optional<bool> accepts_shadows;
+    std::optional<bool> shadow_catcher;
     // Keep a layer pinned to output-canvas coordinates while a scene camera
     // is active. This is independent of enable_3d and is for screen overlays
     // such as backgrounds or HUD elements.

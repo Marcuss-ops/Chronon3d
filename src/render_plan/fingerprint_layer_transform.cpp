@@ -15,11 +15,13 @@ void add_layer_transform_and_timing(CanonicalPlanWriter& out, const LayerPlan& l
     out.add_float(layer.skew_angle_deg);
     out.add_float(layer.skew_axis_deg);
     out.add_bool(layer.enable_3d);
-    if (layer.casts_shadows || layer.accepts_shadows) {
+    if (layer.casts_shadows || layer.accepts_shadows || layer.shadow_catcher) {
         out.add_bool(true);
         add_optional(out, layer.casts_shadows,
                      [](auto& writer, bool value) { writer.add_bool(value); });
         add_optional(out, layer.accepts_shadows,
+                     [](auto& writer, bool value) { writer.add_bool(value); });
+        add_optional(out, layer.shadow_catcher,
                      [](auto& writer, bool value) { writer.add_bool(value); });
     }
     out.add_bool(layer.screen_space);

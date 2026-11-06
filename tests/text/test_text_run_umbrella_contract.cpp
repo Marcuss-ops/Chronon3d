@@ -346,3 +346,18 @@ TEST_CASE("M1.5#3 lock — Fase B3 sentinel: no singleton symbols leaked to publ
         CHECK(s.layout == nullptr);
     }
 }
+
+TEST_CASE("gel text material selects the native MTSDF surface profile") {
+    const auto gel = TextMaterial::gel();
+    CHECK(gel.enabled);
+    CHECK(gel.gel_surface);
+    CHECK_FALSE(TextMaterial::glass().gel_surface);
+    TextRunShape flat_shape{};
+    TextRunShape gel_shape{};
+    gel_shape.material = gel;
+    CHECK(hash_text_run_shape(flat_shape) != hash_text_run_shape(gel_shape));
+    auto grazing_shape = gel_shape;
+    grazing_shape.material.gel_light_azimuth_radians = 0.0f;
+    grazing_shape.material.gel_light_elevation = 0.05f;
+    CHECK(hash_text_run_shape(grazing_shape) != hash_text_run_shape(gel_shape));
+}

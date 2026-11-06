@@ -37,14 +37,14 @@ NativeSurfacePrep prepare_frame(
                ctx.execution_plan->interop == media::InteropPath::VulkanCuda)
             : (is_native_encoder_transport(ctx.opts.encoder.encoder_backend) &&
                hardware_nvenc_requested(ctx.opts.encoder.hardware_encoder)));
-    // A raw sink is a pixel-truth/readback consumer. The resolved execution
-    // plan may still describe the NVENC-capable Vulkan graph, but retaining
-    // only its native output would leave the raw writer with the CPU
-    // framebuffer's uninitialized storage. Native residency is useful only
-    // when the selected sink actually encodes from the native surface.
+    // A raw sink is a pixel-truth/readback consumer. When a native graph is
+    // requested, render directly into the slot surface and read that surface
+    // back at the raw writer boundary. This avoids an uninitialized CPU
+    // framebuffer while keeping raw output a faithful pre-encode artifact.
     frame_settings.retain_native_surface_for_video =
         plan_requests_native_graph &&
-        video_sink_type_encodes(ctx.opts.sink.sink_type) &&
+        (video_sink_type_encodes(ctx.opts.sink.sink_type) ||
+         ctx.opts.sink.sink_type == VideoSinkType::RawFile) &&
         ctx.backend.supports_native_video_surface();
     frame_settings.require_native_gpu =
         frame_settings.retain_native_surface_for_video;

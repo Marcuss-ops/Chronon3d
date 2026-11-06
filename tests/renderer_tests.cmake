@@ -42,6 +42,7 @@ chronon3d_add_test_suite(
         renderer/lighting/test_light_context.cpp
         renderer/lighting/test_lighting_rig.cpp
         renderer/lighting/test_shadows.cpp
+        renderer/text/test_gel_surface.cpp
         renderer/perf/test_motion_blur_integration.cpp
         runtime/test_telemetry.cpp
         # Split from runtime/test_telemetry.cpp (each part ≤ 400 LOC):

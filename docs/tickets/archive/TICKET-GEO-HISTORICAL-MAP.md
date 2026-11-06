@@ -1,7 +1,7 @@
 # TICKET-GEO-HISTORICAL-MAP — Cartografia storica headless
 
-**Stato:** MIGRATO FUORI DAL CORE — scope funzionale residuo ancora parziale
-**ADR:** [ADR-034](../adr/ADR-034-geo-historical-maps.md)
+**Stato:** CLOSED (2026-11-05) — migrated out of core; functional residuals transferred to ChrononPlugin maps ownership (`docs/stato/chronon-plugin.md` §2.2) and `TICKET-SHAPE-FILL-COMPAT` for the core `ShapeTextureFill` fit-mode pixel gate.
+**ADR:** [ADR-034](../../adr/ADR-034-geo-historical-maps.md)
 **Created:** 2026-10-08
 
 **Migrazione 2026-10-25:** i componenti headless sono ora posseduti da
@@ -10,12 +10,31 @@ l'opzione `CHRONON3D_ENABLE_GEO`. `maps_geo_core_test` compila ed esegue i test
 del parser, query, timeline, booleani e cambi di territorio. L'API di camera,
 anchor e reveal resta fuori dal perimetro implementato.
 
+## Chiusura amministrativa 2026-11-05
+
+Il codice geo non è più in Chronon3D — target `chronon3d_geo`, header e test
+sono stati rimossi il 2026-10-26 e l'implementazione vive in
+`ChrononPlugin/plugins/maps/`. La scheda si chiude come **migrata**, non come
+`COMPLETE`: nessuna voce `NOT RUN`/`PARTIAL` è promossa a `PASS`.
+
+Residui trasferiti (owner: plugin maps, salvo diversa indicazione):
+
+- voci differite 5/6/9/10, query composte e render `TerritoryChange`,
+  workaround Clipper2 → [`docs/stato/chronon-plugin.md`](../../../../docs/stato/chronon-plugin.md) §2.2;
+- pixel output di `ShapeTextureFill` per fit mode → `TICKET-SHAPE-FILL-COMPAT`
+  (owner: scene fill), che resta nel core.
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] **Voci differite 5/6/9/10** (`GeoAnchor`, `GeoCamera`, `GeoBorderReveal`, `GeoLabel` solver/`GeoAssetPreflight`) — logica: decidere se implementarle o dichiararle fuori perimetro in modo esplicito; oggi sono `NOT RUN` senza decisione. Dove: implementazione ora in `ChrononPlugin/plugins/maps/` (fuori dal core Chronon3D). Gate: per ogni voce, PASS/FAIL documentato oppure esclusione motivata nella tabella di accettazione.
-- [ ] **`ShapeTextureFill` pixel per fit mode** — logica: il lowering è validato (4 doctest `chronon3d_scene_tests`) ma il pixel output per Cover/Contain/Stretch non è mai stato renderizzato. Dove: `shape_texture_fill` nei scene builders + test pixel in `tests/scene/`. Gate: golden pixel per ciascun fit mode.
-- [ ] **Query composte + render `TerritoryChange`** — logica: il modulo mappe copre query semplici; mancano le query composte e il render dello stato shared/gained/lost. Dove: `ChrononPlugin/plugins/maps/` (parser/query/timeline) + pipeline di render dedicata. Gate: test query composte + golden render TerritoryChange.
-- [ ] **Workaround Clipper2 portabile** — logica: il workaround `-Wno-error=maybe-uninitialized` vive in overlay fuori repo; va portato in repo (overlay versionato) o risolto con Clipper2 più recente. Dove: overlay port vcpkg nel repo. Gate: build `CHRONON3D_ENABLE_GEO` equivalente senza file esterni.
+- [x] **Voci differite 5/6/9/10** (`GeoAnchor`, `GeoCamera`, `GeoBorderReveal`, `GeoLabel` solver/`GeoAssetPreflight`) — logica: decidere se implementarle o dichiararle fuori perimetro in modo esplicito; oggi sono `NOT RUN` senza decisione. Dove: implementazione ora in `ChrononPlugin/plugins/maps/` (fuori dal core Chronon3D). Gate: per ogni voce, PASS/FAIL documentato oppure esclusione motivata nella tabella di accettazione.
+- [x] **`ShapeTextureFill` pixel per fit mode** — logica: il lowering è validato (4 doctest `chronon3d_scene_tests`) ma il pixel output per Cover/Contain/Stretch non è mai stato renderizzato. Dove: `shape_texture_fill` nei scene builders + test pixel in `tests/scene/`. Gate: golden pixel per ciascun fit mode.
+- [x] **Query composte + render `TerritoryChange`** — logica: il modulo mappe copre query semplici; mancano le query composte e il render dello stato shared/gained/lost. Dove: `ChrononPlugin/plugins/maps/` (parser/query/timeline) + pipeline di render dedicata. Gate: test query composte + golden render TerritoryChange.
+- [x] **Workaround Clipper2 portabile** — logica: il workaround `-Wno-error=maybe-uninitialized` vive in overlay fuori repo; va portato in repo (overlay versionato) o risolto con Clipper2 più recente. Dove: overlay port vcpkg nel repo. Gate: build `CHRONON3D_ENABLE_GEO` equivalente senza file esterni.
+
+> **Trasferimento 2026-11-05:** le quattro caselle sopra sono chiuse come
+> trasferite, non come eseguite. Decisione e implementazione passano
+> all'owner del plugin maps; il golden pixel di `ShapeTextureFill` passa a
+> `TICKET-SHAPE-FILL-COMPAT`.
 
 ## Acceptance criteria (per voce)
 
@@ -33,6 +52,10 @@ Stato usando `PASS` / `FAIL` / `PARTIAL` / `NOT RUN`.
 | 8 | TerritoryChange (shared / gained / lost) | PARTIAL | Implementazione in `ChrononPlugin/plugins/maps`; niente render |
 | 9 | GeoBorderReveal (recipe Trim + stroke + glow) | NOT RUN | differita |
 | 10 | GeoLabel solver, GeoAssetPreflight | NOT RUN | differita |
+
+> **Nota di chiusura:** gli stati `PARTIAL`/`NOT RUN` della tabella sono il
+> registro storico al 2026-10-28. La chiusura è amministrativa: non certifica
+> quelle voci e non le riapre nel core.
 
 ## Esclusioni esplicite
 

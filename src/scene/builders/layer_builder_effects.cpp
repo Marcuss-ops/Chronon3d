@@ -108,6 +108,12 @@ LayerBuilder& LayerBuilder::accepts_shadows(bool value) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::shadow_catcher(bool value) {
+    m_layer.material().shadow_catcher = value;
+    if (value) m_layer.material().accepts_shadows = true;
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::material(Material2_5D value) {
     m_layer.material() = value;
     return *this;

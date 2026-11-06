@@ -109,14 +109,16 @@ NodeExecResult CompositeNode::execute(
             const auto c = m.ok() ? ctx.backend_surface_api()->composite_surfaces(result->surface_handle(),
                 masked->surface_handle(), BlendMode::Normal, CompositeOperator::SourceOver, std::nullopt) : m;
             const auto overlay = c.ok() ? ctx.backend_surface_api()->composite_surfaces(result->surface_handle(),
-                top->surface_handle(), BlendMode::Normal, CompositeOperator::SourceOver, std::nullopt) : c;
+                top->surface_handle(), BlendMode::Normal, CompositeOperator::SourceOver, std::nullopt,
+                m_gel_transmission) : c;
             if (!overlay.ok())
                 return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
                     "CompositeNode", "native backdrop blur operation failed"};
             result->mark_gpu_authoritative();
             return NodeExecResult{std::move(result)};
         }
-        return detail::execute_backdrop_software(ctx, *bottom, *top, *m_backdrop_blur, m_mode);
+        return detail::execute_backdrop_software(
+            ctx, *bottom, *top, *m_backdrop_blur, m_mode, m_gel_transmission);
     }
 
     // Which inputs the compiler actually wired here. A Composite with a single
@@ -418,10 +420,11 @@ NodeExecResult CompositeNode::execute(
         }
 
         const bool native_composite = detail::try_native_composite(
-            ctx, *result, *top, m_mode, m_operator, clip);
+            ctx, *result, *top, m_mode, m_operator, clip, m_gel_transmission);
         const bool native_dimension_composite = !native_composite &&
             m_operator == CompositeOperator::SourceOver &&
-            detail::try_native_affine_composite(ctx, *result, *top, clip, m_mode);
+            detail::try_native_affine_composite(ctx, *result, *top, clip, m_mode,
+                                                m_gel_transmission);
         if (ctx.policy.require_native_gpu &&
             !native_composite && !native_dimension_composite) {
             if (std::getenv("CHRONON3D_PATH_DIAG"))
@@ -485,7 +488,12 @@ NodeExecResult CompositeNode::execute(
                 return *err;
             }
         }
-        ctx.backend_frame_api()->composite_layer(*result, *top, m_mode, clip);
+        if (m_gel_transmission && m_mode == BlendMode::Normal &&
+            m_operator == CompositeOperator::SourceOver) {
+            ctx.backend_frame_api()->composite_gel_layer(*result, *top, clip);
+        } else {
+            ctx.backend_frame_api()->composite_layer(*result, *top, m_mode, clip);
+        }
         if (result->surface_handle() != runtime::kInvalidRenderSurfaceHandle)
             result->mark_gpu_authoritative();
     }

@@ -525,7 +525,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             video_execution->video_runtimes = ctx.video_runtimes;
             ctx.exit_code = run_render_plan_file(
                 ctx.registry, std::move(request), {}, std::move(video_execution),
-                render_args.pipeline.no_dirty_rects);
+                render_args.pipeline.no_dirty_rects,
+                render_args.pipeline.text_layout_debug_json_path);
             return;
         }
         if (!state->captions_file.empty()) {

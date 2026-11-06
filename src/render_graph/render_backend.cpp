@@ -189,7 +189,8 @@ RenderOpResult RenderBackendSurfaceApi::composite_surfaces(
         runtime::RenderSurfaceHandle /*source*/,
         BlendMode /*mode*/,
         CompositeOperator /*op*/,
-        const std::optional<raster::BBox>& /*clip*/) {
+        const std::optional<raster::BBox>& /*clip*/,
+        bool /*gel_transmission*/) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::composite_surfaces: native surfaces are not supported"));
@@ -424,6 +425,22 @@ RenderOpResult RenderBackendSurfaceApi::lighting_surface(
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::lighting_surface: native surfaces are not supported"));
+    }
+
+RenderOpResult RenderBackendSurfaceApi::lighting_surface_points(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        const Color& /*scene_multiplier*/,
+        std::span<const float> /*packed_lights*/,
+        std::uint32_t /*light_count*/,
+        Vec3 /*normal*/,
+        float /*layer_z*/,
+        int /*origin_x*/,
+        int /*origin_y*/,
+        float /*diffuse*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::lighting_surface_points: native per-pixel lighting is not supported"));
     }
 
 RenderOpResult RenderBackendSurfaceApi::matte_surface(

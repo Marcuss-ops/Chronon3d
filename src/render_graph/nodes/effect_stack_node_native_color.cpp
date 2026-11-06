@@ -557,6 +557,7 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
     // the blur fast-path ownership contract.
     if (source_is_existing && !source_is_borrowed) release(source);
     result.set_surface_handle(final_surface);
+    result.mark_gpu_authoritative();
     return true;
 }
 
@@ -669,6 +670,7 @@ bool try_native_full_frame_chromatic(RenderGraphContext& ctx,
         if (handle != final_surface) release(handle);
     if (source_is_existing && !source_is_borrowed) release(source);
     result.set_surface_handle(final_surface);
+    result.mark_gpu_authoritative();
     return true;
 }
 

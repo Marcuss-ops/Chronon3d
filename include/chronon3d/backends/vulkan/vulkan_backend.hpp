@@ -428,7 +428,8 @@ public:
     graph::RenderOpResult composite_surfaces(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         BlendMode, CompositeOperator,
-        const std::optional<raster::BBox>& = std::nullopt) override;
+        const std::optional<raster::BBox>& = std::nullopt,
+        bool gel_transmission = false) override;
     graph::RenderOpResult composite_surface_weighted(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, const std::optional<raster::BBox>& = std::nullopt) override;
@@ -537,6 +538,10 @@ public:
     graph::RenderOpResult lighting_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const Color&) override;
+    graph::RenderOpResult lighting_surface_points(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        const Color&, std::span<const float>, std::uint32_t,
+        Vec3, float, int, int, float) override;
     graph::RenderOpResult matte_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, bool, bool,

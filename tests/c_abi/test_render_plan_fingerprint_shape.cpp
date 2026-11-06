@@ -175,6 +175,43 @@ TEST_CASE("Backdrop blur settings affect the render plan fingerprint") {
     }
 }
 
+TEST_CASE("gel text material selection affects the render plan fingerprint") {
+    auto plan = render_plan_test::base_plan({{{"id", "txt"}, {"type", "text"},
+        {"text", "gel"}, {"style", {{"font", "font.ttf"},
+        {"font_size", 36}, {"fill", "#00E5FF"}}}}});
+    auto plain = render_plan::decode_render_plan(plan);
+    REQUIRE(plain);
+    plan["layers"][0]["style"]["gel_surface"] = true;
+    auto gel = render_plan::decode_render_plan(plan);
+    REQUIRE(gel);
+    CHECK(plain->content_fingerprint != gel->content_fingerprint);
+    plan["layers"][0]["style"]["gel_debug_mode"] = 1;
+    auto debug_sdf = render_plan::decode_render_plan(plan);
+    REQUIRE(debug_sdf);
+    CHECK(gel->content_fingerprint != debug_sdf->content_fingerprint);
+    plan["layers"][0]["style"]["gel_debug_mode"] = 4;
+    auto debug_normals = render_plan::decode_render_plan(plan);
+    REQUIRE(debug_normals);
+    CHECK(debug_sdf->content_fingerprint != debug_normals->content_fingerprint);
+    plan["layers"][0]["style"]["gel_light"] = {
+        {"azimuth_radians", 0.0}, {"elevation", 0.05}};
+    auto grazing = render_plan::decode_render_plan(plan);
+    REQUIRE(grazing);
+    CHECK(gel->content_fingerprint != grazing->content_fingerprint);
+    const auto grazing_fingerprint = grazing->content_fingerprint;
+    plan["layers"][0]["style"]["gel_light"]["azimuth_radians"] = 1.57079632679;
+    auto orbited = render_plan::decode_render_plan(plan);
+    REQUIRE(orbited);
+    CHECK(grazing_fingerprint != orbited->content_fingerprint);
+    plan["layers"][0]["style"]["gel_transmission"] = false;
+    auto transmission_off = render_plan::decode_render_plan(plan);
+    REQUIRE(transmission_off);
+    plan["layers"][0]["style"]["gel_transmission"] = true;
+    auto transmission_on = render_plan::decode_render_plan(plan);
+    REQUIRE(transmission_on);
+    CHECK(transmission_on->content_fingerprint != transmission_off->content_fingerprint);
+}
+
 TEST_CASE("Repeater parameters affect render plan fingerprint") {
     auto plan = render_plan_test::base_plan({render_plan_test::shape_layer({
         {"type", "path"},

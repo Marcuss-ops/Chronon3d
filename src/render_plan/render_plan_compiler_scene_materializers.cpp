@@ -273,7 +273,8 @@ void append_particles_layer_for_scene(
     const auto sampled = sample_particles(*layer.particle_emitter, seconds);
     if (!sampled.ok())
         throw std::runtime_error("particle sampling failed: " + sampled.error);
-    builder.accepts_lights(false).accepts_shadows(false);
+    const bool extruded_text = layer.style && layer.style->extruded_text;
+    builder.accepts_lights(extruded_text).accepts_shadows(extruded_text);
     const auto attach_gpu_instances = [&] {
         if (!sampled.particles.empty()) {
             auto& node = builder.last_node_handle().node();
@@ -475,11 +476,13 @@ void append_mesh_layer_for_scene(
     params.indices = layer.inline_mesh->indices;
     builder.accepts_lights(false).accepts_shadows(false);
     builder.inline_mesh(std::move(params));
-    if (layer.casts_shadows || layer.accepts_shadows) {
+    if (layer.casts_shadows || layer.accepts_shadows || layer.shadow_catcher) {
         if (layer.casts_shadows)
             builder.casts_shadows(*layer.casts_shadows);
         if (layer.accepts_shadows)
             builder.accepts_shadows(*layer.accepts_shadows);
+        if (layer.shadow_catcher)
+            builder.shadow_catcher(*layer.shadow_catcher);
     }
     auto& node = builder.last_node_handle().node();
     node.color = Color{layer.color[0], layer.color[1], layer.color[2], layer.color[3]};

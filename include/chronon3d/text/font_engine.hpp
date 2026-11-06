@@ -447,6 +447,16 @@ public:
         const TextShaping& shaping = TextShaping{}
     ) const;
 
+    /// Return the flattened FreeType outline for one already-shaped glyph.
+    /// Coordinates are glyph-local pixels with +Y downward, matching the
+    /// canonical placed TextRun space. This does not perform text shaping.
+    [[nodiscard]] std::vector<std::vector<Vec2>> glyph_outline_contours(
+        const FontSpec& spec,
+        u32 glyph_id,
+        float font_size,
+        std::string_view variation_axes = {}
+    ) const;
+
     /// Measure a single line of text (no wrapping). Returns total width
     /// in pixels, or 0.0f if the font cannot be loaded.
     [[nodiscard]] float measure_text(

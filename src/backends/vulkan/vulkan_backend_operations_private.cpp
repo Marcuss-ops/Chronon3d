@@ -37,7 +37,8 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
                                     const std::optional<raster::BBox>& clip,
                                     bool replace, float source_scale,
                                     bool weighted_source_over,
-                                    bool participates_in_command_plan) {
+                                    bool participates_in_command_plan,
+                                    bool gel_transmission) {
     auto& dst_image = resolve_image(destination);
     auto& src_image = resolve_image(source);
     if (dst_image.image == src_image.image) {
@@ -56,9 +57,11 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
             std::to_string(src_image.height) +
             (src_image.initialized ? "" : " src-uninitialized"));
     }
-    const auto blend_mode = composite_blend_mode(mode, replace, weighted_source_over);
+    const auto blend_mode = gel_transmission ? 9 :
+        composite_blend_mode(mode, replace, weighted_source_over);
     const bool premultiplied_source_over =
-        !replace && !weighted_source_over && mode == BlendMode::Normal;
+        !replace && !weighted_source_over && mode == BlendMode::Normal &&
+        !gel_transmission;
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst_image, src_image);

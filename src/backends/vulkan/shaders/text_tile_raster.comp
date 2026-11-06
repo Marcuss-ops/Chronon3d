@@ -97,6 +97,13 @@ layout(push_constant) uniform PushConstants {
 shared uint s_glyph_indices[256];
 shared uint s_draw_orders[256];
 shared uint s_count;
+shared uint s_has_gel;
+const int kGelTileSize = 16;
+const int kGelHalo = 2;
+const int kGelFieldSize = kGelTileSize + 2 * kGelHalo;
+shared float s_gel_dist[kGelFieldSize][kGelFieldSize];
+shared uint s_gel_owner[kGelFieldSize][kGelFieldSize];
+shared float s_gel_v_coord[kGelFieldSize][kGelFieldSize];
 
 // Fractional (bilinear) atlas tap for the prepared-glyph path.
 //
@@ -140,6 +147,312 @@ vec4 animated_fill_color(GpuTextRunDynamic run, float weight) {
     return mix(base, unpack_color(run.animator_fill_color), weight);
 }
 
+// C2-continuous cubic B-spline filter over the 4x4 atlas texel neighbourhood,
+// clamped to the glyph's own atlas rect so it never bleeds into neighbours.
+// Eliminates piecewise-constant bilinear normal facets and 8-bit UNORM8
+// quantization steps on magnified curves and serifs.
+float atlas_alpha_bspline(ivec2 rect_origin, int rect_w, int rect_h, vec2 texel) {
+    const vec2 max_texel = vec2(float(rect_w) - 1.0, float(rect_h) - 1.0);
+    texel = clamp(texel, vec2(0.0), max_texel);
+    const ivec2 base = ivec2(floor(texel));
+    const vec2 f = texel - vec2(base);
+    const vec2 f2 = f * f;
+    const vec2 f3 = f2 * f;
+    const vec2 w0 = (1.0 - 3.0 * f + 3.0 * f2 - f3) * (1.0 / 6.0);
+    const vec2 w1 = (4.0 - 6.0 * f2 + 3.0 * f3) * (1.0 / 6.0);
+    const vec2 w2 = (1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3) * (1.0 / 6.0);
+    const vec2 w3 = f3 * (1.0 / 6.0);
+    const float wx[4] = float[4](w0.x, w1.x, w2.x, w3.x);
+    const float wy[4] = float[4](w0.y, w1.y, w2.y, w3.y);
+    const ivec2 max_idx = ivec2(rect_w - 1, rect_h - 1);
+    float sum = 0.0;
+    for (int dy = -1; dy <= 2; ++dy) {
+        int y = clamp(base.y + dy, 0, max_idx.y);
+        float row = 0.0;
+        for (int dx = -1; dx <= 2; ++dx) {
+            int x = clamp(base.x + dx, 0, max_idx.x);
+            row += imageLoad(atlas_image, rect_origin + ivec2(x, y)).a * wx[dx + 1];
+        }
+        sum += row * wy[dy + 1];
+    }
+    return sum;
+}
+
+float atlas_alpha_smooth(ivec2 rect_origin, int rect_w, int rect_h,
+                         vec2 texel, float texel_to_screen) {
+    float center = atlas_alpha_bspline(rect_origin, rect_w, rect_h, texel);
+    float wide_mix = clamp((texel_to_screen - 1.25) / 2.5, 0.0, 1.0);
+    if (wide_mix <= 0.0) return center;
+    const float r = 1.35;
+    float ring = 0.25 * (
+        atlas_alpha_bspline(rect_origin, rect_w, rect_h, texel + vec2(r, 0.0)) +
+        atlas_alpha_bspline(rect_origin, rect_w, rect_h, texel - vec2(r, 0.0)) +
+        atlas_alpha_bspline(rect_origin, rect_w, rect_h, texel + vec2(0.0, r)) +
+        atlas_alpha_bspline(rect_origin, rect_w, rect_h, texel - vec2(0.0, r)));
+    return mix(center, 0.45 * center + 0.55 * ring, wide_mix);
+}
+
+float smooth_union_distance(float a, float b, float smoothness) {
+    if (!(smoothness > 0.0)) return max(a, b);
+    float nearest = max(a, b);
+    return nearest + log(exp(smoothness * (a - nearest)) +
+                         exp(smoothness * (b - nearest))) / smoothness;
+}
+
+// Evaluate the composite TextRun signed distance in screen pixels at sample_pos
+// across all gel glyphs binned into this tile.
+float evaluate_composite_gel_distance(vec2 sample_pos, uint count,
+                                      out uint owner_gid,
+                                      out float owner_v_coord) {
+    float d_composite = -1000.0;
+    bool has_sample = false;
+    float best_distance = -1000.0;
+    uint best_gid = 0xFFFFFFFFu;
+    float best_v_coord = 0.5;
+    for (uint i = 0; i < count; ++i) {
+        uint gid = s_glyph_indices[i];
+        GpuGlyphStatic glyph = glyphs[gid];
+        uint flags = (glyph.atlas_page_and_flags >> 16u) & 0xFFFFu;
+        if ((flags & 1u) == 0u) continue;
+        GpuTextRunDynamic run = runs[glyph.run_index];
+        if ((run.effect_flags & 8u) == 0u) continue;
+        if (run.visible_glyph_count != 0xFFFFFFFFu &&
+            glyph.pad0 >= run.visible_glyph_count) continue;
+
+        uint atlas_x = glyph.atlas_pos & 0xFFFFu;
+        uint atlas_y = (glyph.atlas_pos >> 16u) & 0xFFFFu;
+        uint atlas_w = glyph.atlas_size & 0xFFFFu;
+        uint atlas_h = (glyph.atlas_size >> 16u) & 0xFFFFu;
+        if (atlas_w == 0u || atlas_h == 0u) continue;
+
+        float plane_w = glyph.plane_right - glyph.plane_left;
+        float plane_h = glyph.plane_bottom - glyph.plane_top;
+        if (plane_w <= 0.0 || plane_h <= 0.0) continue;
+
+        float texel_to_screen = 0.5 *
+            (abs(run.sx) * plane_w / float(atlas_w) +
+             abs(run.sy) * plane_h / float(atlas_h));
+        float reveal_weight = glyph_dynamic[gid].selector_weight;
+        float tracking = glyph_dynamic[gid].tracking_prefix;
+        vec2 animator_offset = vec2(
+            run.animator_position_x * reveal_weight + tracking,
+            run.animator_position_y * reveal_weight);
+        vec2 animator_scale = vec2(
+            1.0 + (run.animator_scale_x - 1.0) * reveal_weight,
+            1.0 + (run.animator_scale_y - 1.0) * reveal_weight);
+        vec2 scale_origin_compensation = vec2(0.0);
+        if ((run.flags & 2u) != 0u) {
+            scale_origin_compensation = vec2(run.sx, run.sy) *
+                vec2(glyph.origin_x, glyph.origin_y) *
+                (vec2(1.0) - animator_scale);
+        }
+        vec2 eff_scale = vec2(run.sx, run.sy) * animator_scale;
+        if (abs(eff_scale.x) <= 1e-6 || abs(eff_scale.y) <= 1e-6) continue;
+        vec2 local = (sample_pos - vec2(run.tx, run.ty) - animator_offset -
+                      scale_origin_compensation) / eff_scale;
+        if (run.animator_rotation_z != 0.0) {
+            float angle = radians(run.animator_rotation_z * reveal_weight);
+            float ca = cos(angle);
+            float sa = sin(angle);
+            vec2 d = local - vec2(glyph.origin_x, glyph.origin_y);
+            local = vec2(glyph.origin_x, glyph.origin_y) +
+                    vec2(d.x * ca + d.y * sa, -d.x * sa + d.y * ca);
+        }
+        if (run.animator_shear_x != 0.0 || run.animator_shear_y != 0.0) {
+            float shx = run.animator_shear_x * reveal_weight;
+            float shy = run.animator_shear_y * reveal_weight;
+            float det = 1.0 - shx * shy;
+            if (abs(det) > 1e-5) {
+                vec2 d = local - vec2(glyph.origin_x, glyph.origin_y);
+                float inv_det = 1.0 / det;
+                local = vec2(glyph.origin_x, glyph.origin_y) +
+                        vec2((d.x - shx * d.y) * inv_det,
+                             (-shy * d.x + d.y) * inv_det);
+            }
+        }
+
+        vec2 plane_min = vec2(glyph.plane_left, glyph.plane_top);
+        vec2 plane_max = vec2(glyph.plane_right, glyph.plane_bottom);
+        vec2 clamped_local = clamp(local, plane_min, plane_max);
+        vec2 outside_px = (local - clamped_local) * abs(eff_scale);
+        float outside_dist = length(outside_px);
+        if (outside_dist > 4.0) continue;
+
+        vec2 glyph_uv = (clamped_local - plane_min) / vec2(plane_w, plane_h);
+        vec2 glyph_texel = glyph_uv * vec2(float(atlas_w), float(atlas_h)) - vec2(0.5);
+        float distance_range = uintBitsToFloat(run.distance_range_bits);
+        if (!(distance_range > 0.0)) distance_range = 8.0;
+
+        float msd_smooth = atlas_alpha_smooth(
+            ivec2(int(atlas_x), int(atlas_y)),
+            int(atlas_w), int(atlas_h), glyph_texel, texel_to_screen);
+        float d_glyph = (msd_smooth - 0.5) * distance_range * texel_to_screen - outside_dist;
+        float v_coord = clamp(
+            ((glyph.origin_y - clamped_local.y) * abs(run.sy)) /
+            max(42.0 * texel_to_screen, 4.0) + 0.25, 0.0, 1.0);
+        if (d_glyph > best_distance) {
+            best_distance = d_glyph;
+            best_gid = gid;
+            best_v_coord = v_coord;
+        }
+
+        if (!has_sample) {
+            d_composite = d_glyph;
+            has_sample = true;
+        } else {
+            // Smooth union ONLY where two glyphs actually touch or overlap.
+            // Separated letters and internal counters stay exact max(a, b).
+            float contact = smoothstep(-1.25, 0.35, min(d_composite, d_glyph));
+            float u_max = max(d_composite, d_glyph);
+            float u_smooth = smooth_union_distance(
+                d_composite, d_glyph, 0.55 / max(texel_to_screen, 0.5));
+            d_composite = mix(u_max, u_smooth, contact);
+        }
+    }
+    owner_gid = best_gid;
+    owner_v_coord = best_v_coord;
+    return d_composite;
+}
+
+float composite_gel_body_alpha(float d_surf, float radius_px,
+                               uint effect_flags) {
+    if ((effect_flags & 512u) == 0u) return 1.0;
+    float u = clamp(max(d_surf, 0.0) / max(radius_px, 1e-4), 0.0, 1.0);
+    float dome = u * (2.0 - u);
+    float optical_thickness = clamp(0.35 + 1.45 * dome, 0.0, 2.0);
+    // Scalar alpha is the source-over transmission contract at the composite
+    // stage. The old path sampled dst_image here, but text is rasterized to a
+    // transparent layer before the backdrop is connected by CompositeNode.
+    return clamp(1.0 - exp(-1.2 * optical_thickness), 0.0, 1.0);
+}
+
+vec3 shade_composite_gel_surface(
+    float d_surf,
+    vec2 sdf_gradient,
+    float curvature_variance,
+    float v_grad,
+    float texel_to_screen,
+    vec4 base_color,
+    uint effect_flags,
+    uint light_params) {
+    // Stroke half-width in screen pixels scales with texel_to_screen
+    // (canonical MTSDF em_px = 64 -> bold stroke half-width is ~3.6 texels).
+    // The dome radius must cover the local stroke half-width. A radius that
+    // is smaller than the distance at the medial axis clamps u to 1 across
+    // the stroke centre, producing the flat plateau seen in the first smoke
+    // renders. 5.2 canonical em-texels matches the bold display weight used
+    // by the reference title.
+    float radius_px = clamp(5.2 * texel_to_screen, 1.6, 96.0);
+    float u = clamp(max(d_surf, 0.0) / radius_px, 0.0, 1.0);
+    // Keep the GPU height and normal on the same limited-slope profile as
+    // text::gel::rounded_height(): h/r = u(2-u), dh/du = 2(1-u).
+    float dome = u * (2.0 - u);
+    uint diagnostic_mode = (effect_flags >> 6u) & 7u;
+    if (diagnostic_mode == 1u) {
+        float encoded_distance = 0.5 + 0.5 * clamp(d_surf / radius_px, -1.0, 1.0);
+        return vec3(encoded_distance, 0.5, 1.0 - encoded_distance);
+    }
+    if (diagnostic_mode == 2u) {
+        return vec3(dome);
+    }
+
+    // 1. Luminous full-body face (ALWAYS visible, even with specular/rim off).
+    float face_gradient = clamp(0.82 * dome + 0.18 * clamp(v_grad, 0.0, 1.0), 0.0, 1.0);
+    vec3 c = clamp(base_color.rgb, vec3(0.0), vec3(1.0));
+    float c_peak = max(c.r, max(c.g, max(c.b, 0.001)));
+    vec3 c_norm = c / c_peak;
+    // Calibrated so #00E5FF produces a full luminous cyan body with a soft
+    // azure-blue rim and a broad near-white cyan pillow core:
+    vec3 edge_tint = clamp(c * vec3(0.24, 0.68, 0.98) + vec3(0.08, 0.04, 0.0) * c_peak, 0.0, 1.0);
+    vec3 body_tint = clamp(mix(c, c_norm, 0.35) * vec3(1.0, 0.99, 1.0) + vec3(0.16, 0.06, 0.02) * c_peak, 0.0, 1.0);
+    vec3 core_tint = clamp(mix(c_norm, vec3(1.0), 0.45) * c_peak, 0.0, 1.0);
+
+    vec3 face = mix(edge_tint, body_tint, smoothstep(0.0, 0.28, face_gradient));
+    face = mix(face, core_tint, smoothstep(0.24, 0.92, face_gradient));
+
+    // Stage 02 (GEL-01 Core + gradient mode): return the luminous face directly
+    // with zero specular and zero rim.
+    if ((effect_flags & 32u) != 0u) {
+        return face;
+    }
+
+    // 2. Stage 03 (GEL-02 / GEL-03 Glossy surface): height & normal reconstruction.
+    float dh_dd = 2.0 * (1.0 - u);
+    float dhdx = dh_dd * sdf_gradient.x;
+    float dhdy = dh_dd * sdf_gradient.y;
+    vec3 N = normalize(vec3(-dhdx, -dhdy, 1.0));
+    if (diagnostic_mode == 3u) {
+        return N * 0.5 + 0.5;
+    }
+    if (diagnostic_mode == 4u) {
+        float normal_length = length(N);
+        bool valid = !any(isnan(N)) && !any(isinf(N)) &&
+                     !isnan(normal_length) && !isinf(normal_length) &&
+                     abs(normal_length - 1.0) < 0.01;
+        return valid ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    }
+    if (diagnostic_mode == 5u) {
+        return vec3((effect_flags & 512u) != 0u ? 1.0 : 0.0,
+                    composite_gel_body_alpha(d_surf, radius_px, effect_flags), 0.0);
+    }
+
+    float azimuth = -2.176;
+    float elevation = 0.38;
+    if ((effect_flags & 16u) != 0u) {
+        azimuth = float(light_params & 0xFFFFu) *
+                      (6.28318530718 / 65535.0) - 3.14159265359;
+        elevation = float((light_params >> 16u) & 0xFFFFu) / 65535.0;
+    }
+    float horizontal = sqrt(max(1.0 - elevation * elevation, 0.0));
+    vec3 L = normalize(vec3(cos(azimuth) * horizontal,
+                            sin(azimuth) * horizontal, elevation));
+    vec3 V = vec3(0.0, 0.0, 1.0);
+    vec3 H = normalize(L + V);
+
+    // Half-Lambert diffuse term that preserves the bright cyan core even on
+    // the shadowed flank (never collapsing to a dark outline).
+    float ndotl = dot(N, L);
+    float half_lambert = clamp((ndotl + 0.50) / 1.50, 0.0, 1.0);
+    half_lambert = half_lambert * half_lambert;
+    float diffuse_term = mix(0.55, 1.12, half_lambert);
+
+    // Subtle royal-blue bevel shade on the lower-right outer flank only.
+    float flank_shade = (1.0 - half_lambert) * (1.0 - 0.80 * dome);
+    vec3 shaded_face = mix(face * diffuse_term, edge_tint * 0.88, 0.16 * flank_shade);
+
+    // Selective Beer-Lambert absorption through the dome: optical thickness
+    // grows from zero at the thin silhouette to one at the medial axis.
+    // Apply it to the body response only; external specular and Fresnel rim
+    // remain unattenuated light arriving at the surface.
+    const vec3 kGelAbsorption = vec3(1.2, 0.4, 0.05);
+    shaded_face *= exp(-kGelAbsorption * dome);
+
+    // Toksvig geometric roughness from both SDF gradient length loss at medial
+    // axes and screen-space Hessian curvature variance.
+    float grad_len = length(sdf_gradient);
+    float medial_roughness = clamp(1.0 - grad_len, 0.0, 0.85);
+    float curv_roughness = clamp(sqrt(curvature_variance) * 1.2, 0.0, 0.85);
+    float geom_roughness = clamp(max(medial_roughness, curv_roughness), 0.0, 0.85);
+
+    float broad_exp = mix(14.0, 6.0, geom_roughness);
+    float sharp_exp = mix(48.0, 16.0, geom_roughness);
+    float ndoth = max(dot(N, H), 0.0);
+    float crest_mask = smoothstep(0.02, 0.32, u);
+
+    vec3 broad_tint = mix(c_norm, vec3(1.0), 0.65);
+    vec3 sharp_tint = mix(c_norm, vec3(1.0), 0.90);
+    vec3 broad_specular = broad_tint * (0.42 * pow(ndoth, broad_exp) * crest_mask);
+    vec3 sharp_specular = sharp_tint * (0.34 * pow(ndoth, sharp_exp) *
+                          smoothstep(0.06, 0.38, u) * (1.0 - 0.55 * geom_roughness));
+
+    // Grazing Fresnel rim light with subtle cyan-azure chromatic tint.
+    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.2);
+    float rim_dir = 0.35 + 0.65 * max(dot(N.xy, L.xy), 0.0);
+    vec3 rim_light = mix(c_norm, vec3(0.35, 0.82, 1.00), 0.5) * (0.18 * fresnel * rim_dir);
+
+    return shaded_face + broad_specular + sharp_specular + rim_light;
+}
+
 void main() {
     const uint kOverflowBit = 0x80000000u;
     uint tx = gl_WorkGroupID.x;
@@ -156,6 +469,7 @@ void main() {
         s_count = (raw_count & kOverflowBit) != 0u
             ? 0u
             : min(min(raw_count, params.max_glyphs_per_tile), 256u);
+        s_has_gel = 0u;
     }
     barrier();
 
@@ -163,7 +477,12 @@ void main() {
     if (tid < count) {
         uint gid = tile_glyph_indices[tile_idx * params.max_glyphs_per_tile + tid];
         s_glyph_indices[tid] = gid;
-        s_draw_orders[tid] = glyphs[gid].draw_order;
+        GpuGlyphStatic g = glyphs[gid];
+        s_draw_orders[tid] = g.draw_order;
+        uint g_flags = (g.atlas_page_and_flags >> 16u) & 0xFFFFu;
+        if ((g_flags & 1u) != 0u && (runs[g.run_index].effect_flags & 8u) != 0u) {
+            atomicOr(s_has_gel, 1u);
+        }
     }
     barrier();
 
@@ -186,6 +505,26 @@ void main() {
     }
     barrier();
 
+    // Build the 18x18 screen-space composite TextRun distance field for gel
+    // tiles BEFORE the out-of-bounds early exit so all workgroup barriers
+    // execute in uniform control flow.
+    if (s_has_gel != 0u) {
+        ivec2 tile_origin = ivec2(int(tx) * kGelTileSize, int(ty) * kGelTileSize);
+        const uint field_samples = uint(kGelFieldSize * kGelFieldSize);
+        for (uint sample_idx = tid; sample_idx < field_samples; sample_idx += 256u) {
+            int sy = int(sample_idx / uint(kGelFieldSize));
+            int sx = int(sample_idx - uint(sy) * uint(kGelFieldSize));
+            vec2 sample_pos = vec2(tile_origin + ivec2(sx - kGelHalo, sy - kGelHalo)) + vec2(0.5);
+            uint owner = 0xFFFFFFFFu;
+            float v_coord = 0.5;
+            s_gel_dist[sy][sx] = evaluate_composite_gel_distance(
+                sample_pos, count, owner, v_coord);
+            s_gel_owner[sy][sx] = owner;
+            s_gel_v_coord[sy][sx] = v_coord;
+        }
+        barrier();
+    }
+
     ivec2 pixel_coord = ivec2(gl_GlobalInvocationID.xy);
     if (pixel_coord.x >= int(params.dst_width) || pixel_coord.y >= int(params.dst_height)) {
         return;
@@ -200,6 +539,7 @@ void main() {
     vec4 shadow_layer = vec4(0.0);
     vec4 stroke_layer = vec4(0.0);
     vec4 fill_layer = vec4(0.0);
+
 
     for (uint i = 0; i < count; ++i) {
         uint gid = s_glyph_indices[i];
@@ -415,9 +755,18 @@ void main() {
                 stroke *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
                 stroke_layer = stroke + stroke_layer * (1.0 - stroke.a);
             }
-            vec4 fill = animated_fill_color(run, reveal_weight) * fill_alpha;
-            fill *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
-            fill_layer = fill + fill_layer * (1.0 - fill.a);
+            vec4 fill = animated_fill_color(run, reveal_weight);
+            float run_op = run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
+            if ((run.effect_flags & 8u) != 0u) {
+                // GEL-01: the composite TextRun silhouette is shaded once,
+                // after the glyph loop, from the shared distance field. Per-
+                // glyph alpha here would keep overlapping glyphs as separate
+                // surfaces with hard intersections.
+            } else {
+                fill *= fill_alpha;
+                fill *= run_op;
+                fill_layer = fill + fill_layer * (1.0 - fill.a);
+            }
         } else {
             src = sample_value;
             if ((run.flags & 0x400u) != 0u ||
@@ -428,6 +777,87 @@ void main() {
             fill_layer = src + fill_layer * (1.0 - src.a);
         }
 
+    }
+
+    if (s_has_gel != 0u) {
+        int lx = int(gl_LocalInvocationID.x);
+        int ly = int(gl_LocalInvocationID.y);
+        const int cx = lx + kGelHalo;
+        const int cy = ly + kGelHalo;
+        float d_surf = s_gel_dist[cy][cx];
+        // One screen-pixel antialias ramp from the composite TextRun field.
+        // This is the silhouette union: coverage is no longer the max of the
+        // per-glyph atlas alphas, so touching/overlapping glyphs share one
+        // surface and one highlight.
+        float gel_coverage = clamp(d_surf + 0.5, 0.0, 1.0);
+        uint owner_gid = s_gel_owner[cy][cx];
+        if (owner_gid != 0xFFFFFFFFu) {
+            GpuGlyphStatic owner = glyphs[owner_gid];
+            GpuTextRunDynamic owner_run = runs[owner.run_index];
+            uint diagnostic_mode = (owner_run.effect_flags >> 6u) & 7u;
+            if (gel_coverage > 0.0 || diagnostic_mode == 1u) {
+            float d_l2 = s_gel_dist[cy][cx - kGelHalo];
+            float d_r2 = s_gel_dist[cy][cx + kGelHalo];
+            float d_t2 = s_gel_dist[cy - kGelHalo][cx];
+            float d_b2 = s_gel_dist[cy + kGelHalo][cx];
+            // Four-pixel central difference: a wider stencil suppresses the
+            // per-texel discontinuities that produced faceted highlights on
+            // magnified glyphs, while the exact 3x3 Hessian stays local.
+            vec2 sdf_gradient = vec2(d_r2 - d_l2, d_b2 - d_t2) * 0.25;
+
+            float d_l = s_gel_dist[cy][cx - 1];
+            float d_r = s_gel_dist[cy][cx + 1];
+            float d_t = s_gel_dist[cy - 1][cx];
+            float d_b = s_gel_dist[cy + 1][cx];
+            float d_tl = s_gel_dist[cy - 1][cx - 1];
+            float d_tr = s_gel_dist[cy - 1][cx + 1];
+            float d_bl = s_gel_dist[cy + 1][cx - 1];
+            float d_br = s_gel_dist[cy + 1][cx + 1];
+            float d2x = d_r - 2.0 * d_surf + d_l;
+            float d2y = d_b - 2.0 * d_surf + d_t;
+            float d2xy = 0.25 * (d_br - d_bl - d_tr + d_tl);
+            float curvature_variance = d2x * d2x + d2y * d2y +
+                                       2.0 * d2xy * d2xy;
+
+            float owner_reveal = glyph_dynamic[owner_gid].selector_weight;
+            float owner_texel_to_screen = 1.0;
+            uint owner_atlas_w = owner.atlas_size & 0xFFFFu;
+            uint owner_atlas_h = (owner.atlas_size >> 16u) & 0xFFFFu;
+            float owner_plane_w = owner.plane_right - owner.plane_left;
+            float owner_plane_h = owner.plane_bottom - owner.plane_top;
+            if (owner_atlas_w != 0u && owner_atlas_h != 0u &&
+                owner_plane_w > 0.0 && owner_plane_h > 0.0) {
+                owner_texel_to_screen = 0.5 *
+                    (abs(owner_run.sx) * owner_plane_w / float(owner_atlas_w) +
+                     abs(owner_run.sy) * owner_plane_h / float(owner_atlas_h));
+            }
+            vec4 owner_fill = animated_fill_color(owner_run, owner_reveal);
+            float owner_opacity = owner_run.opacity *
+                (1.0 + (owner_run.animator_opacity - 1.0) * owner_reveal);
+            float owner_v_grad = s_gel_v_coord[cy][cx];
+
+            vec3 lit = shade_composite_gel_surface(
+                d_surf, sdf_gradient, curvature_variance, owner_v_grad,
+                owner_texel_to_screen, owner_fill, owner_run.effect_flags,
+                owner_run.animator_reserved5);
+            float body_alpha = composite_gel_body_alpha(
+                d_surf, clamp(5.2 * owner_texel_to_screen, 1.6, 96.0),
+                owner_run.effect_flags);
+            vec4 gel_fill = vec4(lit, 1.0) *
+                (owner_fill.a * gel_coverage * owner_opacity * body_alpha);
+            if (diagnostic_mode != 0u) {
+                gel_fill = vec4(lit, 1.0) * owner_opacity;
+            }
+            // The distance visualization shows a controlled four-pixel
+            // exterior band. Pixels farther outside the composite mask stay
+            // transparent so the per-glyph atlas planes cannot appear as
+            // filled rectangles in the diagnostic image.
+            if (diagnostic_mode == 1u && d_surf < -4.0) {
+                gel_fill = vec4(0.0);
+            }
+            fill_layer = gel_fill + fill_layer * (1.0 - gel_fill.a);
+            }
+        }
     }
 
     vec4 current_color = shadow_layer + destination_color * (1.0 - shadow_layer.a);

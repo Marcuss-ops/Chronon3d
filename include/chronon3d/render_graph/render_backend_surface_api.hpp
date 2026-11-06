@@ -6,6 +6,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 
@@ -51,7 +52,8 @@ public:
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         BlendMode mode = BlendMode::Normal,
         CompositeOperator op = CompositeOperator::SourceOver,
-        const std::optional<raster::BBox>& clip = std::nullopt);
+        const std::optional<raster::BBox>& clip = std::nullopt,
+        bool gel_transmission = false);
     virtual RenderOpResult composite_surface_weighted(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         float opacity, const std::optional<raster::BBox>& clip = std::nullopt);
@@ -137,6 +139,20 @@ public:
     virtual RenderOpResult lighting_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         const Color& multiplier);
+    /// Native per-pixel point/spot lighting. Each light is packed as four
+    /// vec4 values: position/kind, direction/angle, color/radius,
+    /// range/decay/penumbra/reserved.
+    virtual RenderOpResult lighting_surface_points(
+        runtime::RenderSurfaceHandle destination,
+        runtime::RenderSurfaceHandle source,
+        const Color& scene_multiplier,
+        std::span<const float> packed_lights,
+        std::uint32_t light_count,
+        Vec3 normal,
+        float layer_z,
+        int origin_x,
+        int origin_y,
+        float diffuse);
     /// Per-pixel cross-layer occlusion tag for device-local surfaces.
     /// `layer_depth` and `frame_depth` share one encoding: r = positive
     /// camera depth, g > 0 = covered. Writes `mask` (a = 1 visible, 0

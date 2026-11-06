@@ -184,6 +184,7 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
     ctx.surface_registry->release(horizontal);
     ctx.surface_registry->release(vertical);
     result.set_surface_handle(output);
+    result.mark_gpu_authoritative();
     return true;
 }
 
@@ -335,6 +336,7 @@ bool try_native_full_frame_drop_shadow(
         ctx.surface_registry->release(handle);
     }
     result.set_surface_handle(output);
+    result.mark_gpu_authoritative();
     return true;
 }
 
@@ -406,6 +408,7 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
         ctx.surface_registry->release(source);
     }
     result.set_surface_handle(destination);
+    result.mark_gpu_authoritative();
     return true;
 }
 
@@ -545,6 +548,7 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         }
         result.set_surface_handle(output);
     }
+    result.mark_gpu_authoritative();
     return true;
 }
 
@@ -642,6 +646,7 @@ bool try_native_full_frame_sharpen(RenderGraphContext& ctx,
     }
     release_scratch();
     result.set_surface_handle(destination);
+    result.mark_gpu_authoritative();
     return true;
 }
 
@@ -675,13 +680,19 @@ bool try_native_full_frame_directional_blur(RenderGraphContext& ctx,
     if (!(params->length > 0.0f)) {
         if (!std::isfinite(params->length)) return false;
         // CPU identity fast path: forward the input surface untouched.
-        if (has_borrowed) result.set_surface_handle(borrowed_source);
+        if (has_borrowed) {
+            result.set_surface_handle(borrowed_source);
+            result.mark_gpu_authoritative();
+        }
         return true;
     }
     if (params->length > 64.0f) return false;
     if (params->samples == 1) {
         // Pinned CPU identity: single center tap.
-        if (has_borrowed) result.set_surface_handle(borrowed_source);
+        if (has_borrowed) {
+            result.set_surface_handle(borrowed_source);
+            result.mark_gpu_authoritative();
+        }
         return true;
     }
     const int taps = (params->samples > 1)
@@ -710,6 +721,7 @@ bool try_native_full_frame_directional_blur(RenderGraphContext& ctx,
         return false;
     }
     result.set_surface_handle(destination);
+    result.mark_gpu_authoritative();
     return true;
 }
 

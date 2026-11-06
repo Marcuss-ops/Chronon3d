@@ -116,3 +116,14 @@ CHRONON3D_TEXT_CANARY_BUILD_DIR=<dir> tools/verify_text_tile_gpu_canary.sh
 Nota operativa: **ricostruire sempre prima di misurare**. Il fallimento
 registrato qui non era un contratto rotto ma un artefatto non rigenerato; la
 stessa trappola vale per qualunque suite esclusa da tutte le lane.
+
+### Aggiornamento contratto gel — 2026-11-05
+
+Il test Vulkan ora esercita anche lo shading gel e sostituisce tre assert RGB
+di tinta piatta con quattro assert sul corpo illuminato. Sul device NVIDIA RTX
+A4000 con driver 595.99.02 il binario ricostruito passa 1/1 caso e 105/105
+assertion. Di conseguenza il default di
+`tools/verify_text_tile_gpu_canary.sh` è stato aggiornato da 104 a 105; il
+vecchio conteggio sopra resta la misura storica del contratto senza il ramo gel.
+Questo risultato resta un canary shader e non una review della superficie
+ottica completa.

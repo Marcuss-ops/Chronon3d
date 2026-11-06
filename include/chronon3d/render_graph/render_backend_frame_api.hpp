@@ -56,6 +56,12 @@ public:
         Framebuffer& destination, const Framebuffer& source, BlendMode mode,
         const std::optional<raster::BBox>& clip = std::nullopt,
         CompositeOperator op = CompositeOperator::SourceOver) = 0;
+    virtual void composite_gel_layer(
+        Framebuffer& destination, const Framebuffer& source,
+        const std::optional<raster::BBox>& clip = std::nullopt) {
+        composite_layer(destination, source, BlendMode::Normal, clip,
+                       CompositeOperator::SourceOver);
+    }
     virtual void apply_blur(
         Framebuffer& framebuffer, float radius,
         const std::optional<raster::BBox>& clip = std::nullopt) = 0;

@@ -56,6 +56,18 @@ void main() {
     vec4 dst = imageLoad(dst_image, pixel);
     vec4 result;
     if (params.blend_mode == 2) result = src;
+    else if (params.blend_mode == 9) {
+        // GEL coverage encodes red-channel absorption as alpha. Recover the
+        // normalized optical thickness and apply Beer-Lambert transmission
+        // independently to each backdrop channel. Source RGB remains the
+        // premultiplied reflected/emitted surface contribution.
+        float red_transmission = max(1.0 - clamp(src.a, 0.0, 1.0), 1e-6);
+        vec3 transmission = pow(vec3(red_transmission),
+                               vec3(1.0, 0.4 / 1.2, 0.05 / 1.2));
+        result.rgb = src.rgb + dst.rgb * transmission;
+        result.a = clamp(src.a, 0.0, 1.0) +
+                   clamp(dst.a, 0.0, 1.0) * (1.0 - clamp(src.a, 0.0, 1.0));
+    }
     else if (params.blend_mode == 1) result = src * params.tint * params.source_scale + dst;
     else if (params.blend_mode == 6) {
         result.rgb = dst.rgb + src.rgb * params.source_scale;

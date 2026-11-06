@@ -257,6 +257,116 @@ TEST_CASE("strict Vulkan lighting keeps directional layer lights GPU-native") {
     source.clear_surface_handle();
 }
 
+TEST_CASE("strict Vulkan lighting matches four per-pixel spot lights") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    constexpr std::uint32_t width = 4;
+    constexpr std::uint32_t height = 4;
+    const auto desc = SurfaceDesc::make(
+        width, height, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto surface = registry.create(desc);
+    REQUIRE(surface != kInvalidRenderSurfaceHandle);
+    REQUIRE(backend.create_surface(surface, desc).ok());
+
+    std::vector<float> initialized(width * height * 4, 0.0f);
+    for (std::size_t pixel = 0; pixel < initialized.size() / 4; ++pixel) {
+        initialized[pixel * 4 + 0] = 0.4f;
+        initialized[pixel * 4 + 1] = 0.2f;
+        initialized[pixel * 4 + 2] = 0.1f;
+        initialized[pixel * 4 + 3] = 1.0f;
+    }
+    REQUIRE(backend.upload_surface(surface, desc, initialized).ok());
+    Framebuffer source(width, height);
+    source.set_surface_handle(surface);
+    source.mark_gpu_authoritative();
+
+    graph::RenderGraphContext ctx;
+    ctx.frame_input.width = width;
+    ctx.frame_input.height = height;
+    ctx.policy.require_native_gpu = true;
+    ctx.backend = &backend;
+    ctx.surface_registry = &registry;
+    auto& lights = ctx.frame_input.light_context;
+    const std::array<Vec3, 4> positions{
+        Vec3{0.0f, 0.0f, 80.0f}, Vec3{4.0f, 0.0f, 80.0f},
+        Vec3{0.0f, 4.0f, 80.0f}, Vec3{4.0f, 4.0f, 80.0f}};
+    const std::array<Color, 4> colors{
+        Color{1.0f, 0.1f, 0.1f, 1.0f}, Color{0.1f, 1.0f, 0.1f, 1.0f},
+        Color{0.1f, 0.1f, 1.0f, 1.0f}, Color{0.5f, 0.5f, 0.2f, 1.0f}};
+    for (std::size_t i = 0; i < positions.size(); ++i) {
+        lights.point_lights.push_back(rendering::PointLightSource{
+            .kind = rendering::PointLightKind::Spot,
+            .position = positions[i],
+            .direction = Vec3{0.0f, 0.0f, -1.0f},
+            .color = colors[i],
+            .radius = 100.0f,
+            .range = 150.0f,
+            .decay = 1.0f,
+            .angle = 0.8f,
+            .penumbra = 0.35f,
+        });
+    }
+    const auto node = graph::LightingNode::create(
+        "four-spot-layer", Mat4{1.0f}, Material2_5D{});
+    const std::array<FramebufferRef, 1> inputs{FramebufferRef{source}};
+    auto result = node->execute(ctx, inputs, {});
+    REQUIRE(result.ok());
+    auto output = result.take_value();
+    REQUIRE(output);
+    CHECK(output->is_gpu_authoritative());
+
+    std::vector<float> actual(initialized.size(), 0.0f);
+    REQUIRE(backend.download_surface(output->surface_handle(), actual).ok());
+    for (std::uint32_t y = 0; y < height; ++y) {
+        for (std::uint32_t x = 0; x < width; ++x) {
+            const auto offset = (static_cast<std::size_t>(y) * width + x) * 4;
+            const Color expected = rendering::evaluate_lighting_at(
+                Color{0.4f, 0.2f, 0.1f, 1.0f}, Vec3{0.0f, 0.0f, 1.0f},
+                Vec3{static_cast<float>(x) + 0.5f,
+                     static_cast<float>(y) + 0.5f, 0.0f}, lights, Material2_5D{});
+            CHECK(actual[offset + 0] == doctest::Approx(expected.r).epsilon(2e-5));
+            CHECK(actual[offset + 1] == doctest::Approx(expected.g).epsilon(2e-5));
+            CHECK(actual[offset + 2] == doctest::Approx(expected.b).epsilon(2e-5));
+            CHECK(actual[offset + 3] == doctest::Approx(1.0f));
+        }
+    }
+
+    (void)backend.release_surface(output->surface_handle());
+    (void)registry.release(output->surface_handle());
+    output->clear_surface_handle();
+    (void)backend.release_surface(surface);
+    (void)registry.release(surface);
+    source.clear_surface_handle();
+}
+
+TEST_CASE("strict Vulkan lighting rejects payloads above the 64-light shader cap") {
+    using namespace chronon3d;
+
+    Framebuffer source(2, 2);
+    graph::RenderGraphContext ctx;
+    ctx.frame_input.width = 2;
+    ctx.frame_input.height = 2;
+    ctx.policy.require_native_gpu = true;
+    for (std::size_t i = 0; i < 65; ++i) {
+        ctx.frame_input.light_context.point_lights.push_back(
+            rendering::PointLightSource{
+                .kind = rendering::PointLightKind::Spot,
+                .direction = Vec3{0.0f, 0.0f, -1.0f},
+            });
+    }
+    const auto node = graph::LightingNode::create(
+        "over-cap-spot-layer", Mat4{1.0f}, Material2_5D{});
+    const std::array<FramebufferRef, 1> inputs{FramebufferRef{source}};
+    const auto result = node->execute(ctx, inputs, {});
+    REQUIRE_FALSE(result.ok());
+    CHECK(result.error().backend_code == graph::RenderBackendErrorCode::UnsupportedCapability);
+    CHECK(result.error().message.find("at most 64") != std::string::npos);
+}
+
 TEST_CASE("GPU-only framebuffer clone without a planned slot copies native pixels") {
     using namespace chronon3d;
     using namespace chronon3d::runtime;
@@ -1123,6 +1233,30 @@ TEST_CASE("Vulkan native surfaces stay device-local across upload and composite"
     CHECK(output[1] == doctest::Approx(0.25f));
     CHECK(output[2] == doctest::Approx(0.125f));
     CHECK(output[3] == doctest::Approx(0.5f));
+}
+
+TEST_CASE("Vulkan GEL composite transmits backdrop with channel-dependent absorption") {
+    using namespace chronon3d;
+    backends::vulkan::VulkanBackend backend;
+    const runtime::SurfaceDesc desc{
+        1, 1, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient, 0};
+    const std::vector<float> destination{0.4f, 0.6f, 0.8f, 1.0f};
+    const std::vector<float> gel_source{0.2f, 0.1f, 0.05f, 0.5f};
+    std::vector<float> output(4, 0.0f);
+    REQUIRE(backend.create_surface(141, desc).ok());
+    REQUIRE(backend.create_surface(142, desc).ok());
+    REQUIRE(backend.upload_surface(141, desc, destination).ok());
+    REQUIRE(backend.upload_surface(142, desc, gel_source).ok());
+    REQUIRE(backend.composite_surfaces(
+        141, 142, BlendMode::Normal, CompositeOperator::SourceOver,
+        std::nullopt, true).ok());
+    REQUIRE(backend.download_surface(141, output).ok());
+    CHECK(output[0] == doctest::Approx(0.4f));
+    CHECK(output[1] == doctest::Approx(0.1f + 0.6f * std::pow(0.5f, 1.0f / 3.0f)));
+    CHECK(output[2] == doctest::Approx(0.05f + 0.8f * std::pow(0.5f, 1.0f / 24.0f)));
+    CHECK(output[3] == doctest::Approx(1.0f));
 }
 
 TEST_CASE("Vulkan weighted source-over scales premultiplied RGBA without readback") {

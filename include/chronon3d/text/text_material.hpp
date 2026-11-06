@@ -2,6 +2,8 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/text/gel_surface.hpp>
+#include <cstdint>
 
 #ifdef CHRONON3D_USE_BLEND2D
 class BLImage;
@@ -14,6 +16,27 @@ namespace chronon3d {
 // bevel, top highlight, bottom shade, inner shadow and emissive boost.
 struct TextMaterial {
     bool enabled{false};
+    // Native MTSDF gel profile. The fill color remains authored by TextPaint;
+    // this flag selects the Vulkan distance-field lighting treatment.
+    bool gel_surface{false};
+    // Selects real closed 3D text geometry at the TextRun source boundary.
+    // This is independent of the screen-space GlossyGelText surface path.
+    bool extruded_text{false};
+    float extrusion_depth{12.0f};
+    // Allows the native Vulkan gel pass to sample and tint the already
+    // composited destination locally. Kept enabled by default for compatibility.
+    bool gel_transmission_enabled{true};
+    // Diagnostic / Phase-A mode: evaluate the composite TextRun distance field
+    // and luminous cyan face gradient (core + body + edge) with specular and
+    // rim lighting disabled.
+    bool gel_core_only{false};
+    // Diagnostic output: 0=material, 1=SDF, 2=height, 3=normals,
+    // 4=normal validity heat map, 5=gel transmission flag/destination alpha.
+    std::uint8_t gel_debug_mode{0};
+    // Gel key light in local screen space. Elevation is the normalized Z
+    // component of the unit light vector (0=grazing, 1=zenith).
+    float gel_light_azimuth_radians{text::gel::kDefaultLightAzimuth};
+    float gel_light_elevation{text::gel::kDefaultLightElevation};
 
     // ── Gradient fill (top → bottom) ──────────────────────────
     // The text fill interpolates linearly from top_color to bottom_color
@@ -90,6 +113,35 @@ struct TextMaterial {
         m.bevel_highlight_opacity = 0.60f;
         m.top_highlight_opacity   = 0.30f;
         m.emissive            = 1.0f;
+        return m;
+    }
+
+    /// Glossy, rounded cyan gel surface evaluated directly from the MTSDF.
+    static TextMaterial gel() {
+        TextMaterial m;
+        m.enabled = true;
+        m.gel_surface = true;
+        m.emissive = 1.0f;
+        return m;
+    }
+
+    /// Luminous core + body + edge gradient from the composite MTSDF without
+    /// specular or rim reflections (GEL-01 Phase A diagnostic / base core).
+    static TextMaterial gel_core() {
+        TextMaterial m;
+        m.enabled = true;
+        m.gel_surface = true;
+        m.gel_core_only = true;
+        m.emissive = 1.0f;
+        return m;
+    }
+
+    /// Real TextRun outline mesh with front/back caps and side walls.
+    static TextMaterial extruded_3d(float depth = 12.0f) {
+        TextMaterial m;
+        m.enabled = true;
+        m.extruded_text = true;
+        m.extrusion_depth = depth;
         return m;
     }
 

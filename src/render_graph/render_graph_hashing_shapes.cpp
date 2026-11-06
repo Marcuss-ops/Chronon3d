@@ -128,6 +128,80 @@ namespace chronon3d::graph {
             seed = hash_combine(seed, hash_value(s.line().stroke.width));
             return hash_combine(seed, hash_scalar(s.line().stroke.alignment));
         case ShapeType::Path:
+            if (semantic_v2) {
+                const auto add_command = [&](const PathCommand& cmd) {
+                    seed = hash_combine(seed, hash_value(cmd.type));
+                    seed = hash_combine(seed, hash_vec2(cmd.p0));
+                    seed = hash_combine(seed, hash_vec2(cmd.p1));
+                    seed = hash_combine(seed, hash_vec2(cmd.p2));
+                };
+                const auto add_commands = [&](const std::vector<PathCommand>& commands) {
+                    seed = hash_combine(seed, hash_value(commands.size()));
+                    for (const auto& command : commands) add_command(command);
+                };
+                const auto& path = s.path();
+                add_commands(path.commands);
+                seed = hash_combine(seed, hash_value(path.stroke.enabled));
+                seed = hash_combine(seed, hash_color(path.stroke.color));
+                seed = hash_combine(seed, hash_scalar(path.stroke.width));
+                seed = hash_combine(seed, hash_value(path.stroke.cap));
+                seed = hash_combine(seed, hash_value(path.stroke.join));
+                seed = hash_combine(seed, hash_scalar(path.stroke.miter_limit));
+                seed = hash_combine(seed, hash_value(path.stroke.dash_array.size()));
+                for (const auto dash : path.stroke.dash_array)
+                    seed = hash_combine(seed, hash_scalar(dash));
+                seed = hash_combine(seed, hash_scalar(path.stroke.dash_offset));
+                seed = hash_combine(seed, hash_scalar(path.stroke.trim_start));
+                seed = hash_combine(seed, hash_scalar(path.stroke.trim_end));
+                seed = hash_combine(seed, hash_scalar(path.stroke.taper_start));
+                seed = hash_combine(seed, hash_scalar(path.stroke.taper_end));
+                seed = hash_combine(seed, hash_value(path.stroke.gradient.has_value()));
+                if (path.stroke.gradient) seed = hash_combine(seed, hash_gradient(*path.stroke.gradient));
+                seed = hash_combine(seed, hash_value(path.stroke.brush.has_value()));
+                if (path.stroke.brush) seed = hash_combine(seed, hash_value(path.stroke.brush->fingerprint()));
+                seed = hash_combine(seed, hash_fill(path.fill));
+                seed = hash_combine(seed, hash_value(path.fill_rule));
+                seed = hash_combine(seed, hash_value(path.closed));
+                seed = hash_combine(seed, hash_scalar(path.opacity));
+                seed = hash_combine(seed, hash_value(path.operators.size()));
+                for (const auto& op : path.operators) {
+                    seed = hash_combine(seed, hash_value(op.kind));
+                    seed = hash_combine(seed, hash_value(op.seed));
+                    seed = hash_combine(seed, hash_value(op.params.index()));
+                    std::visit([&](const auto& params) {
+                        using T = std::decay_t<decltype(params)>;
+                        if constexpr (std::is_same_v<T, RepeaterParams>) {
+                            seed = hash_combine(seed, hash_value(params.copies));
+                            seed = hash_combine(seed, hash_vec2(params.position));
+                            seed = hash_combine(seed, hash_vec2(params.scale));
+                            seed = hash_combine(seed, hash_scalar(params.rotation_degrees));
+                            seed = hash_combine(seed, hash_vec2(params.anchor));
+                            seed = hash_combine(seed, hash_scalar(params.opacity_decay));
+                        } else if constexpr (std::is_same_v<T, RoundCornersParams>) seed = hash_combine(seed, hash_scalar(params.radius));
+                        else if constexpr (std::is_same_v<T, ZigZagParams>) {
+                            seed = hash_combine(seed, hash_scalar(params.size)); seed = hash_combine(seed, hash_scalar(params.points_per_unit)); seed = hash_combine(seed, hash_value(params.smooth));
+                        } else if constexpr (std::is_same_v<T, OffsetPathParams>) {
+                            seed = hash_combine(seed, hash_scalar(params.amount)); seed = hash_combine(seed, hash_scalar(params.miter_limit));
+                        } else if constexpr (std::is_same_v<T, PuckerBloatParams>) {
+                            seed = hash_combine(seed, hash_scalar(params.amount)); seed = hash_combine(seed, hash_vec2(params.anchor));
+                        } else if constexpr (std::is_same_v<T, TwistParams>) {
+                            seed = hash_combine(seed, hash_scalar(params.degrees)); seed = hash_combine(seed, hash_vec2(params.center));
+                        } else if constexpr (std::is_same_v<T, WigglePathParams>) {
+                            seed = hash_combine(seed, hash_scalar(params.amount)); seed = hash_combine(seed, hash_scalar(params.frequency));
+                        } else if constexpr (std::is_same_v<T, MergeParams>) {
+                            seed = hash_combine(seed, hash_value(params.paths.size())); for (const auto& contour : params.paths) add_commands(contour);
+                        } else if constexpr (std::is_same_v<T, TrimPathParams>) {
+                            seed = hash_combine(seed, hash_scalar(params.start)); seed = hash_combine(seed, hash_scalar(params.end)); seed = hash_combine(seed, hash_scalar(params.offset));
+                        } else if constexpr (std::is_same_v<T, MorphPathParams>) {
+                            add_commands(params.target); seed = hash_combine(seed, hash_scalar(params.progress));
+                        } else if constexpr (std::is_same_v<T, BooleanUnionParams>) {
+                            seed = hash_combine(seed, hash_value(params.operation)); seed = hash_combine(seed, hash_value(params.paths.size()));
+                            for (const auto& contour : params.paths) add_commands(contour);
+                        }
+                    }, op.params);
+                }
+                return seed;
+            }
             seed = hash_combine(seed, hash_value(s.path().commands.size()));
             for (const auto& cmd : s.path().commands) {
                 seed = hash_combine(seed, hash_value(static_cast<int>(cmd.type)));
@@ -236,6 +310,24 @@ namespace chronon3d::graph {
             seed = hash_combine(seed, hash_color(s.grid_plane().color));
             seed = hash_combine(seed, hash_scalar(s.grid_plane().fade_distance));
             return hash_combine(seed, hash_scalar(s.grid_plane().fade_min_alpha));
+        case ShapeType::FakeExtrudedText:
+            // Keep the legacy digest stable, but make the V2 identity cover
+            // every authored field that changes this rendered shape.
+            if (!semantic_v2) return seed;
+            seed = hash_combine(seed, hash_string(s.fake_extruded_text().text));
+            seed = hash_combine(seed, hash_string(s.fake_extruded_text().font_path));
+            seed = hash_combine(seed, hash_scalar(s.fake_extruded_text().font_size));
+            seed = hash_combine(seed, hash_value(s.fake_extruded_text().align));
+            seed = hash_combine(seed, hash_vec3(s.fake_extruded_text().world_pos));
+            seed = hash_combine(seed, hash_value(s.fake_extruded_text().depth));
+            seed = hash_combine(seed, hash_vec2(s.fake_extruded_text().extrude_dir));
+            seed = hash_combine(seed, hash_scalar(s.fake_extruded_text().extrude_z_step));
+            seed = hash_combine(seed, hash_color(s.fake_extruded_text().front_color));
+            seed = hash_combine(seed, hash_color(s.fake_extruded_text().side_color));
+            seed = hash_combine(seed, hash_scalar(s.fake_extruded_text().side_fade));
+            seed = hash_combine(seed, hash_scalar(s.fake_extruded_text().highlight_opacity));
+            seed = hash_combine(seed, hash_scalar(s.fake_extruded_text().bevel_size));
+            return hash_combine(seed, hash_vec3(s.fake_extruded_text().light_dir));
         case ShapeType::TextRun:
             if (s.text_run_shape_handle().value) {
                 seed = hash_combine(seed, semantic_v2

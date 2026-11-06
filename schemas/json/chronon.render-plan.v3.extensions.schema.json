@@ -1788,7 +1788,8 @@
             "background_radius_em",
             "stroke_color",
             "stroke_width",
-            "character_offset"
+            "character_offset",
+            "light_direction"
           ]
         },
         "easing": {
@@ -1840,6 +1841,36 @@
         }
       },
       "allOf": [
+        {
+          "if": {
+            "properties": {
+              "property": {
+                "const": "light_direction"
+              }
+            },
+            "required": [
+              "property"
+            ]
+          },
+          "then": {
+            "properties": {
+              "keyframes": {
+                "items": {
+                  "properties": {
+                    "value": {
+                      "type": "array",
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         {
           "if": {
             "properties": {
@@ -4716,6 +4747,7 @@
           },
           "casts_shadows": {"type": "boolean"},
           "accepts_shadows": {"type": "boolean"},
+          "shadow_catcher": {"type": "boolean"},
           "safe_insets": {
             "type": "object",
             "additionalProperties": false,
@@ -7546,6 +7578,51 @@
           "style": {
             "type": "object",
             "properties": {
+              "extruded_text": {
+                "type": "boolean",
+                "default": false,
+                "description": "Render the shaped TextRun as a native 3D mesh with front/back caps and side walls; requires enable_3d."
+              },
+              "extrusion_depth": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 10000,
+                "default": 12
+              },
+              "gel_surface": {
+                "type": "boolean",
+                "default": false,
+                "description": "Select the native MTSDF gel-text surface material."
+              },
+              "gel_transmission": {
+                "type": "boolean",
+                "default": true,
+                "description": "Enable local destination-color transmission for gel text; false is a diagnostic ablation."
+              },
+              "gel_debug_mode": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5,
+                "default": 0,
+                "description": "Diagnostic visualization: 1 composite signed distance, 2 height, 3 surface normals, 4 normal validity heat map, 5 transmission flag and destination alpha. Requires gel_surface."
+              },
+              "gel_light": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Static local light direction for the native gel-text MTSDF surface.",
+                "properties": {
+                  "azimuth_radians": {
+                    "type": "number",
+                    "minimum": -3.141592653589793,
+                    "maximum": 3.141592653589793
+                  },
+                  "elevation": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              },
               "gradient": {
                 "$ref": "#/$defs/gradient"
               },

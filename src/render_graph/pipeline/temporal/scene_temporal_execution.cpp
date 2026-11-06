@@ -31,6 +31,10 @@
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 
 #include <chrono>
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <tuple>
 
 #include "../helpers.hpp"
@@ -404,6 +408,74 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
                 }
                 snap.clip_rect = snap.predicted_bbox;
                 audit_snapshots.push_back(std::move(snap));
+            }
+        }
+        if (!effective_settings.text_layout_debug_json_path.empty() &&
+            !audit_snapshots.empty()) {
+            // Keep the existing bounds report and add a distinct glyph sidecar
+            // for video/raw routes, which do not call the still-image writer.
+            // Coordinates are the immutable shaped TextRun-local positions;
+            // animated offsets and the world transform are recorded alongside
+            // them so diagnostic output never changes the rendered geometry.
+            nlohmann::json glyph_dump{
+                {"schema_version", 1},
+                {"frame", frame.integral()},
+                {"coordinate_space", "TextRun local pixels before layer transform"},
+                {"text_runs", nlohmann::json::array()}
+            };
+            for (const auto& snapshot : audit_snapshots) {
+                if (!snapshot.shape || !snapshot.shape->layout) continue;
+                const auto& layout = *snapshot.shape->layout;
+                nlohmann::json run{
+                    {"name", snapshot.name},
+                    {"source_text", layout.source_text},
+                    {"font_path", layout.font.font_path},
+                    {"font_size_px", layout.font_size},
+                    {"layout_hash", layout.layout_hash()},
+                    {"baseline_local_y", 0.0f},
+                    {"world_matrix", nlohmann::json::array()},
+                    {"glyphs", nlohmann::json::array()}
+                };
+                for (int col = 0; col < 4; ++col) {
+                    nlohmann::json column = nlohmann::json::array();
+                    for (int row = 0; row < 4; ++row)
+                        column.push_back(snapshot.world_matrix[col][row]);
+                    run["world_matrix"].push_back(std::move(column));
+                }
+                const auto count = std::min(layout.placed.glyphs.size(),
+                                            snapshot.shape->glyphs.size());
+                for (std::size_t i = 0; i < count; ++i) {
+                    const auto& placed = layout.placed.glyphs[i];
+                    const auto& state = snapshot.shape->glyphs[i];
+                    run["glyphs"].push_back({
+                        {"index", i}, {"glyph_id", placed.glyph_id},
+                        {"x", placed.x}, {"y", placed.y},
+                        {"advance_x", placed.advance_x},
+                        {"raw_advance_x", placed.raw_advance_x},
+                        {"advance_y", placed.advance_y},
+                        {"x_offset", placed.x_offset}, {"y_offset", placed.y_offset},
+                        {"byte_offset", placed.byte_offset}, {"byte_len", placed.byte_len},
+                        {"animated_offset", {{"x", state.position.x},
+                                              {"y", state.position.y},
+                                              {"z", state.position.z}}},
+                        {"baseline_shift", state.baseline_shift}
+                    });
+                }
+                glyph_dump["text_runs"].push_back(std::move(run));
+            }
+            auto glyph_path = std::filesystem::path(
+                effective_settings.text_layout_debug_json_path);
+            glyph_path += ".frame_" + std::to_string(frame.integral()) + ".glyphs.json";
+            std::error_code ec;
+            if (glyph_path.has_parent_path())
+                std::filesystem::create_directories(glyph_path.parent_path(), ec);
+            std::ofstream glyph_file(glyph_path);
+            if (!glyph_file) {
+                spdlog::error("Cannot write TextRun glyph-position JSON: {}",
+                              glyph_path.string());
+            } else {
+                glyph_file << glyph_dump.dump(2) << '\n';
+                spdlog::info("TextRun glyph positions written to {}", glyph_path.string());
             }
         }
     }

@@ -4,6 +4,7 @@
 #include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
 
 namespace chronon3d {
 
@@ -24,6 +25,10 @@ bool Layer::is_native_3d() const noexcept {
             node.shape.type() == ShapeType::GridPlane ||
             node.shape.type() == ShapeType::Mesh) {
             return true;
+        }
+        if (node.shape.type() == ShapeType::TextRun) {
+            const auto run = node.shape.text_run_shape_handle().value;
+            if (run && run->material.extruded_text) return true;
         }
     }
     return false;

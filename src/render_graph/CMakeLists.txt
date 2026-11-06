@@ -235,6 +235,7 @@ add_library(chronon3d_graph_pipeline OBJECT
     pipeline/frame_state_commit.cpp
     pipeline/scene_refresh.cpp
     builder/graph_builder_bbox.cpp
+    builder/extruded_text_mesh.cpp
     builder/passes/graph_builder_source_pass.cpp
     builder/passes/graph_builder_layer_pipeline_pass.cpp
     pipeline/refresh/layer_item.cpp
@@ -266,6 +267,7 @@ target_link_libraries(chronon3d_graph_pipeline
         chronon3d_graph_cache
     PRIVATE
         chronon3d_extension
+        Clipper2::Clipper2
         # chronon3d_content removed — the host application (CLI, tests) is
         # responsible for linking chronon3d_content and calling
         # register_content_modules().  The graph pipeline calls

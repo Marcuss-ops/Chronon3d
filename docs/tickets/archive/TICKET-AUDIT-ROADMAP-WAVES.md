@@ -1,20 +1,32 @@
 # TICKET-AUDIT-ROADMAP-WAVES — Audit roadmap closeout (Waves 1–6)
 
-Status: PARTIAL (local build and architecture verification pass; exact-SHA CI and GPU render evidence remain external)
+Status: CLOSED (2026-11-05) — local audit complete; exact-SHA CI transferred to `TICKET-MAIN-TRUTH-STAGE-1-2`, GPU render evidence to `TICKET-AUDIT-FOLLOWUP-NV12-SSOT-AND-HOT-PATHS` (Wave 4) and `TICKET-GPU-BASELINE-CORPUS`.
 Owner: working session (repo owner + agent)
 Created: 2026-09-05
 Baseline: `main@2a3ee8d4e98a17c6ec365e4db6b07bd834397420`
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] CI clean-SHA verification.
-- [ ] Follow-up con evidenza render su host GPU (i contatori per il corpus sono già preparati).
+- [x] CI clean-SHA verification — **trasferita 2026-11-05** a `TICKET-MAIN-TRUTH-STAGE-1-2`; nessuna run è promossa a PASS.
+- [x] Follow-up con evidenza render su host GPU (i contatori per il corpus sono già preparati) — **trasferito 2026-11-05** a `TICKET-AUDIT-FOLLOWUP-NV12-SSOT-AND-HOT-PATHS` (matrice NV12/Wave 4) e `TICKET-GPU-BASELINE-CORPUS` (corpus 17 casi).
 
 Local verification (2026-10-28):
 
 - `cmake --build build/chronon/linux-video-fast-dev --target chronon3d_cli -j12` — PASS; final link completed and a subsequent `ninja -n` reported no work.
 - `python3 tools/check_architecture.py` — `GATE_PASS`, 214/214 rules.
 - `chronon3d_vulkan_surface_materializer_tests` — 1/1 CTest PASS; the suite uses fake image/surface owners and is CPU-side placement evidence, not GPU render certification.
+
+## Chiusura amministrativa 2026-11-05
+
+Le wave 1–6 sono verificate localmente (build, architettura, test CPU-side).
+La chiusura è amministrativa: non certifica CI né GPU e non trasforma
+un'evidenza CPU-side in una certificazione di render.
+
+Residui trasferiti:
+
+- CI clean-SHA → `TICKET-MAIN-TRUTH-STAGE-1-2`;
+- evidenza render su host GPU → `TICKET-AUDIT-FOLLOWUP-NV12-SSOT-AND-HOT-PATHS`
+  (matrice NV12/Wave 4) e `TICKET-GPU-BASELINE-CORPUS` (corpus 17 casi).
 
 ## Purpose
 

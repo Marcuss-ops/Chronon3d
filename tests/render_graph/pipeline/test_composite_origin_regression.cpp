@@ -88,6 +88,21 @@ TEST_CASE("composite_layer: Normal — origin_x == origin_y (no regression)") {
     CHECK(is_bg(dst.get_pixel(0, 0)));
 }
 
+TEST_CASE("GEL composite attenuates backdrop independently per color channel") {
+    Framebuffer dst(1, 1);
+    dst.clear(Color{0.4f, 0.6f, 0.8f, 1.0f});
+    Framebuffer src(1, 1);
+    src.clear(Color{0.2f, 0.1f, 0.05f, 0.5f});
+
+    SoftwareCompositor::composite_layer(dst, src, BlendMode::Normal,
+        std::nullopt, CompositeOperator::SourceOver, true, true);
+    const auto result = dst.get_pixel(0, 0);
+    CHECK(result.r == doctest::Approx(0.4f));
+    CHECK(result.g == doctest::Approx(0.1f + 0.6f * std::pow(0.5f, 1.0f / 3.0f)));
+    CHECK(result.b == doctest::Approx(0.05f + 0.8f * std::pow(0.5f, 1.0f / 24.0f)));
+    CHECK(result.a == doctest::Approx(1.0f));
+}
+
 // =============================================================================
 // Add blend — same bug in composite_layer_non_normal_optimized
 // =============================================================================

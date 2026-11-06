@@ -1,6 +1,6 @@
 # TICKET-MAPS-NATIVE-PORT — porting nativo del rendering mappe
 
-Stato: **FASI 0–7 CHIUSE (2026-10-26)** — asse acquisizione tile chiuso
+Stato: **CLOSED (2026-11-05) — native port landed for the base flyover subset; residual composition families, bit-exact proof, Python-reference demolition and NVENC/OpenCL samples transferred to ChrononPlugin maps ownership (`docs/stato/chronon-plugin.md` §2.2).** Asse acquisizione tile chiuso
 (2026-10-24, ≥2× certificato con parità bit-exact mantenuta) e porting nativo
 atterrato per il sottoinsieme base flyover: il renderer `map_plate_render` di
 ChrononPlugin è la **lane unica realtime** delle mappe (verificata end-to-end:
@@ -25,18 +25,38 @@ sono stati estratti in `ChrononPlugin/plugins/maps/` (namespace
 renderer `map_plate_render` resta uno stub fail-closed nel plugin. La raster
 vector plate compila lì, ma la prova pixel bit-exact del port resta aperta.
 
+## Chiusura amministrativa 2026-11-05
+
+Le fasi 0–7 sono atterrate per il sottoinsieme base flyover e il renderer
+`map_plate_render` è la lane unica realtime. La scheda si chiude come
+**porting atterrato**, non come parità completa: le famiglie residue non sono
+state portate e restano lavoro dell'owner del plugin maps.
+
+Residui trasferiti a [`docs/stato/chronon-plugin.md`](../../../../docs/stato/chronon-plugin.md) §2.2:
+
+- famiglie di composizione residue (route/region/comparison/multi-tappa/editoriali);
+- prova pixel bit-exact del raster vector plate;
+- demolizione dei moduli Python condivisi usati come riferimento di parità;
+- campioni NVENC/OpenCL e animazioni etichette.
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] **Portare le famiglie di composizione residue nel renderer `map_plate_render`** — logica: le famiglie già portate coprono l'acquisizione tile; restano le composizioni residue (stile/overlay/etichette) da instradare nel renderer nativo. Dove: `ChrononPlugin/plugins/maps/` (renderer catalog `maps-renderer-catalog.v1.json`), riferimento stato `docs/stato/chronon-plugin.md`. Gate: ogni famiglia mappata o dichiarata fuori perimetro.
-- [ ] **Prova pixel bit-exact del port (raster vector plate)** — logica: il port deve essere bit-exact vs il riferimento Python, altrimenti la parità non è dimostrata. Gate: confronto pixel bit-exact sui plate di test.
-- [ ] **Demolire il percorso Python in ChrononTemplate** — logica: solo dopo la parità bit-exact; il path Python non deve restare seconda authority. Gate: zero riferimenti + canary ChrononTemplate invariati.
-- [ ] **Campioni NVENC/OpenCL e animazioni etichette: NON RUN** — logica: eseguire su host con NVENC/OpenCL. Gate: esito registrato (PASS/NOT RUN motivato).
+- [x] **Portare le famiglie di composizione residue nel renderer `map_plate_render`** — logica: le famiglie già portate coprono l'acquisizione tile; restano le composizioni residue (stile/overlay/etichette) da instradare nel renderer nativo. Dove: `ChrononPlugin/plugins/maps/` (renderer catalog `maps-renderer-catalog.v1.json`), riferimento stato `docs/stato/chronon-plugin.md`. Gate: ogni famiglia mappata o dichiarata fuori perimetro.
+- [x] **Prova pixel bit-exact del port (raster vector plate)** — logica: il port deve essere bit-exact vs il riferimento Python, altrimenti la parità non è dimostrata. Gate: confronto pixel bit-exact sui plate di test.
+- [x] **Demolire il percorso Python in ChrononTemplate** — logica: solo dopo la parità bit-exact; il path Python non deve restare seconda authority. Gate: zero riferimenti + canary ChrononTemplate invariati.
+- [x] **Campioni NVENC/OpenCL e animazioni etichette: NON RUN** — logica: eseguire su host con NVENC/OpenCL. Gate: esito registrato (PASS/NOT RUN motivato).
+
+> **Trasferimento 2026-11-05:** le quattro caselle sopra sono chiuse come
+> trasferite, non come eseguite. La demolizione del renderer Python di
+> produzione è già avvenuta (fase 7); i moduli Python condivisi restano come
+> riferimento di parità e tool nel debito §5 di `chronon-plugin.md`. Nessuno
+> stato `NOT RUN` è promosso a `PASS`.
 
 ## 1. Perché (misure, non stime)
 
 Nella run golden v3 del caso overlay-throughput
-([TICKET-OVERLAY-THROUGHPUT-100-MIN](../../../refactored/docs/operations/TICKET-OVERLAY-THROUGHPUT-100-MIN.md),
-refactored) **2 mappe hanno costato 20,66 s e 37,37 s** (`process_wall_s`) —
+([TICKET-MAX-THROUGHPUT-OVERLAY-ARCHITECTURE](../../../../refactored/docs/operations/TICKET-MAX-THROUGHPUT-OVERLAY-ARCHITECTURE.md),
+successore di `TICKET-OVERLAY-THROUGHPUT-100-MIN`; refactored) **2 mappe hanno costato 20,66 s e 37,37 s** (`process_wall_s`) —
 da sole più di quanto costano 10–15 item frase (2–5 s ciascuno). La mediana
 fused su 3 lane (v22–v24) è **78,9 item/min (range 74,6–86,2)** contro il
 gate 100/min: gap 1,27×. Con ~2 mappe per run da ~30 s l'una, la classe map

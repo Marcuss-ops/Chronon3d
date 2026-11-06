@@ -20,6 +20,10 @@ delete those authorities prematurely.
 
 - [ ] **Completare il debito boundary wave 7–9** — logica: l'equivalence gate (compiler golden snapshots == legacy execution output per text, transition, precomposition e video plan) è la precondizione di ogni rimozione; il plan bridge legacy si tocca SOLO con gate verde, mai prima. Dove: `include/chronon3d/compiler/detail/compiled_program_plan_bridge.hpp`, `src/compiler/compiled_program.cpp` (single TU), i 7 consumer migrati elencati sopra, enforcement in `tools/architecture_rules_wave2.toml`. Gate: equivalence gate verde → rimozione bridge header + friendship + `prepared_plan_` + consumer include, poi riconciliazione matrix `docs/architecture/RENDER-SESSION-MIGRATION-MATRIX.md`.
 
+## Assorbimenti 2026-11-05
+
+- [ ] **Progettare `PixelProgram → DeviceProgram` senza una nuova authority** — assorbito da `archive/TICKET-LOCAL-ACCEPTANCE-CLOSEOUT-2026-09-16.md`; va deciso dentro il confine compiler/runtime di questa scheda, senza introdurre cache/registry/scheduler paralleli.
+
 ## Wave 2 closeout — public plan accessors removed (2026-09-07)
 
 `CompiledProgram` no longer exposes `prepared_plan()` / `compiled_composition()`

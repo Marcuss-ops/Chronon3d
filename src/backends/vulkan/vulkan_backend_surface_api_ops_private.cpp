@@ -21,7 +21,7 @@ namespace chronon3d::backends::vulkan {
 graph::RenderOpResult VulkanBackend::composite_surfaces(
     runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
     BlendMode mode, CompositeOperator op,
-    const std::optional<raster::BBox>& clip) {
+    const std::optional<raster::BBox>& clip, bool gel_transmission) {
     if ((mode != BlendMode::Normal && mode != BlendMode::Add &&
          mode != BlendMode::Multiply && mode != BlendMode::Screen &&
          mode != BlendMode::Overlay) ||
@@ -33,7 +33,8 @@ graph::RenderOpResult VulkanBackend::composite_surfaces(
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
     return run_batched_surface_op(touched, {}, [&] {
-        m_impl->composite(destination, source, mode, clip);
+        m_impl->composite(destination, source, mode, clip, false, 1.0f,
+                          false, true, gel_transmission);
     });
 #else
     (void)destination; (void)source;

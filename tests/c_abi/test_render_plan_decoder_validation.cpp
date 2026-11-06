@@ -1125,6 +1125,56 @@ TEST_CASE("Backdrop blur is accepted only on shape layers with bounded parameter
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
 }
 
+TEST_CASE("native gel surface style is accepted only for text layers") {
+    auto plan = render_plan_test::base_plan({{{"id", "txt"}, {"type", "text"},
+        {"text", "gel"}, {"style", {{"font", "font.ttf"},
+        {"font_size", 36}, {"fill", "#00E5FF"}, {"gel_surface", true},
+        {"gel_debug_mode", 1},
+        {"gel_light", {{"azimuth_radians", 1.2}, {"elevation", 0.05}}}}}}});
+    auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].style);
+    CHECK(decoded->layers[0].style->gel_surface);
+    CHECK(decoded->layers[0].style->gel_transmission_enabled);
+    CHECK(decoded->layers[0].style->gel_debug_mode == 1);
+    REQUIRE(decoded->layers[0].style->gel_light_azimuth_radians);
+    REQUIRE(decoded->layers[0].style->gel_light_elevation);
+    CHECK(*decoded->layers[0].style->gel_light_azimuth_radians == doctest::Approx(1.2f));
+    CHECK(*decoded->layers[0].style->gel_light_elevation == doctest::Approx(0.05f));
+
+    auto invalid = render_plan_test::base_plan({render_plan_test::shape_layer({{"type", "rect"}})});
+    invalid["layers"][0]["style"] = {{"gel_surface", true}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
+
+    auto invalid_light = plan;
+    invalid_light["layers"][0]["style"]["gel_light"]["elevation"] = 1.01;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_light));
+    invalid_light = plan;
+    invalid_light["layers"][0]["style"]["gel_surface"] = false;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_light));
+    invalid_light = plan;
+    invalid_light["layers"][0]["style"]["gel_debug_mode"] = 6;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_light));
+    invalid_light = plan;
+    invalid_light["layers"][0]["style"].erase("gel_surface");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_light));
+    auto normals_validity = plan;
+    normals_validity["layers"][0]["style"]["gel_debug_mode"] = 4;
+    auto decoded_normals_validity = chronon3d::render_plan::decode_render_plan(normals_validity);
+    REQUIRE(decoded_normals_validity);
+    CHECK(decoded_normals_validity->layers[0].style->gel_debug_mode == 4);
+    auto transmission_diagnostic = plan;
+    transmission_diagnostic["layers"][0]["style"]["gel_debug_mode"] = 5;
+    auto decoded_transmission_diagnostic = chronon3d::render_plan::decode_render_plan(transmission_diagnostic);
+    REQUIRE(decoded_transmission_diagnostic);
+    CHECK(decoded_transmission_diagnostic->layers[0].style->gel_debug_mode == 5);
+    auto transmission_off = plan;
+    transmission_off["layers"][0]["style"]["gel_transmission"] = false;
+    auto decoded_transmission_off = chronon3d::render_plan::decode_render_plan(transmission_off);
+    REQUIRE(decoded_transmission_off);
+    CHECK_FALSE(decoded_transmission_off->layers[0].style->gel_transmission_enabled);
+}
+
 TEST_CASE("V3 color alias normalizes to shape.fill with explicit fill precedence") {
     using namespace chronon3d;
     auto layer = render_plan_test::shape_layer({{"type", "rect"}});

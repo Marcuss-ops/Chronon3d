@@ -123,3 +123,22 @@ but runtime and pixel-equivalence tests were not run.
 - **Status:** ACTIVE. The typed RenderPlan video bridge is removed; remaining
   authoring and compatibility APIs are still live and must not be deleted
   without migration or explicit retirement.
+
+## Anti-resurrection gate — 2026-11-05
+
+The architecture rules now pin production references under `include/`, `src/`
+and `apps/` so the compatibility surface cannot grow while consumers migrate:
+
+- `compile_composition(`: 15 current references.
+- `render_compatibility(` / `render_compatibility_frames(`: 6 current references.
+- `render_compiled_composition_frame*(`: 9 current references.
+
+The caps allow these counts to decrease as callers are removed and fail if a
+new reference raises them. The full architecture gate passes **217/217 rules**.
+This prevents new debt; it does not satisfy the migration or parity exit gates.
+
+The full architecture checker was rerun on the current checkout on 2026-11-05
+after the cache identity changes and passes **217/217**. The pinned production
+caller counts remain 15 / 6 / 9. No executor consumers or arbitrary callback
+contract was migrated in this tranche, and pixel-equivalence gates remain
+unrun; the ticket stays ACTIVE.

@@ -1,7 +1,9 @@
 #include <doctest/doctest.h>
 
+#include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/rendering/lighting_hashing.hpp>
+#include <chronon3d/rendering/lighting_eval.hpp>
 #include <chronon3d/assets/hdri_environment.hpp>
 #include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
@@ -21,7 +23,9 @@
 #include "src/backends/text/mtsdf_glyph_cache_key.hpp"
 
 #include <array>
+#include <algorithm>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 using namespace chronon3d;
@@ -172,6 +176,7 @@ TEST_CASE("Lighting V2 identity covers all Material2_5D dependencies") {
     changed([](auto& m) { m.accepts_lights = true; });
     changed([](auto& m) { m.casts_shadows = false; });
     changed([](auto& m) { m.accepts_shadows = true; });
+    changed([](auto& m) { m.shadow_catcher = true; });
     changed([](auto& m) { m.diffuse += 0.01f; });
     changed([](auto& m) { m.specular += 0.01f; });
     changed([](auto& m) { m.shininess += 1.0f; });
@@ -188,6 +193,25 @@ TEST_CASE("Lighting V2 identity covers all Material2_5D dependencies") {
     changed([](auto& m) { m.metallic.reset(); });
     changed([](auto& m) { m.roughness = 0.4f; });
     changed([](auto& m) { m.roughness.reset(); });
+}
+
+TEST_CASE("Material2_5D V1 digest remains pinned across the V2 migration") {
+    Material2_5D material;
+    material.accepts_lights = false;
+    material.casts_shadows = true;
+    material.accepts_shadows = false;
+    material.diffuse = 0.2f;
+    material.specular = 0.3f;
+    material.shininess = 4.0f;
+    material.ambient_multiplier = 0.5f;
+    material.emissive_color = {0.1f, 0.2f, 0.3f, 0.4f};
+    material.emissive_enabled = true;
+    material.double_sided = true;
+    material.alpha_cutoff = 0.6f;
+    material.metallic = 0.7f;
+    material.roughness = 0.8f;
+
+    CHECK(rendering::hash_material_2_5d(material) == 4357282160036620691ULL);
 }
 
 TEST_CASE("Transform V2 identity includes every rendered transform field") {
@@ -479,6 +503,80 @@ TEST_CASE("Shape V2 canonicalizes scalar fields and frames image paths") {
     changed_mesh([](auto& id) { id.content_digest.bytes[0] = std::byte{0x13}; });
 }
 
+TEST_CASE("PathShape V2 covers fill, stroke and ordered operator semantics") {
+    Shape base;
+    base.set_type(ShapeType::Path);
+    base.path().commands = {PathCommand::move_to({0.0f, 0.0f}),
+                            PathCommand::line_to({10.0f, 2.0f})};
+    const auto original = graph::hash_shape_v2(base);
+    const auto legacy = graph::hash_shape(base);
+    const auto changed = [&](auto mutate) {
+        auto path = base;
+        mutate(path.path());
+        CHECK(graph::hash_shape_v2(path) != original);
+        CHECK(graph::hash_shape(path) == legacy);
+    };
+    changed([](auto& p) { p.fill_rule = PathFillRule::NonZero; });
+    changed([](auto& p) { p.opacity = 0.5f; });
+    changed([](auto& p) { p.stroke.miter_limit += 1.0f; });
+    changed([](auto& p) {
+        p.operators.push_back({PathOperatorKind::Repeater,
+            RepeaterParams{2, {1.0f, 0.0f}}, 7});
+    });
+    changed([](auto& p) {
+        p.operators.push_back({PathOperatorKind::OffsetPath,
+            OffsetPathParams{2.0f, 8.0f}, 0});
+    });
+    changed([](auto& p) {
+        p.operators.push_back({PathOperatorKind::Morph,
+            MorphPathParams{{PathCommand::move_to({2.0f, 0.0f})}, 0.25f}, 0});
+    });
+    changed([](auto& p) {
+        p.operators.push_back({PathOperatorKind::BooleanUnion,
+            BooleanUnionParams{{{PathCommand::move_to({3.0f, 0.0f})}},
+                               PathBooleanOperation::Difference}, 0});
+    });
+
+    const auto operator_digest = [&](PathOperatorSpec op) {
+        auto path = base;
+        path.path().operators.push_back(std::move(op));
+        return graph::hash_shape_v2(path);
+    };
+    CHECK(operator_digest({PathOperatorKind::Repeater,
+        RepeaterParams{2, {1.0f, 0.0f}}, 1}) != operator_digest({PathOperatorKind::Repeater,
+        RepeaterParams{2, {2.0f, 0.0f}}, 1}));
+    CHECK(operator_digest({PathOperatorKind::RoundCorners, RoundCornersParams{1.0f}, 0}) !=
+          operator_digest({PathOperatorKind::RoundCorners, RoundCornersParams{2.0f}, 0}));
+    CHECK(operator_digest({PathOperatorKind::ZigZag, ZigZagParams{1.0f, 0.5f, false}, 0}) !=
+          operator_digest({PathOperatorKind::ZigZag, ZigZagParams{1.0f, 0.5f, true}, 0}));
+    CHECK(operator_digest({PathOperatorKind::OffsetPath, OffsetPathParams{1.0f, 4.0f}, 0}) !=
+          operator_digest({PathOperatorKind::OffsetPath, OffsetPathParams{1.0f, 8.0f}, 0}));
+    CHECK(operator_digest({PathOperatorKind::PuckerBloat, PuckerBloatParams{1.0f, {0.0f, 0.0f}}, 0}) !=
+          operator_digest({PathOperatorKind::PuckerBloat, PuckerBloatParams{1.0f, {0.0f, 1.0f}}, 0}));
+    CHECK(operator_digest({PathOperatorKind::Twist, TwistParams{10.0f, {0.0f, 0.0f}}, 0}) !=
+          operator_digest({PathOperatorKind::Twist, TwistParams{10.0f, {1.0f, 0.0f}}, 0}));
+    CHECK(operator_digest({PathOperatorKind::WigglePath, WigglePathParams{1.0f, 1.0f}, 0}) !=
+          operator_digest({PathOperatorKind::WigglePath, WigglePathParams{1.0f, 2.0f}, 0}));
+    CHECK(operator_digest({PathOperatorKind::Merge, MergeParams{{{PathCommand::move_to({1.0f, 0.0f})}}}, 0}) !=
+          operator_digest({PathOperatorKind::Merge, MergeParams{{{PathCommand::move_to({2.0f, 0.0f})}}}, 0}));
+    CHECK(operator_digest({PathOperatorKind::Trim, TrimPathParams{0.0f, 1.0f, 0.0f}, 0}) !=
+          operator_digest({PathOperatorKind::Trim, TrimPathParams{0.0f, 1.0f, 0.25f}, 0}));
+    CHECK(operator_digest({PathOperatorKind::Morph, MorphPathParams{{PathCommand::move_to({1.0f, 0.0f})}, 0.5f}, 0}) !=
+          operator_digest({PathOperatorKind::Morph, MorphPathParams{{PathCommand::move_to({1.0f, 0.0f})}, 0.75f}, 0}));
+    CHECK(operator_digest({PathOperatorKind::BooleanUnion,
+        BooleanUnionParams{{{PathCommand::move_to({1.0f, 0.0f})}}, PathBooleanOperation::Union}, 0}) !=
+          operator_digest({PathOperatorKind::BooleanUnion,
+        BooleanUnionParams{{{PathCommand::move_to({1.0f, 0.0f})}}, PathBooleanOperation::Xor}, 0}));
+
+    auto ordered = base;
+    ordered.path().operators = {
+        {PathOperatorKind::RoundCorners, RoundCornersParams{2.0f}, 1},
+        {PathOperatorKind::ZigZag, ZigZagParams{1.0f, 0.5f, true}, 2}};
+    auto reversed = ordered;
+    std::reverse(reversed.path().operators.begin(), reversed.path().operators.end());
+    CHECK(graph::hash_shape_v2(ordered) != graph::hash_shape_v2(reversed));
+}
+
 TEST_CASE("Shape V2 covers the remaining primitive and analytic shape fields") {
     const auto check_mutations = [](const Shape& base, auto... mutations) {
         const auto original = graph::hash_shape_v2(base);
@@ -592,6 +690,61 @@ TEST_CASE("Shape V2 covers the remaining primitive and analytic shape fields") {
         [](auto& s) { s.tiled_image().image.tint.r -= 0.1f; });
 }
 
+TEST_CASE("Shape V2 covers every FakeExtrudedText render input") {
+    Shape base;
+    base.set_type(ShapeType::FakeExtrudedText);
+    auto& text = base.fake_extruded_text();
+    text.text = "Chronon";
+    text.font_path = "fonts/Inter-Bold.ttf";
+    text.font_size = 72.0f;
+    text.align = TextAlign::Center;
+    text.world_pos = {1.0f, 2.0f, 3.0f};
+    text.depth = 24;
+    text.extrude_dir = {0.8f, 1.1f};
+    text.extrude_z_step = 1.25f;
+    text.front_color = {0.9f, 0.8f, 0.7f, 1.0f};
+    text.side_color = {0.5f, 0.4f, 0.3f, 0.8f};
+    text.side_fade = 0.2f;
+    text.highlight_opacity = 0.1f;
+    text.bevel_size = 1.5f;
+    text.light_dir = {-0.5f, 0.6f, -0.7f};
+
+    const auto original = graph::hash_shape_v2(base);
+    const auto changed = [&](auto mutate) {
+        auto shape = base;
+        mutate(shape.fake_extruded_text());
+        CHECK(graph::hash_shape_v2(shape) != original);
+        // The V1 builder intentionally remains on its historical default
+        // branch for this shape while the semantic V2 key is introduced.
+        CHECK(graph::hash_shape(shape) == graph::hash_shape(base));
+    };
+    changed([](auto& s) { s.text += " 3D"; });
+    changed([](auto& s) { s.font_path += ".replacement"; });
+    changed([](auto& s) { s.font_size += 1.0f; });
+    changed([](auto& s) { s.align = TextAlign::Left; });
+    changed([](auto& s) { s.world_pos.x += 1.0f; });
+    changed([](auto& s) { s.world_pos.y += 1.0f; });
+    changed([](auto& s) { s.world_pos.z += 1.0f; });
+    changed([](auto& s) { s.depth += 1; });
+    changed([](auto& s) { s.extrude_dir.x += 0.1f; });
+    changed([](auto& s) { s.extrude_dir.y += 0.1f; });
+    changed([](auto& s) { s.extrude_z_step += 0.1f; });
+    changed([](auto& s) { s.front_color.r += 0.1f; });
+    changed([](auto& s) { s.front_color.g += 0.1f; });
+    changed([](auto& s) { s.front_color.b += 0.1f; });
+    changed([](auto& s) { s.front_color.a -= 0.1f; });
+    changed([](auto& s) { s.side_color.r += 0.1f; });
+    changed([](auto& s) { s.side_color.g += 0.1f; });
+    changed([](auto& s) { s.side_color.b += 0.1f; });
+    changed([](auto& s) { s.side_color.a -= 0.1f; });
+    changed([](auto& s) { s.side_fade += 0.1f; });
+    changed([](auto& s) { s.highlight_opacity += 0.1f; });
+    changed([](auto& s) { s.bevel_size += 0.1f; });
+    changed([](auto& s) { s.light_dir.x += 0.1f; });
+    changed([](auto& s) { s.light_dir.y += 0.1f; });
+    changed([](auto& s) { s.light_dir.z += 0.1f; });
+}
+
 TEST_CASE("TextRun V2 identity covers rendered fields and vector boundaries") {
     TextRunShape base;
     GlyphInstanceState glyph;
@@ -663,6 +816,27 @@ TEST_CASE("GPU glyph V2 digests respond to every semantic field") {
     changed([](auto& key) { key.representation = GlyphRepresentation::CoverageRgba; });
     changed([](auto& key) { key.generation_profile++; });
     changed([](auto& key) { key.font_size++; });
+}
+
+TEST_CASE("GPU glyph V1 digest fixture is pinned before the V2 domain tag") {
+    using core::hash::HashBuilder;
+    using runtime::GlyphRepresentation;
+    using runtime::GpuGlyphKey;
+
+    const auto key = GpuGlyphKey::make("font.ttf", 65, std::string{"wght=400"},
+        GlyphRepresentation::Coverage, 7, 32);
+    const auto legacy_v1 = HashBuilder{}
+        .add(std::string_view(key.font_path))
+        .add(key.glyph_id)
+        .add_enum(key.representation)
+        .add(key.generation_profile)
+        .add(std::string_view(key.variation_axes))
+        .add(key.font_size)
+        .finish();
+
+    CHECK(legacy_v1 == 7864085940426203209ULL);
+    CHECK(runtime::GpuGlyphKeyHash{}(key) == 9060937200083332110ULL);
+    CHECK(runtime::glyph_key_hash64(key) == 9060937200083332110ULL);
 }
 
 TEST_CASE("FreeType glyph bbox V2 identity hashes every semantic field") {

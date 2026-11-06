@@ -215,6 +215,18 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
     add_optional(out, style.font_size,
                  [](auto& writer, float value) { writer.add_float(value); });
     out.add_string(style.fill);
+    out.add_bool(style.gel_surface);
+    out.add_bool(style.extruded_text);
+    if (style.extruded_text) out.add_float(style.extrusion_depth);
+    if (style.gel_surface) out.add_bool(style.gel_transmission_enabled);
+    out.add_uint32(style.gel_debug_mode);
+    if (style.gel_core) {
+        out.add_bool(style.gel_core);
+    }
+    add_optional(out, style.gel_light_azimuth_radians,
+                 [](auto& writer, float value) { writer.add_float(value); });
+    add_optional(out, style.gel_light_elevation,
+                 [](auto& writer, float value) { writer.add_float(value); });
     add_optional(out, style.fill_gradient,
                  [](auto& writer, const graphics::GradientDefinition& gradient) {
         add_gradient(writer, gradient);

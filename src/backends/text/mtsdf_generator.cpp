@@ -166,6 +166,95 @@ void accumulate_winding(Point p, const Edge& edge, int& winding) noexcept {
     }
 }
 
+int compute_winding(Point p, const std::vector<Edge>& edges) noexcept {
+    int winding = 0;
+    for (const auto& edge : edges) {
+        accumulate_winding(p, edge, winding);
+    }
+    return winding;
+}
+
+// Extract true silhouette and counter boundary sub-segments by splitting
+// intersecting contour edges and discarding internal overlap seams where both
+// sides of a sub-segment have non-zero winding (common in variable/OpenType
+// fonts such as Inter-Bold where stems and bowls are authored as overlapping
+// contours).
+std::vector<Edge> extract_boundary_edges(const std::vector<Edge>& edges) {
+    if (edges.empty()) return {};
+    std::vector<Edge> boundary;
+    boundary.reserve(edges.size());
+    std::vector<double> splits;
+    splits.reserve(16);
+
+    for (std::size_t i = 0; i < edges.size(); ++i) {
+        const Point a = edges[i].a;
+        const Point b = edges[i].b;
+        const double ux = b.x - a.x;
+        const double uy = b.y - a.y;
+        const double len_sq = ux * ux + uy * uy;
+        if (len_sq <= 1e-14) continue;
+
+        splits.clear();
+        splits.push_back(0.0);
+        splits.push_back(1.0);
+
+        for (std::size_t j = 0; j < edges.size(); ++j) {
+            if (i == j) continue;
+            const Point c = edges[j].a;
+            const Point d = edges[j].b;
+            const double vx = d.x - c.x;
+            const double vy = d.y - c.y;
+            const double wx = a.x - c.x;
+            const double wy = a.y - c.y;
+            const double denom = ux * vy - uy * vx;
+            if (std::abs(denom) > 1e-10) {
+                const double t = (vx * wy - vy * wx) / denom;
+                const double s = (ux * wy - uy * wx) / denom;
+                if (t > 1e-6 && t < 1.0 - 1e-6 &&
+                    s >= -1e-6 && s <= 1.0 + 1e-6) {
+                    splits.push_back(t);
+                }
+            } else {
+                // Nearly parallel/collinear: split at projected endpoints of j
+                // if they lie close to segment i.
+                const double dist_c = std::abs((c.x - a.x) * uy - (c.y - a.y) * ux) / std::sqrt(len_sq);
+                if (dist_c < 1e-4) {
+                    const double tc = ((c.x - a.x) * ux + (c.y - a.y) * uy) / len_sq;
+                    if (tc > 1e-6 && tc < 1.0 - 1e-6) splits.push_back(tc);
+                    const double td = ((d.x - a.x) * ux + (d.y - a.y) * uy) / len_sq;
+                    if (td > 1e-6 && td < 1.0 - 1e-6) splits.push_back(td);
+                }
+            }
+        }
+
+        std::sort(splits.begin(), splits.end());
+        const double len = std::sqrt(len_sq);
+        const double nx = -uy / len;
+        const double ny = ux / len;
+        constexpr double kProbeEps = 1e-3;
+
+        for (std::size_t k = 0; k + 1 < splits.size(); ++k) {
+            const double t0 = splits[k];
+            const double t1 = splits[k + 1];
+            if ((t1 - t0) * len <= 1e-5) continue;
+            const double tm = 0.5 * (t0 + t1);
+            const Point mid{a.x + tm * ux, a.y + tm * uy};
+            const Point p_left{mid.x + kProbeEps * nx, mid.y + kProbeEps * ny};
+            const Point p_right{mid.x - kProbeEps * nx, mid.y - kProbeEps * ny};
+            const bool inside_left = compute_winding(p_left, edges) != 0;
+            const bool inside_right = compute_winding(p_right, edges) != 0;
+            if (inside_left != inside_right) {
+                boundary.push_back(Edge{
+                    Point{a.x + t0 * ux, a.y + t0 * uy},
+                    Point{a.x + t1 * ux, a.y + t1 * uy},
+                    edges[i].channel});
+            }
+        }
+    }
+
+    return boundary.empty() ? edges : boundary;
+}
+
 float encode_distance(double distance, double range) noexcept {
     return static_cast<float>(std::clamp(0.5 + distance / range, 0.0, 1.0));
 }
@@ -299,6 +388,7 @@ std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
         }
     }
     if (edges.empty()) return std::nullopt;
+    const std::vector<Edge> boundary_edges = extract_boundary_edges(edges);
 
     const double origin_x = min_x - pad;
     const double origin_y = min_y - pad;
@@ -320,14 +410,13 @@ std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
                 std::numeric_limits<double>::infinity(),
                 std::numeric_limits<double>::infinity()};
             double true_distance = std::numeric_limits<double>::infinity();
-            int winding = 0;
-            for (const auto& edge : edges) {
+            for (const auto& edge : boundary_edges) {
                 const double distance = point_segment_distance(p, edge);
                 channel_distance[edge.channel] =
                     std::min(channel_distance[edge.channel], distance);
                 true_distance = std::min(true_distance, distance);
-                accumulate_winding(p, edge, winding);
             }
+            const int winding = compute_winding(p, edges);
             const double sign = winding != 0 ? 1.0 : -1.0;
             for (auto& distance : channel_distance) {
                 if (!std::isfinite(distance)) distance = true_distance;

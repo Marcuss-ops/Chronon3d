@@ -26,6 +26,7 @@ struct RenderPlanState {
     std::string encode_preset;
     bool report{false};
     bool no_dirty_rects{false};
+    std::string text_layout_debug_json_path;
     std::string backend{std::string{media::kDefaultBackend}};
     std::shared_ptr<SoftwareRenderer> warm_renderer;
     RenderPlanVideoOverrides video;

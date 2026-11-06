@@ -319,16 +319,38 @@ namespace chronon3d::backends::vulkan {
     void VulkanBackend::Impl::record_lighting(
         VkCommandBuffer command, VkDescriptorSet descriptors,
         const Image& destination, const Image& source,
-        const Color& multiplier) {
+        const Color& multiplier, Vec3 normal, float layer_z,
+        int origin_x, int origin_y, float diffuse,
+        std::uint32_t light_count, VkBuffer light_buffer,
+        VkDeviceSize light_buffer_bytes) {
+        const VkDescriptorBufferInfo light_info{light_buffer, 0, light_buffer_bytes};
+        const VkWriteDescriptorSet light_write{
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 3, 0, 1,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &light_info, nullptr};
+        vkUpdateDescriptorSets(device, 1, &light_write, 0, nullptr);
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Lighting)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                                 kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             float multiplier[4];
-        } params{{multiplier.r, multiplier.g, multiplier.b, multiplier.a}};
+            float normal_z[4];
+            float origin_diffuse_count[4];
+        } params{{multiplier.r, multiplier.g, multiplier.b, multiplier.a},
+                 {normal.x, normal.y, normal.z, layer_z},
+                 {static_cast<float>(origin_x), static_cast<float>(origin_y),
+                  diffuse, static_cast<float>(light_count)}};
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
+        const VkBufferMemoryBarrier2KHR light_upload_barrier{
+            VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
+            VK_PIPELINE_STAGE_2_HOST_BIT_KHR, VK_ACCESS_2_HOST_WRITE_BIT_KHR,
+            VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+            VK_ACCESS_2_SHADER_READ_BIT_KHR,
+            VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+            light_buffer, 0, light_buffer_bytes};
+        emit_buffer_barriers2(command,
+            std::span<const VkBufferMemoryBarrier2KHR>{&light_upload_barrier, 1});
         vkCmdDispatch(command, (destination.width + 15) / 16,
                       (destination.height + 15) / 16, 1);
         ++stats.vk_cmd_dispatch_count;

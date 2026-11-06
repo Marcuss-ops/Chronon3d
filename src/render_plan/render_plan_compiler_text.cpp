@@ -180,6 +180,24 @@ chronon3d::TextDefinition materialize_text(
     fill->a *= layer.style->fill_opacity.value_or(1.0f);
     definition.style.color = *fill;
     definition.style.paint.fill = *fill;
+    if (layer.style->gel_core) {
+        definition.style.material = chronon3d::TextMaterial::gel_core();
+    } else if (layer.style->gel_surface) {
+        definition.style.material = chronon3d::TextMaterial::gel();
+        definition.style.material.gel_transmission_enabled =
+            layer.style->gel_transmission_enabled;
+        definition.style.material.gel_debug_mode = layer.style->gel_debug_mode;
+        if (layer.style->gel_light_azimuth_radians)
+            definition.style.material.gel_light_azimuth_radians =
+                *layer.style->gel_light_azimuth_radians;
+        if (layer.style->gel_light_elevation)
+            definition.style.material.gel_light_elevation =
+                *layer.style->gel_light_elevation;
+    }
+    if (layer.style->extruded_text) {
+        definition.style.material = chronon3d::TextMaterial::extruded_3d(
+            layer.style->extrusion_depth);
+    }
     definition.style.paint.fill_pattern = layer.style->fill_pattern;
     if (layer.style->fill_gradient) {
         auto gradient = *layer.style->fill_gradient;

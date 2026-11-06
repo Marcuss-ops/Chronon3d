@@ -32,6 +32,7 @@ public:
     void set_backdrop_blur(std::optional<BackdropBlurParams> params) {
         m_backdrop_blur = std::move(params);
     }
+    void set_gel_transmission(bool enabled) noexcept { m_gel_transmission = enabled; }
     std::string_view name() const noexcept override { return "Composite"; }
 
     std::optional<raster::BBox> predicted_bbox(
@@ -91,6 +92,7 @@ public:
             hash_string("chronon.composite-node.v3"), m_unique_id);
         params_hash = hash_combine(params_hash, static_cast<u64>(m_mode));
         params_hash = hash_combine(params_hash, static_cast<u64>(m_operator));
+        params_hash = hash_combine(params_hash, hash_value(m_gel_transmission));
         params_hash = hash_combine(params_hash, hash_float_v2(m_world_z));
         params_hash = hash_combine(params_hash, hash_vec3_v2(m_world_position));
         params_hash = hash_combine(params_hash, hash_value(m_has_world_position));
@@ -131,6 +133,7 @@ private:
     float                      m_world_z{0.0f};
     Vec3                       m_world_position{0.0f};
     bool                       m_has_world_position{false};
+    bool                       m_gel_transmission{false};
     u64                        m_unique_id{0};
 };
 

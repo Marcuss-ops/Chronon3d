@@ -95,6 +95,8 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                 .transform(transform)
                 .opacity(layer.opacity)
                 .enable_3d(layer.enable_3d);
+            if (layer.screen_space) builder.screen_space(true);
+            if (layer.blend_mode) builder.blend(*layer.blend_mode);
             switch (layer.kind) {
                 case NodeKind::Color: {
                     RectParams params;
@@ -227,18 +229,26 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     const auto layer_color = Color{
                         layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
                     auto fill_style = [&]() -> std::optional<graphics::FillStyle> {
+                        std::optional<graphics::FillStyle> fill;
                         if (shape.gradient) {
-                            graphics::FillStyle fill;
-                            fill.enabled = true;
-                            fill.gradient = *shape.gradient;
-                            return fill;
-                        }
-                        if (shape.fill_color) {
-                            return graphics::FillStyle::solid(Color{
+                            fill = graphics::FillStyle::solid(layer_color);
+                            fill->gradient = *shape.gradient;
+                        } else if (shape.gradient_mesh) {
+                            fill = graphics::FillStyle::solid(layer_color);
+                            fill->gradient_mesh = *shape.gradient_mesh;
+                        } else if (shape.fill_color) {
+                            fill = graphics::FillStyle::solid(Color{
                                 (*shape.fill_color)[0], (*shape.fill_color)[1],
                                 (*shape.fill_color)[2], (*shape.fill_color)[3]});
                         }
-                        return std::nullopt;
+                        if (shape.field) {
+                            if (!fill) fill = graphics::FillStyle::solid(layer_color);
+                            fill->field = *shape.field;
+                            fill->field_ramp = shape.field_ramp;
+                            fill->field_render_scale = shape.field_render_scale;
+                            fill->field_render_size = size;
+                        }
+                        return fill;
                     }();
                     graphics::StrokeStyle stroke;
                     if (shape.stroke) {
@@ -597,6 +607,44 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                 }
                 case NodeKind::Unknown:
                     break;
+            }
+            for (const auto& effect : layer.effects) {
+                using EffectKind = render_plan::LayerPlan::EffectKindPlan;
+                switch (effect.kind) {
+                    case EffectKind::GaussianBlur:
+                        builder.effect(BlurParams{.radius = effect.radius});
+                        break;
+                    case EffectKind::DropShadow:
+                        builder.effect(DropShadowParams{
+                            .offset = Vec2{effect.offset[0], effect.offset[1]},
+                            .color = Color{effect.effect_color[0], effect.effect_color[1],
+                                           effect.effect_color[2], effect.effect_color[3]},
+                            .radius = effect.radius});
+                        break;
+                    case EffectKind::Bloom:
+                        builder.effect(BloomParams{
+                            .threshold = effect.bloom_threshold,
+                            .radius = effect.radius,
+                            .intensity = effect.bloom_intensity});
+                        break;
+                    case EffectKind::Glow:
+                        builder.effect(GlowParams{
+                            .radius = effect.radius,
+                            .intensity = effect.glow_intensity,
+                            .color = Color{effect.effect_color[0], effect.effect_color[1],
+                                           effect.effect_color[2], effect.effect_color[3]}});
+                        break;
+                    case EffectKind::ChromaticAberration:
+                        builder.effect(ChromaticAberrationParams{
+                            .red_offset = effect.chromatic_red_offset,
+                            .blue_offset = effect.chromatic_blue_offset,
+                            .offset_mode = static_cast<ChromaticOffsetMode>(effect.chromatic_offset_mode),
+                            .velocity = Vec2{effect.chromatic_velocity[0], effect.chromatic_velocity[1]},
+                            .center = Vec2{effect.radial_center[0], effect.radial_center[1]}});
+                        break;
+                    default:
+                        break;
+                }
             }
         });
     }
