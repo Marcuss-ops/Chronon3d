@@ -181,4 +181,71 @@ TEST_CASE("Vulkan DoF point highlight fills a circular bokeh footprint") {
     for (const auto handle : {source_handle, depth_handle, output_handle})
         REQUIRE(backend.release_surface(handle).ok());
 }
+
+TEST_CASE("Vulkan DoF keeps an in-focus foreground bar clean of far bokeh") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    constexpr std::uint32_t size = 33;
+    constexpr float far_depth = 100.0f;
+    constexpr float far_radius = 8.0f;
+    constexpr RenderSurfaceHandle source_handle = 9721;
+    constexpr RenderSurfaceHandle depth_handle = 9722;
+    constexpr RenderSurfaceHandle output_handle = 9723;
+    const SurfaceDesc desc{size, size, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient, 0};
+    const auto created = backend.create_surface(source_handle, desc);
+    if (!created.ok()) {
+        MESSAGE("Vulkan DoF occlusion canary skipped: " << created.error().message);
+        return;
+    }
+    REQUIRE(backend.create_surface(depth_handle, desc).ok());
+    REQUIRE(backend.create_surface(output_handle, desc).ok());
+
+    const auto pixel_count = static_cast<std::size_t>(size) * size;
+    std::vector<float> source(pixel_count * 4U, 0.0f);
+    std::vector<float> depth(pixel_count * 4U, 0.0f);
+    const auto index = [](std::uint32_t x, std::uint32_t y) {
+        return (static_cast<std::size_t>(y) * size + x) * 4U;
+    };
+    source[index(10, 16)] = 8.0f;
+    source[index(10, 16) + 1U] = 8.0f;
+    source[index(10, 16) + 2U] = 8.0f;
+    source[index(10, 16) + 3U] = 1.0f;
+    for (std::size_t i = 0; i < pixel_count; ++i) {
+        depth[i * 4U] = far_depth;
+        depth[i * 4U + 1U] = far_radius;
+    }
+    // A sharp opaque foreground strip overlaps the far point's blur disk.
+    for (std::uint32_t y = 12; y <= 20; ++y) {
+        for (std::uint32_t x = 13; x <= 17; ++x) {
+            const auto i = index(x, y);
+            source[i] = 0.0f;
+            source[i + 1U] = 1.0f;
+            source[i + 2U] = 0.0f;
+            source[i + 3U] = 1.0f;
+            depth[i] = 50.0f;
+            depth[i + 1U] = 0.0f;
+        }
+    }
+    REQUIRE(backend.upload_surface(source_handle, desc, source).ok());
+    REQUIRE(backend.upload_surface(depth_handle, desc, depth).ok());
+    REQUIRE(backend.dof_blur_disk_surface(output_handle, source_handle,
+        depth_handle, 0, 0, static_cast<int>(size), static_cast<int>(size),
+        far_radius, false, 0.0f).ok());
+    std::vector<float> output(pixel_count * 4U, 0.0f);
+    REQUIRE(backend.download_surface(output_handle, output).ok());
+
+    const auto foreground = index(15, 16);
+    const auto defocused_edge = index(18, 16);
+    INFO("foreground RGB=" << output[foreground] << ',' << output[foreground + 1U]
+         << ',' << output[foreground + 2U] << "; far blur edge red="
+         << output[defocused_edge]);
+    CHECK(output[foreground] < 1e-5f);
+    CHECK(output[foreground + 1U] > 0.99f);
+    CHECK(output[foreground + 2U] < 1e-5f);
+    CHECK(output[defocused_edge] > 1e-4f);
+
+    for (const auto handle : {source_handle, depth_handle, output_handle})
+        REQUIRE(backend.release_surface(handle).ok());
+}
 #endif
