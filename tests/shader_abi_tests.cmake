@@ -110,3 +110,13 @@ target_include_directories(chronon3d_text_tile_raster_canary_tests
     PRIVATE "${CHRONON3D_VULKAN_GENERATED_DIR}")
 add_dependencies(chronon3d_text_tile_raster_canary_tests
     chronon3d_shader_abi_headers)
+
+# Depth-provenance canary: read back the real native Vulkan depth/radius image
+# and pin nearest-layer resolution and its no-depth sentinel.
+chronon3d_add_test_suite(
+    NAME chronon3d_vulkan_dof_depth_canary_tests
+    TIER INTEGRATION
+    SOURCES backends/test_vulkan_dof_depth_canary.cpp
+    LINK_TARGETS chronon3d_pipeline Vulkan::Vulkan)
+target_compile_definitions(chronon3d_vulkan_dof_depth_canary_tests
+    PRIVATE CHRONON3D_ENABLE_VULKAN)

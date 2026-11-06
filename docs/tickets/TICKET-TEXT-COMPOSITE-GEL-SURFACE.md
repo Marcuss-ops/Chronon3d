@@ -6,9 +6,7 @@
 2026-11-06: la suite diagnostica Vulkan 1280×720 ha T00–T08 PASS sui gate
 tecnici misurati; T00–T04 ora espongono layout e diagnostiche intermedie. P1
 ha PASS limitati per T09, T13 e T15; T10 FAIL di leggibilità al tracking estremo −30 px (coverage continua), T11 PASS di continuità dopo fix della rotazione affine, T12 PASS tecnico sulla sweep della luce animata (review ottica pending). T14 è PASS limitato: il compositing destination-aware applica trasmittanza Beer–Lambert RGB per canale al backdrop, oltre all’assorbimento RGB già presente nel corpo shader. I render raw strict Vulkan ON/OFF passano ora tramite readback esplicito dal surface GPU; la trasmittanza usa alpha come proxy di copertura/spessore, non un attachment di optical depth. `GEL-VISUAL` resta in attesa della review del
-reference; `GEL-PERF` non passa ancora: il gate 4K/120fps non è stato eseguito; la diagnostica T16 DoF-on a 720p misura p95 GPU 2,1827 ms, oltre il budget 1,5 ms, e p95 render-thread CPU 275,16 ms. La prova
-storica 2,345 ms GPU span / 52,446 ms/frame end-to-end non appartiene a questo
-run.
+reference; `GEL-PERF` non passa ancora: il gate 4K/120fps non è stato eseguito; nel rerun T16 Vulkan/raw a 720p l’intero GPU batch misura p95 2,1832 ms e il render-thread p95 92,714 ms. Tutti i 61 frame superano il budget 30fps. Il precedente T16 DoF-on riportava p95 GPU 2,1827 ms e CPU 275,16 ms; il probe storico 2,345 ms GPU span / 52,446 ms/frame end-to-end è un run distinto e non va associato a questi risultati.
 
 ## Obiettivo
 
@@ -295,7 +293,7 @@ T16 places “calories”, “or” and “ingredients” on three Z planes, ani
 
 ### Diagnostica prestazioni P2 — T12/T16 720p — 2026-11-06
 
-La sweep GEL T12 misura p95 GPU 0,2825 ms e p95 render-thread 22,07 ms a 1280×720. T16 con DoF ON sale a p95 GPU 2,1827 ms e p95 render-thread 275,16 ms; DoF OFF: 0,7714 ms GPU e 241,06 ms render-thread. Sono misure diagnostiche raw, non presentazione video. Il budget del ticket è ≤1,5 ms GPU a 4K/120fps: T16 supera già il budget GPU a 720p, quindi P2 resta FAIL/non certificato; non si deduce una prestazione 4K. Dati frame-level nei sidecar T12/T16.
+La sweep GEL T12 misura p95 GPU 0,2825 ms e p95 render-thread 22,07 ms a 1280×720. Il precedente T16 DoF-on misurava p95 GPU 2,1827 ms e render-thread 275,16 ms; il rerun col kernel circolare misura p95 2,1832 ms sull’intero batch GPU e 92,714 ms render-thread. DoF OFF nel precedente run: 0,7714 ms GPU e 241,06 ms render-thread. Sono misure diagnostiche raw, non presentazione video né timing isolato del solo nodo DoF. Il budget del ticket è ≤1,5 ms GPU a 4K/120fps: P2 resta FAIL/non certificato; non si deduce una prestazione 4K. Dati frame-level nei sidecar T12/T16 e `T16-vogel-on.run.json`.
 
 
 ### P1 follow-up — Beer–Lambert RGB sul corpo e rerender Vulkan — 2026-11-06
@@ -306,3 +304,13 @@ Il vecchio helper C++ calcolava trasmissione Beer–Lambert, ma il fragment shad
 ### T18 — preview 2.5D integrata — 2026-11-06
 
 Il render Vulkan strict-native usa un nuovo plate statico di sala d’attesa in stile documentario, testo GEL su piano abilitato 3D, shadow navy sotto il testo e sweep camera prospettica di quattro secondi da sinistra al centro e verso destra. Clip H.264: [T18 2.5D orbit, 4 s](https://drive.google.com/file/d/1ihWxf2Et4l2mLzZBq9sGaYUfc3QLMhi9/view?usp=drivesdk); still raw: [frame 60](https://drive.google.com/file/d/1sHC1HOoy-rCRP8DM_h-fOSJGEsrBVNTO/view?usp=drivesdk); manifest e plan sono nella stessa cartella Drive. Il plate è un’immagine generata, non footage originale. Il render mostra compositing su sfondo, materiale GEL e movimento parallax 2.5D; non dichiara estrusione fisica, approvazione visiva finale o chiusura M2/M4. Restano aperti il depth dump/occlusion gate, la diagnostica bokeh, la review ottica e il gate P2 4K/120.
+
+### M4 implementation update — circular Vogel DoF — 2026-11-06
+
+The global native Vulkan `PerPixelDofNode` previously dispatched horizontal and vertical separable passes, whose support is rectangular despite the existing circular depth-aware kernel. It now calls the existing `dof_blur_disk_surface()` path, using deterministic Vogel disk samples (16–128 from CoC radius), existing depth/foreground scatter predicates, and configured highlight gain. No second depth buffer or blur implementation was added.
+
+The 61-frame T16 DoF-on rerender is in `docs/evidence/gel-text-stress-20261105/T16-vogel-on.*`; machine-readable provenance is `T16-vogel-on.run.json`. Vulkan raw SHA-256 `35912933e9a6b46a322e33c4be8fc37d12e33b680f897dbf99da9ec85ffcdd92`, shader SHA-256 `9514cf38260423229cee5a3cabcf146a3b59aceafb828c4649daf5dafef56294`. Against the prior separable T16 raw, 5,060,783 RGB pixels differ across the 61-frame sequence (mean absolute channel delta 0.9975/255, maximum 57). GPU device-span p50/p95/max is 2.1432/2.1832/2.1883 ms; render-thread p50/p95/max is 69.941/92.714/444.232 ms and all 61 frames miss the 33.33 ms 30-fps budget. This is technical evidence that the new route executes, not a visual bokeh PASS: T16 does not contain an isolated point-highlight shape diagnostic, and depth visualization/occlusion review remains pending. The review clip is in Drive: [T16 Vulkan Vogel bokeh review](https://drive.google.com/file/d/1lMMy6nD_zHg6-5X_O_McfFVfyRYFn7Bo/view?usp=drivesdk). Release build passed with `-j10`; renderer-core CTest and Vulkan text canary also pass with targets rebuilt using `-j10`. P2 remains FAIL/not certified; 4K/120 was not run.
+
+### M2 native depth provenance canary — 2026-11-06
+
+A standalone strict-Vulkan canary reads back the existing native RGBA32F DoF provenance image. The 4×4 fixture confirms near/far stamps resolve to the same depth/radius values in either submission order, that far-only coverage keeps its own CoC, and that uncovered pixels retain the `(-1,-1)` sentinel. The printed readback matrix and 20/20 assertions are in `T16-vulkan-dof-depth-stamp-test.log`; machine, driver, commands, hashes, and limitations are in `T16-vulkan-dof-depth-stamp.run.json`. CTest `chronon3d_vulkan_dof_depth_canary_tests` passes 1/1. This closes the kernel-level nearest-depth order check only. A full-frame depth export and scene-level text occlusion/bokeh review are still open. The broader `chronon3d_backend_registry_tests` run fails separately: 50/134 cases pass, 84 Vulkan cases throw `vkCreateInstance` with `VkResult=-9`, while all 1,906,542 assertions pass; the failure reproduces with this canary removed from that aggregate target.
