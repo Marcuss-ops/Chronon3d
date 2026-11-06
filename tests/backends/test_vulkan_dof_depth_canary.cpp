@@ -4,7 +4,12 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <vector>
 
@@ -84,5 +89,96 @@ TEST_CASE("Vulkan DoF depth stamp resolves nearest layer independent of submissi
         }
         std::cout << '\n';
     }
+}
+
+TEST_CASE("Vulkan DoF point highlight fills a circular bokeh footprint") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    constexpr std::uint32_t size = 33;
+    constexpr float radius = 8.0f;
+    constexpr RenderSurfaceHandle source_handle = 9711;
+    constexpr RenderSurfaceHandle depth_handle = 9712;
+    constexpr RenderSurfaceHandle output_handle = 9713;
+    const SurfaceDesc desc{size, size, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient, 0};
+
+    const auto created = backend.create_surface(source_handle, desc);
+    if (!created.ok()) {
+        MESSAGE("Vulkan DoF bokeh canary skipped: " << created.error().message);
+        return;
+    }
+    REQUIRE(backend.create_surface(depth_handle, desc).ok());
+    REQUIRE(backend.create_surface(output_handle, desc).ok());
+
+    const auto pixel_count = static_cast<std::size_t>(size) * size;
+    std::vector<float> source(pixel_count * 4U, 0.0f);
+    std::vector<float> depth(pixel_count * 4U, 0.0f);
+    source[((size / 2U) * size + size / 2U) * 4U] = 8.0f;
+    source[((size / 2U) * size + size / 2U) * 4U + 1U] = 8.0f;
+    source[((size / 2U) * size + size / 2U) * 4U + 2U] = 8.0f;
+    source[((size / 2U) * size + size / 2U) * 4U + 3U] = 1.0f;
+    for (std::size_t i = 0; i < pixel_count; ++i) {
+        depth[i * 4U] = 100.0f;
+        depth[i * 4U + 1U] = radius;
+    }
+    REQUIRE(backend.upload_surface(source_handle, desc, source).ok());
+    REQUIRE(backend.upload_surface(depth_handle, desc, depth).ok());
+    REQUIRE(backend.dof_blur_disk_surface(output_handle, source_handle,
+        depth_handle, 0, 0, static_cast<int>(size), static_cast<int>(size),
+        radius, false, 0.0f).ok());
+
+    std::vector<float> output(pixel_count * 4U, 0.0f);
+    REQUIRE(backend.download_surface(output_handle, output).ok());
+    float peak = 0.0f;
+    for (std::size_t i = 0; i < pixel_count; ++i)
+        peak = std::max(peak, output[i * 4U]);
+    REQUIRE(peak > 0.0f);
+
+    // A circular optical point response should occupy most of its disk and
+    // leave the square's corners dark. The threshold is relative to peak so
+    // the check is independent of sample-count normalization.
+    std::size_t lit = 0;
+    std::size_t disk_pixels = 0;
+    std::size_t lit_square_corners = 0;
+    for (std::uint32_t y = 0; y < size; ++y) {
+        for (std::uint32_t x = 0; x < size; ++x) {
+            const float dx = static_cast<float>(x) - size / 2U;
+            const float dy = static_cast<float>(y) - size / 2U;
+            const float distance = std::sqrt(dx * dx + dy * dy);
+            const bool on = output[(static_cast<std::size_t>(y) * size + x) * 4U]
+                > peak * 0.2f;
+            if (distance <= radius + 0.5f) {
+                ++disk_pixels;
+                if (on) ++lit;
+            } else if (std::abs(dx) <= radius && std::abs(dy) <= radius && on) {
+                ++lit_square_corners;
+            }
+        }
+    }
+    const float occupancy = static_cast<float>(lit) / disk_pixels;
+    INFO("point-highlight disk occupancy=" << occupancy
+         << ", lit square-corner pixels=" << lit_square_corners
+         << ", peak=" << peak);
+    CHECK(occupancy >= 0.65f);
+    CHECK(lit_square_corners == 0U);
+
+    // Optional raw diagnostic capture for reproducing the pixel-shape review.
+    // Tests stay side-effect free unless the caller names an output path.
+    if (const char* path = std::getenv("CHRONON3D_DOF_BOKEH_PGM")) {
+        std::ofstream pgm(path, std::ios::binary);
+        REQUIRE(pgm.good());
+        pgm << "P5\n" << size << ' ' << size << "\n255\n";
+        for (std::size_t i = 0; i < pixel_count; ++i) {
+            const float normalized = std::clamp(output[i * 4U] / peak, 0.0f, 1.0f);
+            const auto encoded = static_cast<unsigned char>(
+                std::lround(std::sqrt(normalized) * 255.0f));
+            pgm.write(reinterpret_cast<const char*>(&encoded), 1);
+        }
+        REQUIRE(pgm.good());
+        std::cout << "[dof-bokeh-pgm] " << path << '\n';
+    }
+
+    for (const auto handle : {source_handle, depth_handle, output_handle})
+        REQUIRE(backend.release_surface(handle).ok());
 }
 #endif
