@@ -63,8 +63,16 @@ NodeExecResult EffectStackNode::execute(
     // The native handle, not the optional CPU pointer, decides residency here;
     // otherwise a tight projected text surface is incorrectly expanded through
     // the CPU crop path and attempts to resize an external framebuffer.
+    const bool all_effects_native_capable = std::all_of(
+        m_effects.begin(), m_effects.end(),
+        [](const EffectInstance& effect) {
+            if (!effect.enabled) return true;
+            const auto* cap = gpu_effect_capability(effect.effect_type);
+            return cap && cap->route == GpuEffectRoute::NativeZeroReadback;
+        });
     const bool gpu_only_input =
-        ctx.policy.require_native_gpu &&
+        (ctx.policy.require_native_gpu ||
+         (inputs[0]->is_gpu_authoritative() && all_effects_native_capable)) &&
         inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
         (!ctx.backend || ctx.backend_surface_api()->is_native_surface_valid(
             inputs[0]->surface_handle()));
@@ -247,7 +255,7 @@ NodeExecResult EffectStackNode::execute(
                 m_temporal_history_key, native_clip);
         }
         const bool strict_native_stack =
-            (ctx.policy.is_gpu_native_required() || (gpu_only_input && has_echo)) &&
+            (ctx.policy.is_gpu_native_required() || gpu_only_input || native_source_available) &&
             active_effects.size() > 1 && ctx.backend_stats_api()->supports_native_surfaces() &&
             ctx.surface_registry && echo_count <= 1;
         bool native_source_promotion_failed = false;
@@ -424,10 +432,8 @@ NodeExecResult EffectStackNode::execute(
             // selection; every active effect is recorded after the existing
             // native helpers determine whether the whole stack was handled.
             native_handled = native_effects::try_native_full_frame_blur(
-                ctx, active_effects, *result, local_clip,
-                gpu_only_input ? inputs[0]->surface_handle()
-                               : runtime::kInvalidRenderSurfaceHandle,
-                gpu_only_input ? inputs[0].get() : nullptr);
+                ctx, active_effects, *result, local_clip, native_source,
+                native_source_available ? inputs[0].get() : nullptr);
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_drop_shadow(
                     ctx, active_effects, *result, native_clip, native_source,
@@ -507,6 +513,10 @@ NodeExecResult EffectStackNode::execute(
                     ctx, active_effects, *result, local_clip, chromatic_source,
                     chromatic_source != runtime::kInvalidRenderSurfaceHandle ? inputs[0].get() : nullptr);
             }
+        }
+        if (native_handled &&
+            result->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+            result->mark_gpu_authoritative();
         }
         if (ctx.session && native_handled) {
             for (const auto& effect : active_effects)

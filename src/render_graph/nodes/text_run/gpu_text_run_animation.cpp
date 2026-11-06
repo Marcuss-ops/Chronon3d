@@ -10,6 +10,7 @@
 #include "gpu_text_run.hpp"
 
 #include <chronon3d/text/animation/text_animator_properties.hpp>
+#include <chronon3d/text/gel_surface.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
 #include <chronon3d/runtime/gpu_text_selector_metadata.hpp>
@@ -135,7 +136,8 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
         shape.paint.stroke_join != LineJoin::Miter ||
         !shape.paint.stroke_dash_array.empty() ||
         shape.paint.stroke_dash_offset != 0.0f ||
-        shape.material.enabled || shape.shadows.size() > 1 ||
+        (shape.material.enabled && !shape.material.gel_surface) ||
+        shape.shadows.size() > 1 ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
         return false;
     }
@@ -248,6 +250,29 @@ void sample_gpu_text_animation(
             run.flags |= runtime::kTextRunFlagAnimatorFill;
             run.animator_fill_color = ::chronon3d::text::pack_text_color(
                 fill->color.evaluate(sample_time));
+        }
+    }
+}
+
+void sample_gpu_gel_light_animation(
+    const TextRunShape& shape,
+    SampleTime sample_time,
+    runtime::TextRunDynamic& run) noexcept {
+    if (!shape.material.enabled || !shape.material.gel_surface) return;
+    for (const auto& animator : shape.animators) {
+        for (const auto& property : animator.properties) {
+            const auto* gel_light =
+                std::get_if<GelLightDirectionProperty>(&property);
+            if (!gel_light) continue;
+            const Vec3 direction = gel_light->direction.evaluate(sample_time);
+            const float length = glm::length(direction);
+            if (!std::isfinite(length) || length <= 1e-6f) continue;
+            const Vec3 normalized = direction / length;
+            const float azimuth = std::atan2(normalized.y, normalized.x);
+            const float elevation = std::clamp(normalized.z, 0.0f, 1.0f);
+            run.animator_reserved5 = text::gel::pack_light_parameters(
+                azimuth, elevation);
+            run.effect_flags |= (1u << 4);
         }
     }
 }

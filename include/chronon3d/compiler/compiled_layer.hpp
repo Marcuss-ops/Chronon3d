@@ -72,8 +72,11 @@ struct StaticLayerProgram {
     std::int64_t time_remap_freeze_frame{-1};
     std::uint32_t time_remap_track_index{kInvalidProgramIndex};
     std::vector<render_plan::LayerPlan::ResolvedTransformSample> transform_samples;
+    std::vector<render_plan::LayerPlan::EffectPlan> effects;
+    std::optional<BlendMode> blend_mode;
     bool has_transform_animation{false};
     bool enable_3d{false};
+    bool screen_space{false};
 };
 
 }  // namespace chronon3d::compiler

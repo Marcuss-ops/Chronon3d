@@ -214,8 +214,7 @@ raster-size variation for distance-field glyphs remains covered separately.
 Shape V2 mutation coverage now includes Rect, Line, GridBackground, FakeBox3D,
 GridPlane and TiledImage payload fields, supplementing the existing Circle,
 RoundedRect, Image and TextRun cases. This checks the fields the current V2
-builder declares; a separate inventory comparison is still needed to prove the
-builder includes every rendered field in each payload.
+builder declares; the payload-to-builder comparison is now recorded below.
 
 That comparison found Image and TiledImage V2 omitted fit mode, focal point,
 crop, radius, decode options and embedded payload bytes. V2 now hashes these
@@ -224,6 +223,22 @@ coverage includes each added field and the Shape V2 focused suite passes.
 Mesh V2 also hashes the prepared mesh identity's resolved path, byte size,
 write time and content digest as individual fields instead of hashing its
 diagnostic `cache_key()` string. Mutation coverage checks all four fields.
+
+The Shape payload comparison found four `PathShape` dependencies absent from
+`hash_shape_v2`: `fill_rule`, the ordered `operators` vector, `opacity`, and
+`PathStroke::miter_limit`. V2 now hashes these and every current
+`PathOperatorParams` alternative, including nested command lists. The V1 branch
+is unchanged. Focused mutation tests cover fill rule, opacity, miter limit,
+all 11 current parameter alternatives, and operator order; V1 stability is
+checked for each top-level mutation. The focused test passes 26/26 assertions
+and the complete cache executable passes 206/206 cases and 103,975/103,975
+assertions.
+`FakeExtrudedText` was separately found missing from V2 and now hashes all 14
+members with component mutation coverage.
+
+This closes the specific PathShape omission, not the ticket-wide inventory or
+legacy-fixture work. Other cache identities still need field-by-field review
+before this ticket can close.
 
 The FreeType glyph bounding-box key now has a domain-tagged V2 hasher over
 face id, glyph id, pixel size and full variation-axis string. It uses a small
@@ -308,27 +323,63 @@ The `TransformNode` Card3D fold previously covered only a subset of material
 fields and omitted the optional-presence bit. Its V3 key now includes every
 geometry, color, lighting and shadow field through semantic scalar/vector/color
 hashes and distinguishes no material from a default material. Mutation coverage
-checks each Card3D field and absence/presence. The cache suite is being rebuilt
-in the dedicated `linux-video-test` configuration; this suite run is pending.
+checks each Card3D field and absence/presence. The complete
+`chronon3d_cache_tests` target passed on 2026-11-05 in the dedicated
+`linux-video-test` configuration (CTest 1/1, 20.85 s), including this mutation
+coverage.
 
 `MaskNode` and its private alpha-surface cache omitted `canvas_from_local`,
 although mask sampling maps every pixel through that matrix. Both identities now
 include its component-wise semantic V2 matrix digest. The node key also includes
 the ordered text-source mapping; its domain-tagged key is V4. Mutation tests
-change the sampling matrix and source mapping to verify invalidation.
-The same cache suite run is pending.
+change the sampling matrix and source mapping to verify invalidation. The
+2026-11-05 full cache-suite run passed (CTest 1/1, 20.85 s).
 
 `ClearNode` declared a frame-variant policy but returned frame zero in its
 `NodeCacheKey`, contradicting its contract to re-execute on every frame. Its
 V2 key now uses the policy-derived frame and carries a domain/version tag;
-frame and output-extent mutations are covered. The cache suite run is pending.
+frame and output-extent mutations are covered. The 2026-11-05 full cache-suite
+run passed (CTest 1/1, 20.85 s).
 
 The dirty-rect scene fingerprint previously allocated an XXH3 state and
 returned a valid-looking zero digest if that allocation failed. It now folds
 the semantic layer and RenderNode identities with the canonical hash builder,
 without allocation, and has a V2 domain tag. A stability/mutation test verifies
-repeatability and skew invalidation; the full cache suite passes 183 cases /
-103,770 assertions.
+repeatability and skew invalidation. The current-source full cache suite passed
+on 2026-11-05 (CTest 1/1, 20.85 s); CTest did not report doctest case/assertion
+totals.
+
+## Verification checkpoint — 2026-11-05
+
+- `cmake --build build/chronon/linux-video-test --target chronon3d_cache_tests
+  -j1`: PASS; rebuilt the current cache hash implementation and its tests.
+- Direct run of the rebuilt `chronon3d_cache_tests`: PASS, 205/205 cases and
+  103,949/103,949 assertions. The GPU glyph V1 digest fixture pins the
+  pre-domain-tag digest (7864085940426203209) and verifies the V2 digest
+  (9060937200083332110); it passes 1/1 case and 3/3 assertions. The legacy
+  `Material2_5D` V1 helper digest is pinned at 4357282160036620691; its fixture
+  passes 1/1 assertion.
+- Shape field inventory found that `FakeExtrudedTextShape` had no semantic V2
+  payload hashing. V2 now covers all 14 authored members, with mutations for
+  all 24 scalar and enum components; tests confirm the legacy V1 digest remains
+  unchanged.
+- `python3 tools/check_architecture.py --root .`: PASS, 214/214 rules;
+  `cache_family_inventory` classifies 24 concrete cache classes exactly once.
+- `git diff --check`: PASS for the repository changes inspected in this run.
+
+These checks close the pending suite-execution item for Card3D, MaskNode and
+ClearNode. The ticket remains ACTIVE: key-field inventory comparison and legacy
+digest fixtures are still incomplete, and several cache identities remain V1.
+
+### PathShape semantic V2 closeout — 2026-11-05
+
+Added explicit V2 coverage for path fill/stroke semantics and all current
+ordered path operators, preserving the V1 branch. The focused PathShape test
+passes 26/26 assertions; the rebuilt full cache executable passes 206/206
+cases and 103,975/103,975 assertions. The full architecture checker passes
+217/217 rules, including the 24-class cache-family inventory. This closes the
+PathShape omission only; the overall identity inventory and legacy fixture
+criteria remain open.
 
 ## Exit criteria
 

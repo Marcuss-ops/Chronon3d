@@ -109,6 +109,8 @@ public:
                          BlendMode mode,
                          const std::optional<raster::BBox>& clip = std::nullopt,
                          CompositeOperator op = CompositeOperator::SourceOver) override;
+    void composite_gel_layer(Framebuffer& dst, const Framebuffer& src,
+                             const std::optional<raster::BBox>& clip = std::nullopt) override;
 
     void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                             const effects::EffectExecutionContext& context) override;

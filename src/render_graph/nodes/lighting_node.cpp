@@ -17,6 +17,13 @@ NodeExecResult LightingNode::execute(
     const auto& light_context = ctx.frame_input.light_context;
     const bool has_layer_lights = light_context.has_point_lights();
     const bool per_pixel_lights = light_context.has_spatial_lights();
+    if (ctx.policy.require_native_gpu && per_pixel_lights &&
+        light_context.point_lights.size() > 64) {
+        return NodeExecResult(NodeExecutionError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            std::string(name()),
+            "strict-native per-pixel lighting supports at most 64 point/spot lights"});
+    }
     if ((!light_context.enabled && !has_layer_lights) || !m_material.accepts_lights) {
         return ctx.acquire_owned_fb(*inputs[0]);
     }
@@ -50,10 +57,17 @@ NodeExecResult LightingNode::execute(
     // A constant multiplier is only exact for a flat scene light. Per-pixel
     // point lights vary across the layer, so they force the CPU path.
     const bool native_input =
-        !per_pixel_lights && (ctx.policy.require_native_gpu || (ctx.backend && ctx.backend_stats_api()->supports_native_surfaces())) &&
+        (!per_pixel_lights || light_context.point_lights.size() <= 64) &&
+        (ctx.policy.require_native_gpu || (ctx.backend && ctx.backend_stats_api()->supports_native_surfaces())) &&
         ctx.backend && ctx.surface_registry &&
         inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
         ctx.backend_surface_api()->is_native_surface_valid(inputs[0]->surface_handle());
+    if (ctx.policy.require_native_gpu && per_pixel_lights && !native_input) {
+        return NodeExecResult(NodeExecutionError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            std::string(name()),
+            "strict-native per-pixel lighting requires a valid GPU surface"});
+    }
     if (native_input) {
         auto result = ctx.acquire_owned_fb(
             inputs[0]->width(), inputs[0]->height(), false,
@@ -84,8 +98,33 @@ NodeExecResult LightingNode::execute(
                 output_record ? output_record->desc.width : 0,
                 output_record ? output_record->desc.height : 0);
         }
-        const auto applied = ctx.backend_surface_api()->lighting_surface(
-            result->surface_handle(), inputs[0]->surface_handle(), multiplier);
+        RenderOpResult applied = [&] {
+            if (!per_pixel_lights) {
+                return ctx.backend_surface_api()->lighting_surface(
+                    result->surface_handle(), inputs[0]->surface_handle(), multiplier);
+            }
+            std::vector<float> packed_lights;
+            packed_lights.reserve(light_context.point_lights.size() * 16);
+            for (const auto& light : light_context.point_lights) {
+                packed_lights.insert(packed_lights.end(), {
+                    light.position.x, light.position.y, light.position.z,
+                    static_cast<float>(light.kind),
+                    light.direction.x, light.direction.y, light.direction.z, light.angle,
+                    light.color.r, light.color.g, light.color.b, light.radius,
+                    light.range, light.decay, light.penumbra, 0.0f});
+            }
+            const Color scene_multiplier = light_context.enabled
+                ? rendering::evaluate_lighting(
+                    Color{1.0f, 1.0f, 1.0f, 1.0f}, normal_world,
+                    light_context, m_material)
+                : Color{0.0f, 0.0f, 0.0f, 1.0f};
+            return ctx.backend_surface_api()->lighting_surface_points(
+                result->surface_handle(), inputs[0]->surface_handle(),
+                scene_multiplier, packed_lights,
+                static_cast<std::uint32_t>(light_context.point_lights.size()),
+                normal_world, layer_z, inputs[0]->origin_x(),
+                inputs[0]->origin_y(), m_material.diffuse);
+        }();
         if (applied.ok()) {
             result->set_opaque(inputs[0]->is_opaque());
             result->set_content_cleared(inputs[0]->is_content_cleared());

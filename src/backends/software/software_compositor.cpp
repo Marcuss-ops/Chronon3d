@@ -13,7 +13,7 @@
 
 namespace chronon3d {
 
-void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip, CompositeOperator op, bool force_scalar_normal_blend) {
+void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip, CompositeOperator op, bool force_scalar_normal_blend, bool gel_transmission) {
     i32 x0 = 0, y0 = 0, x1 = dst.width(), y1 = dst.height();
     if (clip) {
         // clip is in canvas coordinates — convert to dst-local
@@ -54,6 +54,29 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
                 simd::apply_alpha_matte_premul(std::span<Color>(d_row + dx0, width_to_process), std::span<const Color>(s_row + sx0, width_to_process), inverted);
             } else {
                 simd::apply_luma_matte_premul(std::span<Color>(d_row + dx0, width_to_process), std::span<const Color>(s_row + sx0, width_to_process), inverted);
+            }
+        }
+        return;
+    }
+
+    if (gel_transmission && mode == BlendMode::Normal) {
+        const i32 sx0 = std::max(x0 + dst.origin_x(), src.origin_x());
+        const i32 sy0 = std::max(y0 + dst.origin_y(), src.origin_y());
+        const i32 sx1 = std::min(x1 + dst.origin_x(), src.origin_x() + src.width());
+        const i32 sy1 = std::min(y1 + dst.origin_y(), src.origin_y() + src.height());
+        for (i32 y = sy0; y < sy1; ++y) {
+            const Color* source_row = src.pixels_row(y - src.origin_y());
+            Color* destination_row = dst.pixels_row(y - dst.origin_y());
+            for (i32 x = sx0; x < sx1; ++x) {
+                const Color& s = source_row[x - src.origin_x()];
+                Color& d = destination_row[x - dst.origin_x()];
+                const float red_transmission = std::max(1.0f - std::clamp(s.a, 0.0f, 1.0f), 1e-6f);
+                const float tr = red_transmission;
+                const float tg = std::pow(red_transmission, 0.4f / 1.2f);
+                const float tb = std::pow(red_transmission, 0.05f / 1.2f);
+                const float sa = std::clamp(s.a, 0.0f, 1.0f);
+                d = Color{s.r + d.r * tr, s.g + d.g * tg, s.b + d.b * tb,
+                          sa + std::clamp(d.a, 0.0f, 1.0f) * (1.0f - sa)};
             }
         }
         return;

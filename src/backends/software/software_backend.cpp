@@ -241,6 +241,18 @@ void SoftwareBackend::composite_layer(
         m_settings->force_scalar_normal_blend);
 }
 
+void SoftwareBackend::composite_gel_layer(
+    Framebuffer& dst, const Framebuffer& src,
+    const std::optional<raster::BBox>& clip) {
+    m_counters->layers_rendered.fetch_add(1, std::memory_order_relaxed);
+    CHRONON_TRACE_SCOPE("chronon.effect", "composite_gel_layer");
+    m_counters->pixels_touched.fetch_add(
+        clipped_area(dst.width(), dst.height(), to_local_clip(dst, clip)),
+        std::memory_order_relaxed);
+    SoftwareCompositor::composite_layer(dst, src, BlendMode::Normal, clip,
+        CompositeOperator::SourceOver, true, true);
+}
+
 // ── apply_effect_stack ────────────────────────────────────────────────────
 
 void SoftwareBackend::apply_effect_stack(

@@ -12,7 +12,11 @@ Owner: rendering-core
 > the post-unification determinism/contract matrix
 > (`tests/media/nv12/`, CUDA-gated suite, runs with
 > `CHRONON3D_RUN_CUDA_TESTS=1`); GPU-host baseline renders remain the
-> remaining evidence step (see `TICKET-AUDIT-ROADMAP-WAVES.md` Wave 4).
+> remaining evidence step (see [`archive/TICKET-AUDIT-ROADMAP-WAVES.md`](archive/TICKET-AUDIT-ROADMAP-WAVES.md) Wave 4).
+>
+> **Assorbimento 2026-11-05:** questo ticket possiede l'evidenza render GPU
+> Wave 4 del ticket archiviato `TICKET-AUDIT-ROADMAP-WAVES`; l'archiviazione
+> non chiude la matrice NV12 né la misura `FrameConversionService`.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 

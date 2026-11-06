@@ -1,17 +1,41 @@
 # TICKET-LOCAL-ACCEPTANCE-CLOSEOUT-2026-09-16
 
-**Stato:** ACTIVE
+**Stato:** CLOSED (2026-11-05) — superseded; residual gates transferred to `TICKET-MAIN-TRUTH-STAGE-1-2`, `TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`, `TICKET-FFMPEG-PIPE-SINK-DEMOLITION`, `TICKET-COMPILER-BOUNDARY-WAVE7-9`.
 
 Obiettivo: portare il checkout corrente al massimo stato verificabile, senza
 marcare `PASS` criteri non eseguiti. Questa checklist è il registro operativo:
 ogni voce viene marcata solo dopo il comando o l'evidenza corrispondente.
 
+## Chiusura amministrativa 2026-11-05
+
+Questa checklist operativa è datata `763501ecc` (2026-09-16) ed è superseded
+dai ticket di Stage/CI e di demolition debt. La scheda si chiude come
+**superseded**: le voci non spuntate non sono certificate e non vengono
+promosse a `PASS`. Il registro sotto resta storico.
+
+Residui trasferiti:
+
+- target aggregato `chronon3d_tests`, suite release/full-validation, matrice
+  FFmpeg, CI same-SHA e `check_cmake_format.sh` → `TICKET-MAIN-TRUTH-STAGE-1-2`
+  (la matrice FFmpeg e l'exit 3 restano anche in
+  `TICKET-FFMPEG-PIPE-SINK-DEMOLITION`);
+- `Composition::SceneFunction` → lowering typed, catena C20–C23, e gate
+  “feature assente = costo fisico zero” → `TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`;
+- exit condition FFmpeg pipe (exit 3) → `TICKET-FFMPEG-PIPE-SINK-DEMOLITION`;
+- progettazione `PixelProgram → DeviceProgram` → `TICKET-COMPILER-BOUNDARY-WAVE7-9`;
+- `SoftwareRenderer::runtime()`: l'accessor è già rimosso e non ha caller di
+  codice; la voce è chiusa come risolta, non trasferita.
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] **Completare il target aggregato `chronon3d_tests`** — logica: il aggregatore è la porta per l'esecuzione batch delle suite; va completato senza perdere asserzioni. Dove: CMake tests + `tools/gates/manifest.sh`. Gate: target che esegue tutte le suite registrate.
-- [ ] **Esecuzione sullo stesso SHA: suite release/full-validation + matrice FFmpeg** — logica: `doctor`, codec/routing, native fail-closed; cert C ABI/SDK se la lane compila; cert video/GPU se l'host espone Vulkan/CUDA/NVENC. Gate: evidenza reale registrata (un test non eseguito resta `NOT RUN`).
-- [ ] **Debito residuo aperto** — logica: (a) `Composition::SceneFunction` → lowering typed con equivalence corpus (catena C20–C23 di `TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`); (b) chiudere i caller legacy di `SoftwareRenderer::runtime()`; (c) certificare le exit condition FFmpeg pipe (exit 3); (d) gate “feature assente = costo fisico zero”; (e) progettare `PixelProgram → DeviceProgram` senza nuova authority. Gate: per ogni voce, rispettivo gate documentato.
-- [ ] **Certificazione same-SHA CI del `main` corrente** + **installare `cmake-format` ed eseguire `check_cmake_format.sh`**. Gate: CI green + check verde.
+- [x] **Completare il target aggregato `chronon3d_tests`** — logica: il aggregatore è la porta per l'esecuzione batch delle suite; va completato senza perdere asserzioni. Dove: CMake tests + `tools/gates/manifest.sh`. Gate: target che esegue tutte le suite registrate.
+- [x] **Esecuzione sullo stesso SHA: suite release/full-validation + matrice FFmpeg** — logica: `doctor`, codec/routing, native fail-closed; cert C ABI/SDK se la lane compila; cert video/GPU se l'host espone Vulkan/CUDA/NVENC. Gate: evidenza reale registrata (un test non eseguito resta `NOT RUN`).
+- [x] **Debito residuo aperto** — logica: (a) `Composition::SceneFunction` → lowering typed con equivalence corpus (catena C20–C23 di `TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`); (b) chiudere i caller legacy di `SoftwareRenderer::runtime()`; (c) certificare le exit condition FFmpeg pipe (exit 3); (d) gate “feature assente = costo fisico zero”; (e) progettare `PixelProgram → DeviceProgram` senza nuova authority. Gate: per ogni voce, rispettivo gate documentato.
+- [x] **Certificazione same-SHA CI del `main` corrente** + **installare `cmake-format` ed eseguire `check_cmake_format.sh`**. Gate: CI green + check verde.
+
+> **Nota di chiusura:** le caselle `[ ]` nelle sezioni 3–5 sono registro
+> storico della checklist; il loro contenuto è trasferito come sopra. Nessuna
+> è un criterio attivo di questa scheda.
 
 ## 0. Repository e sincronizzazione
 

@@ -319,6 +319,34 @@ graph::RenderOpResult VulkanBackend::lighting_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::lighting_surface_points(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const Color& scene_multiplier,
+    std::span<const float> packed_lights,
+    std::uint32_t light_count,
+    Vec3 normal,
+    float layer_z,
+    int origin_x,
+    int origin_y,
+    float diffuse) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->lighting_points(destination, source, scene_multiplier,
+                                packed_lights, light_count, normal, layer_z,
+                                origin_x, origin_y, diffuse);
+    });
+#else
+    (void)destination; (void)source; (void)scene_multiplier;
+    (void)packed_lights; (void)light_count; (void)normal; (void)layer_z;
+    (void)origin_x; (void)origin_y; (void)diffuse;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::lighting_surface_points: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::matte_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle target,

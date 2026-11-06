@@ -9,10 +9,12 @@ namespace chronon3d::graph::detail {
 
 bool try_native_affine_composite(
     RenderGraphContext&, Framebuffer&, const Framebuffer&,
-    const std::optional<raster::BBox>&, BlendMode = BlendMode::Normal);
+    const std::optional<raster::BBox>&, BlendMode = BlendMode::Normal,
+    bool gel_transmission = false);
 bool try_native_composite(
     RenderGraphContext&, Framebuffer&, Framebuffer&,
-    BlendMode, CompositeOperator, const std::optional<raster::BBox>&);
+    BlendMode, CompositeOperator, const std::optional<raster::BBox>&,
+    bool gel_transmission = false);
 bool seed_native_destination(
     RenderGraphContext&, Framebuffer&, const Framebuffer&);
 [[nodiscard]] std::optional<NodeExecutionError> materialize_native_or_fail(

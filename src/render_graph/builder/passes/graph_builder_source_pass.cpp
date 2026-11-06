@@ -1,6 +1,7 @@
 #include "graph_builder_source_pass.hpp"
 #include "graph_builder_coordinates.hpp"
 #include "evaluated_layer_placement.hpp"
+#include "../extruded_text_mesh.hpp"
 
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 
@@ -264,6 +265,21 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         if (layer.nodes.size() == 1 && !single_node_needs_svg_compositing) {
             const auto& authored_node = layer.nodes[0];
             auto node = materialize_mesh_node(authored_node, ctx);
+            if (node.shape.type() == ShapeType::TextRun) {
+                const auto run = node.shape.text_run_shape_handle().value;
+                if (run && run->material.extruded_text) {
+                    // Keep HarfBuzz's canonical glyph placement, but promote its
+                    // FreeType outlines into the existing native 3D mesh path.
+                    node.shape = Shape(MeshShape{});
+                    node.shape.mesh_shape().inline_mesh =
+                        build_extruded_text_mesh(*run, run->material.extrusion_depth);
+                    node.inline_mesh_material = RenderNode::InlineMeshMaterial{};
+                    node.inline_mesh_material->base_color = node.color;
+                    node.inline_mesh_material->specular = 0.32f;
+                    node.inline_mesh_material->shininess = 48.0f;
+                    node.inline_mesh_material->double_sided = false;
+                }
+            }
             // The fresh build path has no refresh pass behind it: without this
             // the authored base pose was drawn on every frame of an animated
             // mesh (11 frames, one hash).

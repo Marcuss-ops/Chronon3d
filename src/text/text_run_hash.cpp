@@ -160,6 +160,17 @@ u64 hash_text_run_shape(const TextRunShape& s) {
 
     // Material hash (premium material settings)
     seed = hash_combine(seed, hash_value(s.material.enabled));
+    seed = hash_combine(seed, hash_value(s.material.gel_surface));
+    seed = hash_combine(seed, hash_value(s.material.extruded_text));
+    if (s.material.extruded_text)
+        seed = hash_combine(seed, hash_value(s.material.extrusion_depth));
+    if (s.material.gel_surface) {
+        seed = hash_combine(seed, hash_value(s.material.gel_transmission_enabled));
+        seed = hash_combine(seed, hash_value(s.material.gel_core_only));
+        seed = hash_combine(seed, hash_value(s.material.gel_debug_mode));
+        seed = hash_combine(seed, hash_value(s.material.gel_light_azimuth_radians));
+        seed = hash_combine(seed, hash_value(s.material.gel_light_elevation));
+    }
     if (s.material.enabled) {
         seed = hash_combine(seed, hash_color(s.material.top_color));
         seed = hash_combine(seed, hash_color(s.material.bottom_color));
@@ -228,6 +239,16 @@ u64 hash_text_run_shape_v2(const TextRunShape& s) {
     builder.add_enum(s.placement_kind);
     glyphs(s.glyphs);
     builder.add(s.material.enabled);
+    builder.add(s.material.gel_surface);
+    builder.add(s.material.extruded_text);
+    if (s.material.extruded_text) f(s.material.extrusion_depth);
+    if (s.material.gel_surface) {
+        builder.add(s.material.gel_transmission_enabled);
+        if (s.material.gel_core_only) builder.add(s.material.gel_core_only);
+        builder.add(s.material.gel_debug_mode);
+        f(s.material.gel_light_azimuth_radians);
+        f(s.material.gel_light_elevation);
+    }
     color(s.material.top_color); color(s.material.bottom_color); f(s.material.gradient_angle);
     f(s.material.bevel_px); f(s.material.bevel_highlight_opacity);
     color(s.material.bevel_highlight_color); f(s.material.bevel_shadow_opacity);

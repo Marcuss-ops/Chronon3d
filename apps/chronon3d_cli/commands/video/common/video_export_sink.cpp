@@ -1,10 +1,12 @@
 #include "pipe_export_session.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <chrono>
+#include <vector>
 
 namespace chronon3d::cli {
 
@@ -227,7 +229,8 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
             }
 
             const auto enc_t0 = profiling::now();
-            const Framebuffer& fb_ref = *full->cpu_fallback;
+            const Framebuffer* fb_ref = full->cpu_fallback.get();
+            std::shared_ptr<Framebuffer> gpu_readback_frame;
             // Timeline tracing: terminating flow hop — the frame's
             // NVDEC → render chain ends here at the encoder sink. The flow id
             // is the same MakeFlowId(job, frame) emitted by decode and render.
@@ -238,13 +241,63 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
                 trace_flow, trace_job_id,
                 static_cast<uint64_t>(full->frame_number));
             auto* slot = full->slot.valid() ? &full->slot.slot() : nullptr;
-            const bool gpu_frame = slot &&
+            const bool gpu_frame = !ctx.raw_file_sink && slot &&
                 slot->native_surface != runtime::kInvalidRenderSurfaceHandle &&
                 slot->backend != nullptr;
-            if (!gpu_frame && !fb_ref.data()) {
+            auto readback_surface = fb_ref->surface_handle();
+            if (readback_surface == runtime::kInvalidRenderSurfaceHandle && slot &&
+                slot->source_surface != runtime::kInvalidRenderSurfaceHandle &&
+                slot->backend &&
+                slot->backend->is_native_surface_valid(slot->source_surface)) {
+                // The render loop may retain the source only on the execution
+                // slot while the public framebuffer deliberately carries no
+                // surface handle. The package lease keeps this source alive.
+                readback_surface = slot->source_surface;
+            }
+            if (!gpu_frame && !fb_ref->data() &&
+                readback_surface != runtime::kInvalidRenderSurfaceHandle &&
+                ctx.renderer != nullptr) {
+                const auto pixel_count = static_cast<std::size_t>(fb_ref->width()) *
+                    static_cast<std::size_t>(fb_ref->height());
+                std::vector<float> rgba(pixel_count * 4u);
+                auto& render_backend = ctx.renderer->backend();
+                const auto readback = render_backend.download_surface(
+                    readback_surface, rgba);
+                if (readback.ok()) {
+                    auto host_frame = std::make_shared<Framebuffer>(
+                        fb_ref->width(), fb_ref->height(), false);
+                    for (int y = 0; y < fb_ref->height(); ++y) {
+                        Color* row = host_frame->pixels_row(y);
+                        for (int x = 0; x < fb_ref->width(); ++x) {
+                            const auto offset = (static_cast<std::size_t>(y) *
+                                static_cast<std::size_t>(fb_ref->width()) +
+                                static_cast<std::size_t>(x)) * 4u;
+                            row[x] = Color{rgba[offset], rgba[offset + 1u],
+                                           rgba[offset + 2u], rgba[offset + 3u]};
+                        }
+                    }
+                    host_frame->set_origin(fb_ref->origin_x(), fb_ref->origin_y());
+                    host_frame->set_opaque(fb_ref->is_opaque());
+                    host_frame->mark_cpu_authoritative();
+                    gpu_readback_frame = std::move(host_frame);
+                    fb_ref = gpu_readback_frame.get();
+                    spdlog::info(
+                        "[video] explicit GPU surface readback completed for raw/host sink at frame {} ({}x{})",
+                        full->frame_number, fb_ref->width(), fb_ref->height());
+                } else {
+                    spdlog::error(
+                        "[video] explicit GPU surface readback failed at frame {}: {}",
+                        full->frame_number, readback.error().message);
+                }
+            }
+            if (!gpu_frame && !fb_ref->data()) {
                 spdlog::error(
-                    "[video] CPU export requested for framebuffer without host pixels at frame {}; refusing invalid surface fallback",
-                    full->frame_number);
+                    "[video] host export requested for framebuffer without readable host pixels at frame {}; framebuffer_surface={} slot_valid={} slot_source={} slot_native={} slot_backend={} renderer={}",
+                    full->frame_number, fb_ref->surface_handle(),
+                    slot != nullptr,
+                    slot ? slot->source_surface : runtime::kInvalidRenderSurfaceHandle,
+                    slot ? slot->native_surface : runtime::kInvalidRenderSurfaceHandle,
+                    slot && slot->backend != nullptr, ctx.renderer != nullptr);
                 if (ctx.counters) {
                     ctx.counters->gpu_encode_failures.fetch_add(
                         1, std::memory_order_relaxed);
@@ -260,9 +313,13 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
             const bool plan_requires_native = ctx.execution_plan &&
                 ctx.execution_plan->encode == media::EncodePath::Nvenc &&
                 ctx.execution_plan->interop != media::InteropPath::None;
+            const bool raw_gpu_readback = ctx.raw_file_sink &&
+                gpu_readback_frame != nullptr &&
+                ctx.hot_path_mode == GpuHotPathMode::RequireGpuNative;
             if (!gpu_frame && (ctx.require_native_gpu || plan_requires_native ||
                                ctx.hot_path_mode == GpuHotPathMode::RequireGpuNative ||
-                               ctx.hot_path_mode == GpuHotPathMode::RequireDirectYuv)) {
+                               ctx.hot_path_mode == GpuHotPathMode::RequireDirectYuv) &&
+                !raw_gpu_readback) {
                 if (ctx.counters) {
                     ctx.counters->video_native_fallback_frames.fetch_add(
                         1, std::memory_order_relaxed);
@@ -279,6 +336,9 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
                 return;
             }
 
+            auto cpu_frame = gpu_readback_frame
+                ? std::move(gpu_readback_frame)
+                : std::move(full->cpu_fallback);
             const bool encoded = gpu_frame
                 ? (slot->native_surface_prepared()
                     ? ctx.encoder.write_prepared_native_surface(
@@ -287,7 +347,7 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
                     : ctx.encoder.write_native_surface(
                         *slot->backend, slot->source_surface, slot->native_surface,
                         full->dirty_regions))
-                : ctx.encoder.write_frame_async(fb_ref, std::move(full->cpu_fallback));
+                : ctx.encoder.write_frame_async(*fb_ref, std::move(cpu_frame));
 
             if (!encoded) {
                 if (ctx.counters) {

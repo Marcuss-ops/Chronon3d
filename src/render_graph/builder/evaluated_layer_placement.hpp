@@ -488,6 +488,8 @@ struct EvaluatedSourcePlacement {
                 placed_world = implicit_canvas_center_matrix(ctx) * placed_world;
             }
             placed_transform.opacity = sampled.opacity;
+            placed_transform.position = Vec3{
+                placed_world[3][0], placed_world[3][1], placed_world[3][2]};
         }
     }
 
@@ -496,7 +498,7 @@ struct EvaluatedSourcePlacement {
         .transform = placed_transform,
         .world_matrix = placed_world,
         .depth = 0.0f,
-        .world_z = resolved_layer.world_transform.position.z,
+        .world_z = placed_transform.position.z,
         .projected = false,
         .native_3d = native_3d,
         .visible = layer.visible,
@@ -539,7 +541,7 @@ struct EvaluatedSourcePlacement {
         }
 
         item.depth = projected.depth;
-        item.world_z = resolved_layer.world_transform.position.z;
+        item.world_z = placed_transform.position.z;
         // Native 3D keeps camera ownership in the source processor.  Its
         // graph item therefore carries identity for transform/shadow users;
         // projected 2D owns the complete homography in the TransformNode.

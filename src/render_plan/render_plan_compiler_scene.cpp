@@ -451,6 +451,7 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                 if (layer.type != LayerType::Light && layer.type != LayerType::Adjustment) {
                     if (layer.casts_shadows) builder.casts_shadows(*layer.casts_shadows);
                     if (layer.accepts_shadows) builder.accepts_shadows(*layer.accepts_shadows);
+                    if (layer.shadow_catcher) builder.shadow_catcher(*layer.shadow_catcher);
                 }
                 if (layer.flow_layout)
                     builder.flow_layout(make_layout_flow(*layer.flow_layout));

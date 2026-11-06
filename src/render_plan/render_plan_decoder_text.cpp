@@ -228,17 +228,19 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                 "text animator property track");
             auto track = decode_animation_track(property);
             const auto allowed_property = [](const std::string& property) {
-                static constexpr std::array<std::string_view, 21> properties{
+                static constexpr std::array<std::string_view, 22> properties{
                     "position", "position_x", "position_y", "scale", "scale_x", "scale_y",
                     "opacity", "blur", "tracking", "rotation", "fill_color", "skew",
                     "skew_axis", "anchor", "baseline_shift", "background_color",
                     "background_padding_em", "background_radius_em", "stroke_color",
-                    "stroke_width", "character_offset"};
+                    "stroke_width", "character_offset", "light_direction"};
                 return std::find(properties.begin(), properties.end(), property) != properties.end();
             };
             if (!allowed_property(track.property))
                 throw std::runtime_error("unsupported text animator property: " + track.property);
-            const std::vector<std::size_t> arities = track.property == "position"
+            const std::vector<std::size_t> arities = track.property == "light_direction"
+                ? std::vector<std::size_t>{3}
+                : track.property == "position"
                 ? std::vector<std::size_t>{2, 3}
                 : track.property == "scale"
                     ? std::vector<std::size_t>{1, 2, 3}

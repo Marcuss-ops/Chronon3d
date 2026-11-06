@@ -17,6 +17,7 @@
 #include <chronon3d/runtime/gpu_text_selector_metadata.hpp>
 #include <chronon3d/text/mtsdf_preparation.hpp>
 #include <chronon3d/text/mtsdf_profile.hpp>
+#include <chronon3d/text/gel_surface.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
 #include <chronon3d/text/animation/text_animator_properties.hpp>
@@ -135,6 +136,36 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     run.ty = model_matrix[3][1];
     run.sx = model_matrix[0][0];
     run.sy = model_matrix[1][1];
+    // The MTSDF shader stores the layer transform as scale + translation.
+    // Preserve an in-plane layer rotation by decomposing its orthogonal XY
+    // basis and applying that rotation around each glyph's layout origin.
+    // The per-glyph offset below carries the difference between the full
+    // affine-transformed origin and the old diagonal-only origin. Without it,
+    // the off-diagonal terms were dropped and a rotated/scaled text layer
+    // orbited the canvas origin, disappearing during combined zoom sweeps.
+    const float basis_xx = model_matrix[0][0];
+    const float basis_xy = model_matrix[0][1];
+    const float basis_yx = model_matrix[1][0];
+    const float basis_yy = model_matrix[1][1];
+    const float basis_x_len = std::hypot(basis_xx, basis_xy);
+    const float basis_y_len = std::hypot(basis_yx, basis_yy);
+    const float basis_dot = basis_xx * basis_yx + basis_xy * basis_yy;
+    const bool affine_xy = std::abs(model_matrix[0][3]) < 1e-6f &&
+        std::abs(model_matrix[1][3]) < 1e-6f &&
+        std::abs(model_matrix[2][3]) < 1e-6f &&
+        std::abs(model_matrix[3][3] - 1.0f) < 1e-6f;
+    const bool rotated_xy = affine_xy && basis_x_len > 1e-6f &&
+        basis_y_len > 1e-6f && std::abs(basis_dot) <=
+            1e-4f * basis_x_len * basis_y_len &&
+        (std::abs(basis_xy) > 1e-6f || std::abs(basis_yx) > 1e-6f);
+    const float layer_rotation_z = rotated_xy
+        ? std::atan2(basis_xy, basis_xx) * (180.0f / 3.14159265358979323846f)
+        : 0.0f;
+    if (rotated_xy) {
+        const float determinant = basis_xx * basis_yy - basis_yx * basis_xy;
+        run.sx = basis_x_len;
+        run.sy = determinant / basis_x_len;
+    }
     run.opacity = opacity;
     run.color = ::chronon3d::text::pack_text_color(shape.paint.fill);
     // Keep the shader interpretation tied to the atlas profile rather than
@@ -142,6 +173,23 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     run.distance_range_bits = std::bit_cast<std::uint32_t>(
         static_cast<float>(kRangePx));
     run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
+    if (shape.material.gel_surface) {
+        run.effect_flags |= (1u << 3);
+        run.effect_flags |= (1u << 4); // animator_reserved5 carries gel light params.
+        if (shape.material.gel_core_only) {
+            run.effect_flags |= (1u << 5);
+        }
+        if (shape.material.gel_transmission_enabled) {
+            run.effect_flags |= (1u << 9);
+        }
+        run.effect_flags |= (static_cast<std::uint32_t>(
+            shape.material.gel_debug_mode & 0x7u) << 6u);
+        run.animator_reserved5 = ::chronon3d::text::gel::pack_light_parameters(
+            shape.material.gel_light_azimuth_radians,
+            shape.material.gel_light_elevation);
+        sample_gpu_gel_light_animation(
+            shape, ctx.frame_input.sample_time, run);
+    }
     if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
         run.effect_flags |= 1u;
         run.stroke_width = shape.paint.stroke_width;
@@ -169,7 +217,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     const auto draw_t0 = profiling::g_current_counters ? profiling::now() : profiling::Clock::time_point{};
     for (const auto& batch : prepared->batches) {
         if (batch.glyphs.empty()) continue;
-        const bool has_resolved_glyph_motion = !shape.animators.empty() ||
+        const bool has_resolved_glyph_motion = rotated_xy || !shape.animators.empty() ||
             std::any_of(shape.glyphs.begin(), shape.glyphs.end(),
                 [](const GlyphInstanceState& glyph) {
                     return glyph.opacity != 1.0f || glyph.position.x != 0.0f ||
@@ -242,9 +290,23 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                     state.anchor.x * (1.0f - scale_x);
                 dynamic.animator_position_y = state.position.y + state.baseline_shift +
                     state.anchor.y * (1.0f - scale_y);
+                if (rotated_xy) {
+                    const glm::vec4 mapped_origin = model_matrix * glm::vec4(
+                        glyph.origin_x, glyph.origin_y, 0.0f, 1.0f);
+                    const float inv_w = std::abs(mapped_origin.w) > 1e-6f
+                        ? 1.0f / mapped_origin.w : 1.0f;
+                    const float diagonal_origin_x = run.tx +
+                        run.sx * glyph.origin_x;
+                    const float diagonal_origin_y = run.ty +
+                        run.sy * glyph.origin_y;
+                    dynamic.animator_position_x +=
+                        mapped_origin.x * inv_w - diagonal_origin_x;
+                    dynamic.animator_position_y +=
+                        mapped_origin.y * inv_w - diagonal_origin_y;
+                }
                 dynamic.animator_scale_x = scale_x;
                 dynamic.animator_scale_y = scale_y;
-                dynamic.animator_rotation_z = state.rotation.z;
+                dynamic.animator_rotation_z = state.rotation.z + layer_rotation_z;
                 constexpr double kPi = 3.14159265358979323846;
                 const double ry_rad = static_cast<double>(state.rotation.y) * (kPi / 180.0);
                 const double rx_rad = static_cast<double>(state.rotation.x) * (kPi / 180.0);

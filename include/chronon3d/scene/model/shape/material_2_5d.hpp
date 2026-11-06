@@ -11,6 +11,7 @@ struct Material2_5D {
     bool  accepts_lights{true};    // false → layer is unlit (full color)
     bool  casts_shadows{false};    // true → layer projects shadow onto receivers
     bool  accepts_shadows{true};   // false → layer is never darkened by shadows
+    bool  shadow_catcher{false};   // true → emit only received shadow alpha
     f32   diffuse{1.0f};           // diffuse coefficient [0..1]
     f32   specular{0.0f};          // specular coefficient [0..1]
     f32   shininess{16.0f};        // Phong shininess exponent

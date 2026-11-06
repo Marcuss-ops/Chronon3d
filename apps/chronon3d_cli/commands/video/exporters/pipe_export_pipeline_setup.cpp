@@ -540,6 +540,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         .counters = sw_renderer ? sw_renderer->counters() : &session->direct_yuv_session->counters,
         .hot_path_mode = opts.gpu_hot_path_mode,
         .execution_plan = session->execution_plan,
+        .raw_file_sink = opts.sink.sink_type == VideoSinkType::RawFile,
         .writer_encode_us_total = session->writer_encode_us_total,
         .frames_encoded = session->frames_encoded,
         .require_native_gpu =

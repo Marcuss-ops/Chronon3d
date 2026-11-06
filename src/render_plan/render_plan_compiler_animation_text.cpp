@@ -217,6 +217,11 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
             animator.properties.push_back(chronon3d::RotationProperty{
                 animated_text_rotation(track, fps)});
             break;
+        case AnimationPropertyKind::LightDirection:
+            animator.properties.push_back(chronon3d::GelLightDirectionProperty{
+                animated_text_value(track, chronon3d::Vec3{0.0f, 0.0f, 1.0f},
+                                    track.property, fps)});
+            break;
         case AnimationPropertyKind::FillColor:
             animator.properties.push_back(chronon3d::FillColorProperty{
                 animated_text_color(track, track.property, fps)});

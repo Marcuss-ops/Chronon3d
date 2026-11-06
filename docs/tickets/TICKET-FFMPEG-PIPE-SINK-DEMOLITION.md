@@ -9,6 +9,10 @@
 - [ ] **Exit condition 3 — CI green codec/routing** — logica: la coverage richiesta esiste (`tests/video/test_native_av_sink_factory.cpp`, `test_native_av_sink_lifecycle.cpp`, lane `Native Video Certification`); manca solo l'evidenza CI green sullo SHA pubblicato (i run su `be6b4dc3a` sono in corso; le modifiche locali non sono coperte). Gate: codec/routing coverage green sullo stesso SHA.
 - [ ] **Poi: cancellazione fisica** — logica: solo dopo exit 3. Dove: `apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp` + `VideoSinkEncoderAdapter(Ffmpeg)` + ramo `#else` di `VideoSinkFactory` (`src/media/video/video_sink_factory.cpp`), target pipe in `src/media/CMakeLists.txt`, doc/options `ffmpeg-mode pipe`. Gate: gate anti-resurrezione F40 esteso ai file rimossi + `check_architecture.py` green + commit SHA con evidenza WBH/CI.
 
+## Assorbimenti 2026-11-05
+
+- [ ] **Matrice FFmpeg (doctor, codec/routing, native fail-closed) e certificazione exit 3** — assorbite da `archive/TICKET-LOCAL-ACCEPTANCE-CLOSEOUT-2026-09-16.md`; restano la stessa exit condition 3 già tracciata sopra.
+
 ### Stato CI osservato 2026-10-28
 
 - Sul precedente SHA `cfdd5b15d`, `chronon3d-runtime` falliva compilando il pin ChrononPlugin

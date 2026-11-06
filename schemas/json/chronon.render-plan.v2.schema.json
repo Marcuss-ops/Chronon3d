@@ -72,7 +72,7 @@
       "required": ["property", "keyframes"],
       "properties": {
         "property": {
-          "enum": ["position", "position_x", "position_y", "scale", "scale_x", "scale_y", "opacity", "blur", "tracking", "fill_color"]
+          "enum": ["position", "position_x", "position_y", "scale", "scale_x", "scale_y", "opacity", "blur", "tracking", "fill_color", "light_direction"]
         },
         "easing": { "$ref": "#/$defs/easing" },
         "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
@@ -347,6 +347,20 @@
               "text_align": { "enum": ["left", "center", "right"] },
               "font_size": { "type": "number", "exclusiveMinimum": 0 },
               "fill": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+              "gel_surface": { "type": "boolean", "default": false, "description": "Render text as a rounded glossy gel surface in the native MTSDF path." },
+              "extruded_text": { "type": "boolean", "default": false, "description": "Render the shaped TextRun as a native 3D mesh with front/back caps and side walls; requires enable_3d." },
+              "extrusion_depth": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000, "default": 12 },
+              "gel_transmission": { "type": "boolean", "default": true, "description": "Enable local destination-color transmission for gel text; set false for diagnostic ablation." },
+              "gel_core": { "type": "boolean", "default": false, "description": "Render text with the composite MTSDF core/body/edge gradient without specular or rim reflections." },
+              "gel_debug_mode": { "type": "integer", "minimum": 0, "maximum": 5, "default": 0, "description": "Diagnostic visualization: 1 composite signed distance, 2 height, 3 surface normals, 4 normal validity heat map, 5 transmission flag and destination alpha. Requires gel_surface." },
+              "gel_light": {
+                "type": "object", "additionalProperties": false,
+                "description": "Static local light direction for the native gel-text MTSDF surface.",
+                "properties": {
+                  "azimuth_radians": { "type": "number", "minimum": -3.141592653589793, "maximum": 3.141592653589793 },
+                  "elevation": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              },
               "fit_mode": { "enum": ["none", "shrink_only", "grow_and_shrink"] },
               "min_font_size": { "type": "number", "exclusiveMinimum": 0 },
               "max_font_size": { "type": "number", "exclusiveMinimum": 0 },

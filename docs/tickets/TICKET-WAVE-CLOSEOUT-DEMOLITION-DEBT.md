@@ -13,6 +13,10 @@ condizioni di uscita esplicite sotto.
 - [ ] **Edge `software_render_session.hpp` → `runtime/job/job_session.hpp`** — logica: è l'ultimo edge sulla superficie pubblica software; `SoftwareRenderSession` embedde `runtime::JobSession` **by value**, quindi serve la migrazione “Spostare e separare runtime::JobSession” (ridisegno, non un taglio include): spostare il cluster di stato in una casa neutra (es. `chronon3d/session/`) senza shim. Dove: cluster `job_session.hpp` + `dirty_history.hpp`, `frame_history.hpp`, `frame/{frame_queue,frame_slot_pool,frame_error_slot,gpu_completion_tracker}.hpp`, `resource_plan.hpp`, `render_surface.hpp`, `internal/runtime/history_state.hpp` (~33 includer). Gate: build software senza `#include <chronon3d/runtime/...>`.
 - [ ] **Catena C20/C22/C23 (compatibility composition)** — logica: C22 (equivalence corpus a 8 casi: animated transform, opacity, text, camera, visibility, frame-varying callbacks, assets, batch ordering) è l'unico bloccante; a C22 verde, C23 demolisce `compatibility_composition`, `render_compatibility*`, l'adapter di preparation e la timeline compatibility includes. Dove: `render_engine*.cpp/hpp`, `render_pipeline_batch.cpp`. Gate: hash frame-by-frame identici fra `compatibility_composition` e `CompiledProgram` → demolizione.
 
+## Assorbimenti 2026-11-05
+
+- [ ] **Gate “feature assente = costo fisico zero”** — assorbito da `archive/TICKET-LOCAL-ACCEPTANCE-CLOSEOUT-2026-09-16.md`; va chiuso insieme alla catena C20–C23.
+
 ## DOF graph node consolidation
 
 - **Status:** CLOSED (2026-10-21).

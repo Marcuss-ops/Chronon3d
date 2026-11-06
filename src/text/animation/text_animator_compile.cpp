@@ -168,6 +168,8 @@ bool TextAnimatorSpec::is_valid() const {
                     return detail::check_monotonic_av(p.pixels);
                 } else if constexpr (std::is_same_v<P, RotationProperty>) {
                     return detail::check_monotonic_av(p.degrees);
+                } else if constexpr (std::is_same_v<P, GelLightDirectionProperty>) {
+                    return detail::check_monotonic_av(p.direction);
                 } else if constexpr (std::is_same_v<P, FillColorProperty>) {
                     return detail::check_monotonic_av(p.color);
                 } else if constexpr (std::is_same_v<P, AnchorProperty>) {
@@ -224,6 +226,8 @@ bool TextAnimatorSpec::is_valid() const {
                 } else if constexpr (std::is_same_v<P, RotationProperty>) {
                     // RotationProperty::degrees (AnimatedValue<Vec3>) — NOT `value`.
                     return detail::check_clean_av(p.degrees);
+                } else if constexpr (std::is_same_v<P, GelLightDirectionProperty>) {
+                    return detail::check_clean_av(p.direction);
                 } else if constexpr (std::is_same_v<P, AnchorProperty>) {
                     return detail::check_clean_av(p.value);
                 } else if constexpr (std::is_same_v<P, SkewProperty>) {

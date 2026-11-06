@@ -573,7 +573,10 @@ struct VulkanBackend::Impl {
         const ChromaticAberrationParams& params);
     void record_lighting(VkCommandBuffer command, VkDescriptorSet descriptors,
                          const Image& destination, const Image& source,
-                         const Color& multiplier);
+                         const Color& multiplier, Vec3 normal, float layer_z,
+                         int origin_x, int origin_y, float diffuse,
+                         std::uint32_t light_count, VkBuffer light_buffer,
+                         VkDeviceSize light_buffer_bytes);
     void record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
                       const Image& destination, const Image& target,
                       const Image& matte, bool luma, bool inverted,
@@ -623,7 +626,8 @@ struct VulkanBackend::Impl {
                    const std::optional<raster::BBox>& clip = std::nullopt,
                    bool replace = false, float source_scale = 1.0f,
                    bool weighted_source_over = false,
-                   bool participates_in_command_plan = true);
+                   bool participates_in_command_plan = true,
+                   bool gel_transmission = false);
     void fill_rect(runtime::RenderSurfaceHandle destination,
                    std::int32_t x0, std::int32_t y0,
                    std::int32_t x1, std::int32_t y1,
@@ -720,6 +724,13 @@ struct VulkanBackend::Impl {
     void lighting(runtime::RenderSurfaceHandle destination,
                   runtime::RenderSurfaceHandle source,
                   const Color& multiplier);
+    void lighting_points(runtime::RenderSurfaceHandle destination,
+                         runtime::RenderSurfaceHandle source,
+                         const Color& scene_multiplier,
+                         std::span<const float> packed_lights,
+                         std::uint32_t light_count,
+                         Vec3 normal, float layer_z,
+                         int origin_x, int origin_y, float diffuse);
     void matte(runtime::RenderSurfaceHandle destination,
                runtime::RenderSurfaceHandle target,
                runtime::RenderSurfaceHandle matte_surface,

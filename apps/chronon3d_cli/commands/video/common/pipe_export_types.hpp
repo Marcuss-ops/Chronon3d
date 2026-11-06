@@ -97,6 +97,7 @@ struct EncoderSinkContext {
     RenderCounters* counters{nullptr};
     GpuHotPathMode hot_path_mode{GpuHotPathMode::Auto};
     std::optional<media::VideoExecutionPlan> execution_plan;
+    bool raw_file_sink{false};
     std::atomic<uint64_t>& writer_encode_us_total;
     std::atomic<int>& frames_encoded;
     bool require_native_gpu{false};

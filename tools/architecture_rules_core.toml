@@ -357,6 +357,33 @@ expected_count = 1
 legacy_patterns = ["^class RenderSession\\b", "^class RenderPlan\\b"]
 legacy_soft_cap = 0
 
+[[occurrence_cap]]
+name = "composition_executor_compile_callers_pinned"
+description = "P1 Composition migration: do not add compile_composition production callers"
+pattern = '\bcompile_composition\s*\('
+scan_paths = ["include", "src", "apps"]
+max_count = 15
+skip_comments = true
+hint = "The current Composition callback cannot be lowered generally. Migrate or retire an existing caller; do not add a new production dependency on the compatibility compiler."
+
+[[occurrence_cap]]
+name = "composition_compatibility_executor_callers_pinned"
+description = "P1 Composition migration: do not add render_compatibility production callers"
+pattern = '\brender_compatibility(?:_frames)?\s*\('
+scan_paths = ["include", "src", "apps"]
+max_count = 6
+skip_comments = true
+hint = "Use the typed CompiledProgram route for new production work. Reduce this pinned compatibility call-site count as existing users migrate."
+
+[[occurrence_cap]]
+name = "composition_legacy_frame_executor_callers_pinned"
+description = "P1 Composition migration: do not add legacy composition-frame executor callers"
+pattern = '\brender_compiled_composition_frame(?:_temporal)?\s*\('
+scan_paths = ["include", "src", "apps"]
+max_count = 9
+skip_comments = true
+hint = "This adapter remains needed for current compatibility callers. New production rendering must use CompiledProgram entrypoints."
+
 [[unique_source_owner]]
 name = "diagnostics_canonical_authority"
 description = "Diagnostica: canonical = struct TextVisibilityAudit + audit_text_visibility()"

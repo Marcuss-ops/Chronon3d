@@ -11,6 +11,11 @@
 - [ ] **`main-truth` green sullo SHA risultante di `main`** — il check aggregato attende `Chronon CI` Linux Debug/CI (build e suite test completa) e richiede `success` sullo stesso SHA; Release, No Content e i gate specialistici restano disponibili su PR o avvio manuale.
 - [ ] **Registrare la post-push main-tip verification** — logica: evidenza datata dopo il commit, come richiesto dai criteri di accettazione residui. Dove: questa scheda + `docs/stato/chronon3d.md`. Gate: riga di stato con SHA + esito.
 
+## Assorbimenti 2026-11-05
+
+- [ ] **Target aggregato `chronon3d_tests` e `check_cmake_format.sh`** — assorbiti da `archive/TICKET-LOCAL-ACCEPTANCE-CLOSEOUT-2026-09-16.md`: il target esiste in `tests/manifests/test_aggregates.cmake`, ma il build completo e la registrazione del gate `check_cmake_format.sh` nel manifest developer/CI restano da certificare same-SHA.
+- [ ] **Suite release/full-validation e matrice FFmpeg** — assorbite dalla stessa scheda; la matrice FFmpeg resta anche in `TICKET-FFMPEG-PIPE-SINK-DEMOLITION` per l'exit 3.
+
 ## Update 2026-10-29 — latest observed Actions state
 
 Read-only `gh run list` confirms the latest listed batch is on

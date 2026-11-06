@@ -171,7 +171,7 @@ NodeExecResult TransformNode::execute(
     // animation reaches rotation=0,z=0 (the exact frame where the title
     // should be most visible).
     const bool native_projected_input =
-        ctx.policy.require_native_gpu &&
+        (ctx.policy.require_native_gpu || input->is_gpu_authoritative()) &&
         input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
         ctx.backend && ctx.surface_registry &&
         ctx.backend_surface_api()->is_native_surface_valid(input->surface_handle());
@@ -203,6 +203,7 @@ NodeExecResult TransformNode::execute(
             if (transformed.ok()) {
                 result->set_opaque(input->is_opaque());
                 result->set_content_cleared(input->is_content_cleared());
+                result->mark_gpu_authoritative();
                 // An identity transform preserves the mesh rasterizer's
                 // per-pixel camera depth just as it preserves color. The
                 // composite node consumes this map for cross-layer occlusion.
@@ -405,7 +406,9 @@ NodeExecResult TransformNode::execute(
     // native affine compositor and, in strict GPU mode, failing the frame.
     const bool is_affine = std::abs(H[0][2]) < 1e-9f && std::abs(H[1][2]) < 1e-9f;
 
-    if (!m_card3d_material && is_affine && std::abs(H[0][1]) < 1e-6f && std::abs(H[1][0]) < 1e-6f &&
+    if (!m_card3d_material && !native_projected_input && is_affine &&
+        std::abs(H[2][2] - 1.0f) < 1e-6f &&
+        std::abs(H[0][1]) < 1e-6f && std::abs(H[1][0]) < 1e-6f &&
         std::abs(H[0][0] - 1.0f) < 1e-6f && std::abs(H[1][1] - 1.0f) < 1e-6f) {
         const float tx = H[2][0];
         const float ty = H[2][1];

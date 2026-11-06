@@ -3,9 +3,20 @@
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform writeonly image2D destination_image;
 layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+struct PointLight {
+    vec4 position_kind;
+    vec4 direction_angle;
+    vec4 color_radius;
+    vec4 range_decay_penumbra;
+};
+layout(binding = 3, std430) readonly buffer PointLights {
+    PointLight values[];
+} point_lights;
 
 layout(push_constant) uniform LightingParams {
     vec4 multiplier;
+    vec4 normal_layer_z;
+    vec4 origin_diffuse_count;
 } params;
 
 void main() {
@@ -19,6 +30,60 @@ void main() {
         return;
     }
 
-    vec3 rgb = clamp(source.rgb * params.multiplier.rgb, vec3(0.0), vec3(1.0));
+    vec3 factor = params.multiplier.rgb;
+    uint light_count = uint(max(params.origin_diffuse_count.w, 0.0));
+    if (light_count > 0u) {
+        vec3 normal = params.normal_layer_z.xyz;
+        float normal_length = length(normal);
+        normal = normal_length > 1e-8 ? normal / normal_length : vec3(0.0, 0.0, 1.0);
+        vec3 position = vec3(
+            params.origin_diffuse_count.x + float(coord.x) + 0.5,
+            params.origin_diffuse_count.y + float(coord.y) + 0.5,
+            params.normal_layer_z.w);
+        vec3 total = vec3(0.0);
+        for (uint index = 0u; index < light_count; ++index) {
+            PointLight light = point_lights.values[index];
+            int kind = int(light.position_kind.w + 0.5);
+            vec3 to_light;
+            float attenuation = 1.0;
+            if (kind == 2) {
+                vec3 axis = light.direction_angle.xyz;
+                float axis_length = length(axis);
+                axis = axis_length > 1e-8 ? axis / axis_length : vec3(0.0, 0.0, -1.0);
+                to_light = -axis;
+            } else {
+                vec3 delta = light.position_kind.xyz - position;
+                float distance_to_light = length(delta);
+                if (light.range_decay_penumbra.x > 0.0 &&
+                    distance_to_light > light.range_decay_penumbra.x) continue;
+                to_light = distance_to_light > 1e-6
+                    ? delta / distance_to_light : vec3(0.0, 0.0, 1.0);
+                float radius = max(light.color_radius.w, 1e-6);
+                attenuation = 1.0 / (1.0 + pow(distance_to_light / radius,
+                    max(light.range_decay_penumbra.y, 0.0)));
+                if (kind == 1) {
+                    vec3 axis = light.direction_angle.xyz;
+                    float axis_length = length(axis);
+                    axis = axis_length > 1e-8 ? axis / axis_length : vec3(0.0, 0.0, -1.0);
+                    float cosine_to_pixel = dot(-to_light, axis);
+                    float outer = cos(light.direction_angle.w);
+                    float inner = cos(light.direction_angle.w *
+                        (1.0 - light.range_decay_penumbra.z));
+                    float cone = 1.0;
+                    if (cosine_to_pixel <= outer) cone = 0.0;
+                    else if (cosine_to_pixel < inner && inner > outer) {
+                        float t = (cosine_to_pixel - outer) / (inner - outer);
+                        cone = t * t * (3.0 - 2.0 * t);
+                    }
+                    attenuation *= cone;
+                }
+            }
+            float k = attenuation * max(dot(normal, to_light), 0.0) *
+                params.origin_diffuse_count.z;
+            total += light.color_radius.rgb * k;
+        }
+        factor = clamp(factor + total, vec3(0.0), vec3(1.0));
+    }
+    vec3 rgb = clamp(source.rgb * factor, vec3(0.0), vec3(1.0));
     imageStore(destination_image, coord, vec4(rgb, source.a));
 }

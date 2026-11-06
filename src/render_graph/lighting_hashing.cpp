@@ -83,7 +83,7 @@ std::uint64_t hash_light_context_v2(const LightContext& light) {
 std::uint64_t hash_material_2_5d_v2(const Material2_5D& material) {
     auto h = HashBuilder{}.add("chronon.material-2.5d.v2");
     h.add(material.accepts_lights).add(material.casts_shadows)
-     .add(material.accepts_shadows);
+     .add(material.accepts_shadows).add(material.shadow_catcher);
     add_float(h, material.diffuse);
     add_float(h, material.specular);
     add_float(h, material.shininess);

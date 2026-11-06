@@ -95,6 +95,14 @@ void sample_gpu_text_animation(
     SampleTime sample_time,
     runtime::TextRunDynamic& run) noexcept;
 
+// Samples the run-uniform GEL light animator into the reserved packed light
+// parameter lane. This is separate from per-glyph animation because a single
+// directional light must shade the composed TextRun surface uniformly.
+void sample_gpu_gel_light_animation(
+    const TextRunShape& shape,
+    SampleTime sample_time,
+    runtime::TextRunDynamic& run) noexcept;
+
 /// Resolve and dispatch the prepared MTSDF representation of an already-shaped
 /// text run. If the native contract is unavailable this returns an explicit
 /// error; the caller owns the software fallback policy.

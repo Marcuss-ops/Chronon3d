@@ -120,6 +120,7 @@ public:
     LayerBuilder& accepts_lights(bool value = true);
     LayerBuilder& casts_shadows(bool value = true);
     LayerBuilder& accepts_shadows(bool value = true);
+    LayerBuilder& shadow_catcher(bool value = true);
     LayerBuilder& material(Material2_5D value);
     LayerBuilder& card3d_material(Card3DMaterial value);
 

@@ -50,7 +50,8 @@ int run_render_plan_file(
     runtime::job::RenderJobRequest request,
     std::shared_ptr<SoftwareRenderer> warm_renderer,
     std::shared_ptr<media::VideoJobExecutionContext> video_execution,
-    bool no_dirty_rects) {
+    bool no_dirty_rects,
+    std::string text_layout_debug_json_path) {
     // CLI boundary: parse happened at the flag layer, normalize happens here
     // — exactly once per job, exactly like the IPC boundary.
     const auto normalized = runtime::job::normalize_render_job(request);
@@ -64,6 +65,7 @@ int run_render_plan_file(
     state.warm_renderer = std::move(warm_renderer);
     state.video_execution = std::move(video_execution);
     state.no_dirty_rects = no_dirty_rects;
+    state.text_layout_debug_json_path = std::move(text_layout_debug_json_path);
     return execute_render_plan(registry, state);
 }
 
@@ -150,7 +152,8 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
         state->end_frame_explicit = end_frame_opt->count() > 0;
         ctx.exit_code = run_render_plan_file(
             ctx.registry, make_render_job_request(*state),
-            std::move(state->warm_renderer), std::move(state->video_execution));
+            std::move(state->warm_renderer), std::move(state->video_execution),
+            false, state->text_layout_debug_json_path);
     });
 }
 

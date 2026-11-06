@@ -209,6 +209,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         options.assets_root = normalized_job.assets_root.string();
         options.prepared_package = normalized_job.prepared_package_path.string();
         options.no_dirty_rects = args.no_dirty_rects;
+        options.text_layout_debug_json_path = args.text_layout_debug_json_path;
         // Typed FullGraph and DirectYUV execute directly from CompiledProgram.
         auto preparation = prepare_render_plan(options);
         if (!preparation) {

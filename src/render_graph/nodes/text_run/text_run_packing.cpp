@@ -44,7 +44,8 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     if (!shape.layout ||
         shape.animated_doc ||
         shape.layout->font_spans.empty() || shape.paint.fill_style ||
-        shape.paint.stroke_style || shape.material.enabled ||
+        shape.paint.stroke_style ||
+        (shape.material.enabled && !shape.material.gel_surface) ||
         shape.paint.stroke_cap != LineCap::Butt ||
         shape.paint.stroke_join != LineJoin::Miter ||
         !shape.paint.stroke_dash_array.empty() ||

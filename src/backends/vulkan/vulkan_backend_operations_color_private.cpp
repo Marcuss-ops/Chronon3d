@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <type_traits>
 
 namespace chronon3d::backends::vulkan {
@@ -344,6 +345,27 @@ void VulkanBackend::Impl::lighting(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
     const Color& multiplier) {
+    lighting_points(destination, source, multiplier, {}, 0,
+                    Vec3{0.0f, 0.0f, 1.0f}, 0.0f, 0, 0, 0.0f);
+}
+
+void VulkanBackend::Impl::lighting_points(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const Color& multiplier,
+    std::span<const float> packed_lights,
+    std::uint32_t light_count,
+    Vec3 normal,
+    float layer_z,
+    int origin_x,
+    int origin_y,
+    float diffuse) {
+    constexpr std::size_t kFloatsPerLight = 16;
+    constexpr std::uint32_t kMaxGpuLights = 64;
+    if (light_count > kMaxGpuLights ||
+        packed_lights.size() != static_cast<std::size_t>(light_count) * kFloatsPerLight) {
+        throw std::invalid_argument("Vulkan lighting light payload has invalid count or size");
+    }
     auto& dst = resolve_image(destination);
     auto& src_image = resolve_image(source);
     if (dst.image == src_image.image) {
@@ -373,6 +395,21 @@ void VulkanBackend::Impl::lighting(
             multiplier.r, multiplier.g, multiplier.b);
     }
     if (frame_batch.active) {
+        if (frame_batch.pass_count >= kPathGeometryPassesPerSlot)
+            throw std::logic_error("Vulkan lighting pass capacity exhausted");
+        const std::size_t buffer_slot = 1U + frame_batch.next_slot *
+            kPathGeometryPassesPerSlot + frame_batch.pass_count;
+        const std::size_t light_floats = std::max<std::size_t>(
+            kFloatsPerLight, packed_lights.size());
+        const VkDeviceSize light_bytes = static_cast<VkDeviceSize>(
+            light_floats * sizeof(float));
+        ensure_path_geometry_buffer(light_bytes, buffer_slot);
+        auto& light_buffer = path_geometry_buffers[buffer_slot];
+        if (!light_buffer.mapped)
+            throw std::logic_error("Vulkan lighting light buffer is not host mapped");
+        std::memset(light_buffer.mapped, 0, light_bytes);
+        if (!packed_lights.empty())
+            std::memcpy(light_buffer.mapped, packed_lights.data(), packed_lights.size_bytes());
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst, src_image);
         if (std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG")) {
@@ -391,7 +428,9 @@ void VulkanBackend::Impl::lighting(
         }
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst, &src_image}, runtime::GpuPassKind::ColorAdjust);
-        record_lighting(cmd, descriptors, dst, src_image, multiplier);
+        record_lighting(cmd, descriptors, dst, src_image, multiplier, normal,
+                        layer_z, origin_x, origin_y, diffuse, light_count,
+                        light_buffer.buffer, light_bytes);
         dst.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;

@@ -12,7 +12,7 @@ namespace chronon3d::graph::detail {
 
 NodeExecResult execute_backdrop_software(
     RenderGraphContext& ctx, const Framebuffer& bottom, const Framebuffer& top,
-    const BackdropBlurParams& settings, BlendMode mode) {
+    const BackdropBlurParams& settings, BlendMode mode, bool gel_transmission) {
     if (ctx.policy.require_native_gpu)
         return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
             "CompositeNode", "backdrop blur requires software composition; strict GPU-native mode rejects this layer"};
@@ -163,8 +163,21 @@ NodeExecResult execute_backdrop_software(
                     backdrop.b += rim;
                 }
             }
-            if (top_row && x >= top.origin_x() && x < top.origin_x() + top.width())
-                backdrop = compositor::blend(top_row[x - top.origin_x()], backdrop, mode);
+            if (top_row && x >= top.origin_x() && x < top.origin_x() + top.width()) {
+                const Color& gel = top_row[x - top.origin_x()];
+                if (gel_transmission && mode == BlendMode::Normal) {
+                    const float alpha = std::clamp(gel.a, 0.0f, 1.0f);
+                    const float red_transmission =
+                        std::max(1.0f - alpha, 1e-6f);
+                    backdrop = Color{
+                        gel.r + backdrop.r * red_transmission,
+                        gel.g + backdrop.g * std::pow(red_transmission, 1.0f / 3.0f),
+                        gel.b + backdrop.b * std::pow(red_transmission, 1.0f / 24.0f),
+                        alpha + std::clamp(backdrop.a, 0.0f, 1.0f) * (1.0f - alpha)};
+                } else {
+                    backdrop = compositor::blend(gel, backdrop, mode);
+                }
+            }
             dst[x] = backdrop;
         }
     }

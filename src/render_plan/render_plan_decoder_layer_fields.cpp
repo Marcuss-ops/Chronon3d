@@ -126,6 +126,8 @@ void decode_layer_render_flags(LayerPlan& layer, const nlohmann::json& value) {
         layer.casts_shadows = value.at("casts_shadows").get<bool>();
     if (value.contains("accepts_shadows"))
         layer.accepts_shadows = value.at("accepts_shadows").get<bool>();
+    if (value.contains("shadow_catcher"))
+        layer.shadow_catcher = value.at("shadow_catcher").get<bool>();
     layer.screen_space = value.value("screen_space", false);
     if (value.contains("safe_insets")) {
         const auto& insets = value.at("safe_insets");

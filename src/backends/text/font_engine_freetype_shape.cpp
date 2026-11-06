@@ -4,6 +4,102 @@
 
 namespace chronon3d {
 
+namespace {
+struct OutlineContourBuild {
+    std::vector<std::vector<Vec2>> contours;
+    std::vector<Vec2> current;
+    Vec2 cursor{};
+    bool has_cursor{false};
+};
+
+Vec2 outline_point(const FT_Vector* p) {
+    constexpr float scale = 1.0f / 64.0f;
+    return Vec2{static_cast<float>(p->x) * scale,
+                -static_cast<float>(p->y) * scale};
+}
+
+void outline_append(OutlineContourBuild& b, Vec2 p) {
+    if (!b.has_cursor || glm::length(p - b.cursor) > 1e-4f)
+        b.current.push_back(p);
+    b.cursor = p;
+    b.has_cursor = true;
+}
+
+void outline_finish(OutlineContourBuild& b) {
+    if (b.current.size() > 2) b.contours.push_back(std::move(b.current));
+    b.current.clear();
+    b.has_cursor = false;
+}
+
+int outline_move_to(const FT_Vector* to, void* user) {
+    auto& b = *static_cast<OutlineContourBuild*>(user);
+    outline_finish(b);
+    outline_append(b, outline_point(to));
+    return 0;
+}
+
+int outline_line_to(const FT_Vector* to, void* user) {
+    outline_append(*static_cast<OutlineContourBuild*>(user), outline_point(to));
+    return 0;
+}
+
+int outline_conic_to(const FT_Vector* control, const FT_Vector* to, void* user) {
+    auto& b = *static_cast<OutlineContourBuild*>(user);
+    const Vec2 p0 = b.cursor, p1 = outline_point(control), p2 = outline_point(to);
+    const int steps = std::clamp(static_cast<int>(std::ceil(
+        (glm::length(p1 - p0) + glm::length(p2 - p1)) / 2.0f)), 2, 32);
+    for (int i = 1; i <= steps; ++i) {
+        const float t = static_cast<float>(i) / steps, u = 1.0f - t;
+        outline_append(b, u * u * p0 + 2.0f * u * t * p1 + t * t * p2);
+    }
+    return 0;
+}
+
+int outline_cubic_to(const FT_Vector* c1, const FT_Vector* c2,
+                     const FT_Vector* to, void* user) {
+    auto& b = *static_cast<OutlineContourBuild*>(user);
+    const Vec2 p0 = b.cursor, p1 = outline_point(c1),
+               p2 = outline_point(c2), p3 = outline_point(to);
+    const int steps = std::clamp(static_cast<int>(std::ceil(
+        (glm::length(p1 - p0) + glm::length(p2 - p1) +
+         glm::length(p3 - p2)) / 2.0f)), 3, 48);
+    for (int i = 1; i <= steps; ++i) {
+        const float t = static_cast<float>(i) / steps, u = 1.0f - t;
+        outline_append(b, u*u*u*p0 + 3.0f*u*u*t*p1 +
+                          3.0f*u*t*t*p2 + t*t*t*p3);
+    }
+    return 0;
+}
+} // namespace
+
+std::vector<std::vector<Vec2>> FontEngine::glyph_outline_contours(
+    const FontSpec& spec, u32 glyph_id, float font_size,
+    std::string_view variation_axes) const {
+    if (!m_impl || !m_impl->ft_library || glyph_id == 0 ||
+        !std::isfinite(font_size) || font_size <= 0.0f) return {};
+    auto entry = m_impl->get_face_entry(spec);
+    if (!entry || !entry->valid()) return {};
+    std::lock_guard<std::mutex> lock(entry->ops_mutex);
+    const std::string axes{variation_axes};
+    if (!apply_variation_axes(*entry, m_impl->ft_library, axes) ||
+        FT_Set_Pixel_Sizes(entry->ft_face, 0,
+            static_cast<unsigned int>(std::ceil(font_size))) != 0 ||
+        FT_Load_Glyph(entry->ft_face, glyph_id,
+            FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING) != 0 ||
+        entry->ft_face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) return {};
+
+    OutlineContourBuild build;
+    FT_Outline_Funcs funcs{};
+    funcs.move_to = outline_move_to;
+    funcs.line_to = outline_line_to;
+    funcs.conic_to = outline_conic_to;
+    funcs.cubic_to = outline_cubic_to;
+    if (FT_Outline_Decompose(&entry->ft_face->glyph->outline,
+                             &funcs, &build) != 0) return {};
+    outline_finish(build);
+    return build.contours;
+}
+
 std::optional<GlyphRun> FontEngine::shape_text(
     std::string_view text,
     const FontSpec& spec,

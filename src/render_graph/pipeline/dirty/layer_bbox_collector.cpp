@@ -123,8 +123,7 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
         ? sw_renderer->software_registry().snapshot()
         : nullptr;
 
-    auto compute_bbox_for_resolved = [&](const ResolvedLayer& rl) -> raster::BBox {
-        const LayerGraphItem item = resolve_layer_graph_item(rl, ctx);
+    auto compute_bbox_for_item = [&](const LayerGraphItem& item) -> raster::BBox {
         if (!item.visible) {
             return raster::BBox{0, 0, 0, 0};
         }
@@ -148,7 +147,14 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
             for (size_t i = r.begin(); i < r.end(); ++i) {
                 const auto& rl = resolved.layers[i];
                 if (rl.layer && rl.layer->active_at(frame)) {
-                    raster::BBox bbox = compute_bbox_for_resolved(rl);
+                    // Sample the layer's per-frame placement once and use it for
+                    // both the bbox and the dirty state.  The authored
+                    // `rl.world_transform` is frame-invariant: using it here
+                    // made opacity/position animations invisible to the dirty
+                    // tracker, so a fade-in never re-marked the layer's region
+                    // and the compositor kept the first (transparent) frame.
+                    const LayerGraphItem item = resolve_layer_graph_item(rl, ctx);
+                    raster::BBox bbox = compute_bbox_for_item(item);
                     const auto previous_layer = sw_renderer->dirty_telemetry()
                         .previous_layers.find(std::string(rl.layer->name));
                     const bool path_content_changed =
@@ -194,8 +200,8 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                     entry.resolved_index = i;
                     LayerBBoxState& state = entry.state;
                     state.bbox = bbox;
-                    state.world_matrix = rl.world_matrix;
-                    state.opacity = rl.world_transform.opacity;
+                    state.world_matrix = item.world_matrix;
+                    state.opacity = item.transform.opacity;
                     state.visible = rl.layer->visible;
                     state.cache_static = rl.layer->cache_static;
                     state.uses_2_5d_projection =

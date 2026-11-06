@@ -47,6 +47,18 @@ struct LayerStylePlan {
     std::string text_align{"center"};
     std::optional<float> font_size;
     std::string fill;
+    bool gel_surface{false};
+    bool extruded_text{false};
+    float extrusion_depth{12.0f};
+    bool gel_transmission_enabled{true};
+    bool gel_core{false};
+    // 0=material, 1=composite SDF, 2=height, 3=normals, 4=normal validity,
+    // 5=gel transmission flag / destination alpha.
+    std::uint8_t gel_debug_mode{0};
+    // Optional local light override for gel_surface. Azimuth is radians in
+    // [-pi, pi]; elevation is the normalized light-vector Z in [0, 1].
+    std::optional<float> gel_light_azimuth_radians;
+    std::optional<float> gel_light_elevation;
     std::optional<graphics::GradientDefinition> fill_gradient;
     std::shared_ptr<const graphics::PatternTile> fill_pattern;
     std::optional<float> fill_opacity;

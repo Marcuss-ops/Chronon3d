@@ -69,8 +69,15 @@ void append_shadow_passes_if_needed(
     const RenderGraphContext& ctx,
     const BuilderContext& node_ctx)
 {
-    if (!receiver_item.layer->material().accepts_shadows) return;
     if (!receiver_item.projected) return;
+    if (receiver_item.layer->material().shadow_catcher) {
+        // A catcher contributes only the projected shadow alpha.  Starting
+        // this layer from transparent prevents the receiver's own fill from
+        // making the final output opaque.
+        receiver_output = graph.add_node(
+            std::make_unique<ClearNode>(), node_ctx);
+    }
+    if (!receiver_item.layer->material().accepts_shadows) return;
     const auto& lights = ctx.frame_input.light_context;
     const bool has_directional_shadow = lights.enabled && lights.directional_enabled;
     const bool has_layer_shadow = std::any_of(lights.point_lights.begin(), lights.point_lights.end(),

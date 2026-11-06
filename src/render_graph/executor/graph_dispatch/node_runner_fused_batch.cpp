@@ -15,6 +15,7 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/text/mtsdf_generator.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/text/gel_surface.hpp>
 
 #include <cmath>
 #include <bit>
@@ -91,6 +92,19 @@ void fill_mtsdf_effects(const TextRunShape& shape,
         run.stroke_color = ::chronon3d::text::pack_text_color(shape.paint.stroke_color);
         run.effect_flags |= kStroke;
     }
+    if (shape.material.gel_surface) {
+        run.effect_flags |= (1u << 3);
+        run.effect_flags |= (1u << 4); // animator_reserved5 carries gel light params.
+        if (shape.material.gel_core_only) {
+            run.effect_flags |= (1u << 5);
+        }
+        if (shape.material.gel_transmission_enabled) {
+            run.effect_flags |= (1u << 9);
+        }
+        run.animator_reserved5 = ::chronon3d::text::gel::pack_light_parameters(
+            shape.material.gel_light_azimuth_radians,
+            shape.material.gel_light_elevation);
+    }
 
     for (const auto& shadow : shape.shadows) {
         if (!shadow.enabled) continue;
@@ -124,6 +138,8 @@ runtime::TextRunDynamic build_prepared_mtsdf_run(
     run.flags = 0u;
     fill_mtsdf_effects(shape, run);
     text_run::sample_gpu_text_animation(
+        shape, ctx.frame_input.sample_time, run);
+    text_run::sample_gpu_gel_light_animation(
         shape, ctx.frame_input.sample_time, run);
     return run;
 }

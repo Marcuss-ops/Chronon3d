@@ -19,7 +19,8 @@ public:
         BlendMode mode,
         const std::optional<raster::BBox>& clip = std::nullopt,
         CompositeOperator op = CompositeOperator::SourceOver,
-        bool force_scalar_normal_blend = false
+        bool force_scalar_normal_blend = false,
+        bool gel_transmission = false
     );
 
 private:

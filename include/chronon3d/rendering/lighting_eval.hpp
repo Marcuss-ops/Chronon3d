@@ -275,6 +275,7 @@ using namespace chronon3d::graph;
     u64 seed = hash_value(material.accepts_lights);
     seed = hash_combine(seed, hash_value(material.casts_shadows));
     seed = hash_combine(seed, hash_value(material.accepts_shadows));
+    seed = hash_combine(seed, hash_value(material.shadow_catcher));
     seed = hash_combine(seed, hash_value(material.diffuse));
     seed = hash_combine(seed, hash_value(material.ambient_multiplier));
     seed = hash_combine(seed, hash_value(material.specular));

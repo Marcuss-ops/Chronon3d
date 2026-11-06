@@ -80,6 +80,7 @@ nlohmann::json validation_detail::v2_projection(const nlohmann::json& root) {
         layer.erase("transform_samples");
         layer.erase("casts_shadows");
         layer.erase("accepts_shadows");
+        layer.erase("shadow_catcher");
         if (layer.contains("animation"))
             strip_per_key_timing_for_v2_projection(layer["animation"]);
         if (layer.value("type", std::string{}) == "mesh") {

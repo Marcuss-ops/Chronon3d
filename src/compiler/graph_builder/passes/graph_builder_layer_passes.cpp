@@ -8,6 +8,7 @@
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/text/text_run.hpp>
 #include <algorithm>
 #include <memory>
 #include <atomic>
@@ -27,6 +28,13 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            float world_z,
                            const BuilderContext& node_ctx,
                            Vec3 world_position) {
+    const bool gel_transmission = std::any_of(
+        layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& node) {
+            if (node.shape.type() != ShapeType::TextRun) return false;
+            const auto run = node.shape.text_run_shape_handle().value;
+            return run && run->material.gel_surface &&
+                run->material.gel_transmission_enabled;
+        });
     if (layer_output == k_invalid_node || layer_output == current) {
         if (ctx.policy.diagnostics_enabled) {
             spdlog::info("[append_composite_pass] skipped layer='{}' layer_output={} current={}", layer.name.c_str(), layer_output, current);
@@ -39,6 +47,7 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
         graph.node(current).kind() == RenderGraphNodeKind::Output &&
         graph.node(current).name() == "Clear" &&
         layer.blend_mode == chronon3d::BlendMode::Normal &&
+        !gel_transmission &&
         graph.node(layer_output).can_seed_full_frame(ctx)) {
         if (ctx.node_exec.counters) {
             const auto pixels = static_cast<std::uint64_t>(ctx.frame_input.width) *
@@ -61,6 +70,7 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
         is_static ? static_memory_cache("composite") : frame_variant_cache("composite"));
     composite_node->set_world_position(world_position);
     composite_node->set_backdrop_blur(layer.backdrop_blur);
+    composite_node->set_gel_transmission(gel_transmission);
     auto composite = graph.add_node(std::move(composite_node), node_ctx);
     graph.connect(current, composite);
     graph.connect(layer_output, composite);

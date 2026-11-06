@@ -358,6 +358,8 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
 
         RenderSettings settings;
         settings.fail_on_missing_assets = true;
+        settings.text_layout_debug_json_path = options.text_layout_debug_json_path;
+        settings.text_layout_debug = !options.text_layout_debug_json_path.empty();
         if (options.no_dirty_rects) {
             settings.dirty.enabled = false;
             settings.dirty.use_bitmask = false;

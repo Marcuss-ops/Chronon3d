@@ -96,6 +96,13 @@ struct RotationProperty {
     AnimatedValue<Vec3> degrees{Vec3{0.0f, 0.0f, 0.0f}};  // X, Y, Z rotation in degrees
 };
 
+// Run-level directional light for the composed GEL text material. The vector
+// is normalized when sampled; its XY angle selects azimuth and Z selects the
+// normalized light elevation consumed by the Vulkan material shader.
+struct GelLightDirectionProperty {
+    AnimatedValue<Vec3> direction{Vec3{0.0f, 0.0f, 1.0f}};
+};
+
 struct SkewProperty {
     AnimatedValue<f32> angle{0.0f};   // skew angle in degrees
     AnimatedValue<f32> axis{0.0f};    // skew axis angle in degrees
@@ -178,6 +185,7 @@ using TextAnimatorProperty = std::variant<
     PositionProperty,
     ScaleProperty,
     RotationProperty,
+    GelLightDirectionProperty,
     SkewProperty,
     AnchorProperty,
     OpacityProperty,

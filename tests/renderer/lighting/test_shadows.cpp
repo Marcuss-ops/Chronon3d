@@ -20,23 +20,25 @@ namespace {
 
 // Scene with a light-gray floor (accepts_shadows) and a red card above (casts_shadows).
 Composition make_shadow_scene(bool casts, bool accepts,
-                               Vec3 light_dir = {-0.4f, 1.0f, -0.6f}) {
+                               Vec3 light_dir = {-0.4f, 1.0f, -0.6f},
+                               bool catcher = false) {
     return composition({
         .name = "ShadowScene",
         .width = 320,
         .height = 240,
         .duration = 1
-    }, [casts, accepts, light_dir](const FrameContext& ctx) {
+    }, [casts, accepts, light_dir, catcher](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.set_evaluated_camera(chronon3d::camera().enabled(true).position({0, 0, -800}).zoom(800).rotation({0, 0, 0}).build());
         s.ambient_light(Color{1, 1, 1, 1}, 0.15f);
         s.directional_light(light_dir, Color{1, 1, 1, 1}, 0.85f);
 
-        s.layer("floor", [accepts](LayerBuilder& l) {
+        s.layer("floor", [accepts, catcher](LayerBuilder& l) {
             // Camera contract: world +Y is screen-up. Keep the receiver
             // below the caster so the measured lower-half ROI contains the
             // floor and its projected shadow.
-            l.enable_3d().position({0, -60, 150}).accepts_shadows(accepts);
+            l.enable_3d().position({0, -60, 150}).accepts_shadows(accepts)
+                .shadow_catcher(catcher);
             l.rect("fill", {.size = {280, 100}, .color = {0.8f, 0.8f, 0.8f, 1}});
         });
 
@@ -65,6 +67,14 @@ TEST_CASE("Shadow builder: accepts_shadows sets material flag") {
     CHECK(l.material().accepts_shadows == false);
 }
 
+TEST_CASE("Shadow builder: shadow_catcher sets catch-only material flag") {
+    LayerBuilder lb("test", SampleTime{});
+    lb.enable_3d().shadow_catcher();
+    const Layer layer = lb.build();
+    CHECK(layer.material().shadow_catcher);
+    CHECK(layer.material().accepts_shadows);
+}
+
 // ──────────────────────────────────────────────────────────────
 // Integration tests
 // ──────────────────────────────────────────────────────────────
@@ -90,6 +100,32 @@ TEST_CASE("Shadow: visible on receiver — floor luma lower with shadow") {
     } else {
         MESSAGE("Shadow rendering not active — skipping luma check");
     }
+}
+
+TEST_CASE("Shadow catcher: output contains caster and shadow, not opaque floor") {
+    auto catcher_with_shadow = render_modular(make_shadow_scene(true, true,
+        {-0.4f, 1.0f, -0.6f}, true));
+    auto catcher_without_shadow = render_modular(make_shadow_scene(false, true,
+        {-0.4f, 1.0f, -0.6f}, true));
+    auto ordinary_floor = render_modular(make_shadow_scene(true, true));
+    REQUIRE(catcher_with_shadow != nullptr);
+    REQUIRE(catcher_without_shadow != nullptr);
+    REQUIRE(ordinary_floor != nullptr);
+
+    std::size_t catcher_covered = 0;
+    std::size_t ordinary_covered = 0;
+    for (int y = 0; y < catcher_with_shadow->height(); ++y) {
+        for (int x = 0; x < catcher_with_shadow->width(); ++x) {
+            if (catcher_with_shadow->pixels_row(y)[x].a > 0.01f) ++catcher_covered;
+            if (ordinary_floor->pixels_row(y)[x].a > 0.01f) ++ordinary_covered;
+        }
+    }
+    CHECK(catcher_covered > 0);
+    CHECK(catcher_covered < ordinary_covered);
+    CHECK(framebuffer_hash(*catcher_with_shadow) !=
+          framebuffer_hash(*catcher_without_shadow));
+    save_debug(*catcher_with_shadow,
+               "output/debug/lighting/shadows/08_shadow_catcher.png");
 }
 
 TEST_CASE("Shadow: casts_shadows=false disables shadow") {

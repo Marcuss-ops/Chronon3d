@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cmath>
+#include <numbers>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -29,6 +30,20 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
         style_plan.text_align = style.value("text_align", std::string{"center"});
         style_plan.font_size = optional_value<float>(style, "font_size");
         style_plan.fill = style.value("fill", std::string{});
+        style_plan.gel_surface = style.value("gel_surface", false);
+        style_plan.extruded_text = style.value("extruded_text", false);
+        style_plan.extrusion_depth = style.value("extrusion_depth", 12.0f);
+        style_plan.gel_transmission_enabled = style.value("gel_transmission", true);
+        style_plan.gel_core = style.value("gel_core", false);
+        style_plan.gel_debug_mode = style.value("gel_debug_mode", std::uint8_t{0});
+        if (style.contains("gel_light")) {
+            const auto& light = style.at("gel_light");
+            if (!light.is_object())
+                throw std::runtime_error("text style gel_light must be an object");
+            style_plan.gel_light_azimuth_radians =
+                optional_value<float>(light, "azimuth_radians");
+            style_plan.gel_light_elevation = optional_value<float>(light, "elevation");
+        }
         style_plan.fill_opacity = optional_value<float>(style, "fill_opacity");
         style_plan.text_fit_mode = style.value("fit_mode", std::string{"none"});
         style_plan.min_font_size = optional_value<float>(style, "min_font_size");
@@ -59,6 +74,37 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
             throw std::runtime_error("text style fill_opacity must be finite and in [0, 1]");
         if (style_plan.text_fit_mode != "none" && layer.type != LayerType::Text)
             throw std::runtime_error("style.fit_mode is only valid for text layers");
+        if ((style_plan.gel_surface || style_plan.gel_core) && layer.type != LayerType::Text)
+            throw std::runtime_error("style.gel_surface is only valid for text layers");
+        if (style_plan.extruded_text &&
+            (layer.type != LayerType::Text || !layer.enable_3d ||
+             style_plan.gel_surface || style_plan.gel_core))
+            throw std::runtime_error(
+                "style.extruded_text requires a 3D text layer and is separate from gel_surface/gel_core");
+        if (style_plan.extruded_text &&
+            (!std::isfinite(style_plan.extrusion_depth) ||
+             style_plan.extrusion_depth <= 0.0f ||
+             style_plan.extrusion_depth > 10000.0f))
+            throw std::runtime_error("style.extrusion_depth must be finite and in (0, 10000]");
+        if (style_plan.gel_debug_mode > 5 ||
+            (style_plan.gel_debug_mode != 0 &&
+             (!style_plan.gel_surface || layer.type != LayerType::Text)))
+            throw std::runtime_error(
+                "style.gel_debug_mode must be 0..5 and requires gel_surface on text");
+        if ((style.contains("gel_light") || style_plan.gel_light_azimuth_radians ||
+             style_plan.gel_light_elevation) &&
+            (!style_plan.gel_surface || layer.type != LayerType::Text))
+            throw std::runtime_error("style.gel_light requires gel_surface on a text layer");
+        constexpr float kPi = std::numbers::pi_v<float>;
+        if ((style_plan.gel_light_azimuth_radians &&
+             (!std::isfinite(*style_plan.gel_light_azimuth_radians) ||
+              *style_plan.gel_light_azimuth_radians < -kPi ||
+              *style_plan.gel_light_azimuth_radians > kPi)) ||
+            (style_plan.gel_light_elevation &&
+             (!std::isfinite(*style_plan.gel_light_elevation) ||
+              *style_plan.gel_light_elevation < 0.0f ||
+              *style_plan.gel_light_elevation > 1.0f)))
+            throw std::runtime_error("text style gel_light values are out of range");
         if ((style_plan.min_font_size || style_plan.max_font_size) &&
             style_plan.text_fit_mode == "none")
             throw std::runtime_error("text font size limits require a non-none fit_mode");

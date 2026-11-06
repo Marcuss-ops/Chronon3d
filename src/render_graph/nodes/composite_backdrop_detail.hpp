@@ -6,7 +6,8 @@ namespace chronon3d::graph::detail {
 
 [[nodiscard]] NodeExecResult execute_backdrop_software(
     RenderGraphContext& ctx, const Framebuffer& bottom, const Framebuffer& top,
-    const BackdropBlurParams& settings, BlendMode mode);
+    const BackdropBlurParams& settings, BlendMode mode,
+    bool gel_transmission = false);
 void publish_dof_provenance(
     RenderGraphContext& ctx, const Framebuffer& surface, u64 composite_id,
     float camera_depth, float source_radius,

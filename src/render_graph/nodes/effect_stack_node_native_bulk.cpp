@@ -83,8 +83,10 @@ inline void bulk_release_surface(RenderGraphContext& ctx,
 // convention: attach the borrowed surface when present).
 inline bool bulk_true_forward(RenderGraphContext& ctx, Framebuffer& result,
                          runtime::RenderSurfaceHandle borrowed_source) {
-    if (borrowed_source != runtime::kInvalidRenderSurfaceHandle)
+    if (borrowed_source != runtime::kInvalidRenderSurfaceHandle) {
         result.set_surface_handle(borrowed_source);
+        result.mark_gpu_authoritative();
+    }
     (void)ctx;
     return true;
 }
@@ -152,6 +154,7 @@ bool try_native_full_frame_radial_blur(RenderGraphContext& ctx,
         return false;
     }
     result.set_surface_handle(destination);
+    result.mark_gpu_authoritative();
     return true;
 }
 
@@ -457,6 +460,7 @@ bool try_native_full_frame_warp_bulk(RenderGraphContext& ctx,
         return false;
     }
     result.set_surface_handle(destination);
+    result.mark_gpu_authoritative();
     return true;
 }
 
@@ -619,6 +623,7 @@ bool try_native_full_frame_generate_bulk(RenderGraphContext& ctx,
         return false;
     }
     result.set_surface_handle(destination);
+    result.mark_gpu_authoritative();
     return true;
 }
 
@@ -682,6 +687,7 @@ bool try_native_full_frame_lut_bulk(RenderGraphContext& ctx,
             return false;
         }
         result.set_surface_handle(destination);
+        result.mark_gpu_authoritative();
         return true;
     }
 
@@ -739,6 +745,7 @@ bool try_native_full_frame_lut_bulk(RenderGraphContext& ctx,
             return false;
         }
         result.set_surface_handle(destination);
+        result.mark_gpu_authoritative();
         return true;
     }
 

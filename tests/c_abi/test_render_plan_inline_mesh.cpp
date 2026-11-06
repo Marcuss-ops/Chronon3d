@@ -685,14 +685,26 @@ TEST_CASE("mesh shadow participation is explicit and fingerprinted") {
     auto source = base_mesh_plan();
     source["layers"][0]["casts_shadows"] = true;
     source["layers"][0]["accepts_shadows"] = false;
+    source["layers"][0]["shadow_catcher"] = true;
     const auto decoded = decode_render_plan(source);
     INFO(decoded.error().message);
     REQUIRE(decoded);
     CHECK(decoded->layers[0].casts_shadows == true);
     CHECK(decoded->layers[0].accepts_shadows == false);
+    CHECK(decoded->layers[0].shadow_catcher == true);
 
     source["layers"][0]["accepts_shadows"] = true;
     const auto changed = decode_render_plan(source);
     REQUIRE(changed);
     CHECK(decoded->content_fingerprint != changed->content_fingerprint);
+
+    source["layers"][0]["accepts_shadows"] = false;
+    source["layers"][0]["shadow_catcher"] = false;
+    const auto ordinary_receiver = decode_render_plan(source);
+    REQUIRE(ordinary_receiver);
+    source["layers"][0]["shadow_catcher"] = true;
+    const auto catch_only_receiver = decode_render_plan(source);
+    REQUIRE(catch_only_receiver);
+    CHECK(ordinary_receiver->content_fingerprint !=
+          catch_only_receiver->content_fingerprint);
 }
