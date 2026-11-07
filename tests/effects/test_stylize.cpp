@@ -164,6 +164,54 @@ TEST_CASE("AE spatial effects have exact neutral modes and deterministic premult
     }
 }
 
+TEST_CASE("Lens flare anamorphic wing is continuous and ignores dim pixels") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    EffectScratchResources scratch;
+    effects::EffectExecutionContext context;
+    context.effect_scratch = &scratch;
+
+    const Color background{0.01f, 0.01f, 0.02f, 1.0f};
+    Framebuffer bright(256, 256);
+    bright.clear(background);
+    bright.set_pixel(128, 128, Color{1.0f, 1.0f, 1.0f, 1.0f});
+
+    EffectStack stack;
+    stack.emplace_back(LensFlareParams{
+        .center = {0.5f, 0.5f},
+        .threshold = 0.8f,
+        .intensity = 1.0f,
+        .radius = 0.5f,
+        .halo = 0.0f,
+        .ghost = 0.0f,
+        .streak = 1.0f});
+    apply_effect_stack(bright, stack, context, registry);
+
+    // The column-collapsed wing must fill the central row without the old
+    // periodic gaps. The far background is no longer an exact-identity probe:
+    // the horizontal Gaussian intentionally has a low-amplitude tail there.
+    bool saw_light = false;
+    for (int x = 96; x <= 160; ++x) {
+        const Color c = bright.get_pixel(x, 128);
+        CHECK(c.r >= background.r);
+        CHECK(c.g >= background.g);
+        CHECK(c.b >= background.b);
+        saw_light = saw_light || c != background;
+    }
+    CHECK(saw_light);
+    CHECK(bright.get_pixel(128, 128).r > bright.get_pixel(96, 128).r);
+    CHECK(bright.get_pixel(128, 128).r > bright.get_pixel(160, 128).r);
+
+    // A sub-threshold pixel is not a highlight and must not produce a streak.
+    Framebuffer dim(256, 256);
+    dim.clear(background);
+    dim.set_pixel(128, 128, Color{0.5f, 0.5f, 0.5f, 1.0f});
+    apply_effect_stack(dim, stack, context, registry);
+    CHECK(dim.get_pixel(128, 128) == Color{0.5f, 0.5f, 0.5f, 1.0f});
+    for (int x = 96; x <= 160; ++x)
+        CHECK(dim.get_pixel(x, 128) == background);
+}
+
 TEST_CASE("MinMax square morphology matches known dilation and erosion pixels") {
     SoftwareRegistry registry;
     register_builtin_processors(registry);

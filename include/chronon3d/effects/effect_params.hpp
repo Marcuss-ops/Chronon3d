@@ -170,8 +170,10 @@ struct StretchWarpParams {
 };
 
 // Highlight-driven lens artifacts around a normalized optical center.
-// Thresholded premultiplied source energy drives a halo, mirrored ghost,
-// and horizontal streak. Generated light is source-over with matching alpha.
+// A tight soft-knee threshold isolates premultiplied highlight energy for the
+// halo, mirrored ghost, and a column-collapsed anamorphic wing. The wing samples
+// a vertical band, stretches it horizontally, and fades on a soft vertical
+// Gaussian; light is source-over with alpha.
 struct LensFlareParams {
     Vec2 center{0.5f, 0.5f};
     float threshold{0.8f};

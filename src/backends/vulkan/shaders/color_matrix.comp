@@ -136,8 +136,14 @@ vec4 ae_fetch(ivec2 coord, ivec2 size, bool thresholded) {
     vec4 c = offset_fetch(coord, size, thresholded ? 0 : 1);
     if (!thresholded) return c;
     float luma = c.a > 0.0 ? dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)) / c.a : 0.0;
-    float gain = luma > params.p[0].z
-        ? clamp((luma - params.p[0].z) / max(1.0 - params.p[0].z, 1.0e-6), 0.0, 1.0) : 0.0;
+    // Highlight-only mask: a tight soft knee above the threshold keeps the
+    // flare anchored to specular peaks instead of every bright glyph edge.
+    float gain = 0.0;
+    if (luma > params.p[0].z) {
+        float upper = min(params.p[0].z + 0.06, 1.0);
+        float span = max(upper - params.p[0].z, 1.0e-6);
+        gain = smoothstep(params.p[0].z, params.p[0].z + span, luma);
+    }
     return c * gain;
 }
 
@@ -206,22 +212,50 @@ void main() {
         vec2 position = vec2(coord) + 0.5;
         vec2 center = params.p[0].xy * vec2(size);
         float radius = params.p[1].x * min(size.x, size.y);
-        float streak_radius = params.p[1].x * max(float(size.x) * 0.22, min(float(size.x), float(size.y)));
         vec4 light = ae_sample(2.0 * center - position, size, true) * params.p[1].z;
         for (int tap = 0; tap < 16; ++tap) {
             float theta = 2.0 * 3.14159265358979323846 * float(tap) / 16.0;
             light += ae_sample(position + radius * vec2(cos(theta), sin(theta)), size, true) * (params.p[1].y / 16.0);
         }
-        const int kStreakTaps = 48;
-        float streak_weight_sum = 0.0;
-        vec4 streak_acc = vec4(0.0);
-        for (int tap = 0; tap < kStreakTaps; ++tap) {
-            float u = 2.0 * float(tap) / float(kStreakTaps - 1) - 1.0;
-            float w = exp(-2.2 * u * u);
-            streak_weight_sum += w;
-            streak_acc += ae_sample(position + vec2(u * streak_radius, 0.0), size, true) * w;
+        if (params.p[1].w > 0.0) {
+            // Collapse the title's vertical extent into one column profile, then
+            // stretch that profile horizontally. Blurring every source row (the
+            // old kernel) either traced glyph edges or produced a clipped band;
+            // a single soft wing is the anamorphic shape we actually want.
+            const int kMaxStreakTaps = 385;
+            const int kColumnSamples = 9;
+            float sigma_x = max(1.0, min(radius * 1.8, 96.0));
+            float extent_x = min(3.0 * sigma_x, 320.0);
+            int taps_x = min(kMaxStreakTaps, 2 * int(ceil(extent_x / 2.0)) + 1);
+            float step_x = taps_x > 1
+                ? 2.0 * extent_x / float(taps_x - 1) : 0.0;
+            float wx[kMaxStreakTaps];
+            float sum_x = 0.0;
+            for (int tap = 0; tap < taps_x; ++tap) {
+                float offset = -extent_x + float(tap) * step_x;
+                float w = exp(-0.5 * (offset / sigma_x) * (offset / sigma_x));
+                wx[tap] = w;
+                sum_x += w;
+            }
+            float band_y = min(radius * 0.9, 160.0);
+            float sample_step = band_y > 0.0
+                ? (2.0 * band_y) / float(kColumnSamples - 1) : 0.0;
+            float sigma_y = max(3.0, min(radius * 0.04, 8.0));
+            vec4 column = vec4(0.0);
+            for (int iy = 0; iy < kColumnSamples; ++iy) {
+                int sy = clamp(int(round(center.y - band_y + float(iy) * sample_step)),
+                               0, size.y - 1);
+                for (int ix = 0; ix < taps_x; ++ix) {
+                    float offset_x = -extent_x + float(ix) * step_x;
+                    ivec2 tap_coord = ivec2(round(position.x + offset_x), sy);
+                    column += ae_fetch(tap_coord, size, true) * wx[ix];
+                }
+            }
+            column /= float(kColumnSamples);
+            float vertical = exp(-0.5 * ((position.y - center.y) / sigma_y) *
+                                      ((position.y - center.y) / sigma_y));
+            light += column * (params.p[1].w / max(sum_x, 1.0e-6)) * vertical;
         }
-        light += streak_acc * (params.p[1].w / max(streak_weight_sum, 1.0e-6));
         light *= params.p[0].w;
         if (light.a <= 0.0) {
             imageStore(destination_image, coord, source);

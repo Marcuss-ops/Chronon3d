@@ -572,35 +572,47 @@ public:
         if (!p) throw std::invalid_argument("LensFlare processor received invalid parameters");
         p->validate();
         if (p->intensity == 0.0f || fb.width() <= 0 || fb.height() <= 0) return;
-        if (!context.effect_scratch) throw std::runtime_error("LensFlare requires effect scratch");
-        auto& scratch = *context.effect_scratch;
-        scratch.ensure_size(fb.width(), fb.height());
-        auto& mask = *scratch.framebuffer;
+        // Layer framebuffers have different sizes and graph nodes may execute
+        // in parallel. The shared effect scratch can therefore be reallocated
+        // by another layer while this flare is reading it; keep the mask local.
+        Framebuffer mask(fb.width(), fb.height(), false);
         for (int y = 0; y < fb.height(); ++y) for (int x = 0; x < fb.width(); ++x) {
             const Color c = fb.get_pixel(x, y);
             const float luma = c.a > 0.0f ? (0.2126f*c.r + 0.7152f*c.g + 0.0722f*c.b) / c.a : 0.0f;
-            const float gain = luma > p->threshold
-                ? std::clamp((luma - p->threshold) / std::max(1.0f - p->threshold, 1.0e-6f), 0.0f, 1.0f) : 0.0f;
+            // Highlight-only mask: the same tight soft knee as the Vulkan path.
+            float gain = 0.0f;
+            if (luma > p->threshold) {
+                const float upper = std::min(p->threshold + 0.06f, 1.0f);
+                const float span = std::max(upper - p->threshold, 1.0e-6f);
+                const float t = std::clamp((luma - p->threshold) / span, 0.0f, 1.0f);
+                gain = t * t * (3.0f - 2.0f * t);
+            }
             mask.set_pixel(x, y, Color{c.r*gain, c.g*gain, c.b*gain, c.a*gain});
         }
         const sampling::Sampler2D sampler(mask, sampling::EdgeMode::Transparent);
         const float cx = p->center.x * fb.width(), cy = p->center.y * fb.height();
         const float radius = p->radius * std::min(fb.width(), fb.height());
-        const float streak_radius = p->radius * std::max(
-            static_cast<float>(fb.width()) * 0.22f,
-            static_cast<float>(std::min(fb.width(), fb.height())));
-        constexpr int kStreakTaps = 48;
-        std::array<float, kStreakTaps> streak_u{};
-        std::array<float, kStreakTaps> streak_w{};
-        float streak_weight_sum = 0.0f;
-        for (int tap = 0; tap < kStreakTaps; ++tap) {
-            const float u = 2.0f * static_cast<float>(tap) / static_cast<float>(kStreakTaps - 1) - 1.0f;
-            const float w = std::exp(-2.2f * u * u);
-            streak_u[tap] = u;
-            streak_w[tap] = w;
-            streak_weight_sum += w;
+        constexpr int kMaxStreakTaps = 385;
+        constexpr int kColumnSamples = 9;
+        const float sigma_x = std::max(1.0f, std::min(radius * 1.8f, 96.0f));
+        const float extent_x = std::min(3.0f * sigma_x, 320.0f);
+        const int taps_x = std::min(kMaxStreakTaps,
+            2 * static_cast<int>(std::ceil(extent_x / 2.0f)) + 1);
+        const float step_x = taps_x > 1
+            ? 2.0f * extent_x / static_cast<float>(taps_x - 1) : 0.0f;
+        std::array<float, kMaxStreakTaps> wx{};
+        float sum_x = 0.0f;
+        for (int tap = 0; tap < taps_x; ++tap) {
+            const float offset = -extent_x + static_cast<float>(tap) * step_x;
+            const float w = std::exp(-0.5f * (offset / sigma_x) * (offset / sigma_x));
+            wx[tap] = w;
+            sum_x += w;
         }
-        const float streak_norm = p->streak / std::max(streak_weight_sum, 1.0e-6f);
+        const float band_y = std::min(radius * 0.9f, 160.0f);
+        const float sample_step = band_y > 0.0f
+            ? (2.0f * band_y) / static_cast<float>(kColumnSamples - 1) : 0.0f;
+        const float sigma_y = std::max(3.0f, std::min(radius * 0.04f, 8.0f));
+        const float streak_norm = p->streak / std::max(sum_x, 1.0e-6f);
         const int x0 = context.clip ? std::clamp(context.clip->x0, 0, fb.width()) : 0;
         const int x1 = context.clip ? std::clamp(context.clip->x1, 0, fb.width()) : fb.width();
         const int y0 = context.clip ? std::clamp(context.clip->y0, 0, fb.height()) : 0;
@@ -612,8 +624,27 @@ public:
                 const float theta = 2.0f * std::numbers::pi_v<float> * tap / 16.0f;
                 light = light + sampler.bilinear(px + radius*std::cos(theta), py + radius*std::sin(theta)) * (p->halo/16.0f);
             }
-            for (int tap = 0; tap < kStreakTaps; ++tap) {
-                light = light + sampler.bilinear(px + streak_u[tap] * streak_radius, py) * (streak_w[tap] * streak_norm);
+            if (p->streak > 0.0f) {
+                // Match the Vulkan column-collapse wing: average a vertical
+                // band into one horizontal profile, then place it on a soft
+                // vertical Gaussian. This avoids both the glyph comb and the
+                // rectangular clip edge of a full 2D blur.
+                Color column{};
+                for (int iy = 0; iy < kColumnSamples; ++iy) {
+                    const int sy = std::clamp(static_cast<int>(std::lround(
+                        cy - band_y + static_cast<float>(iy) * sample_step)),
+                        0, fb.height() - 1);
+                    for (int ix = 0; ix < taps_x; ++ix) {
+                        const float offset_x = -extent_x + static_cast<float>(ix) * step_x;
+                        const int sx = std::clamp(
+                            static_cast<int>(std::lround(px + offset_x)), 0, fb.width() - 1);
+                        column = column + mask.get_pixel(sx, sy) * wx[ix];
+                    }
+                }
+                column = column * (1.0f / static_cast<float>(kColumnSamples));
+                const float dy = (py - cy) / sigma_y;
+                const float vertical = std::exp(-0.5f * dy * dy);
+                light = light + column * (streak_norm * vertical);
             }
             light = light * p->intensity;
             if (light.a <= 0.0f) continue;
