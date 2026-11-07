@@ -1136,6 +1136,7 @@ TEST_CASE("native gel surface style is accepted only for text layers") {
     REQUIRE(decoded->layers[0].style);
     CHECK(decoded->layers[0].style->gel_surface);
     CHECK(decoded->layers[0].style->gel_transmission_enabled);
+    CHECK_FALSE(decoded->layers[0].style->gel_soft_fusion.has_value());
     CHECK(decoded->layers[0].style->gel_debug_mode == 1);
     REQUIRE(decoded->layers[0].style->gel_light_azimuth_radians);
     REQUIRE(decoded->layers[0].style->gel_light_elevation);
@@ -1173,6 +1174,16 @@ TEST_CASE("native gel surface style is accepted only for text layers") {
     auto decoded_transmission_off = chronon3d::render_plan::decode_render_plan(transmission_off);
     REQUIRE(decoded_transmission_off);
     CHECK_FALSE(decoded_transmission_off->layers[0].style->gel_transmission_enabled);
+
+    auto hard_union = plan;
+    hard_union["layers"][0]["style"]["gel_soft_fusion"] = false;
+    auto decoded_hard_union = chronon3d::render_plan::decode_render_plan(hard_union);
+    REQUIRE(decoded_hard_union);
+    REQUIRE(decoded_hard_union->layers[0].style->gel_soft_fusion);
+    CHECK_FALSE(*decoded_hard_union->layers[0].style->gel_soft_fusion);
+    auto invalid_fusion = hard_union;
+    invalid_fusion["layers"][0]["style"]["gel_surface"] = false;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_fusion));
 }
 
 TEST_CASE("V3 color alias normalizes to shape.fill with explicit fill precedence") {

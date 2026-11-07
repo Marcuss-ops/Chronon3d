@@ -36,6 +36,8 @@ enum class GpuKernelId : std::uint8_t {
     DofDepthStamp,
     DofBlur,
     OcclusionTag,
+    ShadowCaster,
+    ShadowApply,
 };
 
 class GpuKernelRegistry {

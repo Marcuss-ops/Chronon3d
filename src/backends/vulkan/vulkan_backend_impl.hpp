@@ -762,6 +762,28 @@ struct VulkanBackend::Impl {
                           runtime::RenderSurfaceHandle depth_destination =
                               runtime::kInvalidRenderSurfaceHandle,
                           float depth_marker = 1.0f);
+    void shadow_caster(runtime::RenderSurfaceHandle depth_map,
+                       std::span<const float> light_space_vertices,
+                       std::span<const std::uint32_t> indices,
+                       std::int32_t x0, std::int32_t y0,
+                       std::int32_t x1, std::int32_t y1);
+    void shadow_apply(runtime::RenderSurfaceHandle destination,
+                      runtime::RenderSurfaceHandle source,
+                      runtime::RenderSurfaceHandle depth_map,
+                      const rendering::ShadowApplyParams& params);
+    void record_shadow_caster(VkCommandBuffer command,
+                              VkDescriptorSet descriptors,
+                              const Image& depth_map,
+                              std::int32_t vertex_count,
+                              std::int32_t index_count,
+                              std::int32_t x0, std::int32_t y0,
+                              std::int32_t x1, std::int32_t y1);
+    void record_shadow_apply(VkCommandBuffer command,
+                             VkDescriptorSet descriptors,
+                             const Image& destination,
+                             const Image& source,
+                             const Image& depth_map,
+                             const rendering::ShadowApplyParams& params);
     void ensure_images(std::uint32_t width, std::uint32_t height);
     void ensure_staging(VkDeviceSize bytes);
     void ensure_glyph_instance_buffer(VkDeviceSize bytes, std::size_t index);

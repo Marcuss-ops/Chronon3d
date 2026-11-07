@@ -1,0 +1,181 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-reference-word-spacing-liberation-mono-20261106",
+  "canvas": {
+    "width": 1094,
+    "height": 143,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "reference-footage",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-stress-20261105/gel-reference-plate-20261106.png",
+      "fit": "stretch",
+      "size": [
+        1094,
+        143
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "gel-calories",
+      "type": "text",
+      "text": "calories",
+      "size": [
+        500,
+        130
+      ],
+      "position": [
+        220,
+        72
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 62,
+        "fill": "#00DFFF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 12,
+          "intensity": 0.55,
+          "color": [
+            0.0,
+            0.75,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 30,
+          "intensity": 0.3,
+          "color": [
+            0.02,
+            0.28,
+            0.9,
+            1.0
+          ]
+        }
+      ],
+      "scale": [
+        1.16,
+        1.03
+      ]
+    },
+    {
+      "id": "gel-or",
+      "type": "text",
+      "text": "or",
+      "size": [
+        200,
+        130
+      ],
+      "position": [
+        476,
+        72
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 62,
+        "fill": "#00DFFF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 12,
+          "intensity": 0.55,
+          "color": [
+            0.0,
+            0.75,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 30,
+          "intensity": 0.3,
+          "color": [
+            0.02,
+            0.28,
+            0.9,
+            1.0
+          ]
+        }
+      ],
+      "scale": [
+        1.16,
+        1.03
+      ]
+    },
+    {
+      "id": "gel-ingredients",
+      "type": "text",
+      "text": "ingredients",
+      "size": [
+        600,
+        130
+      ],
+      "position": [
+        799,
+        72
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 62,
+        "fill": "#00DFFF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 12,
+          "intensity": 0.55,
+          "color": [
+            0.0,
+            0.75,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 30,
+          "intensity": 0.3,
+          "color": [
+            0.02,
+            0.28,
+            0.9,
+            1.0
+          ]
+        }
+      ],
+      "scale": [
+        1.16,
+        1.03
+      ]
+    }
+  ],
+  "output": {
+    "path": "docs/evidence/gel-reference-camera-20261106/reference-word-spacing.rgba",
+    "format": "png"
+  }
+}

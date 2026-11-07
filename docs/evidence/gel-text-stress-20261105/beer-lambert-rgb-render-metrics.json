@@ -1,0 +1,16 @@
+{
+  "T06_absorption_raw_sha256": "b0965c6816b0213766dacda256c7be6d87478139d3e26188f790b9c6f00a68b0",
+  "T12_absorption_raw_sha256": "c048b387d0389dadc3f5247e3c3e8e53d097dfd6bb66275be5fa695d0e4cc3e7",
+  "T12_changed_pixels_vs_pre_absorption_shader": {
+    "0": 23765,
+    "30": 23755,
+    "60": 23744
+  },
+  "T14_on_off": {
+    "changed_rgb_pixels_roi": 26534,
+    "max_rgb_delta": 111,
+    "alpha_changed_pixels_full_frame": 0,
+    "on_sha256": "6e64889d17bbfc810780766715af8afb7b547c27f9e5b1dee860525f47707261",
+    "off_sha256": "7037051684471ed2d128ba152677e747209ff5291ce69129510c6a5f49252eaa"
+  }
+}

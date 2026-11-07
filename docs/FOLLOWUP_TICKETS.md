@@ -15,6 +15,7 @@
 | Maintenance hotspots (W0–W5) | P1 | ACTIVE — umbrella: GPU lifetime/teardown, text hot-path fixes, certification-truthfulness decisions (B.1/B.2/F.2), effects-lane arch gate; coordinates C22/C23 and MAIN-TRUTH owners | [MAINTENANCE-HOTSPOTS-BONIFICATION](tickets/TICKET-MAINTENANCE-HOTSPOTS-BONIFICATION.md) |
 | Cache identity / invalidation | P1 | ACTIVE — all taxonomy entries mapped to identity owners/dependency axes; remaining V2 schemas, mutation fixtures and test execution remain | [CACHE-IDENTITY-KEYS](tickets/TICKET-CACHE-IDENTITY-KEYS.md) |
 | Gel text surface / AE-style parity | P1 | OPEN — composed TextRun surface, glossy shading and effect compositing remain unverified | [TEXT-COMPOSITE-GEL-SURFACE](tickets/TICKET-TEXT-COMPOSITE-GEL-SURFACE.md) |
+| Render-stack hardening (C3D↔CM3D) | P0 | OPEN — W1 SyncVal audit and W2 same-SHA pair are the gates; W3/W4 closure; no new graphics stack | [RENDER-STACK-HARDENING](tickets/TICKET-RENDER-STACK-HARDENING-20261106.md) |
 
 Camera: the four camera sheets were closed administratively on 2026-11-04.
 C7/CI, AE parity, S2/S5 and advanced DoF are tracked in the

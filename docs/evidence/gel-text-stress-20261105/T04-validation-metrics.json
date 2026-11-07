@@ -1,0 +1,8 @@
+{
+  "method": "Decode PNG sRGB to linear, threshold T01 midway from corner backdrop to white, erode 1 px with 3x3 neighborhood. Shader mode 4 green = finite normal with abs(length(N)-1)<0.01, red = invalid; classification is emitted before PNG quantization.",
+  "core_pixels": 18806,
+  "green_pixels_in_core": 18806,
+  "red_pixels_in_core": 0,
+  "other_pixels_in_core": 0,
+  "all_core_green": true
+}

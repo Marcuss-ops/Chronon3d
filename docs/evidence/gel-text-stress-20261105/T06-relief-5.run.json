@@ -1,0 +1,47 @@
+{
+  "run_id": "T06-relief-5",
+  "recorded_at_utc": "2026-11-06T06:50Z",
+  "source_commit": "533b6ab8cef58d86cb421bcc9cb0568fafd0587b",
+  "source_tree": "dirty; pre-existing GEL and unrelated WIP present",
+  "tracked_diff_sha256_at_render": "ad5e4caebf711355775f4505aab5a696616c228db9a29cb68c9b27def50d6608",
+  "gpu": {
+    "name": "NVIDIA RTX A4000",
+    "driver": "595.99.02",
+    "backend": "Vulkan explicit, device 0",
+    "fallback": "none"
+  },
+  "scene": {
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "frames": 1,
+    "text": "calories or ingredients",
+    "font": "assets/fonts/Inter-Bold.ttf",
+    "font_sha256": "deb990e241954e1af87c6033d40a76cf0f48e0d112541794526051ac4a3ee2c8",
+    "plan": "T06.plan.json",
+    "plan_sha256": "4b3af9cf2f44992207762f53a50fbb80803473abf1aa53c531e46fee6fa30eb1",
+    "layout_and_camera": "unchanged from T06 baseline"
+  },
+  "build": {
+    "command": "cmake --build build/chronon/linux-video-test --target chronon3d_cli -j14",
+    "result": "PASS"
+  },
+  "render": {
+    "command": "build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli render --plan docs/evidence/gel-text-stress-20261105/T06.plan.json --assets-root /home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d --backend vulkan --start-frame 0 --end-frame 0 --video-sink raw --output /tmp/gel-relief-5.rgba -v error",
+    "lane": "raw RGBA pre-encode",
+    "gpu_dispatch_span_ms": 0.289792,
+    "raw_sha256": "f8ea5a4adec8afea1ac6246419a95224c91c49a878a9534871ef14e1c5ffdfe1"
+  },
+  "shader": {
+    "path": "src/backends/vulkan/shaders/text_tile_raster.comp",
+    "sha256": "b9aa95daccbddb0b759b23fbdeb62df35030ea2cfeb68cd1ff7f4bfb69799b38",
+    "change": "relief normal scale 5.0; stronger diffuse range and specular; no changes to glyph layout or camera"
+  },
+  "png_sha256": "54f0199e80ca17f38729de42b5484acc1525cccff068c134e4d9d6451a933642",
+  "review_proxy": {
+    "file": "GEL-TEXT-relief-iteration-20261106.mp4",
+    "sha256": "e3e4b2b367c52d3eb5231c99036c7db368f296f29ab0907577909f4dfc6137bf",
+    "drive_url": "https://drive.google.com/file/d/1OnHuL0SCg6JUgje7Cbqej0EWKG5MdStq/view?usp=drivesdk"
+  },
+  "assessment": "Material prototype: increased apparent dome lighting, still not a 3D mesh or camera-depth implementation; reviewer approval pending."
+}

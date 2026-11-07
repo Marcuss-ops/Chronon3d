@@ -1,0 +1,234 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-25d-abstract-camera-1080p",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      -36.1936,
+      -18.7162,
+      -1753.7044
+    ],
+    "rotation_deg": [
+      0.9272,
+      3.2683,
+      -1.037
+    ],
+    "fov_deg": 27.5535,
+    "near": 10.0,
+    "far": 8000.0,
+    "zoom": 1000.0,
+    "dof": {
+      "enabled": true,
+      "focus_distance": 1728.228,
+      "f_stop": 2.195,
+      "max_blur": 14.066
+    }
+  },
+  "camera_samples": [
+    {
+      "frame": 0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -36.1936,
+          -18.7162,
+          -1753.7044
+        ],
+        "rotation_deg": [
+          0.9272,
+          3.2683,
+          -1.037
+        ],
+        "fov_deg": 27.5535,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": true,
+          "focus_distance": 1728.228,
+          "f_stop": 2.195,
+          "max_blur": 14.066
+        }
+      }
+    }
+  ],
+  "output": {
+    "path": "docs/evidence/gel-01-core-bloom-20261105/gel-25d-abstract-camera-1080p.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "bg_void_base",
+      "type": "color",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "screen_space": true,
+      "size": [
+        1920,
+        1080
+      ],
+      "color": [
+        0.008,
+        0.014,
+        0.042,
+        1.0
+      ]
+    },
+    {
+      "id": "kicker_depth_plane",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "position": [
+        960.0,
+        345.0,
+        95.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "CHRONON 2.5D OPTICAL GEL SURFACE",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 34.0,
+        "fill": "#A8ECFF"
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.1,
+            0.68,
+            1.0,
+            0.85
+          ],
+          "intensity": 0.95,
+          "radius": 18.0
+        }
+      ]
+    },
+    {
+      "id": "hero_gel_25d_title",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "position": [
+        960.0,
+        535.0,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "calories or ingredients",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 112,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.18,
+            0.9,
+            1.0,
+            1.0
+          ],
+          "intensity": 1.18,
+          "radius": 22.0
+        },
+        {
+          "type": "glow",
+          "color": [
+            0.04,
+            0.36,
+            1.0,
+            1.0
+          ],
+          "intensity": 1.45,
+          "radius": 68.0
+        }
+      ]
+    },
+    {
+      "id": "subtitle_depth_plane",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "position": [
+        960.0,
+        725.0,
+        -75.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "COMPOSITE SDF DOME  \u2022  DUAL-HALO HDR BLOOM  \u2022  2.5D CAMERA RIG & DOF",
+      "style": {
+        "font": "assets/fonts/Inter-Regular.ttf",
+        "font_size": 26.0,
+        "fill": "#C8F4FF"
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.06,
+            0.52,
+            1.0,
+            0.8
+          ],
+          "intensity": 0.75,
+          "radius": 14.0
+        }
+      ]
+    }
+  ]
+}

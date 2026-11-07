@@ -1,0 +1,271 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-reference-word-depth-georgia-layout-20261106",
+  "canvas": {
+    "width": 1094,
+    "height": 143,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1060
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 40,
+    "near": 10,
+    "far": 5000,
+    "zoom": 4000,
+    "dof": {
+      "enabled": false,
+      "focus_distance": 1060,
+      "max_blur": 8.0,
+      "highlight_gain": 1.4
+    },
+    "f_stop": 1.4
+  },
+  "camera_samples": [
+    {
+      "frame": 0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          0,
+          0,
+          -1060
+        ],
+        "rotation_deg": [
+          0,
+          0,
+          0
+        ],
+        "fov_deg": 40,
+        "near": 10,
+        "far": 5000,
+        "zoom": 4000,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1060,
+          "max_blur": 8.0,
+          "highlight_gain": 1.4
+        },
+        "f_stop": 1.4
+      }
+    }
+  ],
+  "layers": [
+    {
+      "id": "waiting-room-documentary-plate",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-stress-20261105/gel-reference-plate-20261106.png",
+      "fit": "stretch",
+      "size": [
+        1094,
+        143
+      ],
+      "position": [
+        547,
+        71.5,
+        1000
+      ],
+      "enable_3d": true,
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        5.2,
+        5.2,
+        1
+      ],
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "gel-word-near-calories",
+      "type": "text",
+      "text": "calories",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        -388,
+        71.5,
+        -500
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        2.1,
+        2.1,
+        1
+      ],
+      "style": {
+        "font": "assets/fonts/Georgia_Bold.ttf",
+        "font_size": 73,
+        "fill": "#00DFFF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 12,
+          "intensity": 0.55,
+          "color": [
+            0.0,
+            0.75,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 30,
+          "intensity": 0.3,
+          "color": [
+            0.02,
+            0.28,
+            0.9,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gel-word-mid-or",
+      "type": "text",
+      "text": "or",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        563,
+        71.5,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        4.0,
+        4.0,
+        1
+      ],
+      "style": {
+        "font": "assets/fonts/Georgia_Bold.ttf",
+        "font_size": 73,
+        "fill": "#00DFFF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 12,
+          "intensity": 0.55,
+          "color": [
+            0.0,
+            0.75,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 30,
+          "intensity": 0.3,
+          "color": [
+            0.02,
+            0.28,
+            0.9,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gel-word-far-ingredients",
+      "type": "text",
+      "text": "ingredients",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        3188,
+        71.5,
+        500
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        5.9,
+        5.9,
+        1
+      ],
+      "style": {
+        "font": "assets/fonts/Georgia_Bold.ttf",
+        "font_size": 73,
+        "fill": "#00DFFF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 12,
+          "intensity": 0.55,
+          "color": [
+            0.0,
+            0.75,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 30,
+          "intensity": 0.3,
+          "color": [
+            0.02,
+            0.28,
+            0.9,
+            1.0
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "docs/evidence/gel-reference-camera-20261106/word-depth-georgia-layout.rgba",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

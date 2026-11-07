@@ -52,6 +52,17 @@ void decode_light_fields(LayerPlan& layer, const nlohmann::json& value) {
     }
     light.range = raw.value("range", light.range);
     light.decay = raw.value("decay", light.decay);
+    if (raw.contains("falloff")) {
+        const auto falloff = raw.at("falloff").get<std::string>();
+        if (falloff == "smooth_inverse_power") {
+            light.falloff = LightFalloffPlan::SmoothInversePower;
+        } else if (falloff == "ae_inverse_square_clamped") {
+            light.falloff = LightFalloffPlan::AeInverseSquareClamped;
+        } else {
+            throw std::runtime_error(
+                "light.falloff must be smooth_inverse_power or ae_inverse_square_clamped");
+        }
+    }
     light.angle = raw.value("angle", light.angle);
     light.penumbra = raw.value("penumbra", light.penumbra);
     light.cast_shadow = raw.value("cast_shadow", light.cast_shadow);

@@ -4534,6 +4534,10 @@
                 "minimum": 0,
                 "maximum": 8
               },
+              "falloff": {
+                "type": "string",
+                "enum": ["smooth_inverse_power", "ae_inverse_square_clamped"]
+              },
               "angle": {
                 "type": "number",
                 "exclusiveMinimum": 0,
@@ -7593,6 +7597,11 @@
                 "type": "boolean",
                 "default": false,
                 "description": "Select the native MTSDF gel-text surface material."
+              },
+              "gel_soft_fusion": {
+                "type": "boolean",
+                "default": true,
+                "description": "Use smooth union for contacting glyphs on gel text; requires gel_surface."
               },
               "gel_transmission": {
                 "type": "boolean",

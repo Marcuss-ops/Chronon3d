@@ -1,0 +1,72 @@
+{
+  "method": {
+    "bright": "G>80, B>100, B>1.45*R",
+    "core": "G>120, B>150, B>1.5*R"
+  },
+  "regions": {
+    "reference": {
+      "calories": {
+        "bright_pixels": 11452,
+        "core_pixels": 7451,
+        "bright_bbox": [
+          47,
+          27,
+          388,
+          102
+        ]
+      },
+      "or": {
+        "bright_pixels": 2378,
+        "core_pixels": 1973,
+        "bright_bbox": [
+          420,
+          11,
+          516,
+          110
+        ]
+      },
+      "ingredients": {
+        "bright_pixels": 22050,
+        "core_pixels": 13830,
+        "bright_bbox": [
+          562,
+          0,
+          1042,
+          115
+        ]
+      }
+    },
+    "chronon3d": {
+      "calories": {
+        "bright_pixels": 8586,
+        "core_pixels": 5348,
+        "bright_bbox": [
+          49,
+          34,
+          388,
+          90
+        ]
+      },
+      "or": {
+        "bright_pixels": 1522,
+        "core_pixels": 1190,
+        "bright_bbox": [
+          430,
+          39,
+          512,
+          94
+        ]
+      },
+      "ingredients": {
+        "bright_pixels": 18112,
+        "core_pixels": 9891,
+        "bright_bbox": [
+          551,
+          7,
+          1040,
+          114
+        ]
+      }
+    }
+  }
+}

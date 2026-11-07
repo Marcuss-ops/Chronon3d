@@ -1,0 +1,13 @@
+{
+  "T05_vs_T06": {
+    "silhouette_iou_at_linear_luma_0.08": 0.989513601362071,
+    "xor_pixels": 271,
+    "T05_vs_T06_raw_identical": false
+  },
+  "T06_vs_T07_off": {
+    "silhouette_iou": 1.0,
+    "xor_pixels": 0,
+    "raw_identical": true
+  },
+  "interpretation": "T06 uses the lit gel surface with bloom disabled; compare T05 core-only against T06. Static still confirms body shading/specular is present. Light motion/sweep is left to P1 T12."
+}

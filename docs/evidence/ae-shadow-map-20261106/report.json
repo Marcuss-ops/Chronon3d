@@ -1,0 +1,14 @@
+{
+  "schema": "chronon3d.shadow-map.evidence.v1",
+  "status": "FAIL",
+  "production_vulkan_shadow_map": true,
+  "pcf_kernel": true,
+  "adaptive_normal_bias": true,
+  "measured": true,
+  "resolution": 32,
+  "edge_error_px": 24,
+  "pcf_edge_value": 1,
+  "pcf_softened": false,
+  "bias_removed_acne": false,
+  "cpu_gpu_max_delta": 1
+}

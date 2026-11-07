@@ -210,6 +210,10 @@ TEST_CASE("gel text material selection affects the render plan fingerprint") {
     auto transmission_on = render_plan::decode_render_plan(plan);
     REQUIRE(transmission_on);
     CHECK(transmission_on->content_fingerprint != transmission_off->content_fingerprint);
+    plan["layers"][0]["style"]["gel_soft_fusion"] = false;
+    auto hard_union = render_plan::decode_render_plan(plan);
+    REQUIRE(hard_union);
+    CHECK(hard_union->content_fingerprint != transmission_on->content_fingerprint);
 }
 
 TEST_CASE("Repeater parameters affect render plan fingerprint") {

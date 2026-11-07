@@ -1,0 +1,150 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-25d-abstract-camera-1080p",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      -36.1936,
+      -18.7162,
+      -1753.7044
+    ],
+    "rotation_deg": [
+      0.9272,
+      3.2683,
+      -1.037
+    ],
+    "fov_deg": 27.5535,
+    "near": 10.0,
+    "far": 8000.0,
+    "zoom": 1000.0,
+    "dof": {
+      "enabled": true,
+      "focus_distance": 1728.228,
+      "f_stop": 2.195,
+      "max_blur": 14.066
+    }
+  },
+  "camera_samples": [
+    {
+      "frame": 0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -36.1936,
+          -18.7162,
+          -1753.7044
+        ],
+        "rotation_deg": [
+          0.9272,
+          3.2683,
+          -1.037
+        ],
+        "fov_deg": 27.5535,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": true,
+          "focus_distance": 1728.228,
+          "f_stop": 2.195,
+          "max_blur": 14.066
+        }
+      }
+    }
+  ],
+  "output": {
+    "path": "docs/evidence/gel-01-core-bloom-20261105/gel-25d-abstract-camera-1080p.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "bg_void_base",
+      "type": "shape",
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        960.0,
+        540.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.008,
+          0.014,
+          0.042,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "hero_gel_25d_title",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "position": [
+        960.0,
+        535.0,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "calories or ingredients",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 112,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.18,
+            0.9,
+            1.0,
+            1.0
+          ],
+          "intensity": 1.18,
+          "radius": 22.0
+        },
+        {
+          "type": "glow",
+          "color": [
+            0.04,
+            0.36,
+            1.0,
+            1.0
+          ],
+          "intensity": 1.45,
+          "radius": 68.0
+        }
+      ]
+    }
+  ]
+}

@@ -218,7 +218,10 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
     out.add_bool(style.gel_surface);
     out.add_bool(style.extruded_text);
     if (style.extruded_text) out.add_float(style.extrusion_depth);
-    if (style.gel_surface) out.add_bool(style.gel_transmission_enabled);
+    if (style.gel_surface) {
+        out.add_bool(style.gel_transmission_enabled);
+        out.add_bool(style.gel_soft_fusion.value_or(true));
+    }
     out.add_uint32(style.gel_debug_mode);
     if (style.gel_core) {
         out.add_bool(style.gel_core);

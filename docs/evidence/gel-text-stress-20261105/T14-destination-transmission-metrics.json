@@ -1,0 +1,36 @@
+{
+  "on_raw_sha256": "d35f357ba94db5aeeff9269c5a7f08591680f75f351d18005e4a7d41b4de1439",
+  "off_raw_sha256": "7037051684471ed2d128ba152677e747209ff5291ce69129510c6a5f49252eaa",
+  "width": 1280,
+  "height": 720,
+  "format": "rgba8",
+  "gpu_backend": "Vulkan TextRun shader and native surface Composite path; raw sink receives composed pixels",
+  "changed_rgb_pixels": 26534,
+  "changed_rgb_pixels_inside_text_roi": 26534,
+  "changed_rgb_pixels_outside_text_roi": 0,
+  "max_abs_delta_rgb": [
+    111,
+    74,
+    77
+  ],
+  "mean_abs_delta_rgb": [
+    0.8795779079861111,
+    1.0551963975694445,
+    0.8059516059027778
+  ],
+  "changed_alpha_pixels": 0,
+  "status": "PASS: destination-aware channel transmission changes RGB only in the gel ROI; alpha invariant preserved; strict Vulkan GPU raw readback verified",
+  "caveat": "Source alpha combines antialias coverage, authored opacity and a red-channel optical-thickness proxy. RGB backdrop attenuation is stylized, not a physical volumetric transmission or independent optical-depth buffer.",
+  "strict_gpu_raw_export": {
+    "status": "PASS",
+    "on_raw": "T14-on-strict-readback.rgba",
+    "on_raw_sha256": "d35f357ba94db5aeeff9269c5a7f08591680f75f351d18005e4a7d41b4de1439",
+    "off_raw": "T14-off-strict-readback.rgba",
+    "off_raw_sha256": "7037051684471ed2d128ba152677e747209ff5291ce69129510c6a5f49252eaa",
+    "raw_frame_bytes": 3686400,
+    "gpu_surface_readback_completed": true,
+    "strict_mode": "require_gpu_native",
+    "onoff_raws_match_prior_captures_byte_for_byte": true,
+    "build_steps": "578/578 with -j14"
+  }
+}

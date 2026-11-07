@@ -120,3 +120,16 @@ chronon3d_add_test_suite(
     LINK_TARGETS chronon3d_pipeline Vulkan::Vulkan)
 target_compile_definitions(chronon3d_vulkan_dof_depth_canary_tests
     PRIVATE CHRONON3D_ENABLE_VULKAN)
+
+# Shadow-map canary: dispatches the production caster and PCF kernels on a real
+# Vulkan device and pins coverage, edge position, diffusion and adaptive bias.
+chronon3d_add_test_suite(
+    NAME chronon3d_shadow_map_tests
+    TIER INTEGRATION
+    SOURCES backends/test_shadow_map.cpp
+    LINK_TARGETS chronon3d_pipeline Vulkan::Vulkan)
+target_compile_definitions(chronon3d_shadow_map_tests
+    PRIVATE CHRONON3D_ENABLE_VULKAN)
+target_include_directories(chronon3d_shadow_map_tests
+    PRIVATE "${CHRONON3D_VULKAN_GENERATED_DIR}")
+add_dependencies(chronon3d_shadow_map_tests chronon3d_shader_abi_headers)

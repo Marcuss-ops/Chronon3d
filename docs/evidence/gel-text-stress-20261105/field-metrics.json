@@ -1,0 +1,26 @@
+{
+  "source": "T01/T02/T03 PNGs derived from raw RGBA via tools/raw_frame_to_png.py",
+  "threshold": "sRGB decoded to linear; T01 threshold halfway from corner backdrop to white; T02 signed field positive where linear red > 0.5",
+  "corner_backdrop_luminance_linear": 0.0022182356160669096,
+  "T02_vs_T01_positive_region": {
+    "mask_pixels": 24030,
+    "sdf_positive_pixels": 23996,
+    "intersection_over_union": 0.996591003575289,
+    "xor_pixels": 82,
+    "bbox_xyxy_inclusive": [
+      190,
+      323,
+      1088,
+      408
+    ]
+  },
+  "T03_height_in_T01_core": {
+    "core": "T01 binary coverage eroded by one pixel (3x3 neighborhood)",
+    "pixel_count": 18806,
+    "min": 0.14412847085805777,
+    "median": 0.6938717612919899,
+    "p95": 0.938685728457888,
+    "max": 1.0,
+    "unique_luma_8bit": 131
+  }
+}

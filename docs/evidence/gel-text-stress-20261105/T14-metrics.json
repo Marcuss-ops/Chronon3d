@@ -1,0 +1,28 @@
+{
+  "checkerboard": "T14-checkerboard.png (black/near-white 24px squares)",
+  "on_plan_sha256": "428195da3f99ff4295884dd7debc14b0c7e3868928744515ae7d1c6ae1f7203d",
+  "off_plan_sha256": "984f6902141268ea07f4a7897960b8017a3fa0fbc4aefffcdf968a9505b80602",
+  "on_raw_sha256": "a6f918535553f187cfa11d1e903b557e2a9246cc37550353bce3894ebd858467",
+  "off_raw_sha256": "a6f918535553f187cfa11d1e903b557e2a9246cc37550353bce3894ebd858467",
+  "on_off_raw_identical": true,
+  "text_bbox": [
+    0,
+    0,
+    1279,
+    719
+  ],
+  "max_rgb_delta_entire_frame": 0,
+  "changed_pixels": 0,
+  "alpha_xor_pixels": 0,
+  "outside_text_max_rgb_delta": 0,
+  "status": "FAIL: transmission ablation produces no observable output difference with checkerboard destination",
+  "text_bbox_against_checkerboard": [
+    189,
+    323,
+    1088,
+    408
+  ],
+  "text_coverage_pixels_against_checkerboard": 26329,
+  "first_failing_frame": 0,
+  "first_failing_pixel": "No localized pixel: ON/OFF differ nowhere; entire text region fails to respond to transmission ablation."
+}

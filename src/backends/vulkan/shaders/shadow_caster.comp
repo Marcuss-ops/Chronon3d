@@ -1,0 +1,80 @@
+#version 450
+
+// Shadow caster pass. Triangles arrive already projected into light-map pixel
+// space (host side uses project_shadow_point). Every invocation owns one texel
+// and keeps the nearest depth, so the result is independent of triangle order
+// and needs no image atomics. Output: r = nearest depth, g = coverage marker.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(binding = 0, rgba32f) uniform writeonly image2D shadow_image;
+// Vertex record: vec4(x_px, y_px, depth_zo, 1.0); indices follow the vertices
+// as float bit patterns (the same packing used by inline_mesh.comp).
+layout(binding = 3, std430) readonly buffer CasterData {
+    float data[];
+} caster;
+
+layout(push_constant) uniform CasterParams {
+    int vertex_count;
+    int index_count;
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+} params;
+
+vec3 vertex_at(uint index) {
+    const uint base = index * 4u;
+    return vec3(caster.data[base], caster.data[base + 1u],
+                caster.data[base + 2u]);
+}
+
+uint index_at(uint index) {
+    return floatBitsToUint(caster.data[uint(params.vertex_count) * 4u + index]);
+}
+
+float edge(vec2 a, vec2 b, vec2 p) {
+    return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
+}
+
+void main() {
+    const ivec2 pixel = ivec2(params.x0, params.y0) +
+                        ivec2(gl_GlobalInvocationID.xy);
+    const ivec2 size = imageSize(shadow_image);
+    if (pixel.x >= params.x1 || pixel.y >= params.y1 ||
+        pixel.x >= size.x || pixel.y >= size.y) {
+        return;
+    }
+
+    const vec2 p = vec2(pixel) + vec2(0.5);
+    float nearest_depth = 3.402823e+38;
+    if (params.vertex_count >= 3 && params.index_count >= 3) {
+        for (int i = 0; i + 2 < params.index_count; i += 3) {
+            const uint ia = index_at(uint(i));
+            const uint ib = index_at(uint(i + 1));
+            const uint ic = index_at(uint(i + 2));
+            if (ia >= uint(params.vertex_count) ||
+                ib >= uint(params.vertex_count) ||
+                ic >= uint(params.vertex_count)) {
+                continue;
+            }
+            const vec3 a = vertex_at(ia);
+            const vec3 b = vertex_at(ib);
+            const vec3 c = vertex_at(ic);
+            const float area = edge(a.xy, b.xy, c.xy);
+            if (abs(area) < 1e-6) continue;
+            // Dividing by the signed area accepts both triangle windings.
+            const float w0 = edge(b.xy, c.xy, p) / area;
+            const float w1 = edge(c.xy, a.xy, p) / area;
+            const float w2 = edge(a.xy, b.xy, p) / area;
+            if (w0 < -1e-5 || w1 < -1e-5 || w2 < -1e-5) continue;
+            const float depth = w0 * a.z + w1 * b.z + w2 * c.z;
+            if (depth > 0.0 && depth < nearest_depth) nearest_depth = depth;
+        }
+    }
+
+    const bool covered = nearest_depth < 3.402823e+38;
+    imageStore(shadow_image, pixel,
+               vec4(covered ? nearest_depth : 1.0, covered ? 1.0 : 0.0,
+                    0.0, 0.0));
+}

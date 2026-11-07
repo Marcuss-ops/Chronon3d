@@ -427,6 +427,9 @@ void append_light_layer_for_scene(
         source.radius = light.radius;
         source.range = light.range;
         source.decay = light.decay;
+        source.falloff = light.falloff == LightFalloffPlan::AeInverseSquareClamped
+            ? rendering::PointLightFalloff::AeInverseSquareClamped
+            : rendering::PointLightFalloff::SmoothInversePower;
         source.angle = light.angle;
         source.penumbra = light.penumbra;
         source.casts_shadow = light.cast_shadow;

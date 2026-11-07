@@ -1,0 +1,6 @@
+The package clipper2 can be imported via its CMake config package:
+
+    find_package(Clipper2 CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE Clipper2::Clipper2)
+
+The 3D variant is available as `Clipper2::Clipper2Z`.

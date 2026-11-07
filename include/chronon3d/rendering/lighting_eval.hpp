@@ -142,6 +142,19 @@ using namespace chronon3d::graph;
     return Color{base.r * r, base.g * g, base.b * b, base.a};
 }
 
+/// The falloff curve shared by the CPU evaluator and the Vulkan kernel. The
+/// `radius` field is the clamp start for AE Inverse Square Clamped; the legacy
+/// model keeps its historical radius/decay curve.
+[[nodiscard]] inline f32 point_light_attenuation(f32 distance, const PointLightSource& source) {
+    const f32 scale = std::max(source.radius, 1e-6f);
+    if (source.falloff == PointLightFalloff::AeInverseSquareClamped) {
+        if (distance <= scale) return 1.0f;
+        const f32 ratio = scale / std::max(distance, 1e-6f);
+        return ratio * ratio;
+    }
+    return 1.0f / (1.0f + std::pow(distance / scale, std::max(0.0f, source.decay)));
+}
+
 // Irradiance (RGB, not clamped) that one per-pixel light deposits on a point of
 // a planar 2.5D layer with normal `normal_world`. Closed form, no state.
 [[nodiscard]] inline Color evaluate_point_light_irradiance(
@@ -158,8 +171,7 @@ using namespace chronon3d::graph;
         const f32 distance = std::sqrt(delta.x * delta.x + delta.y * delta.y + delta.z * delta.z);
         if (source.range > 0.0f && distance > source.range) return Color{0.0f, 0.0f, 0.0f, 1.0f};
         if (distance > 1e-6f) to_light = delta / distance;
-        const f32 scale = std::max(source.radius, 1e-6f);
-        attenuation = 1.0f / (1.0f + std::pow(distance / scale, std::max(0.0f, source.decay)));
+        attenuation = point_light_attenuation(distance, source);
         if (source.kind == PointLightKind::Spot) {
             // Cosine between the light->pixel direction and the spot axis.
             const f32 cos_to_pixel = glm::dot(-to_light, axis);
@@ -224,6 +236,7 @@ using namespace chronon3d::graph;
     seed = hash_combine(seed, hash_value(s.radius));
     seed = hash_combine(seed, hash_value(s.range));
     seed = hash_combine(seed, hash_value(s.decay));
+    seed = hash_combine(seed, hash_value(static_cast<std::uint8_t>(s.falloff)));
     seed = hash_combine(seed, hash_value(s.angle));
     seed = hash_combine(seed, hash_value(s.penumbra));
     seed = hash_combine(seed, hash_value(s.casts_shadow));

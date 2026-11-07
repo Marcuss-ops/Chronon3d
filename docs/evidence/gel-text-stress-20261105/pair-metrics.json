@@ -1,0 +1,58 @@
+{
+  "T00_vs_T01": {
+    "bbox_a": [
+      189,
+      323,
+      1089,
+      409
+    ],
+    "bbox_b": [
+      189,
+      323,
+      1089,
+      409
+    ],
+    "silhouette_iou": 1.0,
+    "xor_pixel_count": 0,
+    "raw_identical": true
+  },
+  "T00_vs_T05": {
+    "bbox_a": [
+      189,
+      323,
+      1089,
+      409
+    ],
+    "bbox_b": [
+      189,
+      323,
+      1089,
+      409
+    ],
+    "silhouette_iou": 0.9966131035261355,
+    "xor_pixel_count": 90,
+    "raw_identical": false
+  },
+  "T07-off_vs_T07-on": {
+    "bbox_a": [
+      189,
+      323,
+      1089,
+      409
+    ],
+    "bbox_b": [
+      178,
+      313,
+      1100,
+      420
+    ],
+    "silhouette_iou": 0.38685960681137177,
+    "xor_pixel_count": 41948,
+    "raw_identical": false
+  },
+  "T07_core_preservation": {
+    "interior_pixels": 8048,
+    "max_rgb_delta": 0,
+    "changed_fraction_over_2_lsb": 0.0
+  }
+}

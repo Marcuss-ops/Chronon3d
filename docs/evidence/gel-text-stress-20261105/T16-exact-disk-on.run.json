@@ -1,0 +1,91 @@
+{
+  "case": "T16-exact-circular-gather-20261106",
+  "status": "PARTIAL: exact disk support passes isolated Vulkan point-highlight shape gate; full depth dump, scene occlusion review, optical reference approval and P2 remain open",
+  "machine": {
+    "platform": "Linux-5.15.0-202-generic-x86_64-with-glibc2.35",
+    "gpu": "NVIDIA RTX A4000",
+    "backend": "Vulkan strict GPU path",
+    "driver": "595.99.02"
+  },
+  "render": {
+    "resolution": [
+      1280,
+      720
+    ],
+    "fps": [
+      30,
+      1
+    ],
+    "frames": 61,
+    "plan": "T16-dof-on.plan.json",
+    "plan_sha256": "3bf0e1b6fe159c19d09cd414c3e030d6eb89e73c0ef69a35e179cc2fca1a9697",
+    "raw": "T16-exact-disk-on.rgba",
+    "raw_sha256": "35912933e9a6b46a322e33c4be8fc37d12e33b680f897dbf99da9ec85ffcdd92",
+    "frame_30_png": "T16-exact-disk-on-30.png",
+    "frame_30_sha256": "8d76cc82d4e9bef15568111456a6075a215d5fba5158f0859e472d7f0913e425",
+    "shader_sha256": "4e9922c4277f8a89056e460b3a9ab49af450bbb1bf216e88b95a582cf33215a4",
+    "canary_output_png": "T16-point-bokeh-vulkan.png",
+    "canary_output_png_sha256": "b2fda5b62e11fbc0e19a0ef9e9fbbe40e5c3f0829d93f59956e4a7a1fdd927a2",
+    "canary_output_pgm_sha256": "d845699c359d2d4bab8409738d1cafebd07c9cdaf2430b0aa789782dd70672b1"
+  },
+  "point_highlight_canary": {
+    "fixture": "33x33 RGBA32F, center HDR impulse, uniform depth 100, CoC radius 8 px",
+    "threshold": "output red > 0.2 \u00d7 peak",
+    "disk_occupancy": 0.946667,
+    "lit_square_corner_pixels": 0,
+    "peak_linear_red": 0.0398662,
+    "result": "PASS",
+    "log": "T16-exact-disk-canary.log",
+    "cases": "3/3 combined depth provenance, disk shape and foreground occlusion",
+    "assertions_without_capture": "47/47",
+    "assertions_with_capture": "49/49",
+    "drive_png": "https://drive.google.com/file/d/1OwztiO8thJiJ6hslrczL0LGx6lyVJ_qb/view?usp=drivesdk"
+  },
+  "performance": {
+    "gpu_batch_ms": {
+      "p50": 2.149376,
+      "p95": 2.187264,
+      "max": 2.196736
+    },
+    "blur_pass_ms": {
+      "p50": 1.139712,
+      "p95": 1.179648,
+      "max": 1.1809280000000002
+    },
+    "render_thread_ms": {
+      "p50": 92.084773,
+      "p95": 150.190424,
+      "max": 166.591858
+    },
+    "frames_over_30fps_budget": 61,
+    "p2_4k120": "NOT RUN"
+  },
+  "limitations": [
+    "The rendered T16 phrase raw is byte-identical to the prior Vogel output; the isolated point impulse is the discriminating visual fixture.",
+    "The 8 px bokeh fixture verifies filled circular support, not all radii, foreground occlusion, or final optical match.",
+    "The depth provenance readback remains kernel-level; no full-frame linear depth export was performed."
+  ],
+  "commands": {
+    "release_build": "cmake --build build/chronon/linux-video-release --target chronon3d_cli chronon3d_vulkan_dof_depth_canary_tests -j10",
+    "render": "./build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli render --plan docs/evidence/gel-text-stress-20261105/T16-dof-on.plan.json --assets-root \"$PWD\" --backend vulkan --start-frame 0 --end-frame 60 --video-sink raw --pipe-pixfmt rgba --output docs/evidence/gel-text-stress-20261105/T16-exact-disk-on.rgba -v error",
+    "ctest": "ctest --test-dir build/chronon/linux-video-release -R ^chronon3d_vulkan_dof_depth_canary_tests$ --output-on-failure",
+    "diagnostic_capture": "CHRONON3D_DOF_BOKEH_PGM=\"$PWD/docs/evidence/gel-text-stress-20261105/T16-point-bokeh-vulkan.pgm\" ./build/chronon/linux-video-release/tests/chronon3d_vulkan_dof_depth_canary_tests --success"
+  },
+  "build": {
+    "result": "PASS",
+    "steps": "581/581",
+    "jobs": 10
+  },
+  "foreground_occlusion_canary": {
+    "fixture": "33x33 RGBA32F; far point depth=100, CoC=8 px; opaque green foreground strip depth=50, CoC=0",
+    "foreground_pixel_rgb": [
+      0.0,
+      1.0,
+      0.0
+    ],
+    "foreground_red_bloom": "<1e-5",
+    "far_bloom_edge_red": 0.0256952,
+    "result": "PASS",
+    "included_in": "chronon3d_vulkan_dof_depth_canary_tests"
+  }
+}

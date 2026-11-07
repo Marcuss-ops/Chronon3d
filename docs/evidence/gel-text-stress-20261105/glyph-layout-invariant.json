@@ -1,0 +1,21 @@
+{
+  "reference": "T00",
+  "text": "calories or ingredients",
+  "font": "assets/fonts/Inter-Bold.ttf",
+  "glyph_count": 23,
+  "layout_hash": 7437122424849954722,
+  "geometry_payload_sha256": "8c0f2640ceb60bb97a7c5fcd90e7278ad6c8e39e88bc7265018488bbbcc68002",
+  "same_geometry": {
+    "T01": true,
+    "T02": true,
+    "T03": true,
+    "T04": true,
+    "T04-validation": true,
+    "T05": true,
+    "T06": true,
+    "T07-off": true,
+    "T07-on": true,
+    "T08": true
+  },
+  "all_identical": true
+}

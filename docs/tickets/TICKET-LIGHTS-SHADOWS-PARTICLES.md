@@ -1,7 +1,15 @@
 # TICKET-LIGHTS-SHADOWS-PARTICLES — luci reali, ombre portate, particelle veloci
 
 Stato: **PARTIAL — OPEN** (scope scelto dall'utente il 2026-10-08: luci reali con ombre
-portate, e istanziamento GPU per le particelle). **T05 image gate PASS il
+portate, e istanziamento GPU per le particelle).
+
+### Aggiornamento 2026-11-06 — falloff AE
+
+Il falloff point AE Inverse Square Clamped è ora una modalità esplicita di
+`PointLightSource` (`PointLightFalloff::AeInverseSquareClamped`), condivisa da
+CPU e `lighting.comp`; il default smooth resta invariato. L'audit AE test 3 è
+PASS. La shadow map/PCF resta un GAP separato, tracciato in
+`TICKET-SHADOW-MAP-PCF-20261106.md`. **T05 image gate PASS il
 2026-10-30:** 5/5 caster-off + 5/5 caster-on, gate 30/30, zero pixel neri e hash
 RGB stabile per modalità; restano review qualità ombre, altre tranche e CI
 same-SHA.

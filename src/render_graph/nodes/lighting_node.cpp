@@ -111,7 +111,8 @@ NodeExecResult LightingNode::execute(
                     static_cast<float>(light.kind),
                     light.direction.x, light.direction.y, light.direction.z, light.angle,
                     light.color.r, light.color.g, light.color.b, light.radius,
-                    light.range, light.decay, light.penumbra, 0.0f});
+                    light.range, light.decay, light.penumbra,
+                    static_cast<float>(light.falloff)});
             }
             const Color scene_multiplier = light_context.enabled
                 ? rendering::evaluate_lighting(
