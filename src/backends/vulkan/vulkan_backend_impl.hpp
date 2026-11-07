@@ -529,6 +529,7 @@ struct VulkanBackend::Impl {
         float max_radius;
         std::int32_t normalize_opaque;
         float highlight_gain;
+        std::int32_t iris_blades;
     };
     void record_dof_depth_stamp(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& depth, const Image& layer,

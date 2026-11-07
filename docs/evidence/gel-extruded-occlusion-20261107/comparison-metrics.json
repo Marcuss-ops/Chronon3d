@@ -1,0 +1,74 @@
+{
+  "reference": {
+    "calories": {
+      "bright": 11452,
+      "core": 7451,
+      "bright_bbox": [
+        47,
+        27,
+        388,
+        102
+      ]
+    },
+    "or": {
+      "bright": 2402,
+      "core": 1973,
+      "bright_bbox": [
+        414,
+        5,
+        516,
+        110
+      ]
+    },
+    "ingredients": {
+      "bright": 22050,
+      "core": 13830,
+      "bright_bbox": [
+        562,
+        0,
+        1042,
+        115
+      ]
+    },
+    "total": {
+      "bright": 35906,
+      "core": 23254
+    }
+  },
+  "chronon3d": {
+    "calories": {
+      "bright": 8724,
+      "core": 6798,
+      "bright_bbox": [
+        48,
+        26,
+        391,
+        82
+      ]
+    },
+    "or": {
+      "bright": 2006,
+      "core": 1606,
+      "bright_bbox": [
+        439,
+        40,
+        521,
+        82
+      ]
+    },
+    "ingredients": {
+      "bright": 12584,
+      "core": 10531,
+      "bright_bbox": [
+        571,
+        0,
+        1043,
+        100
+      ]
+    },
+    "total": {
+      "bright": 23314,
+      "core": 18935
+    }
+  }
+}

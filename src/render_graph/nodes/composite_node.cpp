@@ -83,7 +83,8 @@ NodeExecResult CompositeNode::execute(
                 "CompositeNode", "backdrop blur requires a normal source-over shape layer"};
         if (ctx.backend && ctx.surface_registry && ctx.backend_stats_api()->supports_native_surfaces() &&
             m_backdrop_blur->brightness == 1.0f && m_backdrop_blur->saturation == 1.0f &&
-            m_backdrop_blur->rim_light == 0.0f && m_backdrop_blur->refraction == 0.0f &&
+            m_backdrop_blur->rim_light == 0.0f && m_backdrop_blur->light_wrap == 0.0f &&
+            m_backdrop_blur->refraction == 0.0f &&
             m_backdrop_blur->surface_noise == 0.0f &&
             bottom->width() == ctx.frame_input.width && bottom->height() == ctx.frame_input.height &&
             top->width() == bottom->width() && top->height() == bottom->height() &&

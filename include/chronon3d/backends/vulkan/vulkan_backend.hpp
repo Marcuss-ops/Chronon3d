@@ -496,7 +496,7 @@ public:
     graph::RenderOpResult dof_blur_disk_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, int, int, int, int,
-        float, bool, float) override;
+        float, bool, float, int) override;
     graph::RenderOpResult occlusion_tag_surface(
         runtime::RenderSurfaceHandle mask,
         runtime::RenderSurfaceHandle layer_depth,

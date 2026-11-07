@@ -1154,7 +1154,7 @@ TEST_CASE("native gel surface style is accepted only for text layers") {
     invalid_light["layers"][0]["style"]["gel_surface"] = false;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_light));
     invalid_light = plan;
-    invalid_light["layers"][0]["style"]["gel_debug_mode"] = 6;
+    invalid_light["layers"][0]["style"]["gel_debug_mode"] = 8;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_light));
     invalid_light = plan;
     invalid_light["layers"][0]["style"].erase("gel_surface");
@@ -1169,6 +1169,13 @@ TEST_CASE("native gel surface style is accepted only for text layers") {
     auto decoded_transmission_diagnostic = chronon3d::render_plan::decode_render_plan(transmission_diagnostic);
     REQUIRE(decoded_transmission_diagnostic);
     CHECK(decoded_transmission_diagnostic->layers[0].style->gel_debug_mode == 5);
+    for (int mode : {6, 7}) {
+        auto silhouette_diagnostic = plan;
+        silhouette_diagnostic["layers"][0]["style"]["gel_debug_mode"] = mode;
+        auto decoded_silhouette = chronon3d::render_plan::decode_render_plan(silhouette_diagnostic);
+        REQUIRE(decoded_silhouette);
+        CHECK(decoded_silhouette->layers[0].style->gel_debug_mode == mode);
+    }
     auto transmission_off = plan;
     transmission_off["layers"][0]["style"]["gel_transmission"] = false;
     auto decoded_transmission_off = chronon3d::render_plan::decode_render_plan(transmission_off);

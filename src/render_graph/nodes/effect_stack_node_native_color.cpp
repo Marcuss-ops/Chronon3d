@@ -530,7 +530,11 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
 
     // Clip-honoring processors leave pixels outside the clip untouched.
     auto final_surface = output;
-    const bool partial_clip = lowering->honors_clip && clip && !clip_covers_result(clip, result);
+    const bool partial_clip = lowering->honors_clip && clip &&
+        !clip_covers_result(clip, result) &&
+        !(ctx.policy.require_native_gpu ||
+          (source_is_borrowed && borrowed_source_framebuffer &&
+           borrowed_source_framebuffer->is_gpu_authoritative()));
     if (status.ok() && partial_clip) {
         raster::BBox local{clip->x0 - result.origin_x(), clip->y0 - result.origin_y(),
                            clip->x1 - result.origin_x(), clip->y1 - result.origin_y()};
@@ -647,7 +651,10 @@ bool try_native_full_frame_chromatic(RenderGraphContext& ctx,
     if (status.ok()) status = ctx.backend_surface_api()->chromatic_transform_surface(output, source, *p);
 
     auto final_surface = output;
-    const bool partial_clip = clip && !clip_covers_result(clip, result);
+    const bool partial_clip = clip && !clip_covers_result(clip, result) &&
+        !(ctx.policy.require_native_gpu ||
+          (source_is_borrowed && borrowed_source_framebuffer &&
+           borrowed_source_framebuffer->is_gpu_authoritative()));
     if (status.ok() && partial_clip) {
         raster::BBox local{clip->x0 - result.origin_x(), clip->y0 - result.origin_y(),
                            clip->x1 - result.origin_x(), clip->y1 - result.origin_y()};

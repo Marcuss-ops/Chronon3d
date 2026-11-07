@@ -371,6 +371,7 @@ void add_layer_effects_and_masks(CanonicalPlanWriter& out, const LayerPlan& laye
         }
         out.add_float(layer.backdrop_filter->rim_strength);
         out.add_float(layer.backdrop_filter->rim_width);
+        out.add_float(layer.backdrop_filter->light_wrap);
         out.add_float(layer.backdrop_filter->chromatic_dispersion);
         out.add_float(layer.backdrop_filter->grain);
         out.add_float(layer.backdrop_filter->opacity);

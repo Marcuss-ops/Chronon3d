@@ -100,8 +100,8 @@ public:
         if (m_backdrop_blur) {
             const auto& blur = *m_backdrop_blur;
             for (const float value : std::array{blur.blur, blur.brightness,
-                    blur.saturation, blur.rim_light, blur.refraction,
-                    blur.surface_noise})
+                    blur.saturation, blur.rim_light, blur.light_wrap,
+                    blur.refraction, blur.surface_noise})
                 params_hash = hash_combine(params_hash, hash_float_v2(value));
         }
         return cache::NodeCacheKey{

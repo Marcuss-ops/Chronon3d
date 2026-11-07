@@ -24,6 +24,13 @@ void add_layer_transform_and_timing(CanonicalPlanWriter& out, const LayerPlan& l
         add_optional(out, layer.shadow_catcher,
                      [](auto& writer, bool value) { writer.add_bool(value); });
     }
+    if (layer.shadow_blur || layer.shadow_opacity) {
+        out.add_bool(true);
+        add_optional(out, layer.shadow_blur,
+                     [](auto& writer, float value) { writer.add_float(value); });
+        add_optional(out, layer.shadow_opacity,
+                     [](auto& writer, float value) { writer.add_float(value); });
+    }
     out.add_bool(layer.screen_space);
     // Preserve byte-for-byte fingerprints for plans authored before safe
     // insets existed; the presence marker is only emitted for this extension.

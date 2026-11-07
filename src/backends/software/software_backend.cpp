@@ -20,6 +20,7 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <optional>
@@ -330,6 +331,51 @@ void SoftwareBackend::apply_per_pixel_dof(
     const DepthOfFieldSettings& dof,
     const LensModel& lens,
     const std::optional<raster::BBox>& clip) {
+    // Polygonal bokeh (3..12 blades) is a radial disk gather in both backends.
+    // The separable Gaussian path cannot express an n-gon aperture, so route
+    // shaped apertures to the disk kernel with precomputed per-pixel CoC.
+    if (dof.iris_blades >= 3) {
+        const i32 w = framebuffer.width();
+        const i32 h = framebuffer.height();
+        const std::size_t pixels =
+            static_cast<std::size_t>(w) * static_cast<std::size_t>(h);
+        if (w <= 0 || h <= 0 || depth.size() != pixels) return;
+        auto& radii = m_proc_ctx.dof_scratch->blur_radii;
+        radii.assign(pixels, -1.0f);
+        f32 max_radius = 0.0f;
+        for (i32 y = 0; y < h; ++y) {
+            for (i32 x = 0; x < w; ++x) {
+                const std::size_t idx =
+                    static_cast<std::size_t>(y) * static_cast<std::size_t>(w) +
+                    static_cast<std::size_t>(x);
+                const f32 z = depth[idx];
+                if (!std::isfinite(z) || z <= 0.0f ||
+                    z >= kUnsetDofDepth * 0.5f)
+                    continue;
+                const f32 radius = compute_dof_blur_radius(dof, lens, z);
+                if (!std::isfinite(radius)) continue;
+                // A zero radius is a valid in-focus surface and must remain
+                // eligible as a neighbour of a defocused pixel.
+                radii[idx] = radius;
+                max_radius = std::max(max_radius, radius);
+            }
+        }
+        if (max_radius < 0.5f) return;
+        i32 x0 = 0, y0 = 0, x1 = w, y1 = h;
+        if (clip) {
+            x0 = std::clamp(clip->x0, 0, w);
+            y0 = std::clamp(clip->y0, 0, h);
+            x1 = std::clamp(clip->x1, x0, w);
+            y1 = std::clamp(clip->y1, y0, h);
+            if (x0 >= x1 || y0 >= y1) return;
+        }
+        renderer::apply_per_pixel_dof_disk(
+            framebuffer, depth, radii, x0, y0, x1, y1, max_radius,
+            framebuffer.is_opaque(), std::max(0.0f, dof.highlight_gain),
+            static_cast<int>(dof.iris_blades));
+        return;
+    }
+
     // Forward the incoming (non-owning) span directly to the kernel.
     // No copy: 2,073,600 floats × 4 B = 8 MiB saved per dispatch at 1920×1080.
     renderer::apply_per_pixel_dof(

@@ -106,6 +106,20 @@ void append_shadow_passes_if_needed(
 
         const auto add_shadow = [&](Vec3 travel, rendering::ShadowSettings settings,
                                     f32 bias, std::string_view suffix) {
+            // The caster's authored shadow look overrides the light rig for
+            // this layer only. Absent values keep the rig defaults.
+            if (caster.layer->shadow_opacity) {
+                const f32 authored = std::clamp(*caster.layer->shadow_opacity, 0.0f, 1.0f);
+                settings.opacity *= authored;
+                settings.contact_opacity *= authored;
+                settings.ambient_opacity *= authored;
+            }
+            if (caster.layer->shadow_blur) {
+                const f32 authored = std::clamp(*caster.layer->shadow_blur, 0.0f, 192.0f);
+                settings.blur_radius = authored;
+                settings.contact_blur_radius = authored;
+                settings.ambient_blur_radius = authored;
+            }
             auto shadow_id = graph.add_node(ShadowNode::create(
                 std::string(caster.layer->name) + std::string(suffix),
                 caster.world_z,

@@ -90,11 +90,11 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
              style_plan.extrusion_depth <= 0.0f ||
              style_plan.extrusion_depth > 10000.0f))
             throw std::runtime_error("style.extrusion_depth must be finite and in (0, 10000]");
-        if (style_plan.gel_debug_mode > 5 ||
+        if (style_plan.gel_debug_mode > 7 ||
             (style_plan.gel_debug_mode != 0 &&
              (!style_plan.gel_surface || layer.type != LayerType::Text)))
             throw std::runtime_error(
-                "style.gel_debug_mode must be 0..5 and requires gel_surface on text");
+                "style.gel_debug_mode must be 0..7 and requires gel_surface on text");
         if ((style.contains("gel_light") || style_plan.gel_light_azimuth_radians ||
              style_plan.gel_light_elevation) &&
             (!style_plan.gel_surface || layer.type != LayerType::Text))
@@ -168,12 +168,14 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
             backdrop.rim_light = raw_backdrop.value("rim_light", 0.0f);
             backdrop.refraction = raw_backdrop.value("refraction", 0.0f);
             backdrop.surface_noise = raw_backdrop.value("surface_noise", 0.0f);
+            backdrop.light_wrap = raw_backdrop.value("light_wrap", 0.0f);
             if (!std::isfinite(backdrop.blur) || backdrop.blur < 0.0f || backdrop.blur > 64.0f ||
                 !std::isfinite(backdrop.brightness) || backdrop.brightness < 0.0f || backdrop.brightness > 4.0f ||
                 !std::isfinite(backdrop.saturation) || backdrop.saturation < 0.0f || backdrop.saturation > 4.0f ||
                 !std::isfinite(backdrop.rim_light) || backdrop.rim_light < 0.0f || backdrop.rim_light > 2.0f ||
                 !std::isfinite(backdrop.refraction) || backdrop.refraction < 0.0f || backdrop.refraction > 4.0f ||
-                !std::isfinite(backdrop.surface_noise) || backdrop.surface_noise < 0.0f || backdrop.surface_noise > 0.1f)
+                !std::isfinite(backdrop.surface_noise) || backdrop.surface_noise < 0.0f || backdrop.surface_noise > 0.1f ||
+                !std::isfinite(backdrop.light_wrap) || backdrop.light_wrap < 0.0f || backdrop.light_wrap > 4.0f)
                 throw std::runtime_error("style.backdrop controls are non-finite or outside supported bounds");
             style_plan.backdrop = backdrop;
         }

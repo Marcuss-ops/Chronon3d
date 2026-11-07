@@ -586,6 +586,21 @@ public:
         const sampling::Sampler2D sampler(mask, sampling::EdgeMode::Transparent);
         const float cx = p->center.x * fb.width(), cy = p->center.y * fb.height();
         const float radius = p->radius * std::min(fb.width(), fb.height());
+        const float streak_radius = p->radius * std::max(
+            static_cast<float>(fb.width()) * 0.22f,
+            static_cast<float>(std::min(fb.width(), fb.height())));
+        constexpr int kStreakTaps = 48;
+        std::array<float, kStreakTaps> streak_u{};
+        std::array<float, kStreakTaps> streak_w{};
+        float streak_weight_sum = 0.0f;
+        for (int tap = 0; tap < kStreakTaps; ++tap) {
+            const float u = 2.0f * static_cast<float>(tap) / static_cast<float>(kStreakTaps - 1) - 1.0f;
+            const float w = std::exp(-2.2f * u * u);
+            streak_u[tap] = u;
+            streak_w[tap] = w;
+            streak_weight_sum += w;
+        }
+        const float streak_norm = p->streak / std::max(streak_weight_sum, 1.0e-6f);
         const int x0 = context.clip ? std::clamp(context.clip->x0, 0, fb.width()) : 0;
         const int x1 = context.clip ? std::clamp(context.clip->x1, 0, fb.width()) : fb.width();
         const int y0 = context.clip ? std::clamp(context.clip->y0, 0, fb.height()) : 0;
@@ -596,8 +611,9 @@ public:
             for (int tap = 0; tap < 16; ++tap) {
                 const float theta = 2.0f * std::numbers::pi_v<float> * tap / 16.0f;
                 light = light + sampler.bilinear(px + radius*std::cos(theta), py + radius*std::sin(theta)) * (p->halo/16.0f);
-                const float offset = radius * (2.0f*tap/15.0f - 1.0f);
-                light = light + sampler.bilinear(px + offset, py) * (p->streak/16.0f);
+            }
+            for (int tap = 0; tap < kStreakTaps; ++tap) {
+                light = light + sampler.bilinear(px + streak_u[tap] * streak_radius, py) * (streak_w[tap] * streak_norm);
             }
             light = light * p->intensity;
             if (light.a <= 0.0f) continue;

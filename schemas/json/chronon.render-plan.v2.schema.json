@@ -195,6 +195,8 @@
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "type": { "enum": ["image", "video", "text", "color", "particles", "light", "mesh"] },
+          "shadow_blur": { "type": "number", "minimum": 0, "maximum": 192 },
+          "shadow_opacity": { "type": "number", "minimum": 0, "maximum": 1 },
           "asset": { "type": "string", "minLength": 1 },
           "input_color_space": { "enum": ["srgb", "linearsrgb", "rec709", "displayp3"] },
           "ocio_input_space": { "type": "string", "minLength": 1 },
@@ -354,7 +356,7 @@
               "extrusion_depth": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000, "default": 12 },
               "gel_transmission": { "type": "boolean", "default": true, "description": "Enable local destination-color transmission for gel text; set false for diagnostic ablation." },
               "gel_core": { "type": "boolean", "default": false, "description": "Render text with the composite MTSDF core/body/edge gradient without specular or rim reflections." },
-              "gel_debug_mode": { "type": "integer", "minimum": 0, "maximum": 5, "default": 0, "description": "Diagnostic visualization: 1 composite signed distance, 2 height, 3 surface normals, 4 normal validity heat map, 5 transmission flag and destination alpha. Requires gel_surface." },
+              "gel_debug_mode": { "type": "integer", "minimum": 0, "maximum": 7, "default": 0, "description": "Diagnostic visualization: 1 composite signed distance, 2 height, 3 surface normals, 4 normal validity heat map, 5 transmission flag and destination alpha, 6 binary silhouette at d=0, 7 plateau (N.z>=0.999) vs bevel. Requires gel_surface." },
               "gel_light": {
                 "type": "object", "additionalProperties": false,
                 "description": "Static local light direction for the native gel-text MTSDF surface.",

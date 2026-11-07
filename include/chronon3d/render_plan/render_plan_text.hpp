@@ -18,6 +18,7 @@ struct BackdropBlurStyle {
     float rim_light{0.0f};
     float refraction{0.0f};
     float surface_noise{0.0f};
+    float light_wrap{0.0f};
 };
 
 // Per-text halo parameters. This is distinct from ShadowStyle: shadow is a

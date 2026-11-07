@@ -1,6 +1,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
 
+#include <algorithm>
 #include <utility>
 
 namespace chronon3d {
@@ -111,6 +112,16 @@ LayerBuilder& LayerBuilder::accepts_shadows(bool value) {
 LayerBuilder& LayerBuilder::shadow_catcher(bool value) {
     m_layer.material().shadow_catcher = value;
     if (value) m_layer.material().accepts_shadows = true;
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::shadow_blur(f32 radius_px) {
+    m_layer.shadow_blur = std::clamp(radius_px, 0.0f, 192.0f);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::shadow_opacity(f32 opacity) {
+    m_layer.shadow_opacity = std::clamp(opacity, 0.0f, 1.0f);
     return *this;
 }
 

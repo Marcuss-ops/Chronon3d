@@ -7562,6 +7562,11 @@
                 "minimum": 0,
                 "maximum": 64
               },
+              "light_wrap": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 4
+              },
               "chromatic_dispersion": {
                 "type": "number",
                 "minimum": 0,
@@ -7611,9 +7616,9 @@
               "gel_debug_mode": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 5,
+                "maximum": 7,
                 "default": 0,
-                "description": "Diagnostic visualization: 1 composite signed distance, 2 height, 3 surface normals, 4 normal validity heat map, 5 transmission flag and destination alpha. Requires gel_surface."
+                "description": "Diagnostic visualization: 1 composite signed distance, 2 height, 3 surface normals, 4 normal validity heat map, 5 transmission flag and destination alpha, 6 binary silhouette at d=0, 7 plateau (N.z>=0.999) vs bevel. Requires gel_surface."
               },
               "gel_light": {
                 "type": "object",
@@ -7682,6 +7687,11 @@
                     "type": "number",
                     "minimum": 0,
                     "maximum": 0.1
+                  },
+                  "light_wrap": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 4
                   }
                 }
               },

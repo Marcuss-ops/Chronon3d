@@ -145,6 +145,10 @@ struct Layer {
     BlendMode blend_mode{BlendMode::Normal};
     CompositeOperator composite_operator{CompositeOperator::SourceOver};
     std::optional<BackdropBlurParams> backdrop_blur;
+    // Per-layer shadow look authored by the render plan. Absent keeps the
+    // light rig's radius/opacity, so existing scenes stay byte-identical.
+    std::optional<f32> shadow_blur;
+    std::optional<f32> shadow_opacity;
     DepthRole   depth_role{DepthRole::None};
     f32         depth_offset{0.0f};
     LayoutRules layout{};

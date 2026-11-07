@@ -189,6 +189,7 @@ uint64_t Layer::get_static_hash() const {
         h = hash_combine(h, hash_float_v2(backdrop_blur->rim_light));
         h = hash_combine(h, hash_float_v2(backdrop_blur->refraction));
         h = hash_combine(h, hash_float_v2(backdrop_blur->surface_noise));
+        h = hash_combine(h, hash_float_v2(backdrop_blur->light_wrap));
     }
     for (const auto& node : nodes) {
         h = hash_combine(h, hash_render_node_v2(node));

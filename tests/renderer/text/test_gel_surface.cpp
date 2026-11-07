@@ -148,7 +148,7 @@ TEST_CASE("gel body Beer-Lambert absorption darkens the dome more than its rim")
     using namespace chronon3d::text::gel;
 
     const Color cyan{0.25f, 0.9f, 1.0f, 0.75f};
-    const Color sigma{1.2f, 0.4f, 0.05f, 0.0f};
+    const Color sigma{0.45f, 0.12f, 0.02f, 0.0f};
     const auto rim = absorb(cyan, sigma, 0.0f);
     const auto body = absorb(cyan, sigma, 1.0f);
     CHECK(rim.r == doctest::Approx(cyan.r));

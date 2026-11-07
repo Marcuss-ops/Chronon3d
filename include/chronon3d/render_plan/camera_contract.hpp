@@ -36,7 +36,7 @@ namespace chronon3d::render_plan {
     // Iris polygons still have no implementation. Highlight weighting is
     // supported by both software and Vulkan circular-bokeh kernels.
     if (dof_shape_unsupported(c.iris_blades))
-        return "unsupported camera capability: iris-shaped bokeh has no renderer kernel";
+        return "unsupported camera capability: iris_blades must be 0 (circle) or 3..12 (regular polygon)";
     return std::nullopt;
 }
 

@@ -1,0 +1,479 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-final-streak",
+  "canvas": {
+    "width": 1094,
+    "height": 143,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1060
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 40,
+    "near": 10,
+    "far": 5000,
+    "zoom": 4000
+  },
+  "layers": [
+    {
+      "id": "plate",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-stress-20261105/gel-reference-plate-20261106.png",
+      "fit": "stretch",
+      "size": [
+        1094,
+        143
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "enable_3d": false,
+      "screen_space": true,
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "backing-calories",
+      "type": "text",
+      "text": "calories",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        -1218,
+        113,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "screen_space": false,
+      "scale": [
+        5.522,
+        5.823
+      ],
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 71,
+        "fill": "#0A2BFF",
+        "extruded_text": true,
+        "extrusion_depth": 18.0
+      }
+    },
+    {
+      "id": "backing-or",
+      "type": "text",
+      "text": "or",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        133,
+        113,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "screen_space": false,
+      "scale": [
+        6.657,
+        5.823
+      ],
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 71,
+        "fill": "#0A2BFF",
+        "extruded_text": true,
+        "extrusion_depth": 18.0
+      }
+    },
+    {
+      "id": "backing-ingredients",
+      "type": "text",
+      "text": "ingredients",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        1935,
+        113,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "screen_space": false,
+      "scale": [
+        5.642,
+        5.823
+      ],
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 71,
+        "fill": "#0A2BFF",
+        "extruded_text": true,
+        "extrusion_depth": 18.0
+      }
+    },
+    {
+      "id": "streak-calories",
+      "type": "text",
+      "text": "calories",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        -1223,
+        118,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "screen_space": false,
+      "scale": [
+        5.5,
+        5.8
+      ],
+      "opacity": 0.14,
+      "blend_mode": "add",
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 71,
+        "fill": "#00DFFF"
+      },
+      "effects": [
+        {
+          "type": "directional_blur",
+          "angle": 0.0,
+          "length": 70.0,
+          "samples": 0
+        }
+      ]
+    },
+    {
+      "id": "streak-or",
+      "type": "text",
+      "text": "or",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        128,
+        118,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "screen_space": false,
+      "scale": [
+        6.63,
+        5.8
+      ],
+      "opacity": 0.14,
+      "blend_mode": "add",
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 71,
+        "fill": "#00DFFF"
+      },
+      "effects": [
+        {
+          "type": "directional_blur",
+          "angle": 0.0,
+          "length": 70.0,
+          "samples": 0
+        }
+      ]
+    },
+    {
+      "id": "streak-ingredients",
+      "type": "text",
+      "text": "ingredients",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        1930,
+        118,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "screen_space": false,
+      "scale": [
+        5.62,
+        5.8
+      ],
+      "opacity": 0.14,
+      "blend_mode": "add",
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 71,
+        "fill": "#00DFFF"
+      },
+      "effects": [
+        {
+          "type": "directional_blur",
+          "angle": 0.0,
+          "length": 70.0,
+          "samples": 0
+        }
+      ]
+    },
+    {
+      "id": "face-calories",
+      "type": "text",
+      "text": "calories",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        -1223,
+        118,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "screen_space": false,
+      "scale": [
+        5.5,
+        5.8
+      ],
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 71,
+        "fill": "#00DFFF",
+        "gel_surface": true,
+        "gel_transmission": false
+      },
+      "effects": [
+        {
+          "type": "drop_shadow",
+          "radius": 1.5,
+          "offset": [
+            1.5,
+            2.0
+          ],
+          "color": [
+            0.0,
+            0.02,
+            0.15,
+            0.7
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 16,
+          "intensity": 0.85,
+          "color": [
+            0.1,
+            0.82,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 36,
+          "intensity": 0.45,
+          "color": [
+            0.02,
+            0.3,
+            0.95,
+            1.0
+          ]
+        },
+        {
+          "type": "gaussian_blur",
+          "radius": 0.8
+        },
+        {
+          "type": "chromatic_aberration",
+          "red_offset": 1.0,
+          "blue_offset": -1.0
+        }
+      ]
+    },
+    {
+      "id": "face-or",
+      "type": "text",
+      "text": "or",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        128,
+        118,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "screen_space": false,
+      "scale": [
+        6.63,
+        5.8
+      ],
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 71,
+        "fill": "#00DFFF",
+        "gel_surface": true,
+        "gel_transmission": false
+      },
+      "effects": [
+        {
+          "type": "drop_shadow",
+          "radius": 1.5,
+          "offset": [
+            1.5,
+            2.0
+          ],
+          "color": [
+            0.0,
+            0.02,
+            0.15,
+            0.7
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 16,
+          "intensity": 0.85,
+          "color": [
+            0.1,
+            0.82,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 36,
+          "intensity": 0.45,
+          "color": [
+            0.02,
+            0.3,
+            0.95,
+            1.0
+          ]
+        },
+        {
+          "type": "gaussian_blur",
+          "radius": 0.8
+        },
+        {
+          "type": "chromatic_aberration",
+          "red_offset": 1.0,
+          "blue_offset": -1.0
+        }
+      ]
+    },
+    {
+      "id": "face-ingredients",
+      "type": "text",
+      "text": "ingredients",
+      "size": [
+        1060,
+        130
+      ],
+      "position": [
+        1930,
+        118,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "screen_space": false,
+      "scale": [
+        5.62,
+        5.8
+      ],
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 71,
+        "fill": "#00DFFF",
+        "gel_surface": true,
+        "gel_transmission": false
+      },
+      "effects": [
+        {
+          "type": "drop_shadow",
+          "radius": 1.5,
+          "offset": [
+            1.5,
+            2.0
+          ],
+          "color": [
+            0.0,
+            0.02,
+            0.15,
+            0.7
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 16,
+          "intensity": 0.85,
+          "color": [
+            0.1,
+            0.82,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 36,
+          "intensity": 0.45,
+          "color": [
+            0.02,
+            0.3,
+            0.95,
+            1.0
+          ]
+        },
+        {
+          "type": "gaussian_blur",
+          "radius": 0.8
+        },
+        {
+          "type": "chromatic_aberration",
+          "red_offset": 1.0,
+          "blue_offset": -1.0
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "docs/evidence/gel-final-20261107/final-streak.rgba",
+    "format": "png"
+  }
+}

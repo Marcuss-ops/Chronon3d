@@ -1,0 +1,33 @@
+{
+  "method": {
+    "verybright_core": "G>190, B>235, R<150; 5x5 erosion (2 px); ROI [35,20,1060,120]",
+    "bright_core": "G>150, B>200, R<130; 9x9 erosion (4 px); same ROI",
+    "compare": "only the plate behind the title differs; OFF vs ON changes gel_transmission"
+  },
+  "verybright_core": {
+    "pixels": 2992,
+    "final_vs_checker_off": {
+      "max_abs_rgb_delta": 0,
+      "pixels_gt_2": 0,
+      "mean_delta": 0.0
+    },
+    "checker_off_vs_on": {
+      "max_abs_rgb_delta": 42,
+      "pixels_gt_2": 2992,
+      "mean_delta": 8.9505
+    }
+  },
+  "bright_core": {
+    "pixels": 1161,
+    "final_vs_checker_off": {
+      "max_abs_rgb_delta": 0,
+      "pixels_gt_2": 0,
+      "mean_delta": 0.0
+    },
+    "checker_off_vs_on": {
+      "max_abs_rgb_delta": 38,
+      "pixels_gt_2": 1161,
+      "mean_delta": 7.6813
+    }
+  }
+}

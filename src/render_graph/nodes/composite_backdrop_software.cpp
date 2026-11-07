@@ -163,6 +163,39 @@ NodeExecResult execute_backdrop_software(
                     backdrop.b += rim;
                 }
             }
+            // Light wrap: bleed the backdrop's blurred luminance over the
+            // layer's inner alpha edge. The edge mask peaks where the layer's
+            // own alpha is above its local neighbourhood average, i.e. just
+            // inside the contour, so the glow never spills outside the layer.
+            if (settings.light_wrap > 0.0f && coverage > 0.0f) {
+                float neighbour_sum = 0.0f;
+                int neighbour_count = 0;
+                for (int oy = -1; oy <= 1; ++oy) for (int ox = -1; ox <= 1; ++ox) {
+                    if (ox == 0 && oy == 0) continue;
+                    const int nx = x + ox, ny = y + oy;
+                    if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                    if (nx < top.origin_x() || ny < top.origin_y() ||
+                        nx >= top.origin_x() + top.width() ||
+                        ny >= top.origin_y() + top.height()) continue;
+                    neighbour_sum += std::clamp(
+                        top.pixels_row(ny - top.origin_y())[nx - top.origin_x()].a /
+                            max_alpha, 0.0f, 1.0f);
+                    ++neighbour_count;
+                }
+                const float average = neighbour_count > 0
+                    ? neighbour_sum / static_cast<float>(neighbour_count) : coverage;
+                const float inner_edge = std::clamp((coverage - average) * 2.0f, 0.0f, 1.0f);
+                if (inner_edge > 0.0f) {
+                    const Color& wrap_source = blurred[static_cast<std::size_t>(y) * width + x];
+                    const float wrap_luma =
+                        0.2126f * wrap_source.r + 0.7152f * wrap_source.g +
+                        0.0722f * wrap_source.b;
+                    const float wrap = wrap_luma * inner_edge * settings.light_wrap;
+                    backdrop.r += wrap;
+                    backdrop.g += wrap;
+                    backdrop.b += wrap;
+                }
+            }
             if (top_row && x >= top.origin_x() && x < top.origin_x() + top.width()) {
                 const Color& gel = top_row[x - top.origin_x()];
                 if (gel_transmission && mode == BlendMode::Normal) {
