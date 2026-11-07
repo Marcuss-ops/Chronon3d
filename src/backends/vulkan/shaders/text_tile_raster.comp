@@ -300,13 +300,19 @@ float evaluate_composite_gel_distance(vec2 sample_pos, uint count,
             d_composite = d_glyph;
             has_sample = true;
         } else {
-            // Smooth union ONLY where two glyphs actually touch or overlap.
-            // Separated letters and internal counters stay exact max(a, b).
-            float contact = smoothstep(-1.25, 0.35, min(d_composite, d_glyph));
             float u_max = max(d_composite, d_glyph);
-            float u_smooth = smooth_union_distance(
-                d_composite, d_glyph, 0.55 / max(texel_to_screen, 0.5));
-            d_composite = mix(u_max, u_smooth, contact);
+            // Soft fusion is authorable and only blends glyphs near contact.
+            // The exact union remains when disabled.
+            if ((run.effect_flags & (1u << 10u)) != 0u) {
+                float contact = smoothstep(
+                    -1.25, 0.35, min(d_composite, d_glyph));
+                float u_smooth = smooth_union_distance(
+                    d_composite, d_glyph,
+                    0.55 / max(texel_to_screen, 0.5));
+                d_composite = mix(u_max, u_smooth, contact);
+            } else {
+                d_composite = u_max;
+            }
         }
     }
     owner_gid = best_gid;
@@ -314,11 +320,22 @@ float evaluate_composite_gel_distance(vec2 sample_pos, uint count,
     return d_composite;
 }
 
+float gel_dome_height(float u) {
+    float u2 = u * u;
+    float u3 = u2 * u;
+    return u3 * (u * (u * 6.0 - 15.0) + 10.0);
+}
+
+float gel_dome_slope(float u) {
+    float one_minus_u = 1.0 - u;
+    return 30.0 * u * u * one_minus_u * one_minus_u;
+}
+
 float composite_gel_body_alpha(float d_surf, float radius_px,
                                uint effect_flags) {
     if ((effect_flags & 512u) == 0u) return 1.0;
     float u = clamp(max(d_surf, 0.0) / max(radius_px, 1e-4), 0.0, 1.0);
-    float dome = u * (2.0 - u);
+    float dome = gel_dome_height(u);
     float optical_thickness = clamp(0.35 + 1.45 * dome, 0.0, 2.0);
     // Scalar alpha is the source-over transmission contract at the composite
     // stage. The old path sampled dst_image here, but text is rasterized to a
@@ -344,9 +361,9 @@ vec3 shade_composite_gel_surface(
     // by the reference title.
     float radius_px = clamp(5.2 * texel_to_screen, 1.6, 96.0);
     float u = clamp(max(d_surf, 0.0) / radius_px, 0.0, 1.0);
-    // Keep the GPU height and normal on the same limited-slope profile as
-    // text::gel::rounded_height(): h/r = u(2-u), dh/du = 2(1-u).
-    float dome = u * (2.0 - u);
+    // Keep the GPU height and normal on the C2 smootherstep profile used by
+    // text::gel::rounded_height(): h/r = 6u^5 - 15u^4 + 10u^3.
+    float dome = gel_dome_height(u);
     uint diagnostic_mode = (effect_flags >> 6u) & 7u;
     if (diagnostic_mode == 1u) {
         float encoded_distance = 0.5 + 0.5 * clamp(d_surf / radius_px, -1.0, 1.0);
@@ -377,7 +394,7 @@ vec3 shade_composite_gel_surface(
     }
 
     // 2. Stage 03 (GEL-02 / GEL-03 Glossy surface): height & normal reconstruction.
-    float dh_dd = 2.0 * (1.0 - u);
+    float dh_dd = gel_dome_slope(u);
     float dhdx = dh_dd * sdf_gradient.x;
     float dhdy = dh_dd * sdf_gradient.y;
     vec3 N = normalize(vec3(-dhdx, -dhdy, 1.0));
@@ -444,13 +461,32 @@ vec3 shade_composite_gel_surface(
     vec3 broad_specular = broad_tint * (0.42 * pow(ndoth, broad_exp) * crest_mask);
     vec3 sharp_specular = sharp_tint * (0.34 * pow(ndoth, sharp_exp) *
                           smoothstep(0.06, 0.38, u) * (1.0 - 0.55 * geom_roughness));
+    // Colored internal caustic lobe between the broad body reflection and
+    // sharp white glint. The hue follows the light-facing flank, producing
+    // the cyan-to-mint variation visible in the reference.
+    float caustic_lobe = pow(ndoth, mix(20.0, 11.0, geom_roughness)) *
+                         smoothstep(0.04, 0.34, u) *
+                         (1.0 - 0.35 * geom_roughness);
+    float caustic_hue = clamp(0.5 + 0.5 * dot(N.xy, L.xy), 0.0, 1.0);
+    vec3 caustic_tint = mix(vec3(0.24, 1.00, 0.58),
+                            vec3(0.28, 0.72, 1.00), caustic_hue);
+    vec3 caustic_specular = caustic_tint * (0.34 * caustic_lobe);
 
-    // Grazing Fresnel rim light with subtle cyan-azure chromatic tint.
-    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.2);
+    // Schlick-like grazing response plus an SDF edge coat. The C2 dome has
+    // zero slope at the exact silhouette, so the distance term preserves a
+    // narrow reflective rim there instead of making the perimeter go dark.
+    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.5);
+    float edge_coat = 1.0 - smoothstep(0.15 * texel_to_screen,
+                                      3.0 * texel_to_screen,
+                                      max(d_surf, 0.0));
+    float rim_response = max(fresnel, 0.78 * edge_coat);
     float rim_dir = 0.35 + 0.65 * max(dot(N.xy, L.xy), 0.0);
-    vec3 rim_light = mix(c_norm, vec3(0.35, 0.82, 1.00), 0.5) * (0.18 * fresnel * rim_dir);
+    vec3 rim_tint = mix(vec3(0.20, 0.86, 1.00),
+                        vec3(0.38, 1.00, 0.78), caustic_hue);
+    vec3 rim_light = rim_tint * (0.62 * rim_response * rim_dir);
 
-    return shaded_face + broad_specular + sharp_specular + rim_light;
+    return shaded_face + broad_specular + caustic_specular +
+           sharp_specular + rim_light;
 }
 
 void main() {

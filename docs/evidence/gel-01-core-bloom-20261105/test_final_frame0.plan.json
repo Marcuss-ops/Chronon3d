@@ -1,0 +1,1750 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-25d-abstract-camera-1080p",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      -180.0,
+      -105.0,
+      -2200.0
+    ],
+    "rotation_deg": [
+      4.2,
+      11.5,
+      -5.5
+    ],
+    "fov_deg": 34.0,
+    "near": 10.0,
+    "far": 8000.0,
+    "zoom": 1000.0,
+    "dof": {
+      "enabled": false,
+      "focus_distance": 980.0,
+      "f_stop": 1.6,
+      "max_blur": 22.0
+    }
+  },
+  "camera_samples": [
+    {
+      "frame": 0.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -180.0,
+          -105.0,
+          -2200.0
+        ],
+        "rotation_deg": [
+          4.2,
+          11.5,
+          -5.5
+        ],
+        "fov_deg": 34.0,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 980.0,
+          "f_stop": 1.6,
+          "max_blur": 22.0
+        }
+      }
+    }
+  ],
+  "output": {
+    "path": "docs/evidence/gel-01-core-bloom-20261105/gel-25d-abstract-camera-1080p.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "fit": "cover",
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "far_aurora_indigo_nw",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.95,
+      "size": [
+        1640.0,
+        1640.0
+      ],
+      "position": [
+        -420.0,
+        -240.0,
+        760.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.11,
+                0.24,
+                0.82,
+                0.72
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.05,
+                0.11,
+                0.44,
+                0.34
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.11,
+                0.24,
+                0.82,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -420.0
+              },
+              {
+                "frame": 75,
+                "value": -280.0
+              },
+              {
+                "frame": 149,
+                "value": -469.0
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -240.0
+              },
+              {
+                "frame": 75,
+                "value": -165.0
+              },
+              {
+                "frame": 149,
+                "value": -270.0
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 760.0
+              },
+              {
+                "frame": 75,
+                "value": 700.0
+              },
+              {
+                "frame": 149,
+                "value": 760.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "far_aurora_violet_se",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.9,
+      "size": [
+        1520.0,
+        1520.0
+      ],
+      "position": [
+        460.0,
+        230.0,
+        680.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.28,
+                0.12,
+                0.78,
+                0.62
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.09,
+                0.05,
+                0.35,
+                0.28
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.28,
+                0.12,
+                0.78,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 460.0
+              },
+              {
+                "frame": 75,
+                "value": 330.0
+              },
+              {
+                "frame": 149,
+                "value": 505.5
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 230.0
+              },
+              {
+                "frame": 75,
+                "value": 150.0
+              },
+              {
+                "frame": 149,
+                "value": 262.0
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 680.0
+              },
+              {
+                "frame": 75,
+                "value": 730.0
+              },
+              {
+                "frame": 149,
+                "value": 680.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "far_aurora_cyan_core",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.88,
+      "size": [
+        1360.0,
+        1360.0
+      ],
+      "position": [
+        40.0,
+        -30.0,
+        540.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.04,
+                0.56,
+                0.96,
+                0.58
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.02,
+                0.22,
+                0.58,
+                0.24
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.04,
+                0.56,
+                0.96,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 40.0
+              },
+              {
+                "frame": 75,
+                "value": -55.0
+              },
+              {
+                "frame": 149,
+                "value": 73.25
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -30.0
+              },
+              {
+                "frame": 75,
+                "value": 35.0
+              },
+              {
+                "frame": 149,
+                "value": -56.0
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 540.0
+              },
+              {
+                "frame": 75,
+                "value": 495.0
+              },
+              {
+                "frame": 149,
+                "value": 540.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abstract_orbital_ring_back",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.65,
+      "size": [
+        1320.0,
+        1320.0
+      ],
+      "position": [
+        -120.0,
+        40.0,
+        420.0
+      ],
+      "rotation": [
+        62.0,
+        -14.0,
+        18.0
+      ],
+      "scale": [
+        1.15,
+        0.48,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "stroke": {
+          "width": 7.0,
+          "gradient": {
+            "type": "linear",
+            "start": [
+              0.0,
+              0.0
+            ],
+            "end": [
+              1.0,
+              1.0
+            ],
+            "color_stops": [
+              {
+                "position": 0.0,
+                "color": [
+                  0.1,
+                  0.88,
+                  1.0,
+                  0.85
+                ]
+              },
+              {
+                "position": 0.5,
+                "color": [
+                  0.16,
+                  0.42,
+                  0.98,
+                  0.25
+                ]
+              },
+              {
+                "position": 1.0,
+                "color": [
+                  0.58,
+                  0.28,
+                  1.0,
+                  0.78
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.1,
+            0.72,
+            1.0,
+            0.85
+          ],
+          "intensity": 1.1,
+          "radius": 24.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "rotation_z",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 18.0
+              },
+              {
+                "frame": 149,
+                "value": 64.0
+              }
+            ]
+          },
+          {
+            "property": "rotation_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -14.0
+              },
+              {
+                "frame": 75,
+                "value": 12.0
+              },
+              {
+                "frame": 149,
+                "value": -14.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abstract_neon_ribbon_deep",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.8,
+      "size": [
+        1920.0,
+        1080.0
+      ],
+      "position": [
+        0.0,
+        -70.0,
+        340.0
+      ],
+      "rotation": [
+        18.0,
+        -9.0,
+        -7.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -900.0,
+              43.5
+            ]
+          },
+          {
+            "type": "cubic_to",
+            "control1": [
+              -520.0,
+              -290.0
+            ],
+            "control2": [
+              420.0,
+              204.5
+            ],
+            "point": [
+              900.0,
+              -140.5
+            ]
+          }
+        ],
+        "stroke": {
+          "width": 18.0,
+          "cap": "round",
+          "join": "round",
+          "gradient": {
+            "type": "linear",
+            "start": [
+              0.0,
+              0.5
+            ],
+            "end": [
+              1.0,
+              0.5
+            ],
+            "color_stops": [
+              {
+                "position": 0.0,
+                "color": [
+                  0.04,
+                  0.52,
+                  0.98,
+                  0.0
+                ]
+              },
+              {
+                "position": 0.22,
+                "color": [
+                  0.04,
+                  0.52,
+                  0.98,
+                  0.78
+                ]
+              },
+              {
+                "position": 0.52,
+                "color": [
+                  0.24,
+                  0.94,
+                  1.0,
+                  0.92
+                ]
+              },
+              {
+                "position": 0.8,
+                "color": [
+                  0.42,
+                  0.26,
+                  0.98,
+                  0.75
+                ]
+              },
+              {
+                "position": 1.0,
+                "color": [
+                  0.42,
+                  0.26,
+                  0.98,
+                  0.0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.24,
+            0.94,
+            1.0,
+            0.85
+          ],
+          "intensity": 1.15,
+          "radius": 28.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "rotation_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -7.0
+              },
+              {
+                "frame": 75,
+                "value": 2.5
+              },
+              {
+                "frame": 149,
+                "value": -11.75
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -70.0
+              },
+              {
+                "frame": 75,
+                "value": -112.0
+              },
+              {
+                "frame": 149,
+                "value": -46.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abstract_neon_ribbon_mid",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.76,
+      "size": [
+        1920.0,
+        1080.0
+      ],
+      "position": [
+        30.0,
+        85.0,
+        210.0
+      ],
+      "rotation": [
+        -14.0,
+        11.0,
+        6.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -900.0,
+              -8.25
+            ]
+          },
+          {
+            "type": "cubic_to",
+            "control1": [
+              -520.0,
+              260.0
+            ],
+            "control2": [
+              420.0,
+              -137.74999999999997
+            ],
+            "point": [
+              900.0,
+              139.75
+            ]
+          }
+        ],
+        "stroke": {
+          "width": 13.0,
+          "cap": "round",
+          "join": "round",
+          "gradient": {
+            "type": "linear",
+            "start": [
+              0.0,
+              0.5
+            ],
+            "end": [
+              1.0,
+              0.5
+            ],
+            "color_stops": [
+              {
+                "position": 0.0,
+                "color": [
+                  0.32,
+                  0.22,
+                  0.96,
+                  0.0
+                ]
+              },
+              {
+                "position": 0.22,
+                "color": [
+                  0.32,
+                  0.22,
+                  0.96,
+                  0.7
+                ]
+              },
+              {
+                "position": 0.52,
+                "color": [
+                  0.08,
+                  0.82,
+                  1.0,
+                  0.88
+                ]
+              },
+              {
+                "position": 0.8,
+                "color": [
+                  0.52,
+                  0.96,
+                  1.0,
+                  0.76
+                ]
+              },
+              {
+                "position": 1.0,
+                "color": [
+                  0.52,
+                  0.96,
+                  1.0,
+                  0.0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.08,
+            0.82,
+            1.0,
+            0.85
+          ],
+          "intensity": 1.15,
+          "radius": 28.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "rotation_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 6.0
+              },
+              {
+                "frame": 75,
+                "value": -2.0
+              },
+              {
+                "frame": 149,
+                "value": 10.0
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 85.0
+              },
+              {
+                "frame": 75,
+                "value": 43.0
+              },
+              {
+                "frame": 149,
+                "value": 109.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mid_glass_orb_left",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.84,
+      "size": [
+        420.0,
+        420.0
+      ],
+      "position": [
+        -520.0,
+        -155.0,
+        165.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.72,
+                0.98,
+                1.0,
+                0.82
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.08,
+                0.62,
+                0.98,
+                0.38
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.72,
+                0.98,
+                1.0,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -520.0
+              },
+              {
+                "frame": 75,
+                "value": -450.0
+              },
+              {
+                "frame": 149,
+                "value": -544.5
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -155.0
+              },
+              {
+                "frame": 75,
+                "value": -107.0
+              },
+              {
+                "frame": 149,
+                "value": -174.2
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 165.0
+              },
+              {
+                "frame": 75,
+                "value": 130.0
+              },
+              {
+                "frame": 149,
+                "value": 165.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mid_glass_orb_right",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.82,
+      "size": [
+        480.0,
+        480.0
+      ],
+      "position": [
+        545.0,
+        145.0,
+        135.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.54,
+                0.92,
+                1.0,
+                0.78
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.14,
+                0.36,
+                0.96,
+                0.34
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.54,
+                0.92,
+                1.0,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 545.0
+              },
+              {
+                "frame": 75,
+                "value": 463.0
+              },
+              {
+                "frame": 149,
+                "value": 573.7
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 145.0
+              },
+              {
+                "frame": 75,
+                "value": 93.0
+              },
+              {
+                "frame": 149,
+                "value": 165.8
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 135.0
+              },
+              {
+                "frame": 75,
+                "value": 165.0
+              },
+              {
+                "frame": 149,
+                "value": 135.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "kicker_depth_plane",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "position": [
+        960.0,
+        345.0,
+        95.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "CHRONON 2.5D OPTICAL GEL SURFACE",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 34.0,
+        "fill": "#A8ECFF"
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.1,
+            0.68,
+            1.0,
+            0.85
+          ],
+          "intensity": 0.95,
+          "radius": 18.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_z",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 240.0
+              },
+              {
+                "frame": 33,
+                "value": 95.0
+              },
+              {
+                "frame": 149,
+                "value": 75.0
+              }
+            ]
+          },
+          {
+            "property": "opacity",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.15
+              },
+              {
+                "frame": 22,
+                "value": 0.82
+              },
+              {
+                "frame": 149,
+                "value": 0.82
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "hero_gel_25d_title",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "position": [
+        960.0,
+        535.0,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "calories or ingredients",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 112,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "text_animators": [
+        {
+          "id": "hero_tracking_sweep",
+          "selectors": [
+            {
+              "unit": "line",
+              "shape": "square",
+              "order": "forward",
+              "combine": "replace",
+              "exclude_spaces": true
+            }
+          ],
+          "properties": [
+            {
+              "property": "tracking",
+              "easing": "linear",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 4
+                },
+                {
+                  "frame": 37,
+                  "value": 0
+                },
+                {
+                  "frame": 82,
+                  "value": -16
+                },
+                {
+                  "frame": 117,
+                  "value": 8
+                },
+                {
+                  "frame": 149,
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.18,
+            0.9,
+            1.0,
+            1.0
+          ],
+          "intensity": 1.18,
+          "radius": 22.0
+        },
+        {
+          "type": "glow",
+          "color": [
+            0.04,
+            0.36,
+            1.0,
+            1.0
+          ],
+          "intensity": 1.45,
+          "radius": 68.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_z",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -220.0
+              },
+              {
+                "frame": 33,
+                "value": 0.0
+              },
+              {
+                "frame": 112,
+                "value": 0.0
+              },
+              {
+                "frame": 149,
+                "value": -35.0
+              }
+            ]
+          },
+          {
+            "property": "rotation_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -8.5
+              },
+              {
+                "frame": 42,
+                "value": 2.2
+              },
+              {
+                "frame": 97,
+                "value": -3.4
+              },
+              {
+                "frame": 149,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "property": "rotation_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 4.0
+              },
+              {
+                "frame": 57,
+                "value": -1.5
+              },
+              {
+                "frame": 149,
+                "value": 1.2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "subtitle_depth_plane",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "position": [
+        960.0,
+        725.0,
+        -75.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "COMPOSITE SDF DOME  \u2022  DUAL-HALO HDR BLOOM  \u2022  2.5D CAMERA RIG & DOF",
+      "style": {
+        "font": "assets/fonts/Inter-Regular.ttf",
+        "font_size": 26.0,
+        "fill": "#C8F4FF"
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.06,
+            0.52,
+            1.0,
+            0.8
+          ],
+          "intensity": 0.75,
+          "radius": 14.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_z",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -340.0
+              },
+              {
+                "frame": 37,
+                "value": -75.0
+              },
+              {
+                "frame": 149,
+                "value": -95.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "fg_bokeh_orb_cyan_left",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.68,
+      "size": [
+        300.0,
+        300.0
+      ],
+      "position": [
+        -640.0,
+        290.0,
+        -250.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.3,
+                0.95,
+                1.0,
+                0.52
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.06,
+                0.48,
+                0.98,
+                0.18
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.3,
+                0.95,
+                1.0,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -640.0
+              },
+              {
+                "frame": 75,
+                "value": -475.0
+              },
+              {
+                "frame": 149,
+                "value": -697.75
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 290.0
+              },
+              {
+                "frame": 75,
+                "value": 195.0
+              },
+              {
+                "frame": 149,
+                "value": 328.0
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -250.0
+              },
+              {
+                "frame": 75,
+                "value": -280.0
+              },
+              {
+                "frame": 149,
+                "value": -250.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "fg_bokeh_orb_blue_right",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.62,
+      "size": [
+        350.0,
+        350.0
+      ],
+      "position": [
+        680.0,
+        -275.0,
+        -290.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.22,
+                0.68,
+                1.0,
+                0.46
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.08,
+                0.24,
+                0.92,
+                0.15
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.22,
+                0.68,
+                1.0,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 680.0
+              },
+              {
+                "frame": 75,
+                "value": 505.0
+              },
+              {
+                "frame": 149,
+                "value": 741.25
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -275.0
+              },
+              {
+                "frame": 75,
+                "value": -187.0
+              },
+              {
+                "frame": 149,
+                "value": -310.2
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -290.0
+              },
+              {
+                "frame": 75,
+                "value": -265.0
+              },
+              {
+                "frame": 149,
+                "value": -290.0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,562 @@
+{
+  "threshold": "max RGB > 40",
+  "sampled_frames": [
+    {
+      "frame": 0,
+      "bbox": [
+        617,
+        356,
+        662,
+        363
+      ],
+      "coverage": 280
+    },
+    {
+      "frame": 1,
+      "bbox": [
+        55,
+        305,
+        1224,
+        416
+      ],
+      "coverage": 43647
+    },
+    {
+      "frame": 2,
+      "bbox": [
+        0,
+        284,
+        1279,
+        421
+      ],
+      "coverage": 58596
+    },
+    {
+      "frame": 3,
+      "bbox": [
+        15,
+        260,
+        1279,
+        422
+      ],
+      "coverage": 66018
+    },
+    {
+      "frame": 4,
+      "bbox": [
+        0,
+        233,
+        1279,
+        421
+      ],
+      "coverage": 75783
+    },
+    {
+      "frame": 5,
+      "bbox": [
+        0,
+        203,
+        1272,
+        416
+      ],
+      "coverage": 85410
+    },
+    {
+      "frame": 6,
+      "bbox": [
+        0,
+        170,
+        1279,
+        408
+      ],
+      "coverage": 91759
+    },
+    {
+      "frame": 7,
+      "bbox": [
+        0,
+        133,
+        1279,
+        397
+      ],
+      "coverage": 102003
+    },
+    {
+      "frame": 8,
+      "bbox": [
+        0,
+        94,
+        1279,
+        383
+      ],
+      "coverage": 108435
+    },
+    {
+      "frame": 9,
+      "bbox": [
+        0,
+        51,
+        1279,
+        366
+      ],
+      "coverage": 114181
+    },
+    {
+      "frame": 10,
+      "bbox": [
+        0,
+        5,
+        1279,
+        345
+      ],
+      "coverage": 126795
+    },
+    {
+      "frame": 11,
+      "bbox": [
+        0,
+        0,
+        1279,
+        321
+      ],
+      "coverage": 134611
+    },
+    {
+      "frame": 12,
+      "bbox": [
+        0,
+        0,
+        1279,
+        295
+      ],
+      "coverage": 132352
+    },
+    {
+      "frame": 13,
+      "bbox": [
+        0,
+        0,
+        1271,
+        265
+      ],
+      "coverage": 106144
+    },
+    {
+      "frame": 14,
+      "bbox": [
+        0,
+        0,
+        1279,
+        232
+      ],
+      "coverage": 82061
+    },
+    {
+      "frame": 15,
+      "bbox": [
+        140,
+        0,
+        1279,
+        195
+      ],
+      "coverage": 58184
+    },
+    {
+      "frame": 16,
+      "bbox": [
+        138,
+        0,
+        1279,
+        156
+      ],
+      "coverage": 32736
+    },
+    {
+      "frame": 17,
+      "bbox": [
+        186,
+        0,
+        1279,
+        111
+      ],
+      "coverage": 4910
+    },
+    {
+      "frame": 18,
+      "bbox": [
+        1239,
+        0,
+        1279,
+        54
+      ],
+      "coverage": 1682
+    },
+    {
+      "frame": 19,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 20,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 21,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 22,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 23,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 24,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 25,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 26,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 27,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 28,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 29,
+      "bbox": null,
+      "coverage": 0
+    },
+    {
+      "frame": 30,
+      "bbox": [
+        233,
+        183,
+        1096,
+        251
+      ],
+      "coverage": 23519
+    },
+    {
+      "frame": 31,
+      "bbox": [
+        242,
+        195,
+        1083,
+        265
+      ],
+      "coverage": 22564
+    },
+    {
+      "frame": 32,
+      "bbox": [
+        252,
+        207,
+        1070,
+        278
+      ],
+      "coverage": 21630
+    },
+    {
+      "frame": 33,
+      "bbox": [
+        262,
+        219,
+        1056,
+        290
+      ],
+      "coverage": 20497
+    },
+    {
+      "frame": 34,
+      "bbox": [
+        272,
+        230,
+        1042,
+        301
+      ],
+      "coverage": 19527
+    },
+    {
+      "frame": 35,
+      "bbox": [
+        282,
+        242,
+        1028,
+        312
+      ],
+      "coverage": 18560
+    },
+    {
+      "frame": 36,
+      "bbox": [
+        293,
+        254,
+        1013,
+        323
+      ],
+      "coverage": 17199
+    },
+    {
+      "frame": 37,
+      "bbox": [
+        304,
+        266,
+        997,
+        332
+      ],
+      "coverage": 15995
+    },
+    {
+      "frame": 38,
+      "bbox": [
+        316,
+        278,
+        982,
+        341
+      ],
+      "coverage": 15005
+    },
+    {
+      "frame": 39,
+      "bbox": [
+        327,
+        289,
+        967,
+        349
+      ],
+      "coverage": 13796
+    },
+    {
+      "frame": 40,
+      "bbox": [
+        339,
+        299,
+        952,
+        357
+      ],
+      "coverage": 12783
+    },
+    {
+      "frame": 41,
+      "bbox": [
+        352,
+        308,
+        936,
+        364
+      ],
+      "coverage": 11663
+    },
+    {
+      "frame": 42,
+      "bbox": [
+        364,
+        317,
+        921,
+        370
+      ],
+      "coverage": 10663
+    },
+    {
+      "frame": 43,
+      "bbox": [
+        377,
+        326,
+        906,
+        376
+      ],
+      "coverage": 9575
+    },
+    {
+      "frame": 44,
+      "bbox": [
+        390,
+        333,
+        890,
+        381
+      ],
+      "coverage": 8664
+    },
+    {
+      "frame": 45,
+      "bbox": [
+        403,
+        340,
+        875,
+        385
+      ],
+      "coverage": 7862
+    },
+    {
+      "frame": 46,
+      "bbox": [
+        416,
+        347,
+        860,
+        389
+      ],
+      "coverage": 7008
+    },
+    {
+      "frame": 47,
+      "bbox": [
+        430,
+        352,
+        845,
+        392
+      ],
+      "coverage": 6154
+    },
+    {
+      "frame": 48,
+      "bbox": [
+        444,
+        357,
+        830,
+        394
+      ],
+      "coverage": 5357
+    },
+    {
+      "frame": 49,
+      "bbox": [
+        457,
+        362,
+        815,
+        396
+      ],
+      "coverage": 4693
+    },
+    {
+      "frame": 50,
+      "bbox": [
+        471,
+        365,
+        800,
+        397
+      ],
+      "coverage": 4129
+    },
+    {
+      "frame": 51,
+      "bbox": [
+        486,
+        368,
+        785,
+        397
+      ],
+      "coverage": 3415
+    },
+    {
+      "frame": 52,
+      "bbox": [
+        500,
+        371,
+        771,
+        396
+      ],
+      "coverage": 2906
+    },
+    {
+      "frame": 53,
+      "bbox": [
+        514,
+        372,
+        756,
+        395
+      ],
+      "coverage": 2355
+    },
+    {
+      "frame": 54,
+      "bbox": [
+        529,
+        373,
+        742,
+        394
+      ],
+      "coverage": 1862
+    },
+    {
+      "frame": 55,
+      "bbox": [
+        543,
+        374,
+        728,
+        391
+      ],
+      "coverage": 1458
+    },
+    {
+      "frame": 56,
+      "bbox": [
+        558,
+        373,
+        714,
+        388
+      ],
+      "coverage": 1131
+    },
+    {
+      "frame": 57,
+      "bbox": [
+        572,
+        372,
+        700,
+        384
+      ],
+      "coverage": 830
+    },
+    {
+      "frame": 58,
+      "bbox": [
+        587,
+        371,
+        686,
+        380
+      ],
+      "coverage": 544
+    },
+    {
+      "frame": 59,
+      "bbox": [
+        602,
+        368,
+        673,
+        375
+      ],
+      "coverage": 347
+    },
+    {
+      "frame": 60,
+      "bbox": [
+        183,
+        480,
+        1045,
+        536
+      ],
+      "coverage": 20034
+    }
+  ],
+  "first_blank_frame": 19,
+  "hash_sha256": "d7a42afec2429937b18d04e2e49afedd5ccf8f64b3d73616ec38c6804b31bc16"
+}

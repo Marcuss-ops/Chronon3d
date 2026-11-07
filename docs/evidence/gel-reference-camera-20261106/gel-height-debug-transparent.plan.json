@@ -1,0 +1,99 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "reference-word-spacing-liberation-mono-calibrated-20261106",
+  "canvas": {
+    "width": 1094,
+    "height": 143,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "gel-calories",
+      "type": "text",
+      "text": "calories",
+      "size": [
+        500,
+        130
+      ],
+      "position": [
+        220,
+        72
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 62,
+        "fill": "#00DFFF",
+        "gel_surface": true,
+        "gel_debug_mode": 2
+      },
+      "effects": [],
+      "scale": [
+        1.16,
+        1.03
+      ]
+    },
+    {
+      "id": "gel-or",
+      "type": "text",
+      "text": "or",
+      "size": [
+        200,
+        130
+      ],
+      "position": [
+        476,
+        72
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 62,
+        "fill": "#00DFFF",
+        "gel_surface": true,
+        "gel_debug_mode": 2
+      },
+      "effects": [],
+      "scale": [
+        1.16,
+        1.03
+      ]
+    },
+    {
+      "id": "gel-ingredients",
+      "type": "text",
+      "text": "ingredients",
+      "size": [
+        600,
+        130
+      ],
+      "position": [
+        799,
+        72
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf",
+        "font_size": 62,
+        "fill": "#00DFFF",
+        "gel_surface": true,
+        "gel_debug_mode": 2
+      },
+      "effects": [],
+      "scale": [
+        1.16,
+        1.03
+      ]
+    }
+  ],
+  "output": {
+    "path": "docs/evidence/gel-reference-camera-20261106/reference-word-spacing-liberation-mono-calibrated.rgba",
+    "format": "png"
+  }
+}

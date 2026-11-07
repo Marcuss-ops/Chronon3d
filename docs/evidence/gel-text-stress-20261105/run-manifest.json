@@ -1,0 +1,760 @@
+{
+  "recorded_at_utc": "2026-11-06 (T14 strict Vulkan raw readback ON/OFF verified; -j14 build 578/578)",
+  "source_commit": "533b6ab8cef58d86cb421bcc9cb0568fafd0587b",
+  "source_branch": "main",
+  "working_tree": "dirty; WIP existed before this diagnostic run",
+  "tracked_diff_sha256": "7dcef236988972d4ad9f34f328c30743be175421f3f76ee217b9169bc03355dd",
+  "status_entries": 122,
+  "gpu": {
+    "name": "NVIDIA RTX A4000",
+    "driver": "595.99.02",
+    "vulkan_api": "1.4.329",
+    "device_index": 0
+  },
+  "build": {
+    "requested_jobs": 14,
+    "successful_configured_tree": "build/chronon/linux-video-release",
+    "targets": [
+      "chronon3d_cli",
+      "chronon3d_renderer_core_tests",
+      "chronon3d_text_tile_raster_canary_tests",
+      "chronon3d_backend_registry_tests"
+    ],
+    "result": "PASS: final Vulkan-enabled build 652/652 steps at -j14; all four targets linked.",
+    "test_results": {
+      "renderer_core": {
+        "result": "PASS",
+        "cases": 217,
+        "assertions": 73361,
+        "log": "gate-renderer-core-20261106.log",
+        "sha256": "cbb2d6cb698e08618cd9ec51b77dc09a40482c132b84423f4cdd2df487fc2007"
+      },
+      "text_tile_vulkan_canary": {
+        "result": "PASS",
+        "cases": 1,
+        "assertions": 105,
+        "strict_device_required": true,
+        "log": "gate-vulkan-canary-20261106.log",
+        "sha256": "8e8d566e960d7699d028714f03ef86bf4acee3ff50457f1d7dca81a4a30b90a0"
+      },
+      "vulkan_gel_composite": {
+        "result": "PASS",
+        "cases": 1,
+        "assertions": 10,
+        "other_cases_skipped": 133,
+        "log": "gate-vulkan-gel-composite-20261106.log",
+        "sha256": "911d75952246da7675615480d500ede929838d681847a88a18aa470e09003776"
+      }
+    }
+  },
+  "scene": {
+    "backend": "vulkan (explicit; no automatic backend fallback)",
+    "lane": "raw pre-encode RGBA8; Vulkan surface readback/conversion for sink",
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "frames": 1,
+    "text": "calories or ingredients",
+    "font": "assets/fonts/Inter-Bold.ttf",
+    "font_sha256": "deb990e241954e1af87c6033d40a76cf0f48e0d112541794526051ac4a3ee2c8",
+    "font_size_px": 90,
+    "tracking_px": 0,
+    "text_layer_size": [
+      1200,
+      220
+    ],
+    "position": [
+      640,
+      360
+    ],
+    "seed": "none/static scene"
+  },
+  "shader": {
+    "path": "src/backends/vulkan/shaders/text_tile_raster.comp",
+    "sha256": "877be16d9479f38402f94d342fec6730c75768e9fbeb5f0064e6b3222be12903"
+  },
+  "plans_sha256": {
+    "T00": "2a559141fe876f008d72c6fba8238493bf0318b7c4967caa72106c32bd2586ad",
+    "T01": "cbaf5e7057e1a691e0abe3c514bbf5762d6bb39a742be723d2574507df72e32d",
+    "T05": "d8e6283f8b21924ba7c78ea89cded6557e919d365e1f60f5cf50380e522eaf1d",
+    "T07-off": "d0a4362db7aca529d6fd3441dc3637425e3c5f9edaad6b32e8265a8a02d64d2d",
+    "T07-on": "a65eed05e9aaba608e99b96920df3709af613f861f4ea49523c37ef8d8710783",
+    "T02": "d68880c4c5b927c67be3d470808a0bab26c886cc4f7fc8738309fa80eb51b47f",
+    "T03": "a797019b1718f3bb4b50a93a9c3cc8dc1b70a89b18b1aecba8ebb47738a435e0",
+    "T04": "d32ac229cbff94c4855eb96de26d10df031de34fe92b5998ee15770f90dbc507",
+    "T04-validation": "e6285875a2cb9eab4bae8b860fa4d93eafd6277898647ef98b95a5ac559f8a7e",
+    "T06": "4b3af9cf2f44992207762f53a50fbb80803473abf1aa53c531e46fee6fa30eb1",
+    "T08": "5918779be1fed13438b8be890b89d63ab1b154649c2557da4aba412d42060f4d",
+    "T09": "d3541dd63e4a42c7f0e5546f5e360cae0cb85638c0f65251033e83586b675318",
+    "T10": "646040ccf8548ff1d8bd419b7f68e06614a87e2cceddb79b87b4f98cb07234e0",
+    "T15": "c4a2f295ff2dd33ab9c7c5784fb2232f7dfa4ced5f7fcb5c7206d4e354266899",
+    "T11": "09f56c31007b03fd3272da67ca02cf7e8a93402c081c7418230030dd67764227",
+    "T13": "c77a28b228af4c1caa81c55aa646d988dcb78022fc1d054056184b1532b01322",
+    "T13-gel": "417a30871935e586faa35b44d6f778800b0fbedaa83a87fc5171361585ee5ab2",
+    "T14-on": "428195da3f99ff4295884dd7debc14b0c7e3868928744515ae7d1c6ae1f7203d",
+    "T14-off": "984f6902141268ea07f4a7897960b8017a3fa0fbc4aefffcdf968a9505b80602"
+  },
+  "raw_sha256": {
+    "T00": "42f9f3a843be05570fe143952016278bfc2cc699965b7cfcea720373b57481f9",
+    "T01": "42f9f3a843be05570fe143952016278bfc2cc699965b7cfcea720373b57481f9",
+    "T05": "46c2bf858499004a0c2e9a10ff27cda9e86f1dfa54ad1e7e001c16418c6232ed",
+    "T07-off": "a63efa9fcd96b0e97c9cb8ed080884af2e4e7e1615f82788c3dc51046cebd07f",
+    "T07-on": "048cdd6f3e41e79192deae69c1701412958b7b52a9fdc411acc7c1e8babadede",
+    "T02": "f0577bddcafa0328ed03bbf717defeb956afa5a80a4c23d2cdcc13115e3648c5",
+    "T03": "36e11ddc7e4b47d8b6090d7e98420dc0660ea3a086bfa84073081877b1be2a5f",
+    "T04": "3102911b95f5ee8630a95a9fb581392e77d69c5d74137390a336d0f748d5c109",
+    "T04-validation": "875c2f3e777ca0e9024a0378764f749484daf21dc2519baeb69e952ffa12d2d3",
+    "T06": "a63efa9fcd96b0e97c9cb8ed080884af2e4e7e1615f82788c3dc51046cebd07f",
+    "T08": "714e79a166711acac9bca9c1ace50a2ba8dbacb7ba9023b090a7e7780b58e6e7",
+    "T09": "a2effe3894c6d8bf316cce738f5832a96500fff425791646f81c5c25bffb9e2c",
+    "T10": "834491c95dfeecace5efe77fb361f9e635db1cc0de4a642352adc8cd6c2b0f9d",
+    "T15-run1": "cdcb1a7c5d5c76c8105dad87c0c095566c74b752a3a7d99e5c4eda93f3ef61b5",
+    "T15-run2": "cdcb1a7c5d5c76c8105dad87c0c095566c74b752a3a7d99e5c4eda93f3ef61b5",
+    "T11": "d7a42afec2429937b18d04e2e49afedd5ccf8f64b3d73616ec38c6804b31bc16",
+    "T13": "73823f681021c57b2a7afeb928a6840c1866a4d63ffa7e97b8241396ba4f23d6",
+    "T13-gel": "c1653b2db24752a7b66a111f4bc8cac5332c56123ad3f6a1e9867d6e945309d1",
+    "T14-on": "a6f918535553f187cfa11d1e903b557e2a9246cc37550353bce3894ebd858467",
+    "T14-off": "a6f918535553f187cfa11d1e903b557e2a9246cc37550353bce3894ebd858467"
+  },
+  "timings": {
+    "T00": {
+      "frame_render_ms": 29.209001,
+      "conversion_ms": 13.432822,
+      "gpu_stage_timestamps": "NOT EMITTED",
+      "total_wall_ms": 2364.881558
+    },
+    "T01": {
+      "frame_render_ms": 30.075232,
+      "conversion_ms": 14.077419,
+      "gpu_stage_timestamps": "NOT EMITTED",
+      "total_wall_ms": 2339.639267
+    },
+    "T05": {
+      "frame_render_ms": 32.159994,
+      "conversion_ms": 12.819515,
+      "gpu_stage_timestamps": "NOT EMITTED",
+      "total_wall_ms": 2336.507971
+    },
+    "T07-off": {
+      "frame_render_ms": 31.128062,
+      "conversion_ms": 13.363792,
+      "gpu_stage_timestamps": "NOT EMITTED",
+      "total_wall_ms": 2354.693753
+    },
+    "T07-on": {
+      "frame_render_ms": 35.714228,
+      "conversion_ms": 11.69793,
+      "gpu_stage_timestamps": "NOT EMITTED",
+      "total_wall_ms": 2418.689394
+    },
+    "T06": {
+      "frame_render_ms": 26.835917,
+      "conversion_ms": 13.39331,
+      "gpu_execute_ms": null,
+      "total_wall_ms": 2298.649282,
+      "gpu_stage_timestamps": "aggregate frame device span only"
+    }
+  },
+  "commands": {
+    "build": "cmake --build build/chronon/linux-video-test --target chronon3d_cli chronon3d_text_tile_raster_canary_tests chronon3d_c_abi_tests -j14",
+    "render": "chronon3d_cli render --plan <ID>.plan.json --assets-root \"$PWD\" --backend vulkan --start-frame 0 --end-frame 0 --video-sink raw --pipe-pixfmt rgba --output <ID>.rgba -v info",
+    "png": "python3 tools/raw_frame_to_png.py --raw <ID>.rgba --width 1280 --height 720 --frame 0 --out <ID>.png",
+    "canary": "JOBS=14 CHRONON3D_REQUIRE_TEXT_CANARY_DEVICE=1 tools/verify_text_tile_gpu_canary.sh",
+    "renderer_core_gel_filter": "build/chronon/linux-video-test/tests/chronon3d_renderer_core_tests --test-case='*gel*'",
+    "gpu_canary": "JOBS=14 CHRONON3D_REQUIRE_TEXT_CANARY_DEVICE=1 tools/verify_text_tile_gpu_canary.sh",
+    "T04_validation_render": "chronon3d_cli render --plan docs/evidence/gel-text-stress-20261105/T04-validation.plan.json --assets-root \"$PWD\" --backend vulkan --start-frame 0 --end-frame 0 --video-sink raw --pipe-pixfmt rgba --output docs/evidence/gel-text-stress-20261105/T04-validation.rgba -v info",
+    "T06_render": "chronon3d_cli render --plan docs/evidence/gel-text-stress-20261105/T06.plan.json --assets-root \"$PWD\" --backend vulkan --start-frame 0 --end-frame 0 --video-sink raw --pipe-pixfmt rgba --output docs/evidence/gel-text-stress-20261105/T06.rgba -v info",
+    "T08_render": "chronon3d_cli render --plan docs/evidence/gel-text-stress-20261105/T08.plan.json --assets-root \"$PWD\" --backend vulkan --start-frame 0 --end-frame 0 --video-sink raw --pipe-pixfmt rgba --output docs/evidence/gel-text-stress-20261105/T08.rgba -v info",
+    "T13_flat_render": "chronon3d_cli render --plan <T13.plan.json> --backend vulkan --start-frame 0 --end-frame 60 --video-sink raw --pipe-pixfmt rgba",
+    "T13_gel_render": "chronon3d_cli render --plan <T13-gel.plan.json> --backend vulkan --start-frame 0 --end-frame 60 --video-sink raw --pipe-pixfmt rgba",
+    "T14_on_off_render": "chronon3d_cli render --plan <T14-{on,off}.plan.json> --backend vulkan --start-frame 0 --end-frame 0 --video-sink raw --pipe-pixfmt rgba"
+  },
+  "gate_status": {
+    "T00": "PASS",
+    "T01": "PASS",
+    "T02": "PASS_LIMITED: independent signed Euclidean distance-transform oracle; one T01/T02 1280x720 raster sample only",
+    "T03": "PASS (height visualization)",
+    "T04": "PASS",
+    "T05": "PASS",
+    "T06": "PASS (single frame)",
+    "T07": "PASS",
+    "T08": "PASS (technical frame; visual reviewer pending)",
+    "T09": "PASS (visual sample only)",
+    "T10": "FAIL optical legibility at authored -30 px tracking; 61/61 frames render, so no coverage dropout",
+    "T11": "PASS continuity after full affine layer rotation support; no zero-coverage frames (extreme zoom is clipped by viewport as expected)",
+    "T12": "PASS technical light sweep after RGB absorption; deterministic hash from pre-absorption sweep is retained as historical; see T12-absorption raw and metrics",
+    "T13": "PASS limited camera path; 61-frame flat/gel alpha masks identical",
+    "T14": "PASS limited: destination-aware stylized RGB backdrop transmission and strict Vulkan raw readback verified; optical-depth proxy and final visual acceptance remain open",
+    "T15": "PASS on this device/build/route; two linears and eight shuffled seeks match",
+    "P2": "NOT PASS / incomplete: 4K 120fps gate unrun; T16 720p DoF-on p95 GPU span 2.1827 ms exceeds the 1.5 ms budget and CPU render-thread p95 is 275.16 ms",
+    "M2_depth_dof": "PASS integration evidence (T16 GEL layered Z / focus sweep); standalone depth debug dump and full occlusion suite remain pending"
+  },
+  "canary": {
+    "test_cases": 1,
+    "assertions": 105,
+    "passed": 105,
+    "failed": 0,
+    "exit_status": "PASS"
+  },
+  "raw_png_converter_self_test": "PASS",
+  "software_geometry_reference_raw_sha256": "1482c51b725c48cbff802bdafb9ae6f41db9c5a9c3384defd753fc509199efff",
+  "software_geometry_reference_png_sha256": "ad403021928cf03795e7c96bb9aac7a54075f9969b077af6bb95b9ad47f12f79",
+  "glyph_position_dump": "Emitted for base TextRun layout; animation-evaluated offsets not captured (T10 limitation)",
+  "pair_metrics": {
+    "T00_vs_T01": {
+      "bbox_a": [
+        189,
+        323,
+        1089,
+        409
+      ],
+      "bbox_b": [
+        189,
+        323,
+        1089,
+        409
+      ],
+      "silhouette_iou": 1.0,
+      "xor_pixel_count": 0,
+      "raw_identical": true
+    },
+    "T00_vs_T05": {
+      "bbox_a": [
+        189,
+        323,
+        1089,
+        409
+      ],
+      "bbox_b": [
+        189,
+        323,
+        1089,
+        409
+      ],
+      "silhouette_iou": 0.9966131035261355,
+      "xor_pixel_count": 90,
+      "raw_identical": false
+    },
+    "T07-off_vs_T07-on": {
+      "bbox_a": [
+        189,
+        323,
+        1089,
+        409
+      ],
+      "bbox_b": [
+        178,
+        313,
+        1100,
+        420
+      ],
+      "silhouette_iou": 0.38685960681137177,
+      "xor_pixel_count": 41948,
+      "raw_identical": false
+    },
+    "T07_core_preservation": {
+      "interior_pixels": 8048,
+      "max_rgb_delta": 0,
+      "changed_fraction_over_2_lsb": 0.0
+    }
+  },
+  "run_manifest_sha256_note": "tracked_diff_sha256 hashes git diff --binary HEAD excluding this manifest to avoid self-reference; raw, plan, font, shader and proxy hashes are direct SHA-256.",
+  "renderer_core_gel_filter": {
+    "test_cases": 7,
+    "passed": 7,
+    "assertions": 742,
+    "passed_assertions": 742,
+    "failed": 0
+  },
+  "diagnostic_modes": {
+    "gel_debug_mode": {
+      "1": "composite signed-distance visualization",
+      "2": "height field",
+      "3": "normal map",
+      "4": "shader validity heat map; 18806/18806 eroded-core normals finite and abs(length-1)<0.01",
+      "5": "transmission flag (R) and destination alpha (G); T14 route diagnostic"
+    }
+  },
+  "validation": {
+    "gpu_canary": "PASS 105/105 assertions at JOBS=14",
+    "c_abi_gel_filter": "PASS 2/2 cases, 34/34 assertions, including mode 5 decode/range and transmission fingerprint",
+    "raw_frame_to_png_self_test": "PASS",
+    "T04_validation": "PASS 18806/18806 eroded-core pixels valid; 0.289792 ms GPU execute, 32.929429 ms frame render",
+    "T06": "PASS single frame; lit face/specular visible, bloom off; raw identical to T07-off; light sweep not tested",
+    "CABI_correction": "After initial filter failure, invalid debug mode expectation updated to reject mode 6; final filter PASS 2/2, 34/34, including mode 5 diagnostics.",
+    "T08": "PASS technical frame; shadow and chromatic aberration render, text legible, 8002 inner-core alpha samples preserved exactly",
+    "T14": "PASS: strict Vulkan raw ON/OFF differs in 26,534 RGB pixels inside the text ROI, zero outside and zero alpha changes; RGB channel transmission is destination-aware and alpha-derived",
+    "renderer_core_gel_filter": {
+      "test_cases": 7,
+      "passed": 7,
+      "assertions": 742,
+      "passed_assertions": 742,
+      "failed": 0
+    },
+    "T07_after_shader_fix": "PASS: 9,854 pixels in 4px-eroded core; alpha changed 0 pixels; linear luma delta min -0.2126, mean +2.9384, max +11.6734; glow expands bbox",
+    "T02": "PASS_LIMITED: 32,393 samples in [-3,+4] px; MAE 0.230 px, p95 0.458 px, 98.24% within 0.5 px; signed IoU 0.996591"
+  },
+  "review_proxy": {
+    "path": "docs/evidence/gel-text-stress-20261105/GEL-TEXT-P0-review-proxy.mp4",
+    "sha256": "c9fe7554689b23af1c36e1c496feb0972f3e6912005f394ff35a312374dce3a8",
+    "drive_file_id": "145m2uSOYH5vPpXaGxL4-ClXaxcG_iBl3",
+    "drive_url": "https://drive.google.com/file/d/145m2uSOYH5vPpXaGxL4-ClXaxcG_iBl3/view?usp=drivesdk",
+    "duration_seconds": 13.2,
+    "note": "P0 diagnostic proxy; excludes later T09/T10 results"
+  },
+  "statuses": {
+    "T00": "PASS",
+    "T01": "PASS",
+    "T02": "PASS_LIMITED: independent signed Euclidean distance-transform oracle; one T01/T02 1280x720 raster sample only",
+    "T03": "PASS (height visualization)",
+    "T04": "PASS",
+    "T05": "PASS",
+    "T06": "PASS (single-frame lit/specular result)",
+    "T07": "PASS",
+    "T08": "PASS (technical 720p frame; human reference review pending)",
+    "T09": "PASS (visual sample only)",
+    "T10": "FAIL optical legibility at authored -30 px tracking; render continuity is intact",
+    "T11": "PASS after affine rotation fix; all 61 frames retain coverage; extreme zoom is cropped by viewport",
+    "T12": "PASS technical per-frame gel light sweep on Vulkan; reviewer optical comparison pending",
+    "T13": "PASS on measured geometry invariant: flat/gel alpha identical on all 61 frames",
+    "T14": "PASS limited: destination-aware stylized RGB backdrop transmission; strict Vulkan raw readback verified; physical dispersion and final visual review remain open",
+    "T15": "PASS deterministic linear and shuffled seek on 150-frame tracking plan",
+    "P2": "NOT CERTIFIED: no 4K/120fps acceptance run; 720p T16 DoF-on exceeds 1.5ms GPU budget (p95 2.1827ms)",
+    "M2_M4": "PASS integration evidence (T16); full camera-depth occlusion and bokeh highlight visual suite pending"
+  },
+  "first_failure": {
+    "status": "LOCALIZED IN P1",
+    "id": "T10",
+    "frame": 30,
+    "finding": "tracking -30 px collapses the phrase into overlapping text; raw-derived coverage above RGB threshold 40 spans x=189..428 (240 px)",
+    "component": "tracking/layout animation; evaluated animated glyph positions are not emitted in current JSON sidecars",
+    "raw_sha256": "834491c95dfeecace5efe77fb361f9e635db1cc0de4a642352adc8cd6c2b0f9d",
+    "evidence": "T10-030.png"
+  },
+  "T10": {
+    "frames": 61,
+    "raw_sha256": "834491c95dfeecace5efe77fb361f9e635db1cc0de4a642352adc8cd6c2b0f9d",
+    "plan_sha256": "646040ccf8548ff1d8bd419b7f68e06614a87e2cceddb79b87b4f98cb07234e0",
+    "sample_pngs": [
+      "T10-000.png",
+      "T10-030.png",
+      "T10-060.png"
+    ],
+    "observed_frame_30_bbox": [
+      189,
+      323,
+      428,
+      408
+    ],
+    "frame_30_coverage_pixels_threshold_rgb_gt_40": 12694,
+    "sidecar_limitation": "base layout only; evaluated animation offsets not emitted",
+    "status": "FAIL readability at extreme authored tracking; continuity passes",
+    "interpretation": "All 61 frames have rendered content. At frame 30 tracking -30 px packs the phrase into a 240 px span; this is authored negative tracking, not renderer dropout."
+  },
+  "T09": {
+    "status": "PASS (visual sample only)",
+    "raw_sha256": "a2effe3894c6d8bf316cce738f5832a96500fff425791646f81c5c25bffb9e2c",
+    "plan_sha256": "d3541dd63e4a42c7f0e5546f5e360cae0cb85638c0f65251033e83586b675318",
+    "stimulus": "%&@$# æøå gggQQQ 88888888"
+  },
+  "T15": {
+    "metrics": "T15-seek-metrics.json",
+    "plan_sha256": "c4a2f295ff2dd33ab9c7c5784fb2232f7dfa4ced5f7fcb5c7206d4e354266899",
+    "raw_sha256_run1": "cdcb1a7c5d5c76c8105dad87c0c095566c74b752a3a7d99e5c4eda93f3ef61b5",
+    "raw_sha256_run2": "cdcb1a7c5d5c76c8105dad87c0c095566c74b752a3a7d99e5c4eda93f3ef61b5",
+    "status": "PASS; two linears identical and eight shuffled isolated seeks match linear frames byte-for-byte"
+  },
+  "T11": {
+    "plan_sha256": "09f56c31007b03fd3272da67ca02cf7e8a93402c081c7418230030dd67764227",
+    "raw_sha256": "d7a42afec2429937b18d04e2e49afedd5ccf8f64b3d73616ec38c6804b31bc16",
+    "metrics": "T11-metrics.json",
+    "first_blank_frame": 19,
+    "first_blank_coverage_pixels": 0,
+    "status": "SUPERSEDED by affine-transform rerun: PASS continuity",
+    "superseded_by": "T11_after_transform_fix"
+  },
+  "review_proxy_p1": {
+    "path": "docs/evidence/gel-text-stress-20261105/GEL-TEXT-P1-review-proxy-20261105.mp4",
+    "sha256": "b483ec3dc62bdd25e480ebc6ed8c506597a25b9310675e8461c3b813eddc904f",
+    "drive_file_id": "1EqyY5kb8SvO0RNshiJqGyT14DMpFgiGK",
+    "drive_url": "https://drive.google.com/file/d/1EqyY5kb8SvO0RNshiJqGyT14DMpFgiGK/view?usp=drivesdk",
+    "content": "T09; T10 tracking endpoints/failure; T11 zoom samples including blank; T13 flat/gel camera; T14 transmission ON/OFF and mode-5 flag/destination diagnostic",
+    "duration_seconds": 22.567
+  },
+  "T13": {
+    "metrics": "T13-metrics.json",
+    "plan_sha256_flat": "c77a28b228af4c1caa81c55aa646d988dcb78022fc1d054056184b1532b01322",
+    "plan_sha256_gel": "417a30871935e586faa35b44d6f778800b0fbedaa83a87fc5171361585ee5ab2",
+    "raw_sha256_flat": "73823f681021c57b2a7afeb928a6840c1866a4d63ffa7e97b8241396ba4f23d6",
+    "raw_sha256_gel": "c1653b2db24752a7b66a111f4bc8cac5332c56123ad3f6a1e9867d6e945309d1",
+    "alpha_xor_pixels": 0,
+    "frames": 61,
+    "status": "PASS (limited camera geometry invariant)"
+  },
+  "T14": {
+    "metrics": "T14-metrics.json",
+    "plan_sha256_on": "428195da3f99ff4295884dd7debc14b0c7e3868928744515ae7d1c6ae1f7203d",
+    "plan_sha256_off": "984f6902141268ea07f4a7897960b8017a3fa0fbc4aefffcdf968a9505b80602",
+    "raw_sha256_on": "9f991ac870e050fafde0f9dc6ff12f30f87b07aeb874002602ef5397580b70bb",
+    "raw_sha256_off": "a6f918535553f187cfa11d1e903b557e2a9246cc37550353bce3894ebd858467",
+    "raw_identical": false,
+    "status": "HISTORICAL PASS: scalar source-over alpha after Beer-Lambert body-alpha fix; superseded by T14_destination_aware_transmission",
+    "evidence_on": "T14-on-after.rgba",
+    "evidence_off": "T14-off-after.rgba",
+    "difference_image": "T14-after-difference-x8.png",
+    "changed_pixels_in_text_roi": 26492,
+    "changed_rgb_channel_values": 75041,
+    "max_rgb_delta": 106,
+    "difference_bbox_xyxy": [
+      189,
+      323,
+      1089,
+      409
+    ],
+    "alpha_model": "Historical scalar source-over alpha from Beer-Lambert body density; superseded by destination-aware channel RGB backdrop attenuation in T14_destination_aware_transmission.",
+    "shader": "../../src/backends/vulkan/shaders/text_tile_raster.comp",
+    "limitation": "Historical scalar-alpha stage; later destination-aware RGB attenuation is recorded in T14_destination_aware_transmission."
+  },
+  "T14_before_fix": {
+    "metrics": "T14-metrics.json",
+    "plan_sha256_on": "428195da3f99ff4295884dd7debc14b0c7e3868928744515ae7d1c6ae1f7203d",
+    "plan_sha256_off": "984f6902141268ea07f4a7897960b8017a3fa0fbc4aefffcdf968a9505b80602",
+    "raw_sha256_on": "a6f918535553f187cfa11d1e903b557e2a9246cc37550353bce3894ebd858467",
+    "raw_sha256_off": "a6f918535553f187cfa11d1e903b557e2a9246cc37550353bce3894ebd858467",
+    "raw_identical": true,
+    "status": "FAIL (localized: transmission flag reaches shader; destination alpha is zero before later backdrop composition)",
+    "diagnostic_metrics": "T14-diagnostic-metrics.json",
+    "debug_raw_sha256_on": "bc42e00c29d16f96ae6532cbc0cad17a58060cac730b36ff8859a1ad2972c783",
+    "debug_raw_sha256_off": "f6801f01a7227b00eaf2d917081b3a139b9212ff4099995f50ac5c656cbb8bc1",
+    "core_pixels": 22235,
+    "on_flag_pixels": 22235,
+    "on_destination_alpha_nonzero_pixels": 0,
+    "off_flag_pixels": 0
+  },
+  "T07_core_preservation_after_shader_fix": {
+    "core_pixels_4px_eroded": 9854,
+    "alpha_changed_core_pixels": 0,
+    "linear_luma_delta_core_min": -0.2126,
+    "linear_luma_delta_core_mean": 2.938385386645017,
+    "linear_luma_delta_core_max": 11.673399999999999,
+    "core_luma_non_decrease_pixels": 9854,
+    "core_pixel_count": 9854,
+    "coverage_bbox_off": [
+      189,
+      323,
+      1089,
+      409
+    ],
+    "coverage_bbox_on": [
+      175,
+      312,
+      1102,
+      422
+    ],
+    "core_shift_pixels": 0,
+    "off_sha256": "886018d23acb2138d77603f2802ea06fe6c6687f029dd95ccc26c4f2ff495151",
+    "on_sha256": "4766c3006c4333e444f0c28fc83ca64fd7d266e1135cbf5dbdcddb4f545f812b"
+  },
+  "T14_after": {
+    "raw_sha256_on": "9f991ac870e050fafde0f9dc6ff12f30f87b07aeb874002602ef5397580b70bb",
+    "raw_sha256_off": "a6f918535553f187cfa11d1e903b557e2a9246cc37550353bce3894ebd858467",
+    "changed_pixels_in_text_roi": 26492,
+    "changed_rgb_channel_values": 75041,
+    "max_rgb_delta": 106,
+    "difference_bbox_xyxy": [
+      189,
+      323,
+      1089,
+      409
+    ],
+    "render_commands": "chronon3d_cli render --plan <T14-{on,off}.plan.json> --backend vulkan --start-frame 0 --end-frame 0 --video-sink raw --pipe-pixfmt rgba",
+    "fix": "text_tile_raster.comp computes Beer-Lambert-derived body alpha so the later SourceOver node composes gel over the backdrop; alpha no longer samples destination during pre-backdrop TextRun stage",
+    "evidence": [
+      "T14-on-after.rgba",
+      "T14-on-after.png",
+      "T14-off-after.rgba",
+      "T14-off-after.png",
+      "T14-after-difference-x8.png"
+    ],
+    "limitation": "Historical alpha-proxy stage; destination-aware RGB channel attenuation is documented under T14_destination_aware_transmission.",
+    "note": "Historical source-over alpha correction before destination-aware RGB backdrop transmission; superseded by T14_destination_aware_transmission."
+  },
+  "render_commands": {
+    "T12_light_sweep": "chronon3d_cli render --plan docs/evidence/gel-text-stress-20261105/T12.plan.json --assets-root \"$PWD\" --backend vulkan --start-frame 0 --end-frame 60 --video-sink raw --pipe-pixfmt rgba --output docs/evidence/gel-text-stress-20261105/T12-light-sweep.rgba -v info",
+    "T16_dof_on": "chronon3d_cli render --plan docs/evidence/gel-text-stress-20261105/T16-dof-on.plan.json --assets-root \"$PWD\" --backend vulkan --start-frame 0 --end-frame 60 --video-sink raw --pipe-pixfmt rgba --output docs/evidence/gel-text-stress-20261105/T16-dof-on.rgba",
+    "T16_dof_off": "chronon3d_cli render --plan docs/evidence/gel-text-stress-20261105/T16-dof-off.plan.json --assets-root \"$PWD\" --backend vulkan --start-frame 0 --end-frame 60 --video-sink raw --pipe-pixfmt rgba --output docs/evidence/gel-text-stress-20261105/T16-dof-off.rgba"
+  },
+  "T12": {
+    "status": "PASS (technical light-direction animation; optical reviewer comparison pending)",
+    "plan": "T12.plan.json",
+    "plan_sha256": "248b635a3d7a45f26a200a10d3228a2434525a6f63cc58b0cd8ee19cefb9e96c",
+    "raw": "T12-light-sweep.rgba",
+    "raw_sha256": "fd3b8e7811b591f74534321a8edc2c498519e26542c499a0ec82673ba7be6a17",
+    "metrics": "T12-light-sweep-metrics.json",
+    "frames": 61,
+    "sample_pngs": [
+      "T12-light-sweep-0.png",
+      "T12-light-sweep-30.png",
+      "T12-light-sweep-60.png"
+    ],
+    "changed_rgb_pixels_vs_frame0_frame30": 26369,
+    "mean_abs_rgb_delta_vs_frame0_frame30": 3.44842,
+    "log": "T12-light-sweep.log",
+    "raw_sha256_repeat": "fd3b8e7811b591f74534321a8edc2c498519e26542c499a0ec82673ba7be6a17",
+    "repeat_raw": "T12-light-sweep-repeat.rgba",
+    "deterministic_repeat": "PASS; byte-identical raw output"
+  },
+  "T11_after_transform_fix": {
+    "status": "PASS continuity (human readability through 10x clipped zoom not claimed)",
+    "raw": "T11-transform-fix.rgba",
+    "raw_sha256": "b5b6c4849ebbb4d0b3b1f19cc60c6a671d32952d2e9a632c2bb7ddec151774c2",
+    "metrics": "T11-transform-fix-metrics.json",
+    "frames": 61,
+    "zero_coverage_frames": 0
+  },
+  "T10_after_rerender": {
+    "status": "PASS continuity; extreme negative tracking remains an optical legibility failure",
+    "raw": "T10-after.rgba",
+    "frames": 61,
+    "frame_30_bbox": [
+      189,
+      323,
+      428,
+      408
+    ],
+    "frame_30_coverage_pixels_threshold_rgb_gt_40": 12694,
+    "interpretation": "Tracking -30 px is applied; phrase compression is authored stimulus, not lost TextRun coverage."
+  },
+  "build_and_gates": {
+    "build_command": "cmake --build build/chronon/linux-video-test --target chronon3d_cli chronon3d_renderer_core_tests chronon3d_text_tile_raster_canary_tests -j14",
+    "build_status": "PASS",
+    "renderer_core_full_suite": "216/216 test cases; 73355/73355 assertions passed",
+    "renderer_core_gel_filter": "7/7 test cases; 742/742 assertions passed",
+    "vulkan_text_canary": "1/1 test case; 105/105 assertions passed; strict device required",
+    "raw_png_converter_self_test": "PASS",
+    "build_after_rgb_absorption": "PASS 558/558 steps with -j14",
+    "renderer_core_gel_filter_after_absorption": "8/8 cases; 748/748 assertions passed",
+    "vulkan_text_canary_after_absorption": "1/1 case; 105/105 assertions passed",
+    "renderer_core_full_suite_after_rgb_absorption": "217/217 test cases; 73361/73361 assertions passed"
+  },
+  "T16": {
+    "status": "PASS technical GEL depth-of-field integration; ON/OFF differences across focus sweep; visual framing intentionally shows near-text clipping at close range",
+    "frames": 61,
+    "resolution": [
+      1280,
+      720
+    ],
+    "on_plan": "T16-dof-on.plan.json",
+    "on_plan_sha256": "3bf0e1b6fe159c19d09cd414c3e030d6eb89e73c0ef69a35e179cc2fca1a9697",
+    "off_plan": "T16-dof-off.plan.json",
+    "off_plan_sha256": "8dd29ae37634ecc6601f2fc475da6bbad41e7e0f2117d853082f21b3c18be806",
+    "on_raw": "T16-dof-on.rgba",
+    "off_raw": "T16-dof-off.rgba",
+    "metrics": "T16-dof-metrics.json",
+    "sample_pngs": [
+      "T16-dof-on-0.png",
+      "T16-dof-on-30.png",
+      "T16-dof-on-60.png"
+    ],
+    "on_raw_sha256": "cc1b98264d84f69b11dcfb9ec6df23f31e523736811029791c2f661010334d5d",
+    "off_raw_sha256": "39f0730dab5cea8f26c51be379fe2a29543cb8b9fe347fffcb5dd2efbcc86330",
+    "focus_distance_samples": {
+      "0": 700,
+      "30": 1200,
+      "60": 1700
+    },
+    "changed_rgb_pixels_on_vs_off": {
+      "0": 34400,
+      "15": 87521,
+      "30": 54894,
+      "45": 84009,
+      "60": 75741
+    },
+    "linear_depth_implementation": "Existing render graph publishes positive camera-space depth per covered layer into the per-pixel DoF provenance buffer; focus is interpolated from camera_samples and CoC uses the thin-lens model. No standalone debug depth image is emitted."
+  },
+  "P2_timing_measurements_720p": {
+    "T12-light-sweep": {
+      "frames": 61,
+      "render_thread_p50_ms": 19.8221,
+      "render_thread_p95_ms": 22.0694,
+      "gpu_span_p50_ms": 0.2796,
+      "gpu_span_p95_ms": 0.2825
+    },
+    "T16-dof-on": {
+      "frames": 61,
+      "render_thread_p50_ms": 260.3834,
+      "render_thread_p95_ms": 275.1623,
+      "gpu_span_p50_ms": 2.1432,
+      "gpu_span_p95_ms": 2.1827
+    },
+    "T16-dof-off": {
+      "frames": 61,
+      "render_thread_p50_ms": 226.1256,
+      "render_thread_p95_ms": 241.056,
+      "gpu_span_p50_ms": 0.7608,
+      "gpu_span_p95_ms": 0.7714
+    }
+  },
+  "beer_lambert_rgb_body": {
+    "status": "PASS: RGB Beer-Lambert attenuation in lit GEL dome body; surface highlight/rim remain unattenuated; alpha/compositing invariant preserved",
+    "shader": "../../src/backends/vulkan/shaders/text_tile_raster.comp",
+    "shader_sha256": "3694cb98c1835e64da1d331d6585d332364b6c873daa52f4152c98a91cde16c8",
+    "absorption_coefficients": [
+      1.2,
+      0.4,
+      0.05
+    ],
+    "optical_thickness": "normalized dome depth 0 at silhouette, 1 at medial axis",
+    "helper_and_test": "include/chronon3d/text/gel_surface.hpp::absorb; tests/renderer/text/test_gel_surface.cpp",
+    "filter_cases": "8/8",
+    "filter_assertions": "748/748",
+    "canary_assertions": "105/105",
+    "render_metrics": "beer-lambert-rgb-render-metrics.json",
+    "T06_raw": "T06-absorption.rgba",
+    "T06_raw_sha256": "b0965c6816b0213766dacda256c7be6d87478139d3e26188f790b9c6f00a68b0",
+    "T12_raw": "T12-absorption.rgba",
+    "T12_raw_sha256": "c048b387d0389dadc3f5247e3c3e8e53d097dfd6bb66275be5fa695d0e4cc3e7",
+    "T14_on_raw_sha256": "6e64889d17bbfc810780766715af8afb7b547c27f9e5b1dee860525f47707261",
+    "T14_off_raw_sha256": "7037051684471ed2d128ba152677e747209ff5291ce69129510c6a5f49252eaa",
+    "T14_alpha_changed_pixels": 0,
+    "note": "RGB attenuation of the lit body is implemented. Channel-specific transmission of the composed background is still unimplemented; body opacity still follows the scalar premultiplied source-over contract."
+  },
+  "review_proxy_rgb_absorption": {
+    "path": "GEL-TEXT-rgb-absorption-review-20261106.mp4",
+    "sha256": "2ad4c75e80c8bdfa410ec8dc74b1a36eaba395c2efbad46bf627f0893954f602",
+    "drive_file_id": "1NY307ykWxvHeuymRN5nELNIfldehXkf0",
+    "drive_url": "https://drive.google.com/file/d/1NY307ykWxvHeuymRN5nELNIfldehXkf0/view?usp=drivesdk",
+    "drive_metadata_verified": true,
+    "drive_parent_folder_id": "1J_xUGo_bchzXDIGqSX04CU44c_Dm3SxS",
+    "width": 1280,
+    "height": 720,
+    "fps": "30/1",
+    "frames": 152,
+    "duration_seconds": 5.066667,
+    "contents": [
+      "T06 RGB absorption still",
+      "T12 animated GEL light sweep after RGB absorption",
+      "T16 animated rack focus DoF after RGB absorption"
+    ]
+  },
+  "T14_after_rgb_body_absorption": {
+    "metrics": "beer-lambert-rgb-render-metrics.json",
+    "on_raw": "T14-on-absorption.rgba",
+    "on_sha256": "6e64889d17bbfc810780766715af8afb7b547c27f9e5b1dee860525f47707261",
+    "off_raw": "T14-off-absorption.rgba",
+    "off_sha256": "7037051684471ed2d128ba152677e747209ff5291ce69129510c6a5f49252eaa",
+    "changed_rgb_pixels_roi": 26534,
+    "max_rgb_delta": 111,
+    "alpha_changed_pixels": 0,
+    "status": "PASS: RGB ablation changes gel ROI; source-over alpha invariant preserved"
+  },
+  "T14_destination_aware_transmission": {
+    "plans": {
+      "on": "T14-on.plan.json",
+      "off": "T14-off.plan.json"
+    },
+    "render_command": "chronon3d_cli render --plan T14-{on,off}.plan.json --assets-root \"$PWD\" --backend vulkan --start-frame 0 --end-frame 0 --video-sink raw --pipe-pixfmt rgba",
+    "lane": "Vulkan TextRun tile raster and native Vulkan surface composition; RGBA8 raw output",
+    "on_raw": "T14-on-transmission-fix.rgba",
+    "on_raw_sha256": "d35f357ba94db5aeeff9269c5a7f08591680f75f351d18005e4a7d41b4de1439",
+    "off_raw": "T14-off-transmission-fix.rgba",
+    "off_raw_sha256": "7037051684471ed2d128ba152677e747209ff5291ce69129510c6a5f49252eaa",
+    "metrics": "T14-destination-transmission-metrics.json",
+    "metrics_sha256": "9c885bf438e2893a234c777f2ef1b2251ee0723df05cafd75c58b23a8429db36",
+    "on_log_sha256": "3c3715c4a24595b3ed8e3c555d07fbd7e1f8bcd043eda14168749e20e391f944",
+    "off_log_sha256": "b61975e73786fa38ce5a3a340475e5edb165eef0b173d7fbf3d864c4238e124c",
+    "changed_rgb_pixels_in_text_roi": 26534,
+    "changed_rgb_pixels_outside_text_roi": 0,
+    "changed_alpha_pixels": 0,
+    "approximation": "Backdrop RGB is attenuated channel-by-channel using source alpha as a proxy for coverage and optical thickness; alpha remains source-over. No independent physical optical-depth attachment or physical dispersion is implemented.",
+    "strict_gpu_raw_export": {
+      "status": "PASS",
+      "command": "chronon3d_cli render --plan T14-{on,off}.plan.json --assets-root \"$PWD\" --backend vulkan --gpu-hot-path-mode require_gpu_native --start-frame 0 --end-frame 0 --video-sink raw --pipe-pixfmt rgba",
+      "build": "cmake --build build/chronon/linux-video-release --target chronon3d_cli -j14",
+      "build_steps": "578/578",
+      "on": {
+        "raw": "T14-on-strict-readback.rgba",
+        "raw_sha256": "d35f357ba94db5aeeff9269c5a7f08591680f75f351d18005e4a7d41b4de1439",
+        "png": "T14-on-strict-readback.png",
+        "png_sha256": "abb951d33bcf57a97e30a0b8c83872a51a14abe195c1e2ccc02edde4506f5ac4",
+        "log": "T14-on-strict-readback.log",
+        "log_sha256": "06ac6530af1c50e8b173b9f1750c4e44ea45663cf18b5f9cc86937d7436266de"
+      },
+      "off": {
+        "raw": "T14-off-strict-readback.rgba",
+        "raw_sha256": "7037051684471ed2d128ba152677e747209ff5291ce69129510c6a5f49252eaa",
+        "png": "T14-off-strict-readback.png",
+        "png_sha256": "48973c736d763d47b71bdcc7cef4387a2d4bf02fd002a287a14fa1bdf6e6f854",
+        "log": "T14-off-strict-readback.log",
+        "log_sha256": "7d19669093935622fbf25fb8cf12a8d5ded5751f08bd3cf93fb1ff252dd32007"
+      },
+      "readback_verified_in_both_logs": true,
+      "raws_byte_identical_to_existing_t14_evidence": true,
+      "note": "Raw sink now receives a synchronous download from the retained native execution-slot surface; strict GPU rendering remains enabled."
+    },
+    "review_pngs": [
+      "T14-on-transmission-fix.png",
+      "T14-off-transmission-fix.png"
+    ],
+    "drive_review_sheet": {
+      "path": "GEL-TEXT-T14-transmission-review-20261106.png",
+      "sha256": "65d2e1c39647bd8e9e79b881200f7dab3dbdae11d7b1fce78b35a6e6d02e9a4b",
+      "drive_file_id": "11QiluQcFafnYHdn1Jssz9_KUyBbeuzZ0",
+      "drive_url": "https://drive.google.com/file/d/11QiluQcFafnYHdn1Jssz9_KUyBbeuzZ0/view?usp=drivesdk",
+      "drive_parent_folder_id": "1J_xUGo_bchzXDIGqSX04CU44c_Dm3SxS"
+    }
+  },
+  "T14_drive_upload": {
+    "local_path": "GEL-TEXT-T14-transmission-review-20261106.png",
+    "sha256": "65d2e1c39647bd8e9e79b881200f7dab3dbdae11d7b1fce78b35a6e6d02e9a4b",
+    "drive_file_id": "1ynStsWT8HRR-qtD9mS6zsm8m5IEFKUCe",
+    "drive_url": "https://drive.google.com/file/d/1ynStsWT8HRR-qtD9mS6zsm8m5IEFKUCe/view?usp=drivesdk",
+    "mime_type": "image/png",
+    "description": "Visible ON/OFF transmission comparison; technical evidence, not final visual acceptance."
+  },
+  "M1_T02_distance_oracle": {
+    "status": "PASS_LIMITED",
+    "script": "tools/gel_sdf_oracle.py",
+    "script_sha256": "fceb12a848b76d11a82a96deccbd6dc5a06a9439b3fe16257736acd0aacf8fae",
+    "mask_raw": "T01.rgba",
+    "mask_raw_sha256": "42f9f3a843be05570fe143952016278bfc2cc699965b7cfcea720373b57481f9",
+    "field_raw": "T02.rgba",
+    "field_raw_sha256": "f0577bddcafa0328ed03bbf717defeb956afa5a80a4c23d2cdcc13115e3648c5",
+    "metrics": "T02-distance-oracle-metrics.json",
+    "metrics_sha256": "d261eef1812ceab4ffa05ae9b9942fa2aa89110e6ebaf10a027e279527a5a959",
+    "error_image": "T02-distance-oracle-error.png",
+    "error_image_sha256": "9fbdd933511db852a1ff9c1419fd509cf4ce62795432bda68faa8e1589d3734b",
+    "radius_px": 7.3125,
+    "radius_derivation": "5.2 * font_size(90px) / canonical MTSDF em(64px), scale 1",
+    "comparison_band_px": [
+      -3.0,
+      4.0
+    ],
+    "sample_count": 32393,
+    "mae_px": 0.22966812551021576,
+    "median_abs_error_px": 0.21975702047348022,
+    "p95_abs_error_px": 0.457783579826355,
+    "max_abs_error_px": 1.6107499599456787,
+    "within_0_5_px_fraction": 0.9824344765844473,
+    "within_1_px_fraction": 0.9985490692433551,
+    "signed_region_iou": 0.996591003575289,
+    "limitation": "Pixel-grid oracle from quantized coverage; subpixel vector contour and transform sweep remain unverified.",
+    "drive_upload": {
+      "file_id": "1g_EbQTKV1y49DM72oW7PgMr8jzOj2b_v",
+      "url": "https://drive.google.com/file/d/1g_EbQTKV1y49DM72oW7PgMr8jzOj2b_v/view?usp=drivesdk",
+      "name": "GEL T02 SDF distance oracle error 2026-11-06.png",
+      "mime_type": "image/png",
+      "size_bytes": 58114,
+      "sha256": "9fbdd933511db852a1ff9c1419fd509cf4ce62795432bda68faa8e1589d3734b"
+    },
+    "normal_raw": "T04.rgba",
+    "normal_raw_sha256": "3102911b95f5ee8630a95a9fb581392e77d69c5d74137390a336d0f748d5c109",
+    "normal_sample_count": 16465,
+    "normal_mean_cosine": 0.9959502220153809,
+    "normal_p05_cosine": 0.9813050866127014,
+    "normal_median_angle_deg": 2.2157602310180664,
+    "normal_p95_angle_deg": 11.096301269531244,
+    "normal_opposed_fraction": 0.0,
+    "normal_validity": "T04 mode 4: 18,806/18,806 eroded-core normals finite and normalized"
+  }
+}

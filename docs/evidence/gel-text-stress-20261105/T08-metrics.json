@@ -1,0 +1,18 @@
+{
+  "T08_vs_T07_on": {
+    "core_silhouette_iou_at_linear_luma_0.08": 0.8957629855829932,
+    "threshold_mask_xor_pixels": 3550,
+    "T08_bbox_xyxy_inclusive": [
+      188,
+      322,
+      1090,
+      408
+    ]
+  },
+  "core_preservation": {
+    "baseline_inner_core_pixels": 8002,
+    "alpha_exact_match_fraction": 1.0,
+    "mean_abs_linear_luma_delta": 0.016110490728255517,
+    "max_abs_linear_luma_delta": 0.10054537451756174
+  }
+}

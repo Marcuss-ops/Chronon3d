@@ -1,0 +1,117 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "gel-text-p1-T12-light-sweep-20261106",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 61
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "fit": "stretch",
+      "size": [
+        1280,
+        720
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 61
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "text": "calories or ingredients",
+      "size": [
+        1200,
+        220
+      ],
+      "position": [
+        640,
+        360
+      ],
+      "start_frame": 0,
+      "duration_frames": 61,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 90,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "text_animators": [
+        {
+          "id": "gel-light-direction-sweep",
+          "selectors": [
+            {
+              "unit": "line",
+              "shape": "square",
+              "order": "forward",
+              "combine": "replace",
+              "exclude_spaces": true
+            }
+          ],
+          "properties": [
+            {
+              "property": "light_direction",
+              "easing": "linear",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": [
+                    -0.5262522,
+                    -0.7606962,
+                    0.38
+                  ]
+                },
+                {
+                  "frame": 15,
+                  "value": [
+                    0.335176,
+                    -0.8621236,
+                    0.38
+                  ]
+                },
+                {
+                  "frame": 30,
+                  "value": [
+                    0.9065483,
+                    -0.1837664,
+                    0.38
+                  ]
+                },
+                {
+                  "frame": 45,
+                  "value": [
+                    0.7634243,
+                    0.5222867,
+                    0.38
+                  ]
+                },
+                {
+                  "frame": 60,
+                  "value": [
+                    0.4997723,
+                    0.7783493,
+                    0.38
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "docs/evidence/gel-text-stress-20261105/T12-light-sweep.rgba",
+    "format": "png"
+  }
+}

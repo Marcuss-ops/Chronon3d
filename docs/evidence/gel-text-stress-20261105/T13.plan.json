@@ -1,0 +1,165 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-text-p1-T13-camera-20261105",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 61
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "fit": "stretch",
+      "size": [
+        1280,
+        720
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 61
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "text": "calories or ingredients",
+      "size": [
+        1200,
+        220
+      ],
+      "position": [
+        640,
+        360,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 61,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 90,
+        "fill": "#FFFFFF"
+      },
+      "enable_3d": true,
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "output": {
+    "path": "/tmp/T00.rgba",
+    "format": "png"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1200
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 40,
+    "near": 10,
+    "far": 5000,
+    "zoom": 700,
+    "dof": {
+      "enabled": false,
+      "focus_distance": 1200,
+      "max_blur": 0
+    }
+  },
+  "camera_samples": [
+    {
+      "frame": 0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          0,
+          0,
+          -1200
+        ],
+        "rotation_deg": [
+          0,
+          0,
+          0
+        ],
+        "fov_deg": 40,
+        "near": 10,
+        "far": 5000,
+        "zoom": 700,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1200,
+          "max_blur": 0
+        }
+      }
+    },
+    {
+      "frame": 30,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -8,
+          -4,
+          -1180
+        ],
+        "rotation_deg": [
+          0,
+          1,
+          0
+        ],
+        "fov_deg": 40,
+        "near": 10,
+        "far": 5000,
+        "zoom": 700,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1200,
+          "max_blur": 0
+        }
+      }
+    },
+    {
+      "frame": 60,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          0,
+          0,
+          -1200
+        ],
+        "rotation_deg": [
+          0,
+          0,
+          0
+        ],
+        "fov_deg": 40,
+        "near": 10,
+        "far": 5000,
+        "zoom": 700,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1200,
+          "max_blur": 0
+        }
+      }
+    }
+  ]
+}

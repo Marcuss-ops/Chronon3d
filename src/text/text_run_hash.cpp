@@ -166,6 +166,7 @@ u64 hash_text_run_shape(const TextRunShape& s) {
         seed = hash_combine(seed, hash_value(s.material.extrusion_depth));
     if (s.material.gel_surface) {
         seed = hash_combine(seed, hash_value(s.material.gel_transmission_enabled));
+        seed = hash_combine(seed, hash_value(s.material.gel_soft_fusion));
         seed = hash_combine(seed, hash_value(s.material.gel_core_only));
         seed = hash_combine(seed, hash_value(s.material.gel_debug_mode));
         seed = hash_combine(seed, hash_value(s.material.gel_light_azimuth_radians));
@@ -244,6 +245,7 @@ u64 hash_text_run_shape_v2(const TextRunShape& s) {
     if (s.material.extruded_text) f(s.material.extrusion_depth);
     if (s.material.gel_surface) {
         builder.add(s.material.gel_transmission_enabled);
+        builder.add(s.material.gel_soft_fusion);
         if (s.material.gel_core_only) builder.add(s.material.gel_core_only);
         builder.add(s.material.gel_debug_mode);
         f(s.material.gel_light_azimuth_radians);

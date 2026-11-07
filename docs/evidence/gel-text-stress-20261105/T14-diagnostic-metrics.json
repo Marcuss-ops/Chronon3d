@@ -1,0 +1,14 @@
+{
+  "mode": 5,
+  "meaning": "R=transmission flag; G=destination alpha; B=0",
+  "debug_on_raw_sha256": "bc42e00c29d16f96ae6532cbc0cad17a58060cac730b36ff8859a1ad2972c783",
+  "debug_off_raw_sha256": "f6801f01a7227b00eaf2d917081b3a139b9212ff4099995f50ac5c656cbb8bc1",
+  "core_pixels": 22235,
+  "on_flag_red_nonzero_pixels": 22235,
+  "on_flag_red_zero_pixels": 0,
+  "destination_alpha_green_nonzero_pixels": 0,
+  "destination_alpha_green_min": 0,
+  "destination_alpha_green_max": 0,
+  "off_flag_red_nonzero_pixels": 0,
+  "result": "flag ON/OFF reaches the shader; destination alpha is zero for all tested interior pixels before the later backdrop composite"
+}

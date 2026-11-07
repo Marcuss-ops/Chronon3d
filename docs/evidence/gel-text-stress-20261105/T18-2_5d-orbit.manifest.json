@@ -1,0 +1,37 @@
+{
+  "case": "T18-2_5d-orbit-20261106",
+  "status": "visual review candidate; user acceptance pending",
+  "source_revision": "533b6ab8cef58d86cb421bcc9cb0568fafd0587b",
+  "device": "NVIDIA RTX A4000",
+  "driver": "595.99.02",
+  "canvas": {"width": 1094, "height": 143, "fps": 30, "frames": 120},
+  "render_path": "Vulkan strict GPU-native; native NVENC H.264",
+  "scene": {
+    "background": "gel-waiting-room-plate-20261106.png",
+    "background_sha256": "ecd538115e002f480c3e5f8eb90224079f5f4d98a590f466a0b1ea64fbbbe523",
+    "note": "New generated documentary-style waiting-room plate. It is a static background image, not original footage or a Blender scene."
+  },
+  "camera": "Four-second 2.5D perspective sweep across the title: X position -40 to +40, Y rotation -3 to +3 degrees, with a small center push-in. Text remains one GEL TextRun on a 3D-enabled plane.",
+  "shadow": "Dark navy drop shadow offset (0, 1.2), radius 1.1 before layer transform; two cyan/blue glow layers.",
+  "plan": {
+    "file": "T18-2_5d-orbit.plan.json",
+    "sha256": "460b9a1a241ea5b372afb6b450dbc40c305c69c9f76583573b65af971ffd39eb"
+  },
+  "artifacts": {
+    "video": "T18-2_5d-orbit-4s.mp4",
+    "video_sha256": "4e054f470be50f744686ca37c5caf8dc6baa6a7ac6e8f05731fed07c233e7655",
+    "video_duration_seconds": 4.0,
+    "frame_060_raw": "T18-2_5d-orbit-frame060.rgba",
+    "frame_060_raw_sha256": "e1b81d245e761b5380baf8651309697100aeb5df98a6862c1543bf31b44bf7f7",
+    "frame_060_png": "T18-2_5d-orbit-frame060.png",
+    "frame_060_png_sha256": "bf6d9ae9b7609cab37e2f40e4922e6d8b328bda04c9feae1c1e44751bb0b0ce7"
+  },
+  "verification": {
+    "build": "cmake --build build/chronon/linux-video-release --target chronon3d_cli -j14 (578/578)",
+    "text_tile_canary": "1/1 CTest passed",
+    "renderer_core": "1/1 CTest passed",
+    "chrononmotion_build": "cmake --build build/release-fast -j14 completed",
+    "chrononmotion_ctest": "67/67 passed"
+  },
+  "limitations": "The plate is generated and static. This is a stylized 2.5D composition preview, not source-footage integration, volumetric gel certification, physical extrusion, or a final visual PASS. Broader M2/M4 diagnostics and P2 performance gates remain tracked in the GEL ticket."
+}

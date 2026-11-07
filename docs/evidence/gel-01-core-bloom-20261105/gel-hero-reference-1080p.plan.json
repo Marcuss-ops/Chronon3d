@@ -1,0 +1,122 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-hero-reference-1080p-20261105",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 180
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "fit": "stretch",
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 180
+    },
+    {
+      "id": "hero-title",
+      "type": "text",
+      "text": "calories or ingredients",
+      "size": [
+        1760,
+        320
+      ],
+      "position": [
+        960,
+        540
+      ],
+      "start_frame": 0,
+      "duration_frames": 180,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 112,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 18,
+          "intensity": 0.62,
+          "color": [
+            0.0,
+            0.72,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 56,
+          "intensity": 0.48,
+          "color": [
+            0.03,
+            0.26,
+            0.96,
+            1.0
+          ]
+        }
+      ],
+      "text_animators": [
+        {
+          "id": "kerning-merge-sweep",
+          "selectors": [
+            {
+              "unit": "line",
+              "shape": "square",
+              "order": "forward",
+              "combine": "replace",
+              "exclude_spaces": true
+            }
+          ],
+          "properties": [
+            {
+              "property": "tracking",
+              "easing": "linear",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0
+                },
+                {
+                  "frame": 60,
+                  "value": 0
+                },
+                {
+                  "frame": 110,
+                  "value": -22
+                },
+                {
+                  "frame": 150,
+                  "value": 12
+                },
+                {
+                  "frame": 179,
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "/tmp/gel-hero-reference-1080p.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

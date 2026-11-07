@@ -184,6 +184,8 @@ chronon3d::TextDefinition materialize_text(
         definition.style.material = chronon3d::TextMaterial::gel_core();
     } else if (layer.style->gel_surface) {
         definition.style.material = chronon3d::TextMaterial::gel();
+        definition.style.material.gel_soft_fusion =
+            layer.style->gel_soft_fusion.value_or(true);
         definition.style.material.gel_transmission_enabled =
             layer.style->gel_transmission_enabled;
         definition.style.material.gel_debug_mode = layer.style->gel_debug_mode;

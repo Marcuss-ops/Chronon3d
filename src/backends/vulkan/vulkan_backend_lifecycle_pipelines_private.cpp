@@ -23,6 +23,8 @@
 #include "chromatic_aberration_comp_spv.hpp"
 #include "lighting_comp_spv.hpp"
 #include "matte_comp_spv.hpp"
+#include "shadow_caster_comp_spv.hpp"
+#include "shadow_apply_comp_spv.hpp"
 
 
 namespace chronon3d::backends::vulkan {
@@ -442,6 +444,56 @@ void VulkanBackend::Impl::init_core_kernel_pipelines() {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::Lighting, lighting_pipeline, "Lighting");
         if (debug_context) debug_context->set_pipeline_name(lighting_pipeline, "Chronon3D.Pipeline.Lighting");
+
+        const VkShaderModuleCreateInfo shadow_caster_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_shadow_caster_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_shadow_caster_comp_spv)};
+        VkShaderModule shadow_caster_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &shadow_caster_shader_info, nullptr,
+                                   &shadow_caster_shader),
+              "vkCreateShaderModule(shadow_caster)");
+        const VkPipelineShaderStageCreateInfo shadow_caster_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT, shadow_caster_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo shadow_caster_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            shadow_caster_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline shadow_caster_pipeline = VK_NULL_HANDLE;
+        const VkResult shadow_caster_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &shadow_caster_pipeline_info,
+            nullptr, &shadow_caster_pipeline);
+        vkDestroyShaderModule(device, shadow_caster_shader, nullptr);
+        check(shadow_caster_result, "vkCreateComputePipelines(shadow_caster)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::ShadowCaster, shadow_caster_pipeline, "ShadowCaster");
+        if (debug_context) debug_context->set_pipeline_name(
+            shadow_caster_pipeline, "Chronon3D.Pipeline.ShadowCaster");
+
+        const VkShaderModuleCreateInfo shadow_apply_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_shadow_apply_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_shadow_apply_comp_spv)};
+        VkShaderModule shadow_apply_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &shadow_apply_shader_info, nullptr,
+                                   &shadow_apply_shader),
+              "vkCreateShaderModule(shadow_apply)");
+        const VkPipelineShaderStageCreateInfo shadow_apply_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT, shadow_apply_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo shadow_apply_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            shadow_apply_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline shadow_apply_pipeline = VK_NULL_HANDLE;
+        const VkResult shadow_apply_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &shadow_apply_pipeline_info,
+            nullptr, &shadow_apply_pipeline);
+        vkDestroyShaderModule(device, shadow_apply_shader, nullptr);
+        check(shadow_apply_result, "vkCreateComputePipelines(shadow_apply)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::ShadowApply, shadow_apply_pipeline, "ShadowApply");
+        if (debug_context) debug_context->set_pipeline_name(
+            shadow_apply_pipeline, "Chronon3D.Pipeline.ShadowApply");
 
         const VkShaderModuleCreateInfo matte_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

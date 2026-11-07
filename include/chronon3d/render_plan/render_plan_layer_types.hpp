@@ -42,6 +42,10 @@ struct MotionBlurPlan {
 /// behavior explicitly rather than drawing the glow in its place.
 enum class LightKindPlan : std::uint8_t { Radial, Point, Spot, Directional };
 
+/// AE inverse-square-clamped opt-in. `SmoothInversePower` keeps the historical
+/// radius/decay curve for existing plans.
+enum class LightFalloffPlan : std::uint8_t { SmoothInversePower, AeInverseSquareClamped };
+
 struct LightLayerPlan {
     float radius{256.0f};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
@@ -54,6 +58,9 @@ struct LightLayerPlan {
     float range{0.0f};
     /// Falloff exponent: contribution ~ 1 / (1 + (d / radius)^decay).
     float decay{1.0f};
+    /// `ae_inverse_square_clamped` makes `radius` the clamp start and ignores
+    /// `decay`; the default keeps the historical smooth curve.
+    LightFalloffPlan falloff{LightFalloffPlan::SmoothInversePower};
     /// Spot half-angle in radians, (0, pi].
     float angle{0.78539816339744830962f};
     /// Spot edge softness in [0, 1].

@@ -31,6 +31,7 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
         style_plan.font_size = optional_value<float>(style, "font_size");
         style_plan.fill = style.value("fill", std::string{});
         style_plan.gel_surface = style.value("gel_surface", false);
+        style_plan.gel_soft_fusion = optional_value<bool>(style, "gel_soft_fusion");
         style_plan.extruded_text = style.value("extruded_text", false);
         style_plan.extrusion_depth = style.value("extrusion_depth", 12.0f);
         style_plan.gel_transmission_enabled = style.value("gel_transmission", true);
@@ -76,6 +77,9 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
             throw std::runtime_error("style.fit_mode is only valid for text layers");
         if ((style_plan.gel_surface || style_plan.gel_core) && layer.type != LayerType::Text)
             throw std::runtime_error("style.gel_surface is only valid for text layers");
+        if (style_plan.gel_soft_fusion && !style_plan.gel_surface)
+            throw std::runtime_error(
+                "style.gel_soft_fusion requires gel_surface on a text layer");
         if (style_plan.extruded_text &&
             (layer.type != LayerType::Text || !layer.enable_3d ||
              style_plan.gel_surface || style_plan.gel_core))

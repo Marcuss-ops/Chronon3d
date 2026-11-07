@@ -1,0 +1,89 @@
+#version 450
+
+// Shadow sampling pass. The receiver is the flat 2.5D layer being lit: its
+// world position comes from the layer origin plus the pixel centre and the
+// layer z, exactly like lighting.comp. Visibility is a PCF average against the
+// stored light-space depth with a normal-dependent bias.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(binding = 0, rgba32f) uniform writeonly image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+layout(binding = 2, rgba32f) uniform readonly image2D shadow_image;
+
+layout(push_constant) uniform ShadowParams {
+    mat4 light_view_projection;
+    vec4 normal_layer_z;
+    vec4 origin_size;
+    // x = depth bias, y = normal bias, z = PCF radius px, w = taps
+    vec4 bias_radius_taps;
+    // xyz = direction towards the light, w = enabled
+    vec4 light_direction_enabled;
+} params;
+
+void main() {
+    const ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    const ivec2 size = imageSize(destination_image);
+    if (coord.x >= size.x || coord.y >= size.y) return;
+
+    const vec4 source = imageLoad(source_image, coord);
+    if (source.a <= 0.0 || params.light_direction_enabled.w < 0.5) {
+        imageStore(destination_image, coord, source);
+        return;
+    }
+
+    const vec3 world = vec3(params.origin_size.x + float(coord.x) + 0.5,
+                            params.origin_size.y + float(coord.y) + 0.5,
+                            params.normal_layer_z.w);
+    const vec4 clip = params.light_view_projection * vec4(world, 1.0);
+    if (clip.w <= 1e-6) {
+        imageStore(destination_image, coord, source);
+        return;
+    }
+    const vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        imageStore(destination_image, coord, source);
+        return;
+    }
+
+    const float receiver_depth = clamp(clip.z / clip.w, 0.0, 1.0);
+    const vec3 normal = normalize(params.normal_layer_z.xyz);
+    const vec3 to_light = normalize(params.light_direction_enabled.xyz);
+    const float ndl = clamp(dot(normal, to_light), 0.0, 1.0);
+    const float slope = sqrt(max(0.0, 1.0 - ndl * ndl)) / max(ndl, 0.1);
+    const float bias = params.bias_radius_taps.x +
+                       params.bias_radius_taps.y * min(slope, 4.0);
+
+    const ivec2 shadow_size = imageSize(shadow_image);
+    const vec2 shadow_extent = vec2(shadow_size);
+    int taps = int(params.bias_radius_taps.w + 0.5);
+    taps = clamp(taps, 1, 5);
+    const float radius = max(params.bias_radius_taps.z, 0.0);
+
+    float lit = 0.0;
+    float total = 0.0;
+    for (int ty = 0; ty < taps; ++ty) {
+        for (int tx = 0; tx < taps; ++tx) {
+            vec2 offset = vec2(0.0);
+            if (taps > 1) {
+                const float denom = float(taps - 1);
+                offset = (vec2(float(tx), float(ty)) / denom * 2.0 - 1.0) *
+                         radius;
+            }
+            const vec2 sample_uv =
+                clamp(uv + offset / shadow_extent, vec2(0.0), vec2(1.0));
+            const ivec2 texel = clamp(ivec2(sample_uv * shadow_extent),
+                                      ivec2(0), shadow_size - ivec2(1));
+            const vec4 stored = imageLoad(shadow_image, texel);
+            const bool covered = stored.g >= 0.5;
+            const bool occluded = covered && (receiver_depth - bias) > stored.r;
+            lit += occluded ? 0.0 : 1.0;
+            total += 1.0;
+        }
+    }
+
+    const float visibility = total > 0.0 ? lit / total : 1.0;
+    imageStore(destination_image, coord,
+               vec4(clamp(source.rgb * visibility, vec3(0.0), vec3(1.0)),
+                    source.a));
+}

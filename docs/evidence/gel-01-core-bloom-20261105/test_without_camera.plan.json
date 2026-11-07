@@ -1,0 +1,59 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-25d-abstract-camera-1080p",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "output": {
+    "path": "docs/evidence/gel-01-core-bloom-20261105/gel-25d-abstract-camera-1080p.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        960,
+        540
+      ],
+      "fit": "cover",
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "hero_gel_25d_title",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": false,
+      "position": [
+        960,
+        540
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "calories or ingredients",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 112,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "effects": [],
+      "screen_space": true
+    }
+  ]
+}

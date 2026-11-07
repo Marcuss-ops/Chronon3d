@@ -48,6 +48,9 @@ struct LayerStylePlan {
     std::optional<float> font_size;
     std::string fill;
     bool gel_surface{false};
+    // Smoothly fuse glyphs that actually touch/overlap into one GEL dome.
+    // Unspecified preserves the historical GEL behavior for old plans.
+    std::optional<bool> gel_soft_fusion;
     bool extruded_text{false};
     float extrusion_depth{12.0f};
     bool gel_transmission_enabled{true};

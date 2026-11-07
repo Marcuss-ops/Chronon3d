@@ -1,0 +1,24 @@
+{
+  "core_pixels_4px_eroded": 9854,
+  "alpha_changed_core_pixels": 0,
+  "linear_luma_delta_core_min": -0.2126,
+  "linear_luma_delta_core_mean": 2.938385386645017,
+  "linear_luma_delta_core_max": 11.673399999999999,
+  "core_luma_non_decrease_pixels": 9854,
+  "core_pixel_count": 9854,
+  "coverage_bbox_off": [
+    189,
+    323,
+    1089,
+    409
+  ],
+  "coverage_bbox_on": [
+    175,
+    312,
+    1102,
+    422
+  ],
+  "core_shift_pixels": 0,
+  "off_sha256": "886018d23acb2138d77603f2802ea06fe6c6687f029dd95ccc26c4f2ff495151",
+  "on_sha256": "4766c3006c4333e444f0c28fc83ca64fd7d266e1135cbf5dbdcddb4f545f812b"
+}

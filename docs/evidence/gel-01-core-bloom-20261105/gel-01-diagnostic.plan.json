@@ -1,0 +1,141 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-01-core-bloom-diagnostic-20261105",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "fit": "stretch",
+      "size": [
+        1280,
+        720
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "gel01-coverage",
+      "type": "text",
+      "text": "01  COVERAGE  |  calories or ingredients",
+      "size": [
+        1200,
+        130
+      ],
+      "position": [
+        640,
+        90
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 39,
+        "fill": "#FFFFFF"
+      }
+    },
+    {
+      "id": "gel01-core",
+      "type": "text",
+      "text": "02  CORE  |  calories or ingredients",
+      "size": [
+        1200,
+        130
+      ],
+      "position": [
+        640,
+        270
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 39,
+        "fill": "#00E5FF",
+        "gel_core": true
+      }
+    },
+    {
+      "id": "gel01-surface",
+      "type": "text",
+      "text": "03  GLOSSY  |  calories or ingredients",
+      "size": [
+        1200,
+        130
+      ],
+      "position": [
+        640,
+        450
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 39,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      }
+    },
+    {
+      "id": "gel01-bloom",
+      "type": "text",
+      "text": "04  BLOOM  |  calories or ingredients",
+      "size": [
+        1200,
+        130
+      ],
+      "position": [
+        640,
+        630
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 39,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 12,
+          "intensity": 0.45,
+          "color": [
+            0.0,
+            0.5,
+            0.9,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 52,
+          "intensity": 0.25,
+          "color": [
+            0.0,
+            0.16,
+            0.62,
+            1.0
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "/tmp/gel-01-diagnostic.rgba",
+    "format": "png"
+  }
+}

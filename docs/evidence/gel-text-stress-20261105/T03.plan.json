@@ -1,0 +1,56 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-text-stress-t03-20261105",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "fit": "stretch",
+      "size": [
+        1280,
+        720
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "text": "calories or ingredients",
+      "size": [
+        1200,
+        220
+      ],
+      "position": [
+        640,
+        360
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 90,
+        "fill": "#00E5FF",
+        "gel_debug_mode": 2,
+        "gel_surface": true
+      }
+    }
+  ],
+  "output": {
+    "path": "/tmp/T03.rgba",
+    "format": "png"
+  }
+}

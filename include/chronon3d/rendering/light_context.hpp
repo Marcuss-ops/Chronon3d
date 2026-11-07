@@ -27,6 +27,14 @@ namespace chronon3d::rendering {
 
 enum class PointLightKind : std::uint8_t { Point, Spot, Directional };
 
+/// Falloff model for point/spot lights. `SmoothInversePower` is the historical
+/// 1/(1+(d/radius)^decay) curve. `AeInverseSquareClamped` is After Effects'
+/// Inverse Square Clamped: 1 inside `radius`, then (radius/d)^2.
+enum class PointLightFalloff : std::uint8_t {
+    SmoothInversePower = 0,
+    AeInverseSquareClamped = 1
+};
+
 // A per-pixel light source. Positions and radius are in canvas pixels; `z` is
 // the height above the 2.5D plane, so a light must sit above a layer (z > 0)
 // to light it. `color` is already multiplied by the layer intensity.
@@ -38,6 +46,7 @@ struct PointLightSource {
     f32 radius{256.0f};  // falloff scale in canvas pixels
     f32 range{0.0f};     // hard cutoff in canvas pixels; 0 = unbounded
     f32 decay{1.0f};
+    PointLightFalloff falloff{PointLightFalloff::SmoothInversePower};
     f32 angle{0.78539816339744830962f}; // spot half-angle, radians
     f32 penumbra{0.0f};  // spot edge softness in [0, 1]
     bool casts_shadow{false};

@@ -139,6 +139,20 @@ TEST_CASE("Point light: closed-form irradiance directly below the light") {
     CHECK(out.a == doctest::Approx(1.0f));
 }
 
+TEST_CASE("Point light: AE inverse-square-clamped falloff") {
+    PointLightSource source;
+    source.radius = 100.0f;
+    source.decay = 1.0f; // deliberately not 2: AE mode ignores decay
+    source.falloff = PointLightFalloff::AeInverseSquareClamped;
+
+    CHECK(point_light_attenuation(50.0f, source) == doctest::Approx(1.0f));
+    CHECK(point_light_attenuation(100.0f, source) == doctest::Approx(1.0f));
+    CHECK(point_light_attenuation(200.0f, source) == doctest::Approx(0.25f));
+
+    source.falloff = PointLightFalloff::SmoothInversePower;
+    CHECK(point_light_attenuation(100.0f, source) == doctest::Approx(0.5f));
+}
+
 TEST_CASE("Point light: range cutoff returns zero beyond range") {
     Material2_5D mat;
     mat.accepts_lights = true;

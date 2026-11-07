@@ -1,0 +1,93 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-text-p0-T08-final-optics-20261105",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "fit": "stretch",
+      "size": [
+        1280,
+        720
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "text": "calories or ingredients",
+      "size": [
+        1200,
+        220
+      ],
+      "position": [
+        640,
+        360
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 90,
+        "fill": "#00E5FF",
+        "gel_surface": true,
+        "shadow": {
+          "color": "#061426",
+          "offset": [
+            5,
+            6
+          ],
+          "opacity": 0.55,
+          "blur": 8
+        }
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 12,
+          "intensity": 0.45,
+          "color": [
+            0.0,
+            0.5,
+            0.9,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 52,
+          "intensity": 0.25,
+          "color": [
+            0.0,
+            0.16,
+            0.62,
+            1.0
+          ]
+        },
+        {
+          "type": "chromatic_aberration",
+          "red_offset": 1.5,
+          "blue_offset": -1.5
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "/tmp/T08.rgba",
+    "format": "png"
+  }
+}

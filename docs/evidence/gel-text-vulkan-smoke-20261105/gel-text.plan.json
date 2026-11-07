@@ -1,0 +1,55 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "gel-text-vulkan-smoke-20261105",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "fit": "stretch",
+      "size": [
+        1280,
+        720
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "gel-title",
+      "type": "text",
+      "text": "calories of ingredients",
+      "size": [
+        1200,
+        220
+      ],
+      "position": [
+        640,
+        360
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 90,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "start_frame": 0,
+      "duration_frames": 1
+    }
+  ],
+  "output": {
+    "path": "/tmp/text-baseline.rgba",
+    "format": "png"
+  }
+}

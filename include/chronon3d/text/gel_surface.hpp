@@ -60,18 +60,53 @@ struct SurfaceSample {
         !std::isfinite(distance_inside) || distance_inside <= 0.0f)
         return 0.0f;
     const float t = std::clamp(distance_inside / radius, 0.0f, 1.0f);
-    // Limited-slope parabolic dome: finite non-zero slope at the contour,
-    // flattening to zero only at the medial-axis peak. The radius must cover
-    // the local stroke half-width; a smaller radius clamps the profile to 1
-    // over the stroke centre and turns the dome into a flat plateau.
-    return radius * t * (2.0f - t);
+    // Smootherstep dome: zero first and second derivative at the contour and
+    // medial axis. This removes the bevel-like slope break where the interior
+    // height field meets the exterior zero-height region.
+    const float t2 = t * t;
+    const float t3 = t2 * t;
+    return radius * t3 * (t * (t * 6.0f - 15.0f) + 10.0f);
 }
 
-// Canonical dome radius for the bold display weight. The old 3.6-texel
-// constant was smaller than the medial-axis distance of a bold 112 px run,
-// which clamped the parabolic profile to a plateau over the middle of every
-// stroke. 5.2 canonical em-texels covers that half-width at the reference
-// size while still scaling with minified/magnified glyphs.
+// Derivative of rounded_height with respect to the inside distance. This is
+// shared with normal reconstruction so the height oracle and surface gradient
+// cannot drift apart.
+[[nodiscard]] inline float rounded_slope(float distance_inside,
+                                        float radius) noexcept {
+    if (!(radius > 0.0f) || !std::isfinite(radius) ||
+        !std::isfinite(distance_inside) || distance_inside <= 0.0f ||
+        distance_inside >= radius)
+        return 0.0f;
+    const float t = distance_inside / radius;
+    const float one_minus_t = 1.0f - t;
+    return 30.0f * t * t * one_minus_t * one_minus_t;
+}
+
+// Fresnel alone vanishes on the smootherstep silhouette because its height
+// slope is zero there. Add a narrow distance-field coat so the optical edge
+// stays reflective while the analytic normal still controls the grazing term.
+[[nodiscard]] inline float rim_response(float normal_z,
+                                        float distance_inside,
+                                        float edge_width,
+                                        float exponent = 3.5f) noexcept {
+    const float nz = std::clamp(std::isfinite(normal_z) ? normal_z : 1.0f,
+                                0.0f, 1.0f);
+    const float d = std::max(std::isfinite(distance_inside) ? distance_inside : 0.0f,
+                             0.0f);
+    const float width = std::isfinite(edge_width) ? edge_width : 0.0f;
+    const float e = std::max(std::isfinite(exponent) ? exponent : 3.5f, 0.0f);
+    const float fresnel = std::pow(1.0f - nz, e);
+    if (!(width > 0.0f)) return fresnel;
+    const float t = std::clamp((d - 0.05f * width) / (0.95f * width),
+                               0.0f, 1.0f);
+    const float smooth = t * t * (3.0f - 2.0f * t);
+    const float edge_coat = 1.0f - smooth;
+    return std::max(fresnel, 0.78f * edge_coat);
+}
+
+// Canonical dome radius for the bold display weight. 5.2 canonical em-texels
+// covers the stroke half-width at the reference size while still scaling with
+// minified/magnified glyphs.
 inline constexpr float kDomeRadiusTexels = 5.2f;
 inline constexpr float kMinDomeRadiusPx = 1.6f;
 inline constexpr float kMaxDomeRadiusPx = 96.0f;
@@ -92,8 +127,7 @@ inline constexpr float kMaxDomeRadiusPx = 96.0f;
         !std::isfinite(distance_gradient.y) || !std::isfinite(depth_scale))
         return sample;
 
-    const float t = std::clamp(distance_inside / radius, 0.0f, 1.0f);
-    const float dh_dd = 2.0f * (1.0f - t);
+    const float dh_dd = rounded_slope(distance_inside, radius);
     const float nx = -depth_scale * dh_dd * distance_gradient.x;
     const float ny = -depth_scale * dh_dd * distance_gradient.y;
     const float inv_length = 1.0f / std::sqrt(nx * nx + ny * ny + 1.0f);

@@ -1,0 +1,107 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "gel-text-p1-T11-zoom-rotation-20261105",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 61
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "fit": "stretch",
+      "size": [
+        1280,
+        720
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 61
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "text": "calories or ingredients",
+      "size": [
+        1200,
+        220
+      ],
+      "position": [
+        640,
+        360
+      ],
+      "start_frame": 0,
+      "duration_frames": 61,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 90,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": [
+                  0.05,
+                  0.05,
+                  1
+                ]
+              },
+              {
+                "frame": 30,
+                "value": [
+                  10,
+                  10,
+                  1
+                ]
+              },
+              {
+                "frame": 60,
+                "value": [
+                  0.05,
+                  0.05,
+                  1
+                ]
+              }
+            ]
+          },
+          {
+            "property": "rotation_z",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0
+              },
+              {
+                "frame": 30,
+                "value": 15
+              },
+              {
+                "frame": 60,
+                "value": -15
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "output": {
+    "path": "/tmp/T00.rgba",
+    "format": "png"
+  }
+}

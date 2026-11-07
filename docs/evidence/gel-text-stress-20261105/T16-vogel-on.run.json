@@ -1,0 +1,69 @@
+{
+  "case": "T16-Vulkan-Vogel-bokeh-20261106",
+  "status": "PARTIAL: circular kernel is dispatched and output differs; isolated bokeh-shape and depth/occlusion visual certification pending",
+  "recorded_at_utc": "2026-11-06",
+  "source_commit": "97d8f066d67b4048b7b8be64e6fe3bb9f658b60d",
+  "dirty_code_diff_sha256": "2a56d6c78e56d8bb3d3aa29a20388482ffe9862145c81dc071af5eb4e6a0f3d6",
+  "machine": {
+    "platform": "Linux-5.15.0-202-generic-x86_64-with-glibc2.35",
+    "gpu": "NVIDIA RTX A4000",
+    "driver": "595.99.02",
+    "backend": "Vulkan strict GPU path"
+  },
+  "render": {
+    "command": "./build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli render --plan docs/evidence/gel-text-stress-20261105/T16-dof-on.plan.json --assets-root \"$PWD\" --backend vulkan --start-frame 0 --end-frame 60 --video-sink raw --pipe-pixfmt rgba --output docs/evidence/gel-text-stress-20261105/T16-vogel-on.rgba -v error",
+    "resolution": [
+      1280,
+      720
+    ],
+    "fps": [
+      30,
+      1
+    ],
+    "frames": 61,
+    "focus_samples": {
+      "0": 700,
+      "30": 1200,
+      "60": 1700
+    },
+    "plan_sha256": "3bf0e1b6fe159c19d09cd414c3e030d6eb89e73c0ef69a35e179cc2fca1a9697",
+    "raw_sha256": "35912933e9a6b46a322e33c4be8fc37d12e33b680f897dbf99da9ec85ffcdd92",
+    "timing_sidecar_sha256": "1e7537de22a35bd8a3aae367d11aec90aba113b150074a79b8e4ada78285178d",
+    "shader_sha256": "9514cf38260423229cee5a3cabcf146a3b59aceafb828c4649daf5dafef56294",
+    "preview_sha256": "061e1b0cc31983bacf7b6a70b994999f62db59105c82b9d3719910a0cd72e4aa"
+  },
+  "comparison_with_previous_separable_t16": {
+    "changed_rgb_pixels": 5060783,
+    "mean_abs_rgb_delta_8bit": 0.997475,
+    "max_channel_delta_8bit": 57
+  },
+  "timing": {
+    "gpu_device_span_ms": {
+      "p50": 2.1432,
+      "p95": 2.1832,
+      "max": 2.1883
+    },
+    "render_thread_ms": {
+      "p50": 69.941,
+      "p95": 92.714,
+      "max": 444.232
+    },
+    "measured_fps": 8.328658319745283,
+    "frames_over_30fps_budget": 61,
+    "gpu_budget_ms": 1.5,
+    "gpu_budget_result": "FAIL; p95 exceeds target"
+  },
+  "verification": {
+    "release_build": "PASS: chronon3d_cli, 578/578 steps, -j10",
+    "test_build": "PASS: renderer core and Vulkan text canary targets, -j10",
+    "renderer_core_ctest": "PASS: 1/1 aggregate target, 32.07 s",
+    "vulkan_text_canary_ctest": "PASS: 1/1, 105/105 assertions, 0.63 s",
+    "native_dof_depth_stamp_canary": "PASS: dedicated Vulkan CTest 1/1, Doctest 20/20, numeric depth/radius surface readback recorded in T16-vulkan-dof-depth-stamp-test.log"
+  },
+  "limitations": [
+    "T16 has no isolated point-highlight diagnostic, so bokeh appearance is not certified.",
+    "Standalone linear-depth dump and full foreground/background occlusion suite remain open.",
+    "720p diagnostic misses 30 fps end-to-end and the 4K/120 gate was not run.",
+    "This evidence is a render candidate, not final human GEL optical acceptance."
+  ]
+}

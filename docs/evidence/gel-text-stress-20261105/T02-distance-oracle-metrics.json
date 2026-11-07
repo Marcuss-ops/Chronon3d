@@ -1,0 +1,41 @@
+{
+  "oracle": "center-sampled signed Euclidean distance transform of T01 0.5-coverage mask; boundary estimate is pixel-grid, not subpixel vector contour",
+  "mask_raw": "T01.rgba",
+  "field_raw": "T02.rgba",
+  "dimensions": [
+    1280,
+    720
+  ],
+  "mask_threshold_linear_luma": 0.5011091177584603,
+  "backdrop_luma_linear": 0.0022182355169206858,
+  "field_encoding": "T02 linear red = 0.5 + 0.5 * clamp(distance/radius,-1,1); raw sRGB decoded before inversion",
+  "field_radius_px": 7.3125,
+  "radius_derivation": "5.2 * (font_size 90 / canonical MTSDF em_px 64), run scale 1",
+  "comparison_band_px": [
+    -3.0,
+    4.0
+  ],
+  "sample_count": 32393,
+  "mae_px": 0.22966812551021576,
+  "median_abs_error_px": 0.21975702047348022,
+  "p95_abs_error_px": 0.457783579826355,
+  "max_abs_error_px": 1.6107499599456787,
+  "within_0_5_px_fraction": 0.9824344765844473,
+  "within_1_px_fraction": 0.9985490692433551,
+  "within_1_5_px_fraction": 0.999907387398512,
+  "signed_region_iou": 0.996591003575289,
+  "mask_pixels": 24030,
+  "debug_positive_pixels": 23996,
+  "error_image": "T02-distance-oracle-error.png",
+  "status": "PASS_LIMITED",
+  "limitation": "The oracle measures the rasterized coverage boundary; it does not validate the original outline at subpixel precision or all scale/rotation conditions.",
+  "normal_raw": "T04.rgba",
+  "normal_oracle": "directional cosine between T04 XY normal and negative T01-oracle SDF gradient; shader-aligned four-pixel central stencil",
+  "normal_sample_count": 16465,
+  "normal_mean_cosine": 0.9959502220153809,
+  "normal_p05_cosine": 0.9813050866127014,
+  "normal_median_angle_deg": 2.2157602310180664,
+  "normal_p95_angle_deg": 11.096301269531244,
+  "normal_opposed_fraction": 0.0,
+  "normal_limitation": "Checks XY direction in a central core band only; normal length/finite validity is covered by T04 mode 4, and this does not certify every scale or rotation."
+}

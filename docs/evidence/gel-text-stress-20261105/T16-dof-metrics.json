@@ -1,0 +1,41 @@
+{
+  "frames": 61,
+  "resolution": [
+    1280,
+    720
+  ],
+  "on_sha256": "cc1b98264d84f69b11dcfb9ec6df23f31e523736811029791c2f661010334d5d",
+  "off_sha256": "39f0730dab5cea8f26c51be379fe2a29543cb8b9fe347fffcb5dd2efbcc86330",
+  "focus_samples": {
+    "0": 700,
+    "30": 1200,
+    "60": 1700
+  },
+  "sample_frames": {
+    "0": {
+      "changed_rgb_pixels": 34400,
+      "mean_abs_rgb_delta": 2.91082,
+      "max_rgb_delta": 205
+    },
+    "15": {
+      "changed_rgb_pixels": 87521,
+      "mean_abs_rgb_delta": 3.93682,
+      "max_rgb_delta": 205
+    },
+    "30": {
+      "changed_rgb_pixels": 54894,
+      "mean_abs_rgb_delta": 1.03433,
+      "max_rgb_delta": 113
+    },
+    "45": {
+      "changed_rgb_pixels": 84009,
+      "mean_abs_rgb_delta": 3.69291,
+      "max_rgb_delta": 225
+    },
+    "60": {
+      "changed_rgb_pixels": 75741,
+      "mean_abs_rgb_delta": 3.2956,
+      "max_rgb_delta": 248
+    }
+  }
+}

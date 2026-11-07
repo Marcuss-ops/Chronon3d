@@ -59,8 +59,17 @@ void main() {
                 to_light = distance_to_light > 1e-6
                     ? delta / distance_to_light : vec3(0.0, 0.0, 1.0);
                 float radius = max(light.color_radius.w, 1e-6);
-                attenuation = 1.0 / (1.0 + pow(distance_to_light / radius,
-                    max(light.range_decay_penumbra.y, 0.0)));
+                int falloff_mode = int(light.range_decay_penumbra.w + 0.5);
+                if (falloff_mode == 1) {
+                    // AE Inverse Square Clamped: full strength inside the
+                    // radius, then (radius/d)^2. `range` remains the hard
+                    // cutoff checked above.
+                    attenuation = distance_to_light <= radius ? 1.0 :
+                        pow(radius / max(distance_to_light, 1e-6), 2.0);
+                } else {
+                    attenuation = 1.0 / (1.0 + pow(distance_to_light / radius,
+                        max(light.range_decay_penumbra.y, 0.0)));
+                }
                 if (kind == 1) {
                     vec3 axis = light.direction_angle.xyz;
                     float axis_length = length(axis);

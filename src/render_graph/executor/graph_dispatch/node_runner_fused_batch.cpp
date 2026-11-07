@@ -101,6 +101,11 @@ void fill_mtsdf_effects(const TextRunShape& shape,
         if (shape.material.gel_transmission_enabled) {
             run.effect_flags |= (1u << 9);
         }
+        if (shape.material.gel_soft_fusion) {
+            run.effect_flags |= (1u << 10);
+        }
+        run.effect_flags |= (static_cast<std::uint32_t>(
+            shape.material.gel_debug_mode & 0x7u) << 6u);
         run.animator_reserved5 = ::chronon3d::text::gel::pack_light_parameters(
             shape.material.gel_light_azimuth_radians,
             shape.material.gel_light_elevation);

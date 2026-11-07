@@ -1,0 +1,5625 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-25d-abstract-camera-1080p",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 150
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      -120.0,
+      -65.0,
+      -2100.0
+    ],
+    "rotation_deg": [
+      1.8,
+      4.5,
+      0.0
+    ],
+    "fov_deg": 32.0,
+    "near": 10.0,
+    "far": 8000.0,
+    "zoom": 1000.0,
+    "dof": {
+      "enabled": false,
+      "focus_distance": 2100.0,
+      "f_stop": 2.4,
+      "max_blur": 12.0
+    }
+  },
+  "camera_samples": [
+    {
+      "frame": 0.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -120.0,
+          -65.0,
+          -2100.0
+        ],
+        "rotation_deg": [
+          1.8,
+          4.5,
+          0.0
+        ],
+        "fov_deg": 32.0,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 2100.0,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 1.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -114.6391,
+          -61.8963,
+          -2080.2494
+        ],
+        "rotation_deg": [
+          1.721,
+          4.3138,
+          0.0
+        ],
+        "fov_deg": 31.7743,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 2080.249,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 2.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -109.4838,
+          -58.9117,
+          -2061.2561
+        ],
+        "rotation_deg": [
+          1.645,
+          4.1347,
+          0.0
+        ],
+        "fov_deg": 31.5572,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 2061.256,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 3.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -104.53,
+          -56.0437,
+          -2043.0054
+        ],
+        "rotation_deg": [
+          1.572,
+          3.9626,
+          0.0
+        ],
+        "fov_deg": 31.3486,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 2043.005,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 4.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -99.7738,
+          -53.2901,
+          -2025.4825
+        ],
+        "rotation_deg": [
+          1.5019,
+          3.7974,
+          0.0
+        ],
+        "fov_deg": 31.1484,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 2025.482,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 5.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -95.2111,
+          -50.6485,
+          -2008.6725
+        ],
+        "rotation_deg": [
+          1.4347,
+          3.6389,
+          0.0
+        ],
+        "fov_deg": 30.9563,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 2008.672,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 6.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -90.8379,
+          -48.1167,
+          -1992.5606
+        ],
+        "rotation_deg": [
+          1.3702,
+          3.487,
+          0.0
+        ],
+        "fov_deg": 30.7721,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1992.561,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 7.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -86.6501,
+          -45.6922,
+          -1977.132
+        ],
+        "rotation_deg": [
+          1.3085,
+          3.3415,
+          0.0
+        ],
+        "fov_deg": 30.5958,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1977.132,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 8.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -82.6438,
+          -43.3727,
+          -1962.372
+        ],
+        "rotation_deg": [
+          1.2495,
+          3.2024,
+          0.0
+        ],
+        "fov_deg": 30.4271,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1962.372,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 9.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -78.815,
+          -41.156,
+          -1948.2657
+        ],
+        "rotation_deg": [
+          1.1931,
+          3.0694,
+          0.0
+        ],
+        "fov_deg": 30.2659,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1948.266,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 10.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -75.1595,
+          -39.0397,
+          -1934.7982
+        ],
+        "rotation_deg": [
+          1.1392,
+          2.9424,
+          0.0
+        ],
+        "fov_deg": 30.112,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1934.798,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 11.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -71.6735,
+          -37.0215,
+          -1921.9549
+        ],
+        "rotation_deg": [
+          1.0878,
+          2.8213,
+          0.0
+        ],
+        "fov_deg": 29.9652,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1921.955,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 12.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -68.3528,
+          -35.099,
+          -1909.7209
+        ],
+        "rotation_deg": [
+          1.0389,
+          2.7059,
+          0.0
+        ],
+        "fov_deg": 29.8254,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1909.721,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 13.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -65.1935,
+          -33.2699,
+          -1898.0814
+        ],
+        "rotation_deg": [
+          0.9923,
+          2.5962,
+          0.0
+        ],
+        "fov_deg": 29.6924,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1898.081,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 14.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -62.1916,
+          -31.532,
+          -1887.0215
+        ],
+        "rotation_deg": [
+          0.9481,
+          2.4919,
+          0.0
+        ],
+        "fov_deg": 29.566,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1887.022,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 15.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -59.3429,
+          -29.8827,
+          -1876.5265
+        ],
+        "rotation_deg": [
+          0.9061,
+          2.393,
+          0.0
+        ],
+        "fov_deg": 29.446,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1876.527,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 16.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -56.6436,
+          -28.32,
+          -1866.5816
+        ],
+        "rotation_deg": [
+          0.8663,
+          2.2992,
+          0.0
+        ],
+        "fov_deg": 29.3324,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1866.582,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 17.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -54.0895,
+          -26.8413,
+          -1857.1719
+        ],
+        "rotation_deg": [
+          0.8287,
+          2.2105,
+          0.0
+        ],
+        "fov_deg": 29.2248,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1857.172,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 18.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -51.6767,
+          -25.4444,
+          -1848.2827
+        ],
+        "rotation_deg": [
+          0.7931,
+          2.1267,
+          0.0
+        ],
+        "fov_deg": 29.1232,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1848.283,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 19.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -49.4012,
+          -24.127,
+          -1839.8992
+        ],
+        "rotation_deg": [
+          0.7596,
+          2.0476,
+          0.0
+        ],
+        "fov_deg": 29.0274,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1839.899,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 20.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -47.2589,
+          -22.8867,
+          -1832.0065
+        ],
+        "rotation_deg": [
+          0.728,
+          1.9732,
+          0.0
+        ],
+        "fov_deg": 28.9372,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1832.006,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 21.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -45.2458,
+          -21.7212,
+          -1824.5898
+        ],
+        "rotation_deg": [
+          0.6984,
+          1.9033,
+          0.0
+        ],
+        "fov_deg": 28.8525,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1824.59,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 22.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -43.3579,
+          -20.6282,
+          -1817.6343
+        ],
+        "rotation_deg": [
+          0.6705,
+          1.8377,
+          0.0
+        ],
+        "fov_deg": 28.773,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1817.634,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 23.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -41.5911,
+          -19.6054,
+          -1811.1253
+        ],
+        "rotation_deg": [
+          0.6445,
+          1.7763,
+          0.0
+        ],
+        "fov_deg": 28.6986,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1811.125,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 24.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -39.9416,
+          -18.6504,
+          -1805.0478
+        ],
+        "rotation_deg": [
+          0.6202,
+          1.719,
+          0.0
+        ],
+        "fov_deg": 28.6291,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1805.048,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 25.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -38.4051,
+          -17.7608,
+          -1799.3872
+        ],
+        "rotation_deg": [
+          0.5975,
+          1.6657,
+          0.0
+        ],
+        "fov_deg": 28.5644,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1799.387,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 26.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -36.9778,
+          -16.9345,
+          -1794.1286
+        ],
+        "rotation_deg": [
+          0.5765,
+          1.6161,
+          0.0
+        ],
+        "fov_deg": 28.5043,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1794.129,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 27.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -35.6555,
+          -16.169,
+          -1789.2572
+        ],
+        "rotation_deg": [
+          0.557,
+          1.5701,
+          0.0
+        ],
+        "fov_deg": 28.4487,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1789.257,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 28.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -34.4344,
+          -15.462,
+          -1784.7581
+        ],
+        "rotation_deg": [
+          0.539,
+          1.5277,
+          0.0
+        ],
+        "fov_deg": 28.3972,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1784.758,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 29.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -33.3102,
+          -14.8112,
+          -1780.6167
+        ],
+        "rotation_deg": [
+          0.5225,
+          1.4887,
+          0.0
+        ],
+        "fov_deg": 28.3499,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1780.617,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 30.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -32.2792,
+          -14.2143,
+          -1776.818
+        ],
+        "rotation_deg": [
+          0.5073,
+          1.4529,
+          0.0
+        ],
+        "fov_deg": 28.3065,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1776.818,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 31.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -31.3371,
+          -13.6689,
+          -1773.3473
+        ],
+        "rotation_deg": [
+          0.4934,
+          1.4201,
+          0.0
+        ],
+        "fov_deg": 28.2668,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1773.347,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 32.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -30.4801,
+          -13.1727,
+          -1770.1897
+        ],
+        "rotation_deg": [
+          0.4808,
+          1.3904,
+          0.0
+        ],
+        "fov_deg": 28.2307,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1770.19,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 33.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -29.704,
+          -12.7234,
+          -1767.3305
+        ],
+        "rotation_deg": [
+          0.4693,
+          1.3634,
+          0.0
+        ],
+        "fov_deg": 28.1981,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1767.331,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 34.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -29.0049,
+          -12.3186,
+          -1764.7549
+        ],
+        "rotation_deg": [
+          0.459,
+          1.3391,
+          0.0
+        ],
+        "fov_deg": 28.1686,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1764.755,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 35.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -28.3787,
+          -11.9561,
+          -1762.4479
+        ],
+        "rotation_deg": [
+          0.4498,
+          1.3174,
+          0.0
+        ],
+        "fov_deg": 28.1423,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1762.448,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 36.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -27.8215,
+          -11.6335,
+          -1760.395
+        ],
+        "rotation_deg": [
+          0.4416,
+          1.298,
+          0.0
+        ],
+        "fov_deg": 28.1188,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1760.395,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 37.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -27.3292,
+          -11.3485,
+          -1758.5811
+        ],
+        "rotation_deg": [
+          0.4343,
+          1.2809,
+          0.0
+        ],
+        "fov_deg": 28.0981,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1758.581,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 38.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -26.8977,
+          -11.0987,
+          -1756.9916
+        ],
+        "rotation_deg": [
+          0.428,
+          1.2659,
+          0.0
+        ],
+        "fov_deg": 28.0799,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1756.992,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 39.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -26.5231,
+          -10.8818,
+          -1755.6115
+        ],
+        "rotation_deg": [
+          0.4224,
+          1.2529,
+          0.0
+        ],
+        "fov_deg": 28.0641,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1755.612,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 40.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -26.2014,
+          -10.6956,
+          -1754.4262
+        ],
+        "rotation_deg": [
+          0.4177,
+          1.2417,
+          0.0
+        ],
+        "fov_deg": 28.0506,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1754.426,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 41.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.9285,
+          -10.5376,
+          -1753.4208
+        ],
+        "rotation_deg": [
+          0.4137,
+          1.2323,
+          0.0
+        ],
+        "fov_deg": 28.0391,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1753.421,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 42.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.7004,
+          -10.4055,
+          -1752.5805
+        ],
+        "rotation_deg": [
+          0.4103,
+          1.2243,
+          0.0
+        ],
+        "fov_deg": 28.0295,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1752.58,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 43.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.5131,
+          -10.2971,
+          -1751.8905
+        ],
+        "rotation_deg": [
+          0.4076,
+          1.2178,
+          0.0
+        ],
+        "fov_deg": 28.0216,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1751.89,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 44.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.3626,
+          -10.2099,
+          -1751.3359
+        ],
+        "rotation_deg": [
+          0.4053,
+          1.2126,
+          0.0
+        ],
+        "fov_deg": 28.0153,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1751.336,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 45.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.2448,
+          -10.1417,
+          -1750.902
+        ],
+        "rotation_deg": [
+          0.4036,
+          1.2085,
+          0.0
+        ],
+        "fov_deg": 28.0103,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.902,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 46.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.1558,
+          -10.0902,
+          -1750.574
+        ],
+        "rotation_deg": [
+          0.4023,
+          1.2054,
+          0.0
+        ],
+        "fov_deg": 28.0066,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.574,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 47.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.0915,
+          -10.053,
+          -1750.3371
+        ],
+        "rotation_deg": [
+          0.4013,
+          1.2032,
+          0.0
+        ],
+        "fov_deg": 28.0039,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.337,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 48.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.0479,
+          -10.0277,
+          -1750.1764
+        ],
+        "rotation_deg": [
+          0.4007,
+          1.2017,
+          0.0
+        ],
+        "fov_deg": 28.002,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.176,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 49.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.0209,
+          -10.0121,
+          -1750.0771
+        ],
+        "rotation_deg": [
+          0.4003,
+          1.2007,
+          0.0
+        ],
+        "fov_deg": 28.0009,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.077,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 50.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.0067,
+          -10.0039,
+          -1750.0245
+        ],
+        "rotation_deg": [
+          0.4001,
+          1.2002,
+          0.0
+        ],
+        "fov_deg": 28.0003,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.025,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 51.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.001,
+          -10.0006,
+          -1750.0038
+        ],
+        "rotation_deg": [
+          0.4,
+          1.2,
+          0.0
+        ],
+        "fov_deg": 28.0,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.004,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 52.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -25.0,
+          -10.0,
+          -1750.0
+        ],
+        "rotation_deg": [
+          0.4,
+          1.2,
+          0.0
+        ],
+        "fov_deg": 28.0,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.0,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 53.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -24.9987,
+          -9.9996,
+          -1749.9954
+        ],
+        "rotation_deg": [
+          0.4,
+          1.1999,
+          0.0
+        ],
+        "fov_deg": 27.9999,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1749.995,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 54.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -24.9864,
+          -9.9958,
+          -1749.9525
+        ],
+        "rotation_deg": [
+          0.3998,
+          1.1993,
+          0.0
+        ],
+        "fov_deg": 27.9993,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1749.953,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 55.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -24.9503,
+          -9.9845,
+          -1749.8264
+        ],
+        "rotation_deg": [
+          0.3993,
+          1.1974,
+          0.0
+        ],
+        "fov_deg": 27.9974,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1749.826,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 56.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -24.8774,
+          -9.9619,
+          -1749.572
+        ],
+        "rotation_deg": [
+          0.3984,
+          1.1936,
+          0.0
+        ],
+        "fov_deg": 27.9936,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1749.572,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 57.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -24.7549,
+          -9.9237,
+          -1749.1444
+        ],
+        "rotation_deg": [
+          0.3967,
+          1.1872,
+          0.0
+        ],
+        "fov_deg": 27.9872,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1749.144,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 58.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -24.5699,
+          -9.8662,
+          -1748.4986
+        ],
+        "rotation_deg": [
+          0.3943,
+          1.1775,
+          0.0
+        ],
+        "fov_deg": 27.9775,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1748.499,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 59.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -24.3094,
+          -9.7852,
+          -1747.5897
+        ],
+        "rotation_deg": [
+          0.3908,
+          1.1639,
+          0.0
+        ],
+        "fov_deg": 27.9638,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1747.59,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 60.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -23.9607,
+          -9.6767,
+          -1746.3729
+        ],
+        "rotation_deg": [
+          0.3861,
+          1.1457,
+          0.0
+        ],
+        "fov_deg": 27.9456,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1746.373,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 61.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -23.5107,
+          -9.5367,
+          -1744.8039
+        ],
+        "rotation_deg": [
+          0.3801,
+          1.1222,
+          0.0
+        ],
+        "fov_deg": 27.9221,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1744.804,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 62.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -22.9467,
+          -9.3612,
+          -1742.8389
+        ],
+        "rotation_deg": [
+          0.3726,
+          1.0928,
+          0.0
+        ],
+        "fov_deg": 27.8926,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1742.839,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 63.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -22.2557,
+          -9.1462,
+          -1740.4353
+        ],
+        "rotation_deg": [
+          0.3634,
+          1.0567,
+          0.0
+        ],
+        "fov_deg": 27.8565,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1740.435,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 64.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -21.4249,
+          -8.8877,
+          -1737.5528
+        ],
+        "rotation_deg": [
+          0.3523,
+          1.0133,
+          0.0
+        ],
+        "fov_deg": 27.8133,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1737.553,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 65.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -20.4412,
+          -8.5817,
+          -1734.154
+        ],
+        "rotation_deg": [
+          0.3392,
+          0.9619,
+          0.0
+        ],
+        "fov_deg": 27.7623,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1734.154,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 66.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -19.2919,
+          -8.2242,
+          -1730.2067
+        ],
+        "rotation_deg": [
+          0.3239,
+          0.9019,
+          0.0
+        ],
+        "fov_deg": 27.7031,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1730.207,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 67.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -17.9641,
+          -7.8111,
+          -1725.6863
+        ],
+        "rotation_deg": [
+          0.3062,
+          0.8326,
+          0.0
+        ],
+        "fov_deg": 27.6353,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1725.686,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 68.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -16.4449,
+          -7.3384,
+          -1720.5789
+        ],
+        "rotation_deg": [
+          0.2859,
+          0.7532,
+          0.0
+        ],
+        "fov_deg": 27.5587,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1720.579,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 69.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -14.7213,
+          -6.8022,
+          -1714.8854
+        ],
+        "rotation_deg": [
+          0.263,
+          0.6632,
+          0.0
+        ],
+        "fov_deg": 27.4733,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1714.885,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 70.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -12.7805,
+          -6.1984,
+          -1708.6276
+        ],
+        "rotation_deg": [
+          0.2371,
+          0.5619,
+          0.0
+        ],
+        "fov_deg": 27.3794,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1708.628,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 71.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -10.6096,
+          -5.523,
+          -1701.854
+        ],
+        "rotation_deg": [
+          0.2081,
+          0.4485,
+          0.0
+        ],
+        "fov_deg": 27.2778,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1701.854,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 72.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -8.1957,
+          -4.772,
+          -1694.6484
+        ],
+        "rotation_deg": [
+          0.1759,
+          0.3224,
+          0.0
+        ],
+        "fov_deg": 27.1697,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1694.648,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 73.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -5.5259,
+          -3.9414,
+          -1687.1383
+        ],
+        "rotation_deg": [
+          0.1403,
+          0.183,
+          0.0
+        ],
+        "fov_deg": 27.0571,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1687.138,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 74.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -2.5874,
+          -3.0272,
+          -1679.5053
+        ],
+        "rotation_deg": [
+          0.1012,
+          0.0296,
+          0.0
+        ],
+        "fov_deg": 26.9426,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1679.505,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 75.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          0.6329,
+          -2.0253,
+          -1671.9944
+        ],
+        "rotation_deg": [
+          0.0582,
+          -0.1386,
+          0.0
+        ],
+        "fov_deg": 26.8299,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1671.994,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 76.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          4.1477,
+          -0.9318,
+          -1664.9232
+        ],
+        "rotation_deg": [
+          0.0114,
+          -0.3222,
+          0.0
+        ],
+        "fov_deg": 26.7238,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1664.923,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 77.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          7.9699,
+          0.2573,
+          -1658.6882
+        ],
+        "rotation_deg": [
+          -0.0396,
+          -0.5218,
+          0.0
+        ],
+        "fov_deg": 26.6303,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1658.688,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 78.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          12.1125,
+          1.5461,
+          -1653.7663
+        ],
+        "rotation_deg": [
+          -0.0948,
+          -0.7381,
+          0.0
+        ],
+        "fov_deg": 26.5565,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1653.766,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 79.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          16.5883,
+          2.9386,
+          -1650.7083
+        ],
+        "rotation_deg": [
+          -0.1545,
+          -0.9718,
+          0.0
+        ],
+        "fov_deg": 26.5106,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1650.708,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 80.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          21.3814,
+          4.4298,
+          -1650.1162
+        ],
+        "rotation_deg": [
+          -0.2184,
+          -1.2221,
+          0.0
+        ],
+        "fov_deg": 26.5017,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1650.116,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 81.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          26.0045,
+          5.8681,
+          -1652.1885
+        ],
+        "rotation_deg": [
+          -0.2801,
+          -1.4636,
+          0.0
+        ],
+        "fov_deg": 26.5328,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1652.188,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 82.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          30.2888,
+          7.201,
+          -1656.3803
+        ],
+        "rotation_deg": [
+          -0.3372,
+          -1.6873,
+          0.0
+        ],
+        "fov_deg": 26.5957,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1656.38,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 83.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          34.2472,
+          8.4325,
+          -1662.1136
+        ],
+        "rotation_deg": [
+          -0.39,
+          -1.894,
+          0.0
+        ],
+        "fov_deg": 26.6817,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1662.114,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 84.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          37.8926,
+          9.5666,
+          -1668.8786
+        ],
+        "rotation_deg": [
+          -0.4386,
+          -2.0844,
+          0.0
+        ],
+        "fov_deg": 26.7832,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1668.879,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 85.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          41.2379,
+          10.6074,
+          -1676.2438
+        ],
+        "rotation_deg": [
+          -0.4832,
+          -2.2591,
+          0.0
+        ],
+        "fov_deg": 26.8937,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1676.244,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 86.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          44.296,
+          11.5588,
+          -1683.8584
+        ],
+        "rotation_deg": [
+          -0.5239,
+          -2.4188,
+          0.0
+        ],
+        "fov_deg": 27.0079,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1683.858,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 87.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          47.0798,
+          12.4248,
+          -1691.4471
+        ],
+        "rotation_deg": [
+          -0.5611,
+          -2.5642,
+          0.0
+        ],
+        "fov_deg": 27.1217,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1691.447,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 88.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          49.6022,
+          13.2096,
+          -1698.8022
+        ],
+        "rotation_deg": [
+          -0.5947,
+          -2.6959,
+          0.0
+        ],
+        "fov_deg": 27.232,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1698.802,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 89.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          51.876,
+          13.917,
+          -1705.7742
+        ],
+        "rotation_deg": [
+          -0.625,
+          -2.8146,
+          0.0
+        ],
+        "fov_deg": 27.3366,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1705.774,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 90.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          53.9141,
+          14.5511,
+          -1712.2616
+        ],
+        "rotation_deg": [
+          -0.6522,
+          -2.9211,
+          0.0
+        ],
+        "fov_deg": 27.4339,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1712.262,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 91.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          55.7295,
+          15.1159,
+          -1718.2018
+        ],
+        "rotation_deg": [
+          -0.6764,
+          -3.0159,
+          0.0
+        ],
+        "fov_deg": 27.523,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1718.202,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 92.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          57.3351,
+          15.6154,
+          -1723.5624
+        ],
+        "rotation_deg": [
+          -0.6978,
+          -3.0997,
+          0.0
+        ],
+        "fov_deg": 27.6034,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1723.562,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 93.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          58.7436,
+          16.0536,
+          -1728.3343
+        ],
+        "rotation_deg": [
+          -0.7166,
+          -3.1733,
+          0.0
+        ],
+        "fov_deg": 27.675,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1728.334,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 94.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          59.9681,
+          16.4345,
+          -1732.5255
+        ],
+        "rotation_deg": [
+          -0.7329,
+          -3.2372,
+          0.0
+        ],
+        "fov_deg": 27.7379,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1732.526,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 95.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          61.0214,
+          16.7622,
+          -1736.1566
+        ],
+        "rotation_deg": [
+          -0.747,
+          -3.2922,
+          0.0
+        ],
+        "fov_deg": 27.7923,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1736.157,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 96.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          61.9163,
+          17.0406,
+          -1739.2568
+        ],
+        "rotation_deg": [
+          -0.7589,
+          -3.339,
+          0.0
+        ],
+        "fov_deg": 27.8389,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1739.257,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 97.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          62.6659,
+          17.2738,
+          -1741.8615
+        ],
+        "rotation_deg": [
+          -0.7689,
+          -3.3781,
+          0.0
+        ],
+        "fov_deg": 27.8779,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1741.861,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 98.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          63.283,
+          17.4658,
+          -1744.01
+        ],
+        "rotation_deg": [
+          -0.7771,
+          -3.4103,
+          0.0
+        ],
+        "fov_deg": 27.9101,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1744.01,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 99.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          63.7804,
+          17.6206,
+          -1745.744
+        ],
+        "rotation_deg": [
+          -0.7837,
+          -3.4363,
+          0.0
+        ],
+        "fov_deg": 27.9362,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1745.744,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 100.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.171,
+          17.7421,
+          -1747.1068
+        ],
+        "rotation_deg": [
+          -0.7889,
+          -3.4567,
+          0.0
+        ],
+        "fov_deg": 27.9566,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1747.107,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 101.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.4679,
+          17.8344,
+          -1748.1426
+        ],
+        "rotation_deg": [
+          -0.7929,
+          -3.4722,
+          0.0
+        ],
+        "fov_deg": 27.9721,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1748.143,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 102.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.6837,
+          17.9016,
+          -1748.8961
+        ],
+        "rotation_deg": [
+          -0.7958,
+          -3.4835,
+          0.0
+        ],
+        "fov_deg": 27.9834,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1748.896,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 103.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.8316,
+          17.9476,
+          -1749.412
+        ],
+        "rotation_deg": [
+          -0.7978,
+          -3.4912,
+          0.0
+        ],
+        "fov_deg": 27.9912,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1749.412,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 104.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.9242,
+          17.9764,
+          -1749.7354
+        ],
+        "rotation_deg": [
+          -0.799,
+          -3.496,
+          0.0
+        ],
+        "fov_deg": 27.996,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1749.735,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 105.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.9745,
+          17.9921,
+          -1749.9111
+        ],
+        "rotation_deg": [
+          -0.7997,
+          -3.4987,
+          0.0
+        ],
+        "fov_deg": 27.9987,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1749.911,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 106.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.9955,
+          17.9986,
+          -1749.9843
+        ],
+        "rotation_deg": [
+          -0.7999,
+          -3.4998,
+          0.0
+        ],
+        "fov_deg": 27.9998,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1749.984,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 107.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          65.0,
+          18.0,
+          -1749.9998
+        ],
+        "rotation_deg": [
+          -0.8,
+          -3.5,
+          0.0
+        ],
+        "fov_deg": 28.0,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.0,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 108.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.9985,
+          17.9995,
+          -1750.0051
+        ],
+        "rotation_deg": [
+          -0.8,
+          -3.4999,
+          0.0
+        ],
+        "fov_deg": 28.0,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.005,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 109.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.979,
+          17.9936,
+          -1750.0701
+        ],
+        "rotation_deg": [
+          -0.7997,
+          -3.4988,
+          0.0
+        ],
+        "fov_deg": 28.0004,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.07,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 110.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.9169,
+          17.9745,
+          -1750.2771
+        ],
+        "rotation_deg": [
+          -0.7989,
+          -3.4952,
+          0.0
+        ],
+        "fov_deg": 28.0017,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.277,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 111.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.7873,
+          17.9348,
+          -1750.7089
+        ],
+        "rotation_deg": [
+          -0.7972,
+          -3.4878,
+          0.0
+        ],
+        "fov_deg": 28.0043,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1750.709,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 112.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.5656,
+          17.8668,
+          -1751.4481
+        ],
+        "rotation_deg": [
+          -0.7942,
+          -3.4751,
+          0.0
+        ],
+        "fov_deg": 28.0087,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1751.448,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 113.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          64.2268,
+          17.7629,
+          -1752.5772
+        ],
+        "rotation_deg": [
+          -0.7897,
+          -3.4557,
+          0.0
+        ],
+        "fov_deg": 28.0155,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1752.577,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 114.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          63.7463,
+          17.6155,
+          -1754.179
+        ],
+        "rotation_deg": [
+          -0.7833,
+          -3.4281,
+          0.0
+        ],
+        "fov_deg": 28.0251,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1754.179,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 115.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          63.0992,
+          17.4171,
+          -1756.3361
+        ],
+        "rotation_deg": [
+          -0.7747,
+          -3.391,
+          0.0
+        ],
+        "fov_deg": 28.038,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1756.336,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 116.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          62.2607,
+          17.16,
+          -1759.131
+        ],
+        "rotation_deg": [
+          -0.7635,
+          -3.3429,
+          0.0
+        ],
+        "fov_deg": 28.0548,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1759.131,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 117.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          61.2061,
+          16.8365,
+          -1762.6464
+        ],
+        "rotation_deg": [
+          -0.7494,
+          -3.2825,
+          0.0
+        ],
+        "fov_deg": 28.0759,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1762.646,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 118.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          59.9105,
+          16.4392,
+          -1766.9649
+        ],
+        "rotation_deg": [
+          -0.7321,
+          -3.2082,
+          0.0
+        ],
+        "fov_deg": 28.1018,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1766.965,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 119.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          58.3492,
+          15.9604,
+          -1772.1692
+        ],
+        "rotation_deg": [
+          -0.7113,
+          -3.1187,
+          0.0
+        ],
+        "fov_deg": 28.133,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1772.169,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 120.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          56.4974,
+          15.3925,
+          -1778.3419
+        ],
+        "rotation_deg": [
+          -0.6866,
+          -3.0125,
+          0.0
+        ],
+        "fov_deg": 28.1701,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1778.342,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 121.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          54.3303,
+          14.728,
+          -1785.5655
+        ],
+        "rotation_deg": [
+          -0.6577,
+          -2.8883,
+          0.0
+        ],
+        "fov_deg": 28.2134,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1785.566,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 122.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          51.8231,
+          13.9591,
+          -1793.9229
+        ],
+        "rotation_deg": [
+          -0.6243,
+          -2.7445,
+          0.0
+        ],
+        "fov_deg": 28.2635,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1793.923,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 123.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          48.9511,
+          13.0783,
+          -1803.4964
+        ],
+        "rotation_deg": [
+          -0.586,
+          -2.5799,
+          0.0
+        ],
+        "fov_deg": 28.321,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1803.496,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 124.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          45.6893,
+          12.0781,
+          -1814.3689
+        ],
+        "rotation_deg": [
+          -0.5425,
+          -2.3929,
+          0.0
+        ],
+        "fov_deg": 28.3862,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1814.369,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 125.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          42.0131,
+          10.9507,
+          -1826.6228
+        ],
+        "rotation_deg": [
+          -0.4935,
+          -2.1821,
+          0.0
+        ],
+        "fov_deg": 28.4597,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1826.623,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 126.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          37.8977,
+          9.6886,
+          -1840.3409
+        ],
+        "rotation_deg": [
+          -0.4386,
+          -1.9461,
+          0.0
+        ],
+        "fov_deg": 28.542,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1840.341,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 127.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          33.3183,
+          8.2843,
+          -1855.6058
+        ],
+        "rotation_deg": [
+          -0.3776,
+          -1.6836,
+          0.0
+        ],
+        "fov_deg": 28.6336,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1855.606,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 128.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          28.25,
+          6.73,
+          -1872.5001
+        ],
+        "rotation_deg": [
+          -0.31,
+          -1.393,
+          0.0
+        ],
+        "fov_deg": 28.735,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1872.5,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 129.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          23.0505,
+          5.1355,
+          -1889.8316
+        ],
+        "rotation_deg": [
+          -0.2407,
+          -1.0949,
+          0.0
+        ],
+        "fov_deg": 28.839,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1889.832,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 130.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          18.3367,
+          3.6899,
+          -1905.5444
+        ],
+        "rotation_deg": [
+          -0.1778,
+          -0.8246,
+          0.0
+        ],
+        "fov_deg": 28.9333,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1905.544,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 131.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          14.0938,
+          2.3888,
+          -1919.6872
+        ],
+        "rotation_deg": [
+          -0.1213,
+          -0.5814,
+          0.0
+        ],
+        "fov_deg": 29.0181,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1919.687,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 132.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          10.2972,
+          1.2245,
+          -1932.3428
+        ],
+        "rotation_deg": [
+          -0.0706,
+          -0.3637,
+          0.0
+        ],
+        "fov_deg": 29.0941,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1932.343,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 133.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          6.9219,
+          0.1894,
+          -1943.5938
+        ],
+        "rotation_deg": [
+          -0.0256,
+          -0.1702,
+          0.0
+        ],
+        "fov_deg": 29.1616,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1943.594,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 134.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          3.9432,
+          -0.7241,
+          -1953.5227
+        ],
+        "rotation_deg": [
+          0.0141,
+          0.0006,
+          0.0
+        ],
+        "fov_deg": 29.2211,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1953.523,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 135.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          1.3363,
+          -1.5235,
+          -1962.2122
+        ],
+        "rotation_deg": [
+          0.0488,
+          0.1501,
+          0.0
+        ],
+        "fov_deg": 29.2733,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1962.212,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 136.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -0.9235,
+          -2.2165,
+          -1969.745
+        ],
+        "rotation_deg": [
+          0.079,
+          0.2796,
+          0.0
+        ],
+        "fov_deg": 29.3185,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1969.745,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 137.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -2.8611,
+          -2.8107,
+          -1976.2036
+        ],
+        "rotation_deg": [
+          0.1048,
+          0.3907,
+          0.0
+        ],
+        "fov_deg": 29.3572,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1976.204,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 138.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -4.5012,
+          -3.3137,
+          -1981.6707
+        ],
+        "rotation_deg": [
+          0.1267,
+          0.4847,
+          0.0
+        ],
+        "fov_deg": 29.39,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1981.671,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 139.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -5.8687,
+          -3.7331,
+          -1986.2289
+        ],
+        "rotation_deg": [
+          0.1449,
+          0.5631,
+          0.0
+        ],
+        "fov_deg": 29.4174,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1986.229,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 140.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -6.9883,
+          -4.0764,
+          -1989.9609
+        ],
+        "rotation_deg": [
+          0.1598,
+          0.6273,
+          0.0
+        ],
+        "fov_deg": 29.4398,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1989.961,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 141.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -7.8848,
+          -4.3513,
+          -1992.9492
+        ],
+        "rotation_deg": [
+          0.1718,
+          0.6787,
+          0.0
+        ],
+        "fov_deg": 29.4577,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1992.949,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 142.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -8.583,
+          -4.5654,
+          -1995.2765
+        ],
+        "rotation_deg": [
+          0.1811,
+          0.7188,
+          0.0
+        ],
+        "fov_deg": 29.4717,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1995.277,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 143.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -9.1076,
+          -4.7263,
+          -1997.0255
+        ],
+        "rotation_deg": [
+          0.1881,
+          0.7488,
+          0.0
+        ],
+        "fov_deg": 29.4822,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1997.025,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 144.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -9.4836,
+          -4.8416,
+          -1998.2786
+        ],
+        "rotation_deg": [
+          0.1931,
+          0.7704,
+          0.0
+        ],
+        "fov_deg": 29.4897,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1998.279,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 145.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -9.7356,
+          -4.9189,
+          -1999.1187
+        ],
+        "rotation_deg": [
+          0.1965,
+          0.7848,
+          0.0
+        ],
+        "fov_deg": 29.4947,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1999.119,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 146.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -9.8885,
+          -4.9658,
+          -1999.6282
+        ],
+        "rotation_deg": [
+          0.1985,
+          0.7936,
+          0.0
+        ],
+        "fov_deg": 29.4978,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1999.628,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 147.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -9.9669,
+          -4.9899,
+          -1999.8898
+        ],
+        "rotation_deg": [
+          0.1996,
+          0.7981,
+          0.0
+        ],
+        "fov_deg": 29.4993,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1999.89,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 148.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -9.9959,
+          -4.9987,
+          -1999.9862
+        ],
+        "rotation_deg": [
+          0.1999,
+          0.7998,
+          0.0
+        ],
+        "fov_deg": 29.4999,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1999.986,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    },
+    {
+      "frame": 149.0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          -10.0,
+          -5.0,
+          -2000.0
+        ],
+        "rotation_deg": [
+          0.2,
+          0.8,
+          0.0
+        ],
+        "fov_deg": 29.5,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 2000.0,
+          "f_stop": 2.4,
+          "max_blur": 12.0
+        }
+      }
+    }
+  ],
+  "output": {
+    "path": "docs/evidence/gel-01-core-bloom-20261105/gel-25d-abstract-camera-1080p.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "screen_space": true,
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "fit": "cover",
+      "start_frame": 0,
+      "duration_frames": 150
+    },
+    {
+      "id": "far_aurora_indigo_nw",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.95,
+      "size": [
+        1640.0,
+        1640.0
+      ],
+      "position": [
+        -420.0,
+        -240.0,
+        760.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.11,
+                0.24,
+                0.82,
+                0.72
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.05,
+                0.11,
+                0.44,
+                0.34
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.11,
+                0.24,
+                0.82,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -420.0
+              },
+              {
+                "frame": 75,
+                "value": -280.0
+              },
+              {
+                "frame": 149,
+                "value": -469.0
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -240.0
+              },
+              {
+                "frame": 75,
+                "value": -165.0
+              },
+              {
+                "frame": 149,
+                "value": -270.0
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 760.0
+              },
+              {
+                "frame": 75,
+                "value": 700.0
+              },
+              {
+                "frame": 149,
+                "value": 760.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "far_aurora_violet_se",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.9,
+      "size": [
+        1520.0,
+        1520.0
+      ],
+      "position": [
+        460.0,
+        230.0,
+        680.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.28,
+                0.12,
+                0.78,
+                0.62
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.09,
+                0.05,
+                0.35,
+                0.28
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.28,
+                0.12,
+                0.78,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 460.0
+              },
+              {
+                "frame": 75,
+                "value": 330.0
+              },
+              {
+                "frame": 149,
+                "value": 505.5
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 230.0
+              },
+              {
+                "frame": 75,
+                "value": 150.0
+              },
+              {
+                "frame": 149,
+                "value": 262.0
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 680.0
+              },
+              {
+                "frame": 75,
+                "value": 730.0
+              },
+              {
+                "frame": 149,
+                "value": 680.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "far_aurora_cyan_core",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.88,
+      "size": [
+        1360.0,
+        1360.0
+      ],
+      "position": [
+        40.0,
+        -30.0,
+        540.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.04,
+                0.56,
+                0.96,
+                0.58
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.02,
+                0.22,
+                0.58,
+                0.24
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.04,
+                0.56,
+                0.96,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 40.0
+              },
+              {
+                "frame": 75,
+                "value": -55.0
+              },
+              {
+                "frame": 149,
+                "value": 73.25
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -30.0
+              },
+              {
+                "frame": 75,
+                "value": 35.0
+              },
+              {
+                "frame": 149,
+                "value": -56.0
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 540.0
+              },
+              {
+                "frame": 75,
+                "value": 495.0
+              },
+              {
+                "frame": 149,
+                "value": 540.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abstract_orbital_ring_back",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.65,
+      "size": [
+        1320.0,
+        1320.0
+      ],
+      "position": [
+        -120.0,
+        40.0,
+        420.0
+      ],
+      "rotation": [
+        62.0,
+        -14.0,
+        18.0
+      ],
+      "scale": [
+        1.15,
+        0.48,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "stroke": {
+          "width": 7.0,
+          "gradient": {
+            "type": "linear",
+            "start": [
+              0.0,
+              0.0
+            ],
+            "end": [
+              1.0,
+              1.0
+            ],
+            "color_stops": [
+              {
+                "position": 0.0,
+                "color": [
+                  0.1,
+                  0.88,
+                  1.0,
+                  0.85
+                ]
+              },
+              {
+                "position": 0.5,
+                "color": [
+                  0.16,
+                  0.42,
+                  0.98,
+                  0.25
+                ]
+              },
+              {
+                "position": 1.0,
+                "color": [
+                  0.58,
+                  0.28,
+                  1.0,
+                  0.78
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.1,
+            0.72,
+            1.0,
+            0.85
+          ],
+          "intensity": 1.1,
+          "radius": 24.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "rotation_z",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 18.0
+              },
+              {
+                "frame": 149,
+                "value": 64.0
+              }
+            ]
+          },
+          {
+            "property": "rotation_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -14.0
+              },
+              {
+                "frame": 75,
+                "value": 12.0
+              },
+              {
+                "frame": 149,
+                "value": -14.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abstract_neon_ribbon_deep",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.8,
+      "size": [
+        1920.0,
+        1080.0
+      ],
+      "position": [
+        0.0,
+        -70.0,
+        340.0
+      ],
+      "rotation": [
+        18.0,
+        -9.0,
+        -7.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -900.0,
+              43.5
+            ]
+          },
+          {
+            "type": "cubic_to",
+            "control1": [
+              -520.0,
+              -290.0
+            ],
+            "control2": [
+              420.0,
+              204.5
+            ],
+            "point": [
+              900.0,
+              -140.5
+            ]
+          }
+        ],
+        "stroke": {
+          "width": 18.0,
+          "cap": "round",
+          "join": "round",
+          "gradient": {
+            "type": "linear",
+            "start": [
+              0.0,
+              0.5
+            ],
+            "end": [
+              1.0,
+              0.5
+            ],
+            "color_stops": [
+              {
+                "position": 0.0,
+                "color": [
+                  0.04,
+                  0.52,
+                  0.98,
+                  0.0
+                ]
+              },
+              {
+                "position": 0.22,
+                "color": [
+                  0.04,
+                  0.52,
+                  0.98,
+                  0.78
+                ]
+              },
+              {
+                "position": 0.52,
+                "color": [
+                  0.24,
+                  0.94,
+                  1.0,
+                  0.92
+                ]
+              },
+              {
+                "position": 0.8,
+                "color": [
+                  0.42,
+                  0.26,
+                  0.98,
+                  0.75
+                ]
+              },
+              {
+                "position": 1.0,
+                "color": [
+                  0.42,
+                  0.26,
+                  0.98,
+                  0.0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.24,
+            0.94,
+            1.0,
+            0.85
+          ],
+          "intensity": 1.15,
+          "radius": 28.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "rotation_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -7.0
+              },
+              {
+                "frame": 75,
+                "value": 2.5
+              },
+              {
+                "frame": 149,
+                "value": -11.75
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -70.0
+              },
+              {
+                "frame": 75,
+                "value": -112.0
+              },
+              {
+                "frame": 149,
+                "value": -46.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abstract_neon_ribbon_mid",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.76,
+      "size": [
+        1920.0,
+        1080.0
+      ],
+      "position": [
+        30.0,
+        85.0,
+        210.0
+      ],
+      "rotation": [
+        -14.0,
+        11.0,
+        6.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -900.0,
+              -8.25
+            ]
+          },
+          {
+            "type": "cubic_to",
+            "control1": [
+              -520.0,
+              260.0
+            ],
+            "control2": [
+              420.0,
+              -137.74999999999997
+            ],
+            "point": [
+              900.0,
+              139.75
+            ]
+          }
+        ],
+        "stroke": {
+          "width": 13.0,
+          "cap": "round",
+          "join": "round",
+          "gradient": {
+            "type": "linear",
+            "start": [
+              0.0,
+              0.5
+            ],
+            "end": [
+              1.0,
+              0.5
+            ],
+            "color_stops": [
+              {
+                "position": 0.0,
+                "color": [
+                  0.32,
+                  0.22,
+                  0.96,
+                  0.0
+                ]
+              },
+              {
+                "position": 0.22,
+                "color": [
+                  0.32,
+                  0.22,
+                  0.96,
+                  0.7
+                ]
+              },
+              {
+                "position": 0.52,
+                "color": [
+                  0.08,
+                  0.82,
+                  1.0,
+                  0.88
+                ]
+              },
+              {
+                "position": 0.8,
+                "color": [
+                  0.52,
+                  0.96,
+                  1.0,
+                  0.76
+                ]
+              },
+              {
+                "position": 1.0,
+                "color": [
+                  0.52,
+                  0.96,
+                  1.0,
+                  0.0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.08,
+            0.82,
+            1.0,
+            0.85
+          ],
+          "intensity": 1.15,
+          "radius": 28.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "rotation_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 6.0
+              },
+              {
+                "frame": 75,
+                "value": -2.0
+              },
+              {
+                "frame": 149,
+                "value": 10.0
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 85.0
+              },
+              {
+                "frame": 75,
+                "value": 43.0
+              },
+              {
+                "frame": 149,
+                "value": 109.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mid_glass_orb_left",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.84,
+      "size": [
+        420.0,
+        420.0
+      ],
+      "position": [
+        -520.0,
+        -155.0,
+        165.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.72,
+                0.98,
+                1.0,
+                0.82
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.08,
+                0.62,
+                0.98,
+                0.38
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.72,
+                0.98,
+                1.0,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -520.0
+              },
+              {
+                "frame": 75,
+                "value": -450.0
+              },
+              {
+                "frame": 149,
+                "value": -544.5
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -155.0
+              },
+              {
+                "frame": 75,
+                "value": -107.0
+              },
+              {
+                "frame": 149,
+                "value": -174.2
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 165.0
+              },
+              {
+                "frame": 75,
+                "value": 130.0
+              },
+              {
+                "frame": 149,
+                "value": 165.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mid_glass_orb_right",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.82,
+      "size": [
+        480.0,
+        480.0
+      ],
+      "position": [
+        545.0,
+        145.0,
+        135.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.54,
+                0.92,
+                1.0,
+                0.78
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.14,
+                0.36,
+                0.96,
+                0.34
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.54,
+                0.92,
+                1.0,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 545.0
+              },
+              {
+                "frame": 75,
+                "value": 463.0
+              },
+              {
+                "frame": 149,
+                "value": 573.7
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 145.0
+              },
+              {
+                "frame": 75,
+                "value": 93.0
+              },
+              {
+                "frame": 149,
+                "value": 165.8
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 135.0
+              },
+              {
+                "frame": 75,
+                "value": 165.0
+              },
+              {
+                "frame": 149,
+                "value": 135.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "kicker_depth_plane",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "position": [
+        960.0,
+        345.0,
+        95.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "CHRONON 2.5D OPTICAL GEL SURFACE",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 34.0,
+        "fill": "#A8ECFF"
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.1,
+            0.68,
+            1.0,
+            0.85
+          ],
+          "intensity": 0.95,
+          "radius": 18.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_z",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 240.0
+              },
+              {
+                "frame": 33,
+                "value": 95.0
+              },
+              {
+                "frame": 149,
+                "value": 75.0
+              }
+            ]
+          },
+          {
+            "property": "opacity",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.15
+              },
+              {
+                "frame": 22,
+                "value": 0.82
+              },
+              {
+                "frame": 149,
+                "value": 0.82
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "hero_gel_25d_title",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "position": [
+        960.0,
+        535.0,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "calories or ingredients",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 112,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "text_animators": [
+        {
+          "id": "hero_tracking_sweep",
+          "selectors": [
+            {
+              "unit": "line",
+              "shape": "square",
+              "order": "forward",
+              "combine": "replace",
+              "exclude_spaces": true
+            }
+          ],
+          "properties": [
+            {
+              "property": "tracking",
+              "easing": "linear",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 4
+                },
+                {
+                  "frame": 37,
+                  "value": 0
+                },
+                {
+                  "frame": 82,
+                  "value": -16
+                },
+                {
+                  "frame": 117,
+                  "value": 8
+                },
+                {
+                  "frame": 149,
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.18,
+            0.9,
+            1.0,
+            1.0
+          ],
+          "intensity": 1.18,
+          "radius": 22.0
+        },
+        {
+          "type": "glow",
+          "color": [
+            0.04,
+            0.36,
+            1.0,
+            1.0
+          ],
+          "intensity": 1.45,
+          "radius": 68.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_z",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -220.0
+              },
+              {
+                "frame": 33,
+                "value": 0.0
+              },
+              {
+                "frame": 112,
+                "value": 0.0
+              },
+              {
+                "frame": 149,
+                "value": -35.0
+              }
+            ]
+          },
+          {
+            "property": "rotation_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -8.5
+              },
+              {
+                "frame": 42,
+                "value": 2.2
+              },
+              {
+                "frame": 97,
+                "value": -3.4
+              },
+              {
+                "frame": 149,
+                "value": 1.0
+              }
+            ]
+          },
+          {
+            "property": "rotation_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 4.0
+              },
+              {
+                "frame": 57,
+                "value": -1.5
+              },
+              {
+                "frame": 149,
+                "value": 1.2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "subtitle_depth_plane",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "position": [
+        960.0,
+        725.0,
+        -75.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "COMPOSITE SDF DOME  \u2022  DUAL-HALO HDR BLOOM  \u2022  2.5D CAMERA RIG & DOF",
+      "style": {
+        "font": "assets/fonts/Inter-Regular.ttf",
+        "font_size": 26.0,
+        "fill": "#C8F4FF"
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.06,
+            0.52,
+            1.0,
+            0.8
+          ],
+          "intensity": 0.75,
+          "radius": 14.0
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_z",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -340.0
+              },
+              {
+                "frame": 37,
+                "value": -75.0
+              },
+              {
+                "frame": 149,
+                "value": -95.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "fg_bokeh_orb_cyan_left",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.68,
+      "size": [
+        300.0,
+        300.0
+      ],
+      "position": [
+        -640.0,
+        290.0,
+        -250.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.3,
+                0.95,
+                1.0,
+                0.52
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.06,
+                0.48,
+                0.98,
+                0.18
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.3,
+                0.95,
+                1.0,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -640.0
+              },
+              {
+                "frame": 75,
+                "value": -475.0
+              },
+              {
+                "frame": 149,
+                "value": -697.75
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 290.0
+              },
+              {
+                "frame": 75,
+                "value": 195.0
+              },
+              {
+                "frame": 149,
+                "value": 328.0
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -250.0
+              },
+              {
+                "frame": 75,
+                "value": -280.0
+              },
+              {
+                "frame": 149,
+                "value": -250.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "fg_bokeh_orb_blue_right",
+      "type": "shape",
+      "start_frame": 0,
+      "duration_frames": 150,
+      "enable_3d": true,
+      "blend_mode": "screen",
+      "opacity": 0.62,
+      "size": [
+        350.0,
+        350.0
+      ],
+      "position": [
+        680.0,
+        -275.0,
+        -290.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "radial",
+          "center": [
+            0.5,
+            0.5
+          ],
+          "radius": 0.5,
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.22,
+                0.68,
+                1.0,
+                0.46
+              ]
+            },
+            {
+              "position": 0.48,
+              "color": [
+                0.08,
+                0.24,
+                0.92,
+                0.15
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.22,
+                0.68,
+                1.0,
+                0.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 680.0
+              },
+              {
+                "frame": 75,
+                "value": 505.0
+              },
+              {
+                "frame": 149,
+                "value": 741.25
+              }
+            ]
+          },
+          {
+            "property": "position_y",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -275.0
+              },
+              {
+                "frame": 75,
+                "value": -187.0
+              },
+              {
+                "frame": 149,
+                "value": -310.2
+              }
+            ]
+          },
+          {
+            "property": "position_z",
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -290.0
+              },
+              {
+                "frame": 75,
+                "value": -265.0
+              },
+              {
+                "frame": 149,
+                "value": -290.0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

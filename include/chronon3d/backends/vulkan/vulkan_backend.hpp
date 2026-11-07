@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chronon3d/rendering/shadow_map.hpp>
+
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/backends/vulkan/gpu_kernel_registry.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
@@ -584,6 +586,26 @@ public:
         runtime::RenderSurfaceHandle depth_destination =
             runtime::kInvalidRenderSurfaceHandle,
         float depth_marker = 1.0f) override;
+
+    /// Rasterize light-space caster triangles into `depth_map` (r = nearest
+    /// depth, g = coverage). Vertices are packed as (x_px, y_px, depth, 1).
+    graph::RenderOpResult shadow_map_caster_surface(
+        runtime::RenderSurfaceHandle depth_map,
+        std::span<const float> light_space_vertices,
+        std::span<const std::uint32_t> indices,
+        std::int32_t x0, std::int32_t y0,
+        std::int32_t x1, std::int32_t y1);
+
+    /// Apply PCF shadow visibility from `depth_map` to `source`.
+    graph::RenderOpResult shadow_map_apply_surface(
+        runtime::RenderSurfaceHandle destination,
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle depth_map,
+        const rendering::ShadowApplyParams& params);
+
+    /// True only when both production shadow kernels are registered on the
+    /// active device. Callers must fail closed when this is false.
+    [[nodiscard]] bool supports_shadow_map() const noexcept;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     graph::RenderOpResult create_cuda_external_surface(

@@ -49,6 +49,7 @@ void add_point_light(HashBuilder& h, const PointLightSource& s) {
     add_float(h, s.radius);
     add_float(h, s.range);
     add_float(h, s.decay);
+    h.add_enum(s.falloff);
     add_float(h, s.angle);
     add_float(h, s.penumbra);
     h.add(s.casts_shadow);

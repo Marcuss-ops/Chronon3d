@@ -31,19 +31,36 @@ TEST_CASE("gel surface math stays finite around thin and intersecting SDF featur
     const float eps = 0.001f;
     const float left_edge_slope =
         (rounded_height(eps, 16.0f) - rounded_height(0.0f, 16.0f)) / eps;
-    const float centre_slope =
-        (rounded_height(16.0f, 16.0f) - rounded_height(16.0f - eps, 16.0f)) / eps;
-    CHECK(left_edge_slope == doctest::Approx(2.0f).epsilon(0.001f));
+    // Height differences at the medial axis are below float resolution for
+    // this epsilon (the smootherstep residual is O(eps^3)); check the shared
+    // analytic derivative instead of amplifying cancellation by division.
+    const float centre_slope = rounded_slope(16.0f - eps, 16.0f);
+    CHECK(left_edge_slope < 0.001f);
     CHECK(centre_slope < 0.001f);
-    CHECK(rounded_height(8.0f, 16.0f) == doctest::Approx(12.0f));
+    CHECK(rounded_height(8.0f, 16.0f) == doctest::Approx(8.0f));
 
-    // At the profile midpoint dh/dd = 2*(1-t) = 1. The reconstructed
-    // normal must use this chain-rule slope rather than a second height
-    // finite-difference pass.
+    // The dome also has zero second derivative at both ends (C2 join to the
+    // zero-height exterior and a flat medial-axis peak). Estimate curvature
+    // from the analytic first derivative to avoid float cancellation in the
+    // second difference of heights near the peak.
+    const float edge_curvature =
+        (rounded_slope(2.0f * eps, 16.0f) - rounded_slope(eps, 16.0f)) / eps;
+    const float peak_curvature =
+        (rounded_slope(16.0f, 16.0f) -
+         rounded_slope(16.0f - eps, 16.0f)) / eps;
+    CHECK(rounded_slope(0.0f, 16.0f) == 0.0f);
+    CHECK(rounded_slope(16.0f, 16.0f) == 0.0f);
+    CHECK(rounded_slope(8.0f, 16.0f) == doctest::Approx(1.875f));
+    CHECK(std::abs(edge_curvature) < 0.001f);
+    CHECK(std::abs(peak_curvature) < 0.001f);
+
+    // At the profile midpoint dh/dd = 30*t^2*(1-t)^2 = 1.875. The
+    // reconstructed normal must use this chain-rule slope rather than a
+    // second height finite-difference pass.
     const auto midpoint = reconstruct_surface(8.0f, Vec2{1.0f, 0.0f}, 16.0f);
-    CHECK(midpoint.normal.x == doctest::Approx(-1.0f / std::sqrt(2.0f)));
+    CHECK(midpoint.normal.x == doctest::Approx(-15.0f / 17.0f));
     CHECK(midpoint.normal.y == doctest::Approx(0.0f));
-    CHECK(midpoint.normal.z == doctest::Approx(1.0f / std::sqrt(2.0f)));
+    CHECK(midpoint.normal.z == doctest::Approx(8.0f / 17.0f));
     const auto medial_axis = reconstruct_surface(16.0f, Vec2{0.0f, 1.0f}, 16.0f);
     CHECK(medial_axis.normal.x == doctest::Approx(0.0f));
     CHECK(medial_axis.normal.y == doctest::Approx(0.0f));
@@ -140,6 +157,16 @@ TEST_CASE("gel body Beer-Lambert absorption darkens the dome more than its rim")
     CHECK(body.r < body.g);
     CHECK(body.g < body.b);
     CHECK(body.a == doctest::Approx(cyan.a));
+}
+
+TEST_CASE("gel rim keeps a reflective contour with a C2 dome profile") {
+    using namespace chronon3d::text::gel;
+
+    CHECK(rim_response(1.0f, 0.0f, 3.0f) == doctest::Approx(0.78f));
+    CHECK(rim_response(1.0f, 1.5f, 3.0f) > 0.0f);
+    CHECK(rim_response(1.0f, 3.0f, 3.0f) == doctest::Approx(0.0f));
+    CHECK(rim_response(0.0f, 3.0f, 3.0f) == doctest::Approx(1.0f));
+    CHECK(std::isfinite(rim_response(NAN, INFINITY, 3.0f)));
 }
 
 TEST_CASE("gel surface reference parameters remain bounded under animated scaling") {

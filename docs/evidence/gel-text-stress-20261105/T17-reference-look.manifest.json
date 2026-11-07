@@ -1,0 +1,42 @@
+{
+  "case": "T17-reference-look-20261106",
+  "status": "reference-style preview; visual acceptance pending",
+  "source_revision": "533b6ab8cef58d86cb421bcc9cb0568fafd0587b",
+  "device": "NVIDIA RTX A4000",
+  "driver": "595.99.02",
+  "canvas": { "width": 1094, "height": 143, "fps": 30, "frames": 60 },
+  "render_path": "Vulkan strict GPU-native render; NVENC H.264 export",
+  "reference": {
+    "drive_file_id": "1DuatC-N_qIqHkaP3XFlmdxkq2y5156qv",
+    "background_plate": "gel-reference-plate-20261106.png",
+    "background_plate_sha256": "9d71dbd9fb2b931bc2daa151a00014a6421ae3a4924474c0d74515f32c9fe042",
+    "note": "Plate is an AI-cleaned still derived from the supplied screenshot; it approximates the scene and is not the original source footage."
+  },
+  "plan": {
+    "file": "T17-reference-look.plan.json",
+    "sha256": "ef8a22b9c80d3d4960deacd115a16b1e408c82f49ae692d47953e3acb70a0f53"
+  },
+  "font": {
+    "file": "assets/fonts/DejaVuSansMono-Bold.ttf",
+    "sha256": "f8aa70b5d4210d77624f5b5b5cf094fadf9fd019caf5b528fa5af42fc4ac43a5"
+  },
+  "shaders": {
+    "text_tile_raster.comp": "3694cb98c1835e64da1d331d6585d332364b6c873daa52f4152c98a91cde16c8",
+    "composite.comp": "874293dc0a637c3bacfba487465c3f8568b7e0a9ceb090afdb13ed1b19c62a32"
+  },
+  "commands": {
+    "build": "cmake --build build/chronon/linux-video-release --target chronon3d_cli -j14",
+    "raw": "chronon3d_cli render --plan T17-reference-look.plan.json --assets-root $PWD --backend vulkan --gpu-hot-path-mode require_gpu_native --start-frame 0 --end-frame 0 --video-sink raw --pipe-pixfmt rgba",
+    "video": "chronon3d_cli render --plan T17-reference-look.plan.json --assets-root $PWD --backend vulkan --gpu-hot-path-mode require_gpu_native --hardware nvenc --encoder-backend native --pipe-pixfmt nv12 --start-frame 0 --end-frame 59 --fps 30 --output T17-reference-look-2s.mp4"
+  },
+  "artifacts": {
+    "raw_rgba_sha256": "95d73947adfb27a923ab5c1742df188798f0ede23fe7485356f3bb629d48bac9",
+    "png_sha256": "281473811bc24d52b16e4eacdde4aebed6e3cc0f2922729d683576c550e62505",
+    "mp4_sha256": "b7a2d737498aedb8e39942ee59d80faad459e08479cdf01d15cb63122815151a",
+    "mp4_duration_seconds": 2.0,
+    "mp4_codec": "h264",
+    "raw_log": "T17-reference-look.raw.log",
+    "video_log": "T17-reference-look-video.log"
+  },
+  "scope_note": "This is a still-scene GEL typography/compositing preview. It does not claim original-footage integration, physical volumetric transmission, an extrusion match, or final human visual PASS."
+}

@@ -32,6 +32,8 @@ set(_chronon3d_shaders
     dof_depth_stamp
     dof_blur
     occlusion_tag
+    shadow_caster
+    shadow_apply
 )
 
 foreach(_shader ${_chronon3d_shaders})
@@ -80,6 +82,8 @@ set(_chronon3d_shader_abi_prefixes
     dof_depth_stamp:DofDepthStamp
     dof_blur:DofBlur
     occlusion_tag:OcclusionTag
+    shadow_caster:ShadowCaster
+    shadow_apply:ShadowApply
 )
 
 set(_chronon3d_shader_abi_headers "")
@@ -121,6 +125,7 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_surface_api.cpp
     vulkan_backend_surface_api_ops_private.cpp
     vulkan_backend_surface_api_effects_private.cpp
+    vulkan_backend_surface_api_shadow_private.cpp
     vulkan_backend_impl_detail.cpp
     vulkan_backend_impl_surface_state.cpp
     vulkan_surface_authority.cpp
@@ -147,6 +152,7 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_text_ops_private.cpp
     vulkan_backend_layer_ops_private.cpp
     vulkan_backend_inline_mesh_private.cpp
+    vulkan_backend_shadow_private.cpp
     vulkan_backend_resources_private.cpp
     vulkan_backend_submission_private.cpp
     vulkan_backend_sync_private.cpp

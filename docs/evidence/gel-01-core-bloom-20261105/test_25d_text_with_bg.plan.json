@@ -1,0 +1,138 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "gel-25d-abstract-camera-1080p",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "output": {
+    "path": "docs/evidence/gel-01-core-bloom-20261105/gel-25d-abstract-camera-1080p.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "docs/evidence/gel-text-vulkan-smoke-20261105/backdrop.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "fit": "cover",
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "hero_gel_25d_title",
+      "type": "text",
+      "start_frame": 0,
+      "duration_frames": 1,
+      "enable_3d": true,
+      "position": [
+        960,
+        540,
+        0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "text": "calories or ingredients",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 112,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 18,
+          "intensity": 0.85,
+          "color": [
+            0.0,
+            0.72,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "type": "glow",
+          "radius": 56,
+          "intensity": 0.65,
+          "color": [
+            0.03,
+            0.26,
+            0.96,
+            1.0
+          ]
+        }
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 28.0,
+    "near": 10.0,
+    "far": 8000.0,
+    "zoom": 1000.0,
+    "dof": {
+      "enabled": true,
+      "focus_distance": 1000.0,
+      "f_stop": 2.0,
+      "max_blur": 16.0
+    }
+  },
+  "camera_samples": [
+    {
+      "frame": 0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          0,
+          0,
+          -1000
+        ],
+        "rotation_deg": [
+          0,
+          0,
+          0
+        ],
+        "fov_deg": 28.0,
+        "near": 10.0,
+        "far": 8000.0,
+        "zoom": 1000.0,
+        "dof": {
+          "enabled": true,
+          "focus_distance": 1000.0,
+          "f_stop": 2.0,
+          "max_blur": 16.0
+        }
+      }
+    }
+  ]
+}

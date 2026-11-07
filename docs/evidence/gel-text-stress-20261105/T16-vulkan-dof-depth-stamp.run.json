@@ -1,0 +1,53 @@
+{
+  "case": "T16-Vulkan-native-DOF-depth-stamp-order-20261106",
+  "status": "PASS for native depth/radius stamping and nearest-layer order invariance; complete scene depth visualization and full optical occlusion review remain open",
+  "source_commit": "97d8f066d67b4048b7b8be64e6fe3bb9f658b60d",
+  "dirty_code_diff_sha256": "a88d45683af3400359a2a131a1afd1dc4e791803676925d5d7a1a11c52ab8cde",
+  "machine": {
+    "platform": "Linux-5.15.0-202-generic-x86_64-with-glibc2.35",
+    "gpu": "NVIDIA RTX A4000",
+    "driver": "595.99.02",
+    "backend": "Vulkan"
+  },
+  "command": "build/chronon/linux-video-test/tests/chronon3d_vulkan_dof_depth_canary_tests --no-colors",
+  "ctest_command": "ctest --test-dir build/chronon/linux-video-test -R ^chronon3d_vulkan_dof_depth_canary_tests$ --output-on-failure",
+  "result": {
+    "ctest": "PASS 1/1",
+    "doctest_cases": "1/1",
+    "assertions": "20/20",
+    "test_log": "T16-vulkan-dof-depth-stamp-test.log",
+    "test_log_sha256": "d51fa5ec729cf76ac858069557bfe5dacee79b71fe53e8ac241cdc8e68c5b338"
+  },
+  "readback_contract": {
+    "image": "native Vulkan RGBA32F depth provenance surface",
+    "channels": "R=positive camera-space Z; G=CoC radius pixels; R/G=-1 means unset",
+    "layer_order": "far then near equals near then far byte-for-byte",
+    "overlap_px_1_1": [
+      700.0,
+      6.0
+    ],
+    "far_only_px_0_0": [
+      1700.0,
+      12.0
+    ],
+    "unset_px_3_3": [
+      -1.0,
+      -1.0
+    ],
+    "map_rows": [
+      "1700/12 1700/12 1700/12 -",
+      "1700/12 700/6 1700/12 -",
+      "1700/12 1700/12 1700/12 -",
+      "- - - -"
+    ]
+  },
+  "broader_suite_context": {
+    "target": "chronon3d_backend_registry_tests",
+    "result": "FAIL: 50/134 cases passed, 84 Vulkan cases threw vkCreateInstance VkResult=-9; 1,906,542 assertions passed. Reproduced after moving this canary out of that aggregate target. This is recorded as a separate broader-suite environment/runtime failure, not a pass."
+  },
+  "limitations": [
+    "This is a 4x4 kernel-level GPU readback fixture, not a 1280x720 full-scene linear-depth export.",
+    "Visual overlap of text meshes and bokeh foreground/background artifact review remain incomplete."
+  ],
+  "shader_source_sha256": "9514cf38260423229cee5a3cabcf146a3b59aceafb828c4649daf5dafef56294"
+}

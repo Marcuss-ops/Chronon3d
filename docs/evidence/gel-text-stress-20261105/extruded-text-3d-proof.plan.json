@@ -1,0 +1,93 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "extruded-text-vulkan-proof-20261106",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "title",
+      "type": "text",
+      "text": "calories or ingredients",
+      "size": [
+        1200,
+        220
+      ],
+      "position": [
+        640,
+        360,
+        -100
+      ],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 90,
+        "fill": "#FFFFFF",
+        "extruded_text": true,
+        "extrusion_depth": 48.0
+      },
+      "enable_3d": true,
+      "screen_space": false
+    }
+  ],
+  "output": {
+    "path": "/tmp/extruded-text-proof.rgba",
+    "format": "png"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1300
+    ],
+    "rotation_deg": [
+      8,
+      0,
+      0
+    ],
+    "fov_deg": 45,
+    "near": 1,
+    "far": 4000,
+    "zoom": 1,
+    "dof": {
+      "enabled": false
+    }
+  },
+  "lighting_rig": {
+    "key_direction": [
+      0.7,
+      -0.2,
+      0.5
+    ],
+    "key_intensity": 1.0,
+    "key_color": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "ambient_intensity": 0.15,
+    "ambient_color": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "rim_enabled": false,
+    "rim_intensity": 0.0,
+    "rim_power": 1.0,
+    "rim_color": [
+      1,
+      1,
+      1,
+      1
+    ]
+  }
+}
