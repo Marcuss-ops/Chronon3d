@@ -94,7 +94,7 @@ public:
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         runtime::RenderSurfaceHandle depth, int roi_x0, int roi_y0,
         int roi_x1, int roi_y1, float max_radius, bool normalize_opaque,
-        float highlight_gain);
+        float highlight_gain, int iris_blades = 0);
     virtual RenderOpResult directional_blur_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         float dir_x, float dir_y, float length, int tap_count);

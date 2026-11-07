@@ -1,0 +1,29 @@
+{
+  "method": {
+    "coverage": "bright cyan mask from extruded-gel.png (G>120, B>150, B>1.5*max(R,1))",
+    "core": "coverage eroded 4 px; reported erode-2 boundary separately",
+    "checker_influence": "max |RGB(checker composite) - RGB(reference-plate composite)| inside core; OFF means gel_transmission=false",
+    "transmission_control": "same plan with gel_transmission=true; full-RGB pixel changes inside the same core"
+  },
+  "eroded_core_pixels": 3367,
+  "gel_transmission_off": {
+    "max_abs_rgb_delta": 1,
+    "pixels_delta_gt2": 0
+  },
+  "gel_transmission_on_control": {
+    "max_abs_rgb_delta": 58,
+    "pixels_delta_gt2": 3367
+  },
+  "boundary_erode_2": {
+    "core_pixels": 9606,
+    "off_max_abs_rgb_delta": 69,
+    "off_pixels_delta_gt2": 21,
+    "note": "21 antialiased/glow-boundary pixels, 0.22% of the erode-2 core; not solid interior"
+  },
+  "artifacts": [
+    "occlusion-checker-off.rgba",
+    "occlusion-checker-off.png",
+    "occlusion-checker-on.rgba",
+    "occlusion-checker-on.png"
+  ]
+}

@@ -365,7 +365,12 @@ uint64_t SceneHasher::hash_layer(const Layer& layer) {
         h = hash_combine(h, hash_float_v2(layer.backdrop_blur->rim_light));
         h = hash_combine(h, hash_float_v2(layer.backdrop_blur->refraction));
         h = hash_combine(h, hash_float_v2(layer.backdrop_blur->surface_noise));
+        h = hash_combine(h, hash_float_v2(layer.backdrop_blur->light_wrap));
     }
+    h = hash_combine(h, hash_value(layer.shadow_blur.has_value()));
+    if (layer.shadow_blur) h = hash_combine(h, hash_float_v2(*layer.shadow_blur));
+    h = hash_combine(h, hash_value(layer.shadow_opacity.has_value()));
+    if (layer.shadow_opacity) h = hash_combine(h, hash_float_v2(*layer.shadow_opacity));
     h = hash_combine(h, hash_layer_transition_spec_v2(layer.transition_in));
     h = hash_combine(h, hash_layer_transition_spec_v2(layer.transition_out));
     return h;

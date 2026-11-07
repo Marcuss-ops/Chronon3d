@@ -27,6 +27,7 @@ layout(push_constant) uniform DofBlurParams {
     float max_radius;
     int normalize_opaque;
     float highlight_gain;
+    int iris_blades;
 } params;
 
 float dof_weight(float dist, float radius) {
@@ -63,6 +64,21 @@ float dof_pair_weight(
 float disk_edge_weight(float dist, float radius) {
     if (radius < 0.5 || dist > radius + 0.5) return 0.0;
     return 1.0 - smoothstep(max(0.0, radius - 0.5), radius + 0.5, dist);
+}
+
+// Regular n-gon aperture metric in units of the authored CoC radius.
+// The polygon is inscribed in the circle (vertex on +x, flat sides at the
+// apothem), so `metric <= radius` is inside.
+// `blades < 3` keeps the historical circular kernel. Mirrors
+// renderer::dof_aperture_metric() in per_pixel_dof.hpp.
+float aperture_metric(vec2 delta, int blades) {
+    float euclidean = length(delta);
+    if (blades < 3) return euclidean;
+    const float PI = 3.14159265358979323846;
+    float segment = 2.0 * PI / float(blades);
+    float angle = atan(delta.y, delta.x);
+    float offset = mod(angle + 0.5 * segment, segment) - 0.5 * segment;
+    return euclidean * cos(offset);
 }
 
 float dof_disk_pair_weight(
@@ -108,7 +124,8 @@ void disk_blur(ivec2 pixel) {
             ivec2 sample_pixel = ivec2(x, y);
             vec2 sample_dr = imageLoad(depth_image, sample_pixel).rg;
             if (sample_dr.y < 0.0) continue;
-            float distance_px = length(vec2(sample_pixel - pixel));
+            float distance_px = aperture_metric(vec2(sample_pixel - pixel),
+                                                params.iris_blades);
             float weight = dof_disk_pair_weight(
                 distance_px, centre_dr.y, centre_dr.x,
                 sample_dr.y, sample_dr.x);

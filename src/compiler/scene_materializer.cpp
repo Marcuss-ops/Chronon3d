@@ -11,6 +11,7 @@
 #include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
 // The compiled route reuses the RenderPlan text lowering verbatim instead of
 // keeping a second copy of the typography mapping.
 #include "../render_plan/render_plan_compiler_detail.hpp"
@@ -640,7 +641,57 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             .blue_offset = effect.chromatic_blue_offset,
                             .offset_mode = static_cast<ChromaticOffsetMode>(effect.chromatic_offset_mode),
                             .velocity = Vec2{effect.chromatic_velocity[0], effect.chromatic_velocity[1]},
-                            .center = Vec2{effect.radial_center[0], effect.radial_center[1]}});
+                            .center = Vec2{effect.radial_center[0], effect.radial_center[1]},
+                            .red = RgbChannelTransform{
+                                Vec2{effect.chromatic_red_transform[0], effect.chromatic_red_transform[1]},
+                                Vec2{effect.chromatic_red_transform[2], effect.chromatic_red_transform[3]},
+                                effect.chromatic_red_transform[4], effect.chromatic_red_transform[5]},
+                            .green = RgbChannelTransform{
+                                Vec2{effect.chromatic_green_transform[0], effect.chromatic_green_transform[1]},
+                                Vec2{effect.chromatic_green_transform[2], effect.chromatic_green_transform[3]},
+                                effect.chromatic_green_transform[4], effect.chromatic_green_transform[5]},
+                            .blue = RgbChannelTransform{
+                                Vec2{effect.chromatic_blue_transform[0], effect.chromatic_blue_transform[1]},
+                                Vec2{effect.chromatic_blue_transform[2], effect.chromatic_blue_transform[3]},
+                                effect.chromatic_blue_transform[4], effect.chromatic_blue_transform[5]}});
+                        break;
+                    case EffectKind::Catalog: {
+                        if (auto params = effects::make_default_animatable_effect_params(
+                                effect.canonical_effect_id)) {
+                            for (const auto& value : effect.canonical_params) {
+                                (void)effects::set_animatable_effect_param(
+                                    *params, effect.canonical_effect_id, value.param, value.value);
+                            }
+                            std::visit([&](const auto& concrete) {
+                                using T = std::decay_t<decltype(concrete)>;
+                                if constexpr (!std::is_same_v<T, std::monostate>)
+                                    builder.effect(concrete);
+                            }, *params);
+                        }
+                        break;
+                    }
+                    case EffectKind::AnamorphicStreak:
+                        builder.effect(AnamorphicStreakParams{
+                            .threshold = effect.streak_threshold,
+                            .softness = effect.streak_softness,
+                            .streak_length_px = effect.streak_length,
+                            .intensity = effect.streak_intensity,
+                            .tint = Color{effect.streak_tint[0], effect.streak_tint[1],
+                                          effect.streak_tint[2], effect.streak_tint[3]}});
+                        break;
+                    case EffectKind::DirectionalBlur:
+                        builder.effect(DirectionalBlurParams{
+                            .angle = effect.directional_angle,
+                            .length = effect.directional_length,
+                            .samples = effect.directional_samples});
+                        break;
+                    case EffectKind::Fill:
+                        builder.effect(FillParams{
+                            .color = Color{effect.effect_color[0], effect.effect_color[1],
+                                           effect.effect_color[2], effect.effect_color[3]},
+                            .amount = effect.amount,
+                            .mode = effect.fill_opacity_replaces_alpha
+                                ? FillMode::ReplaceAlpha : FillMode::Mix});
                         break;
                     default:
                         break;

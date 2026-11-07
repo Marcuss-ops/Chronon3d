@@ -1,0 +1,79 @@
+{
+  "method": {
+    "bright": "G>80, B>100, B>1.45*R",
+    "core": "G>120, B>150, B>1.5*R",
+    "bbox": "bright mask bbox in 1094x143"
+  },
+  "reference": {
+    "calories": {
+      "bright_pixels": 11452,
+      "core_pixels": 7451,
+      "bright_bbox": [
+        47,
+        27,
+        388,
+        102
+      ]
+    },
+    "or": {
+      "bright_pixels": 2404,
+      "core_pixels": 1973,
+      "bright_bbox": [
+        411,
+        0,
+        516,
+        110
+      ]
+    },
+    "ingredients": {
+      "bright_pixels": 22050,
+      "core_pixels": 13830,
+      "bright_bbox": [
+        562,
+        0,
+        1042,
+        115
+      ]
+    },
+    "total": {
+      "bright_pixels": 35906,
+      "core_pixels": 23254
+    }
+  },
+  "chronon3d": {
+    "calories": {
+      "bright_pixels": 8906,
+      "core_pixels": 7295,
+      "bright_bbox": [
+        48,
+        33,
+        389,
+        92
+      ]
+    },
+    "or": {
+      "bright_pixels": 2254,
+      "core_pixels": 2019,
+      "bright_bbox": [
+        420,
+        39,
+        516,
+        86
+      ]
+    },
+    "ingredients": {
+      "bright_pixels": 17616,
+      "core_pixels": 12308,
+      "bright_bbox": [
+        551,
+        7,
+        1043,
+        114
+      ]
+    },
+    "total": {
+      "bright_pixels": 28776,
+      "core_pixels": 21622
+    }
+  }
+}

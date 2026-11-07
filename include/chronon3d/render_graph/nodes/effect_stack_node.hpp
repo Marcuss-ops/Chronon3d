@@ -141,6 +141,31 @@ private:
                         effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
                 break;
             }
+            case ChromaticAberration: {
+                if (auto* p = std::get_if<ChromaticAberrationParams>(&inst.params)) {
+                    const f32 offset_spread = std::max(
+                        std::abs(p->red_offset), std::abs(p->blue_offset));
+                    const f32 tx_spread = std::max({
+                        std::abs(p->red.translation.x),
+                        std::abs(p->red.translation.y),
+                        std::abs(p->green.translation.x),
+                        std::abs(p->green.translation.y),
+                        std::abs(p->blue.translation.x),
+                        std::abs(p->blue.translation.y)});
+                    max_spread = std::max(max_spread,
+                        std::ceil(offset_spread + tx_spread));
+                }
+                break;
+            }
+            case LensFlare: {
+                if (auto* p = std::get_if<LensFlareParams>(&inst.params)) {
+                    if (p->intensity > 0.0f) {
+                        max_spread = std::max(max_spread,
+                            std::ceil(p->radius * 512.0f));
+                    }
+                }
+                break;
+            }
             case Fake3DWave: {
                 if (auto* p = std::get_if<Fake3DWaveParams>(&inst.params)) {
                     f32 s = p->depth_px + p->amplitude_px;

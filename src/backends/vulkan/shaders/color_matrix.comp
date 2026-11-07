@@ -206,13 +206,22 @@ void main() {
         vec2 position = vec2(coord) + 0.5;
         vec2 center = params.p[0].xy * vec2(size);
         float radius = params.p[1].x * min(size.x, size.y);
+        float streak_radius = params.p[1].x * max(float(size.x) * 0.22, min(float(size.x), float(size.y)));
         vec4 light = ae_sample(2.0 * center - position, size, true) * params.p[1].z;
         for (int tap = 0; tap < 16; ++tap) {
             float theta = 2.0 * 3.14159265358979323846 * float(tap) / 16.0;
             light += ae_sample(position + radius * vec2(cos(theta), sin(theta)), size, true) * (params.p[1].y / 16.0);
-            float offset = radius * (2.0 * float(tap) / 15.0 - 1.0);
-            light += ae_sample(position + vec2(offset, 0.0), size, true) * (params.p[1].w / 16.0);
         }
+        const int kStreakTaps = 48;
+        float streak_weight_sum = 0.0;
+        vec4 streak_acc = vec4(0.0);
+        for (int tap = 0; tap < kStreakTaps; ++tap) {
+            float u = 2.0 * float(tap) / float(kStreakTaps - 1) - 1.0;
+            float w = exp(-2.2 * u * u);
+            streak_weight_sum += w;
+            streak_acc += ae_sample(position + vec2(u * streak_radius, 0.0), size, true) * w;
+        }
+        light += streak_acc * (params.p[1].w / max(streak_weight_sum, 1.0e-6));
         light *= params.p[0].w;
         if (light.a <= 0.0) {
             imageStore(destination_image, coord, source);

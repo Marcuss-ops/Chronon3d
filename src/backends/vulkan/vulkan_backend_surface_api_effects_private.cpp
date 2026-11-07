@@ -68,7 +68,7 @@ graph::RenderOpResult VulkanBackend::dof_blur_surface(
     return run_batched_surface_op(touched, {}, [&] {
         m_impl->dof_blur(destination, source, depth,
             Impl::DofBlurPush{vertical ? 1 : 0, roi_x0, roi_y0, roi_x1, roi_y1,
-                              max_radius, normalize_opaque ? 1 : 0, 0.0f});
+                              max_radius, normalize_opaque ? 1 : 0, 0.0f, 0});
     });
 #else
     (void)destination; (void)source; (void)depth; (void)vertical;
@@ -84,19 +84,20 @@ graph::RenderOpResult VulkanBackend::dof_blur_disk_surface(
     runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
     runtime::RenderSurfaceHandle depth, int roi_x0, int roi_y0,
     int roi_x1, int roi_y1, float max_radius, bool normalize_opaque,
-    float highlight_gain) {
+    float highlight_gain, int iris_blades) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 3> touched{destination, source, depth};
     return run_batched_surface_op(touched, {}, [&] {
         m_impl->dof_blur(destination, source, depth,
             Impl::DofBlurPush{2, roi_x0, roi_y0, roi_x1, roi_y1,
                               max_radius, normalize_opaque ? 1 : 0,
-                              highlight_gain});
+                              highlight_gain, iris_blades});
     });
 #else
     (void)destination; (void)source; (void)depth;
     (void)roi_x0; (void)roi_y0; (void)roi_x1; (void)roi_y1;
     (void)max_radius; (void)normalize_opaque; (void)highlight_gain;
+    (void)iris_blades;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::dof_blur_disk_surface: Vulkan support is disabled"));

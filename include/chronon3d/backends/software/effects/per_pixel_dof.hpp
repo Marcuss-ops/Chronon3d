@@ -336,6 +336,24 @@ inline void apply_per_pixel_dof(
     return 1.0f - t * t * (3.0f - 2.0f * t);
 }
 
+/// Radial metric of a regular n-gon aperture, in units of the authored CoC
+/// radius. The polygon is inscribed in that circle (a vertex lies on the +x
+/// axis, flat sides at the apothem), so a sample is inside when this metric is
+/// <= radius. `blades < 3` keeps the Euclidean circle (the historical kernel).
+/// Mirrors `aperture_metric()` in dof_blur.comp: the software and Vulkan lanes
+/// must agree on the aperture.
+[[nodiscard]] HWY_INLINE float dof_aperture_metric(
+    float dx, float dy, int blades) {
+    const float euclidean = std::sqrt(dx * dx + dy * dy);
+    if (blades < 3) return euclidean;
+    constexpr float kPi = 3.14159265358979323846f;
+    const float segment = 2.0f * kPi / static_cast<float>(blades);
+    const float angle = std::atan2(dy, dx);
+    const float offset =
+        std::fmod(angle + segment * 0.5f, segment) - segment * 0.5f;
+    return euclidean * std::cos(offset);
+}
+
 /// Depth- and CoC-aware disk pair weight (same predicate as the shader).
 [[nodiscard]] HWY_INLINE float dof_disk_pair_weight(
     float dist, float centre_radius, float centre_depth,
@@ -379,7 +397,8 @@ inline void apply_per_pixel_dof_disk(
     i32 roi_x0, i32 roi_y0, i32 roi_x1, i32 roi_y1,
     f32 max_radius,
     bool normalize_opaque,
-    f32 highlight_gain)
+    f32 highlight_gain,
+    int iris_blades = 0)
 {
     const i32 w = fb.width();
     const i32 h = fb.height();
@@ -434,7 +453,7 @@ inline void apply_per_pixel_dof_disk(
                         if (sample_radius < 0.0f) continue;
                         const float dx = static_cast<float>(sx - x);
                         const float dy = static_cast<float>(sy - y);
-                        const float dist = std::sqrt(dx * dx + dy * dy);
+                        const float dist = dof_aperture_metric(dx, dy, iris_blades);
                         float weight = dof_disk_pair_weight(
                             dist, centre_radius, centre_depth,
                             sample_radius, depth_row[sx]);

@@ -26,6 +26,11 @@ struct BackdropFilterPlan {
     float rim_strength{0.40f};
     float rim_width{3.0f};
 
+    /// Light wrap: the backdrop's blurred luminance bleeds over the layer's
+    /// inner alpha edge. 0 disables it; the blurred backdrop is the same
+    /// `blur` field above, so no second blur pass is authored.
+    float light_wrap{0.0f};
+
     float chromatic_dispersion{2.0f};
     float grain{0.04f};
 
@@ -44,6 +49,8 @@ struct BackdropFilterPlan {
             throw std::invalid_argument("BackdropFilter rim_strength must be in [0, 4]");
         if (!std::isfinite(rim_width) || rim_width < 0.0f || rim_width > 64.0f)
             throw std::invalid_argument("BackdropFilter rim_width must be in [0, 64]");
+        if (!std::isfinite(light_wrap) || light_wrap < 0.0f || light_wrap > 4.0f)
+            throw std::invalid_argument("BackdropFilter light_wrap must be in [0, 4]");
         if (!std::isfinite(chromatic_dispersion) || chromatic_dispersion < 0.0f || chromatic_dispersion > 32.0f)
             throw std::invalid_argument("BackdropFilter chromatic_dispersion must be in [0, 32]");
         if (!std::isfinite(grain) || grain < 0.0f || grain > 1.0f)

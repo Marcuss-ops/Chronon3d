@@ -540,7 +540,8 @@ RenderOpResult RenderBackendSurfaceApi::dof_blur_disk_surface(
         runtime::RenderSurfaceHandle /*source*/,
         runtime::RenderSurfaceHandle /*depth*/,
         int /*roi_x0*/, int /*roi_y0*/, int /*roi_x1*/, int /*roi_y1*/,
-        float /*max_radius*/, bool /*normalize_opaque*/, float /*highlight_gain*/) {
+        float /*max_radius*/, bool /*normalize_opaque*/, float /*highlight_gain*/,
+        int /*iris_blades*/) {
     return RenderOpResult(make_render_backend_error(
         RenderBackendErrorCode::UnsupportedCapability,
         "RenderBackend::dof_blur_disk_surface: native surfaces are not supported"));

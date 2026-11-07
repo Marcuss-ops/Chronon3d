@@ -452,6 +452,8 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                     if (layer.casts_shadows) builder.casts_shadows(*layer.casts_shadows);
                     if (layer.accepts_shadows) builder.accepts_shadows(*layer.accepts_shadows);
                     if (layer.shadow_catcher) builder.shadow_catcher(*layer.shadow_catcher);
+                    if (layer.shadow_blur) builder.shadow_blur(*layer.shadow_blur);
+                    if (layer.shadow_opacity) builder.shadow_opacity(*layer.shadow_opacity);
                 }
                 if (layer.flow_layout)
                     builder.flow_layout(make_layout_flow(*layer.flow_layout));

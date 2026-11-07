@@ -287,9 +287,9 @@ float evaluate_composite_gel_distance(vec2 sample_pos, uint count,
             ivec2(int(atlas_x), int(atlas_y)),
             int(atlas_w), int(atlas_h), glyph_texel, texel_to_screen);
         float d_glyph = (msd_smooth - 0.5) * distance_range * texel_to_screen - outside_dist;
-        float v_coord = clamp(
-            ((glyph.origin_y - clamped_local.y) * abs(run.sy)) /
-            max(42.0 * texel_to_screen, 4.0) + 0.25, 0.0, 1.0);
+        // Glyph-plane vertical coordinate: 0 at the bottom of the glyph quad,
+        // 1 at the top (replaces the baseline-relative ramp that saturated).
+        float v_coord = clamp(1.0 - glyph_uv.y, 0.0, 1.0);
         if (d_glyph > best_distance) {
             best_distance = d_glyph;
             best_gid = gid;
@@ -327,8 +327,7 @@ float gel_dome_height(float u) {
 }
 
 float gel_dome_slope(float u) {
-    float one_minus_u = 1.0 - u;
-    return 30.0 * u * u * one_minus_u * one_minus_u;
+    return 6.0 * u * (1.0 - u);
 }
 
 float composite_gel_body_alpha(float d_surf, float radius_px,
@@ -354,12 +353,12 @@ vec3 shade_composite_gel_surface(
     uint light_params) {
     // Stroke half-width in screen pixels scales with texel_to_screen
     // (canonical MTSDF em_px = 64 -> bold stroke half-width is ~3.6 texels).
-    // The dome radius must cover the local stroke half-width. A radius that
-    // is smaller than the distance at the medial axis clamps u to 1 across
-    // the stroke centre, producing the flat plateau seen in the first smoke
-    // renders. 5.2 canonical em-texels matches the bold display weight used
-    // by the reference title.
-    float radius_px = clamp(5.2 * texel_to_screen, 1.6, 96.0);
+    // A razor-tight perimeter bevel radius (1.25 canonical em-texels) confines
+    // the rounded volumetric slope to the outermost ~2 px lip and clamps the
+    // stroke interior (u = 1) to a wide flat plateau with N = (0, 0, 1),
+    // preserving the sharp typographic stem geometry and open counters instead
+    // of inflating the character into a pillow/sausage.
+    float radius_px = clamp(1.25 * texel_to_screen, 2.0, 32.0);
     float u = clamp(max(d_surf, 0.0) / radius_px, 0.0, 1.0);
     // Keep the GPU height and normal on the C2 smootherstep profile used by
     // text::gel::rounded_height(): h/r = 6u^5 - 15u^4 + 10u^3.
@@ -372,20 +371,26 @@ vec3 shade_composite_gel_surface(
     if (diagnostic_mode == 2u) {
         return vec3(dome);
     }
+    // Diagnostic 6: hard 1-bit silhouette cut at the nominal glyph edge
+    // (d_surf == 0, no antialias) to verify the font is not dilated.
+    if (diagnostic_mode == 6u) {
+        return vec3(d_surf >= 0.0 ? 1.0 : 0.0);
+    }
 
-    // 1. Luminous full-body face (ALWAYS visible, even with specular/rim off).
-    float face_gradient = clamp(0.82 * dome + 0.18 * clamp(v_grad, 0.0, 1.0), 0.0, 1.0);
+    // 1. Saturated solid cyan-aqua plastic/gel face with vertical chiaroscuro
+    //    gradient (bright cyan-turquoise body, non-punitive luminous lower half).
+    float v_clamped = pow(clamp(v_grad, 0.0, 1.0), 0.85);
     vec3 c = clamp(base_color.rgb, vec3(0.0), vec3(1.0));
     float c_peak = max(c.r, max(c.g, max(c.b, 0.001)));
     vec3 c_norm = c / c_peak;
-    // Calibrated so #00E5FF produces a full luminous cyan body with a soft
-    // azure-blue rim and a broad near-white cyan pillow core:
-    vec3 edge_tint = clamp(c * vec3(0.24, 0.68, 0.98) + vec3(0.08, 0.04, 0.0) * c_peak, 0.0, 1.0);
-    vec3 body_tint = clamp(mix(c, c_norm, 0.35) * vec3(1.0, 0.99, 1.0) + vec3(0.16, 0.06, 0.02) * c_peak, 0.0, 1.0);
-    vec3 core_tint = clamp(mix(c_norm, vec3(1.0), 0.45) * c_peak, 0.0, 1.0);
-
-    vec3 face = mix(edge_tint, body_tint, smoothstep(0.0, 0.28, face_gradient));
-    face = mix(face, core_tint, smoothstep(0.24, 0.92, face_gradient));
+    // Radiant cyan-turquoise body with luminous medium-cyan base (no pitch-black navy):
+    vec3 colBottom = vec3(0.00, 0.28, 0.58);
+    vec3 colTop    = vec3(0.00, 0.90, 1.00);
+    vec3 lower_body_tint = colBottom;
+    vec3 upper_body_tint = colTop;
+    vec3 plateau_tint = mix(lower_body_tint, upper_body_tint, v_clamped);
+    vec3 edge_tint = plateau_tint * 0.80;
+    vec3 face = mix(edge_tint, plateau_tint, smoothstep(0.0, 0.65, dome));
 
     // Stage 02 (GEL-01 Core + gradient mode): return the luminous face directly
     // with zero specular and zero rim.
@@ -408,13 +413,25 @@ vec3 shade_composite_gel_surface(
                      abs(normal_length - 1.0) < 0.01;
         return valid ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
     }
+    // Diagnostic 7: white = flat plateau (N.z >= 0.999), red = curved bevel,
+    // black = outside the silhouette.
+    if (diagnostic_mode == 7u) {
+        if (d_surf < 0.0) return vec3(0.0);
+        return N.z >= 0.999 ? vec3(1.0) : vec3(1.0, 0.0, 0.0);
+    }
     if (diagnostic_mode == 5u) {
         return vec3((effect_flags & 512u) != 0u ? 1.0 : 0.0,
                     composite_gel_body_alpha(d_surf, radius_px, effect_flags), 0.0);
     }
 
-    float azimuth = -2.176;
-    float elevation = 0.38;
+    // 4. Gel thickness / internal refraction: dark rim at the lower flank (N.y > 0 in screen space)
+    float bottomRim = smoothstep(0.0, 0.6, N.y) * (1.0 - smoothstep(0.999, 0.95, N.z));
+    face = mix(face, vec3(0.00, 0.12, 0.35), bottomRim * 0.70);
+
+    // Overhead grazing directional light (in screen space y points down, so
+    // azimuth = -1.5707963 points straight up).
+    float azimuth = -1.5707963;
+    float elevation = 0.18;
     if ((effect_flags & 16u) != 0u) {
         azimuth = float(light_params & 0xFFFFu) *
                       (6.28318530718 / 65535.0) - 3.14159265359;
@@ -426,23 +443,24 @@ vec3 shade_composite_gel_surface(
     vec3 V = vec3(0.0, 0.0, 1.0);
     vec3 H = normalize(L + V);
 
-    // Half-Lambert diffuse term that preserves the bright cyan core even on
-    // the shadowed flank (never collapsing to a dark outline).
+    // Directional diffuse + chiaroscuro between upper lit lip and lower shadowed bevel.
     float ndotl = dot(N, L);
-    float half_lambert = clamp((ndotl + 0.50) / 1.50, 0.0, 1.0);
+    float half_lambert = clamp((ndotl + 0.42) / 1.42, 0.0, 1.0);
     half_lambert = half_lambert * half_lambert;
-    float diffuse_term = mix(0.55, 1.12, half_lambert);
+    float diffuse_term = mix(0.74, 1.22, half_lambert);
 
-    // Subtle royal-blue bevel shade on the lower-right outer flank only.
-    float flank_shade = (1.0 - half_lambert) * (1.0 - 0.80 * dome);
-    vec3 shaded_face = mix(face * diffuse_term, edge_tint * 0.88, 0.16 * flank_shade);
+    // Rich cyan-blue bevel shade on the lower/shadowed bevel flank.
+    float bevel_band = 1.0 - dome * dome;
+    float flank_shade = (1.0 - half_lambert) * bevel_band;
+    vec3 deep_bevel = clamp(c * vec3(0.06, 0.56, 0.96) + vec3(0.02, 0.14, 0.24) * c_peak, 0.0, 1.0);
+    vec3 shaded_face = mix(face * diffuse_term, deep_bevel, 0.36 * flank_shade);
 
-    // Selective Beer-Lambert absorption through the dome: optical thickness
-    // grows from zero at the thin silhouette to one at the medial axis.
-    // Apply it to the body response only; external specular and Fresnel rim
-    // remain unattenuated light arriving at the surface.
-    const vec3 kGelAbsorption = vec3(1.2, 0.4, 0.05);
+    // Selective Beer-Lambert absorption through the dome: minimal green loss
+    // so the plateau preserves its vivid aqua-turquoise hue.
+    const vec3 kGelAbsorption = vec3(0.36, 0.12, 0.01);
     shaded_face *= exp(-kGelAbsorption * dome);
+    // Crisp cyan-aqua plateau boost so the flat interior reads as bright turquoise (~G=195..215, B=245..255).
+    shaded_face += upper_body_tint * (0.38 * smoothstep(0.45, 0.95, dome) * (0.50 + 0.50 * v_clamped));
 
     // Toksvig geometric roughness from both SDF gradient length loss at medial
     // axes and screen-space Hessian curvature variance.
@@ -451,42 +469,35 @@ vec3 shade_composite_gel_surface(
     float curv_roughness = clamp(sqrt(curvature_variance) * 1.2, 0.0, 0.85);
     float geom_roughness = clamp(max(medial_roughness, curv_roughness), 0.0, 0.85);
 
-    float broad_exp = mix(14.0, 6.0, geom_roughness);
-    float sharp_exp = mix(48.0, 16.0, geom_roughness);
+    // Razor-sharp Blinn-Phong specular blade restricted to the upper bevel lip
+    // with blinding HDR intensity and icy green-white hue
+    float isBevel = 1.0 - smoothstep(0.96, 0.999, N.z);
+    float isUpper = smoothstep(0.10, 0.65, -N.y);
+    float specMask = isBevel * isUpper;
     float ndoth = max(dot(N, H), 0.0);
-    float crest_mask = smoothstep(0.02, 0.32, u);
 
-    vec3 broad_tint = mix(c_norm, vec3(1.0), 0.65);
-    vec3 sharp_tint = mix(c_norm, vec3(1.0), 0.90);
-    vec3 broad_specular = broad_tint * (0.42 * pow(ndoth, broad_exp) * crest_mask);
-    vec3 sharp_specular = sharp_tint * (0.34 * pow(ndoth, sharp_exp) *
-                          smoothstep(0.06, 0.38, u) * (1.0 - 0.55 * geom_roughness));
-    // Colored internal caustic lobe between the broad body reflection and
-    // sharp white glint. The hue follows the light-facing flank, producing
-    // the cyan-to-mint variation visible in the reference.
-    float caustic_lobe = pow(ndoth, mix(20.0, 11.0, geom_roughness)) *
-                         smoothstep(0.04, 0.34, u) *
-                         (1.0 - 0.35 * geom_roughness);
-    float caustic_hue = clamp(0.5 + 0.5 * dot(N.xy, L.xy), 0.0, 1.0);
-    vec3 caustic_tint = mix(vec3(0.24, 1.00, 0.58),
-                            vec3(0.28, 0.72, 1.00), caustic_hue);
-    vec3 caustic_specular = caustic_tint * (0.34 * caustic_lobe);
+    vec3 specularWhite = vec3(0.88, 1.00, 0.94) * (pow(ndoth, 40.0) * specMask * 4.5);
 
-    // Schlick-like grazing response plus an SDF edge coat. The C2 dome has
-    // zero slope at the exact silhouette, so the distance term preserves a
-    // narrow reflective rim there instead of making the perimeter go dark.
-    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.5);
-    float edge_coat = 1.0 - smoothstep(0.15 * texel_to_screen,
-                                      3.0 * texel_to_screen,
-                                      max(d_surf, 0.0));
-    float rim_response = max(fresnel, 0.78 * edge_coat);
-    float rim_dir = 0.35 + 0.65 * max(dot(N.xy, L.xy), 0.0);
-    vec3 rim_tint = mix(vec3(0.20, 0.86, 1.00),
-                        vec3(0.38, 1.00, 0.78), caustic_hue);
-    vec3 rim_light = rim_tint * (0.62 * rim_response * rim_dir);
+    // Dispersive bevel caustics: vibrant lime/emerald-cyan fringe on the upper lip,
+    // deep indigo/violet-blue shift on the lower flank.
+    vec3 caustic_tint = vec3(0.35, 1.00, 0.45);
+    vec3 caustic_specular = caustic_tint * (1.60 * pow(ndoth, 24.0) * isUpper * isBevel);
 
-    return shaded_face + broad_specular + caustic_specular +
-           sharp_specular + rim_light;
+    vec3 spectral_tint = vec3(0.05, 0.12, 0.75);
+    vec3 spectral_specular = spectral_tint * (0.60 * bottomRim);
+
+    // Grazing Fresnel rim along the outer contour.
+    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+    float edge_coat = (1.0 - smoothstep(0.0, 1.2 * texel_to_screen, max(d_surf, 0.0))) *
+                      smoothstep(-0.5, 0.2, d_surf);
+    float rim_response = max(fresnel * isBevel, 0.38 * edge_coat);
+    float rim_dir = 0.28 + 0.72 * max(dot(N.xy, L.xy), 0.0);
+    vec3 rim_tint = mix(vec3(0.08, 0.76, 1.00),
+                        vec3(0.34, 1.00, 0.38), isUpper);
+    vec3 rim_light = rim_tint * (0.72 * rim_response * rim_dir);
+
+    return shaded_face + caustic_specular +
+           spectral_specular + specularWhite + rim_light;
 }
 
 void main() {
@@ -877,7 +888,7 @@ void main() {
                 owner_texel_to_screen, owner_fill, owner_run.effect_flags,
                 owner_run.animator_reserved5);
             float body_alpha = composite_gel_body_alpha(
-                d_surf, clamp(5.2 * owner_texel_to_screen, 1.6, 96.0),
+                d_surf, clamp(0.85 * owner_texel_to_screen, 1.0, 32.0),
                 owner_run.effect_flags);
             vec4 gel_fill = vec4(lit, 1.0) *
                 (owner_fill.a * gel_coverage * owner_opacity * body_alpha);

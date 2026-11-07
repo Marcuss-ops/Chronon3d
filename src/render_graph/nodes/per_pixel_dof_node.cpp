@@ -446,7 +446,8 @@ NodeExecResult PerPixelDofNode::execute(
             blurred->surface_handle(), source_handle, depth_handle,
             roi.x0, roi.y0, roi.x1, roi.y1,
             coverage.max_radius, normalize_opaque,
-            std::max(0.0f, camera.dof.highlight_gain));
+            std::max(0.0f, camera.dof.highlight_gain),
+            static_cast<int>(camera.dof.iris_blades));
         if (!disk.ok()) {
             spdlog::error(
                 "[PerPixelDofNode] native circular DOF blur failed: '{}'",

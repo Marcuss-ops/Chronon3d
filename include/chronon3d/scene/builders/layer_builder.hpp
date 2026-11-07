@@ -121,6 +121,9 @@ public:
     LayerBuilder& casts_shadows(bool value = true);
     LayerBuilder& accepts_shadows(bool value = true);
     LayerBuilder& shadow_catcher(bool value = true);
+    /// Per-layer shadow look; overrides the light rig's radius/opacity.
+    LayerBuilder& shadow_blur(f32 radius_px);
+    LayerBuilder& shadow_opacity(f32 opacity);
     LayerBuilder& material(Material2_5D value);
     LayerBuilder& card3d_material(Card3DMaterial value);
 

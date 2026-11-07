@@ -97,6 +97,7 @@ void decode_layer_backdrop_filter(LayerPlan& layer, const nlohmann::json& value)
             filter.refraction_field = decode_field2d_plan(raw_bf.at("refraction_field"));
         filter.rim_strength = raw_bf.value("rim_strength", filter.rim_strength);
         filter.rim_width = raw_bf.value("rim_width", filter.rim_width);
+        filter.light_wrap = raw_bf.value("light_wrap", filter.light_wrap);
         filter.chromatic_dispersion = raw_bf.value("chromatic_dispersion", filter.chromatic_dispersion);
         filter.grain = raw_bf.value("grain", filter.grain);
         filter.opacity = raw_bf.value("opacity", filter.opacity);
@@ -128,6 +129,18 @@ void decode_layer_render_flags(LayerPlan& layer, const nlohmann::json& value) {
         layer.accepts_shadows = value.at("accepts_shadows").get<bool>();
     if (value.contains("shadow_catcher"))
         layer.shadow_catcher = value.at("shadow_catcher").get<bool>();
+    if (value.contains("shadow_blur"))
+        layer.shadow_blur = value.at("shadow_blur").get<float>();
+    if (value.contains("shadow_opacity"))
+        layer.shadow_opacity = value.at("shadow_opacity").get<float>();
+    if (layer.shadow_blur &&
+        (!std::isfinite(*layer.shadow_blur) || *layer.shadow_blur < 0.0f ||
+         *layer.shadow_blur > 192.0f))
+        throw std::runtime_error("layer.shadow_blur must be finite and in [0, 192]");
+    if (layer.shadow_opacity &&
+        (!std::isfinite(*layer.shadow_opacity) || *layer.shadow_opacity < 0.0f ||
+         *layer.shadow_opacity > 1.0f))
+        throw std::runtime_error("layer.shadow_opacity must be finite and in [0, 1]");
     layer.screen_space = value.value("screen_space", false);
     if (value.contains("safe_insets")) {
         const auto& insets = value.at("safe_insets");

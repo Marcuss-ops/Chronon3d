@@ -9,16 +9,17 @@
 
 namespace chronon3d {
 
-/// Single fail-closed optics admission policy: a non-zero `iris_blades` has no
-/// kernel (neither the separable nor the disk DOF kernel builds a blade
-/// polygon aperture). `highlight_gain` IS implemented on every path
-/// (`highlight_weight()` in dof_blur.comp, `dof_highlight_weight()` in the
-/// software kernel), so it is accepted in the shared CameraRig range [0, 8]
-/// and consumed by the kernels.
+/// Single fail-closed optics admission policy for the authored aperture.
+/// `0` selects the circular disk; `3..12` select a regular n-gon aperture.
+/// One or two blades cannot describe a closed polygon, so they fail closed
+/// instead of silently collapsing to a circle. `highlight_gain` IS
+/// implemented on every path (`highlight_weight()` in dof_blur.comp,
+/// `dof_highlight_weight()` in the software kernel), so it is accepted in the
+/// shared CameraRig range [0, 8] and consumed by the kernels.
 /// These predicates are the one seat of the capability policy: the RenderPlan
 /// contract and render-boundary gate call them instead of copying the limits.
 [[nodiscard]] inline bool dof_shape_unsupported(int iris_blades) {
-    return iris_blades != 0;
+    return iris_blades != 0 && (iris_blades < 3 || iris_blades > 12);
 }
 
 /// CameraRig's shared authored range for circular-bokeh highlight weighting.
@@ -31,14 +32,13 @@ namespace chronon3d {
 inline void validate_dof_render_capabilities(
     const DepthOfFieldSettings& dof) {
     constexpr std::string_view kAdviceView =
-        " (the DOF kernels support circular bokeh with highlight weighting "
-        "only); remove the iris_blades value from the plan or implement the "
-        "shaped kernels first";
+        " (the DOF kernels support a circular disk or a regular 3..12 blade "
+        "polygon); author 0 for a circle or 3..12 blades";
     if (dof_shape_unsupported(static_cast<int>(dof.iris_blades))) {
         throw std::runtime_error(
             "DOF: unsupported iris-shaped bokeh (iris_blades " +
-            std::to_string(dof.iris_blades) + ") is authored but no DOF kernel "
-            "implements iris-shaped bokeh" + std::string{kAdviceView});
+            std::to_string(dof.iris_blades) + ") is outside the supported "
+            "0 or 3..12 blade range" + std::string{kAdviceView});
     }
     if (dof_highlight_gain_unsupported(dof.highlight_gain)) {
         throw std::runtime_error("DOF: highlight_gain must be finite and in [0, 8]");

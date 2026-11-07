@@ -1,0 +1,109 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "GelTextFinalOptics1080p",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 300
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "output/gel_diag/dark.png",
+      "fit": "stretch",
+      "size": [1920, 1080],
+      "position": [0, 0],
+      "start_frame": 0,
+      "duration_frames": 300
+    },
+    {
+      "id": "anamorphic_streak",
+      "type": "text",
+      "text": "calories or ingredients",
+      "size": [1800, 300],
+      "position": [960, 540],
+      "opacity": 0.55,
+      "start_frame": 0,
+      "duration_frames": 300,
+      "screen_space": true,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 150,
+        "fill": "#B0FFFF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "directional_blur",
+          "angle": 0.0,
+          "length": 64.0,
+          "samples": 32
+        }
+      ]
+    },
+    {
+      "id": "gel_title",
+      "type": "text",
+      "text": "calories or ingredients",
+      "size": [1800, 300],
+      "position": [960, 540],
+      "start_frame": 0,
+      "duration_frames": 300,
+      "screen_space": true,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 150,
+        "fill": "#00E5FF",
+        "gel_surface": true
+      },
+      "effects": [
+        {
+          "type": "drop_shadow",
+          "radius": 16.0,
+          "offset": [3.0, 9.0],
+          "color": [0.0, 0.0, 0.0, 0.70]
+        },
+        {
+          "type": "glow",
+          "radius": 6,
+          "intensity": 0.90,
+          "color": [0.00, 0.92, 1.0, 1.0]
+        },
+        {
+          "type": "glow",
+          "radius": 26,
+          "intensity": 0.65,
+          "color": [0.00, 0.48, 0.98, 1.0]
+        },
+        {
+          "type": "radial_blur",
+          "center": [0.5, 0.5],
+          "amount": 0.38,
+          "render_samples": 16
+        },
+        {
+          "type": "chromatic_aberration",
+          "red_offset": 1.2,
+          "blue_offset": -1.2,
+          "red_transform": {
+            "scale": [1.006, 1.006],
+            "translation": [0.8, -1.2]
+          },
+          "blue_transform": {
+            "scale": [0.994, 0.994],
+            "translation": [-0.8, 1.2]
+          }
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "output/gel_diag/09_Look_Finale_Streak_Aberrazione_1080p.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

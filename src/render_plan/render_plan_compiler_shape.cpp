@@ -274,7 +274,8 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
             .saturation = backdrop.saturation,
             .rim_light = backdrop.rim_light,
             .refraction = backdrop.refraction,
-            .surface_noise = backdrop.surface_noise});
+            .surface_noise = backdrop.surface_noise,
+            .light_wrap = backdrop.light_wrap});
     }
 
 }

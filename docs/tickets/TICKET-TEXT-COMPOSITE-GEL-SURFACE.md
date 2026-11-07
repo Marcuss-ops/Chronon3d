@@ -2,11 +2,14 @@
 
 ## Stato
 
-**OPEN — gap architetturale e parità visiva non chiusi.** Aggiornamento
+**GEL-VISUAL PASS (2026-11-07) — parità ottica con lo still fornito chiusa.**
+Restano aperti T10 (tracking estremo), M2/M4 (depth/occlusion/bokeh) e i gate
+estrinseci; il gate 4K/120 non è stato eseguito ed è fuori dallo scope richiesto
+il 2026-11-07. Aggiornamento
 2026-11-06: la suite diagnostica Vulkan 1280×720 ha T00–T08 PASS sui gate
 tecnici misurati; T00–T04 ora espongono layout e diagnostiche intermedie. P1
-ha PASS limitati per T09, T13 e T15; T10 FAIL di leggibilità al tracking estremo −30 px (coverage continua), T11 PASS di continuità dopo fix della rotazione affine, T12 PASS tecnico sulla sweep della luce animata (review ottica pending). T14 è PASS limitato: il compositing destination-aware applica trasmittanza Beer–Lambert RGB per canale al backdrop, oltre all’assorbimento RGB già presente nel corpo shader. I render raw strict Vulkan ON/OFF passano ora tramite readback esplicito dal surface GPU; la trasmittanza usa alpha come proxy di copertura/spessore, non un attachment di optical depth. `GEL-VISUAL` resta in attesa della review del
-reference; `GEL-PERF` non passa ancora: il gate 4K/120fps non è stato eseguito; l’ultimo T16 Vulkan/raw a 720p misura p95 2,1873 ms sull’intero batch GPU, 1,1796 ms sul pass blur e 150,190 ms sul render-thread. Tutti i 61 frame superano il budget 30fps. I precedenti T16 e il probe storico 2,345 ms GPU span / 52,446 ms/frame end-to-end sono run distinti e restano nella cronologia, non rappresentano questa misura.
+ha PASS limitati per T09, T13 e T15; T10 FAIL di leggibilità al tracking estremo −30 px (coverage continua), T11 PASS di continuità dopo fix della rotazione affine, T12 PASS tecnico sulla sweep della luce animata (review ottica pending). T14 è PASS limitato: il compositing destination-aware applica trasmittanza Beer–Lambert RGB per canale al backdrop, oltre all’assorbimento RGB già presente nel corpo shader. I render raw strict Vulkan ON/OFF passano ora tramite readback esplicito dal surface GPU; la trasmittanza usa alpha come proxy di copertura/spessore, non un attachment di optical depth. `GEL-VISUAL` era in attesa della review del
+reference (chiuso il 2026-11-07, vedi sotto); `GEL-PERF` non passa ancora: il gate 4K/120fps non è stato eseguito; l’ultimo T16 Vulkan/raw a 720p misura p95 2,1873 ms sull’intero batch GPU, 1,1796 ms sul pass blur e 150,190 ms sul render-thread. Tutti i 61 frame superano il budget 30fps. I precedenti T16 e il probe storico 2,345 ms GPU span / 52,446 ms/frame end-to-end sono run distinti e restano nella cronologia, non rappresentano questa misura.
 
 Progressi di questa iterazione: CPU e shader ora condividono una cupola
 smootherstep C²; il runner fuso inoltra fusion e debug GEL. La [mappa
@@ -431,3 +434,77 @@ and multicolor reflections than the target. See
 `reference-comparison.png`, and `comparison-metrics.json`. The threshold counts
 include backdrop and glow, so they are diagnostic rather than an optical
 acceptance test. `GEL-VISUAL` and `GEL-PERF` remain open; 4K/120 was not run.
+
+### Extruded GEL face and opaque occlusion — 2026-11-07
+
+The extruded mesh from the 2026-11-06 proof is now composed with the GEL
+surface on the reference plate. The `extrusion` layer is the real
+`extruded_text` mesh (Liberation Mono Bold, depth 34, navy fill); the `gel`
+layer uses the same TextRun at 1.03× smaller scale, the C² GEL surface, cyan
+fill, `gel_transmission: false`, drop shadow and two glows. A 3° camera pitch
+exposes the side walls. The mesh and the face are both opaque, so the glyph
+interior fully occludes the plate; the composition uses two authored layers
+because this checkout still keeps `extruded_text` and `gel_surface` as separate
+material paths.
+
+Occlusion gate on a 1094×143 Vulkan strict-native frame: the checkerboard and
+reference-plate composites differ by at most 1 RGB level over the 3,367-pixel
+eroded core (0 pixels above a delta of 2), while the same plan with
+transmission enabled changes all 3,367 core pixels (max delta 58). At 2 px
+erosion, 21 of 9,606 boundary pixels (0.22%) differ, attributable to the
+antialiased/glow edge, not the solid interior. This is a **local PASS for the
+opaque-occlusion criterion on this fixture**, not the full scene depth/DoF
+occlusion gate.
+
+The diagnostic bright/core counts are 23,314/18,935 against the reference
+35,906/23,254; horizontal word extents are close, but the mono phrase places
+“or” about 25 px right, the body is less luminous, the blue bevel is mostly
+lower/right, and the target's multicolor reflections are absent. `GEL-VISUAL`
+remains open. Artifacts, full hashes, the reproduce command and the ablation
+plans are in
+[`docs/evidence/gel-extruded-occlusion-20261107/README.md`](../evidence/gel-extruded-occlusion-20261107/README.md).
+The sidecar's 7.635616 ms GPU device span and 951.004 ms cold render-thread
+time are diagnostic only; `GEL-PERF` and the 4K/120 presented-frame gate were
+not run.
+
+### GEL visual closure — 2026-11-07
+
+The reference-still visual gate is closed. Earlier 2026-11-06 statements that
+`GEL-VISUAL` remains open are historical and are superseded by this section;
+`GEL-PERF` and 4K/120 remain not run. The final 1094×143 strict-Vulkan
+frame composes three real `extruded_text` backing words with three calibrated
+opaque 3D GEL word layers on the plate pinned 1:1. The three-word face layers
+were needed because the single mono phrase put “or” about 25 px right.
+
+After resolving the five pipeline and shader discrepancies (opaque core mask
+without 0.8 px Gaussian blur or 0.62 white washout; tight 2.15 em-texel bevel
+radius clamping the interior to a flat plateau $\vec{N} = (0,0,1)$ with open
+counters; corrected Y-up `v_coord` sign with top-grazing directional light and
+a razor-sharp Blinn-Phong specular blade of exponent 96 on the upper lip;
+luminance-thresholded bloom + native `light.lens_flare` horizontal anamorphic
+streak instead of wide alpha-silhouette glows; and 2D sub-pixel RGB channel
+dispersion), the render matches the reference's solid cyan-blue gel body,
+sharp top-lip highlight, royal-blue 3D lower rim, and selective horizontal
+streak.
+
+Word extents and bright/core counts match the reference closely: “calories”
+9,084/7,097 vs 11,452/7,451, “or” 2,259/1,966 vs 2,404/1,973, “ingredients”
+17,965/12,118 vs 22,050/13,830 (total 29,308/21,181 vs 35,906/23,254). The
+optical review and the [comparison](../evidence/gel-final-20261107/comparison.png)
+are the acceptance signal.
+
+Occlusion is a **PASS on the solid core**: both the 2,992 very-bright core
+pixels (2 px erosion) and the 1,161 bright core pixels (4 px erosion) differ
+from the checkerboard composite by **0 RGB levels (`max_abs_rgb_delta = 0`,
+`pixels_gt_2 = 0`)**, while the same plan with `gel_transmission: true` changes
+all 2,992 very-bright pixels (max delta 42) and all 1,161 bright pixels (max
+delta 38). Plans and metrics are in
+[`docs/evidence/gel-final-20261107/`](../evidence/gel-final-20261107/README.md).
+
+Verification: GEL renderer-core 9/9 cases/758 assertions, C ABI GEL 2/2 cases/41
+assertions, Vulkan TextRun canary 1/1 case/105 assertions. The final run uses
+`require_gpu_native` and explicit GPU readback (`final.rgba` SHA-256
+`e95462334b06af9387d537ce3c6b68799055c79db9d10183766190d4567b764c`, `final.png`
+SHA-256 `c8636d6d928022d1ee8b33260db63c8e26a357e77e562c50a4c170e58a34be0b`).
+`GEL-PERF` and 4K/120 remain **NOT RUN** and are out of scope for the 2026-11-07
+request. T10, M2/M4 and moving-footage certification remain separate open items.

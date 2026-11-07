@@ -12,6 +12,9 @@ struct BackdropBlurParams {
     float refraction{0.0f};
     // Deterministic linear-light surface modulation, bounded to [0, 0.1].
     float surface_noise{0.0f};
+    // Light wrap: blurred backdrop luminance bleeding onto the layer edge,
+    // bounded to [0, 4] (0 disables it).
+    float light_wrap{0.0f};
 };
 
 } // namespace chronon3d
