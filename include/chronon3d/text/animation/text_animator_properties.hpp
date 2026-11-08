@@ -194,7 +194,7 @@ struct GlyphShadowColorProperty {
 };
 
 struct GlyphShadowOffsetProperty {
-    AnimatedValue<Vec3> offset{Vec3{0.0f, 0.0f, 0.0f}};  // z unused
+    AnimatedValue<Vec3> translation{Vec3{0.0f, 0.0f, 0.0f}};  // z unused
 };
 
 struct GlyphShadowBlurProperty {

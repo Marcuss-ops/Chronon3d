@@ -204,9 +204,9 @@ void apply_property_to_glyph(
             gs.shadow.enabled = true;
         }
         else if constexpr (std::is_same_v<T, GlyphShadowOffsetProperty>) {
-            const Vec3 value = p.offset.evaluate(time);
+            const Vec3 value = p.translation.evaluate(time);
             if (blend == TextPropertyBlendMode::Replace)
-                gs.shadow.offset = Vec2{value.x, value.y};
+                gs.shadow.offset = Vec2{value.x * weight, value.y * weight};
             else
                 gs.shadow.offset += Vec2{value.x * weight, value.y * weight};
             gs.shadow.enabled = true;

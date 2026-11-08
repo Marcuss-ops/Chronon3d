@@ -394,7 +394,7 @@ Implemented and verified in this session:
 
 Focused evidence (Linux video release, `-j12`):
 
-- `chronon3d_text_animator_property_tests`: **43/43 cases, 209/209 assertions**.
+- `chronon3d_text_animator_property_tests`: **44/44 cases, 213/213 assertions**.
 - `chronon3d_single_line_composer_tests --test-case='*spacing*'`: **4/4 cases,
   11/11 assertions** (word spacing width, line-breaking reflow, inter-line
   spacing, cache digest).
@@ -403,7 +403,8 @@ Focused evidence (Linux video release, `-j12`):
 - `chronon3d_c_abi_tests --test-case='*animator*'`: **9/9 cases, 49/49
   assertions**.
 - `chronon3d_text_run_driver_tests`: **20/20 cases, 81/81 assertions**.
-- Build: `498/498` steps, exit 0.
+- Build: `498/498` steps for the broad focused targets and `408/408` steps
+  for the final animator test rebuild, both exit 0.
 
 Still open: native MTSDF pixel parity for per-glyph shadow/glow/gradient and a
 native caret quad; RTL caret pixel certification. These are fail-closed, not
