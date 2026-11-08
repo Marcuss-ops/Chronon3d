@@ -81,8 +81,8 @@ enum class TextPropertyBlendMode {
 //
 //   Rotation, fill, skew, anchor, baseline shift, background and stroke
 //   properties use the same representation so V3 tracks can be evaluated at
-//   the requested sample time. CharacterOffsetProperty remains static because
-//   changing source characters requires text reshaping.
+//   the requested sample time. CharacterOffsetProperty is also animated; its
+//   sampled value is applied before shaping.
 
 struct PositionProperty {
     AnimatedValue<Vec3> value{Vec3{0.0f, 0.0f, 0.0f}};
@@ -170,8 +170,10 @@ struct LineSpacingProperty {
 };
 
 /// After Effects-style Character Offset: shifts the character value
-/// (code point) by a fixed amount.  Wraps within the alphanumeric range.
-/// Example: offset=1 turns 'A' into 'B', 'Z' into 'A'.
+/// (code point) by a sampled amount.  The animated value is evaluated at
+/// the frame time and rounded to an integer codepoint shift.  Wraps within
+/// the alphanumeric range.  Example: offset=1 turns 'A' into 'B', 'Z'
+/// into 'A'.
 ///
 /// FASE 2a: CharacterOffsetProperty is now evaluated in the PreShaping
 /// phase — the source text is transformed BEFORE HarfBuzz shaping so
@@ -183,7 +185,7 @@ struct LineSpacingProperty {
 /// AFTER layout (which was architecturally wrong — the comment below
 /// has always stated "must be applied BEFORE TextRunLayout is built").
 struct CharacterOffsetProperty {
-    i32 offset{0};                     // number of codepoints to shift
+    AnimatedValue<f32> offset{0.0f};   // sampled and rounded codepoint shift
 };
 
 // ── P1-06 / P1-07 — per-glyph paint animators ───────────────────────────

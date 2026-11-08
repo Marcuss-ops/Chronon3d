@@ -341,9 +341,8 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
                 animated_text_value(track, 0.0f, track.property, fps)});
             break;
         case AnimationPropertyKind::CharacterOffset: {
-            const int offset = track.keyframes.empty() ? 0 :
-                static_cast<int>(scalar_value(track.keyframes.front(), "character_offset"));
-            animator.properties.push_back(chronon3d::CharacterOffsetProperty{offset});
+            animator.properties.push_back(chronon3d::CharacterOffsetProperty{
+                animated_text_value(track, 0.0f, "character_offset", fps)});
             break;
         }
         default:

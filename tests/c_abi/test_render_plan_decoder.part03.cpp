@@ -307,6 +307,32 @@ TEST_CASE("render plan V3 accepts bounded negative text tracking animation") {
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 
+TEST_CASE("render plan V3 accepts animated character_offset integer keyframes") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"id":"offset","selectors":[{"unit":"glyph"}],"properties":[
+          {"property":"character_offset","keyframes":[
+            {"frame":0,"value":0},{"frame":12,"value":4},{"frame":24,"value":0}
+          ]}
+        ]}
+    ])JSON");
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
+    REQUIRE(decoded.has_value());
+    const auto& track = decoded->layers[0].text_animators[0].properties[0];
+    CHECK(track.property == "character_offset");
+    REQUIRE(track.keyframes.size() == 3);
+    CHECK(track.keyframes.front().value == std::vector<float>{0.0f});
+    CHECK(track.keyframes.back().value == std::vector<float>{0.0f});
+
+    source["layers"][0]["text_animators"][0]["properties"][0]["keyframes"][1]["value"] = 2.5;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+
+    source["layers"][0]["text_animators"][0]["properties"][0]["keyframes"][1]["value"] = 10001;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
 TEST_CASE("render plan V2 keeps the frozen animator property enum") {
     auto source = v3_text_plan();
     source["schema"] = "chronon.render-plan.v2";

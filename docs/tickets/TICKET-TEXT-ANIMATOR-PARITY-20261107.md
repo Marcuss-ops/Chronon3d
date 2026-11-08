@@ -1,6 +1,6 @@
 # TICKET-TEXT-ANIMATOR-PARITY-20261107 — After Effects text-animator parity
 
-**Status:** OPEN — P0 `Word Spacing` / `Line Spacing` implemented and verified (2026-11-08); P1/P2 backlog open.
+**Status:** OPEN — P0 `Word Spacing` / `Line Spacing`, P1-02 animated `Character Offset`, P1-06/P1-07 software effects, P1-10 caret and P2-05 reflow implemented and verified (2026-11-08); P1/P2 backlog open.
 **Owner:** Chronon3D text/runtime.
 **Scope:** animated text layers, not full SVG text. SVG-specific gaps remain in
 [`TICKET-SVG-TEXT-PARITY-REMAINING.md`](TICKET-SVG-TEXT-PARITY-REMAINING.md) and
@@ -36,7 +36,7 @@ contains the single `TextAnimatorProperty` variant. Before this ticket it had
 | Appearance | `opacity`, `blur`, `fill_color`, `stroke_color`, `stroke_width` |
 | Background | `background_color`, `background_padding_em`, `background_radius_em` |
 | Layout | `tracking` (cumulative PostLayout advance) |
-| PreShaping | `character_offset` (static source codepoint shift) |
+| PreShaping | `character_offset` (animated, time-sampled source codepoint shift) |
 | Material | `gel_light_direction` (run-level GEL light) |
 
 The P0 change adds two more alternatives at the end of the variant, preserving
@@ -116,7 +116,7 @@ missing.
 | P0-01 | Word spacing as a selector-driven, animated property | Word Spacing | PostLayout | **DONE** |
 | P0-02 | Line spacing as a selector-driven, animated property | Line Spacing | PostLayout | **DONE** |
 | P1-01 | Character Value / arbitrary codepoint substitution per selector | Character Value | PreShaping | OPEN |
-| P1-02 | Fully animated Character Offset (all keyframes, selector-driven) | Character Offset | PreShaping | PARTIAL |
+| P1-02 | Fully animated Character Offset (all keyframes, selector-driven) | Character Offset | PreShaping | **DONE (run-level)** |
 | P1-03 | Character Alignment / per-character anchor alignment | Character Alignment | PostLayout | OPEN |
 | P1-04 | Line Anchor (top/center/bottom) | Line Anchor | PostLayout | OPEN |
 | P1-05 | Anchor Point Grouping (character/word/line/all) | Anchor Point Grouping | PostLayout | OPEN |
@@ -254,6 +254,18 @@ The 2026-11-07 note below about the test executables not being run is superseded
 - The V3 decoder and V2 frozen-enum gates listed above were **not run in this
   session**; they belong to their own targets and were not rebuilt here.
 
+### P1-02 evidence (2026-11-08)
+
+- Build `-j14` of `chronon3d_core_tests`, `chronon3d_c_abi_tests` and
+  `chronon3d_text_animator_property_tests`: **582/582 steps, exit 0**.
+- `chronon3d_core_tests --test-case='*CharacterOffset*'`: **25/25 cases,
+  35/35 assertions**.
+- `chronon3d_c_abi_tests --test-case='*character_offset*'`: **1/1 case,
+  7/7 assertions** (multi-keyframe acceptance, fractional and out-of-range
+  rejection).
+- `chronon3d_text_animator_property_tests`: **44/44 cases, 213/213
+  assertions**.
+
 ### Session evidence (2026-11-07)
 
 - `chronon3d_text_core` built cleanly: 6/6 steps.
@@ -281,16 +293,26 @@ The 2026-11-07 note below about the test executables not being run is superseded
    combining marks, and excluded spaces.
 4. Add V3 property name, schema, decoder bounds, compiler mapping.
 5. Add shaping tests for ligatures, bidi, and cluster boundaries.
-6. Verify CPU and GPU see the same post-shaping text (parity by construction).
+6. Verify CPU and GPU see the same post-shaping text (parity by construction).### P1-02 — Animated Character Offset
 
-### P1-02 — Animated Character Offset
+**Implemented (2026-11-08).**
 
-1. Replace the current first-keyframe-only read with a time-sampled value.
-2. Apply the sampled offset per source codepoint before shaping.
-3. Decide whether selectors operate on pre-shift or post-shift codepoints and
-   document the choice.
-4. Add V3 bounds and tests for monotonic codepoint order.
-5. Keep the existing static single-keyframe path as a fast path.
+1. **DONE** — `CharacterOffsetProperty::offset` is an `AnimatedValue<f32>`
+   sampled with `SampleTime` and rounded per frame. The V3 decoder accepts
+   multiple integer keyframes in `[-10000, 10000]`; the compiler maps all of
+   them through `animated_text_value()`.
+2. **DONE** — the driver applies the sampled offset to
+   `TextRunShape::pre_shaping_source` (the authored source) before shaping, so
+   every frame starts from the original text and the shift never accumulates.
+3. **DECIDED** — selectors do not scope PreShaping offsets. The codepoint shift
+   is a run-level transform applied before shaping, when selector glyph maps do
+   not exist yet. This is the documented contract, not an accidental omission.
+4. **DONE** — V3 bounds and per-keyframe integer validation; tests live in
+   `test_character_offset_pre_shaping.cpp` and
+   `test_render_plan_decoder.part03.cpp`.
+5. **NOT KEPT** — a separate static-keyframe fast path was deliberately
+   dropped: a single-keyframe `AnimatedValue` evaluates in O(1), and the driver
+   already skips the layout rebuild when the sampled source is unchanged.
 
 ### P1-03 — Character Alignment
 
@@ -376,6 +398,9 @@ rejects an enabled caret. RTL pixel certification remains open.
   native Vulkan/MTSDF pass explicitly rejects them and stays fail-closed.
 - The legacy P0 Word/Line Spacing properties remain PostLayout visual offsets;
   only the new `Reflow*` properties perform true paragraph reflow.
+- P1-02 offsets are run-level: selectors are resolved after shaping, so a
+  selector-scoped Character Offset would need a pre-shaping unit map and is not
+  part of this contract.
 - The V2 animator enum stays frozen.
 - The run-level GPU fast path remains narrower than the per-glyph MTSDF route.
 - No unrelated render-plan, SVG, or text-quality files are changed by this
@@ -391,6 +416,9 @@ Implemented and verified in this session:
   GPU fail-closed predicate.
 - **P2-05:** true PreLayout spacing reflow, composer integration and cache
   identity.
+- **P1-02:** animated Character Offset (`AnimatedValue<f32>`, V3 multi-keyframe,
+  stable pre-shaping source, stateless per-frame evaluation) verified by core,
+  animator and decoder suites.
 
 Focused evidence (Linux video release, `-j12`):
 
