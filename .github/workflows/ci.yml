@@ -163,11 +163,12 @@ jobs:
           if-no-files-found: ignore
 
   windows-release:
-    # Release-build proof for the preset that already exists in
-    # cmake/presets/windows.json. The lane is part of the canonical Chronon CI
-    # on every trigger: PR and push build the focused suite, manual dispatch
-    # builds the full suite. main-truth gates on this job's result together with
-    # the Linux matrix, so a Windows release artifact always has a same-SHA run.
+    # Manual-only release proof for the preset in cmake/presets/windows.json.
+    # It used to run on every push/PR, but a hosted Windows Configure alone
+    # takes ~50 minutes and the lane is not part of main-truth. Keep the push
+    # lane fast: run this with workflow_dispatch when cutting a release or
+    # validating the Windows preset.
+    if: github.event_name == 'workflow_dispatch'
     name: Windows (Release)
     runs-on: windows-latest
     timeout-minutes: 300
@@ -263,6 +264,9 @@ jobs:
           if-no-files-found: error
 
   golden-e2e:
+    # Manual-only golden gate: it rebuilds the software renderer and is too
+    # slow for the push lane. main-truth only requires the Linux fast lane.
+    if: github.event_name == 'workflow_dispatch'
     name: Gate 8 / golden-e2e
     runs-on: ubuntu-24.04
     timeout-minutes: 90
