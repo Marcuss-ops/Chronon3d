@@ -111,6 +111,8 @@ bool rebuild_active_side(
         return false;
     }
     shape.layout = std::move(merged);
+    shape.pre_shaping_source = target_text;
+    shape.has_pre_shaping_source = true;
     reset_glyph_states_in_place(shape.glyphs, shape.layout->placed);
     return true;
 }

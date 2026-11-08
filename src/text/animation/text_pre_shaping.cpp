@@ -13,6 +13,7 @@
 #include <chronon3d/text/animation/text_pre_shaping.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <variant>
 
 namespace chronon3d {
@@ -98,7 +99,8 @@ bool has_pre_shaping_properties(
 
 std::string evaluate_pre_shaping_source(
     const std::vector<TextAnimatorSpec>& animators,
-    std::string_view original_source
+    std::string_view original_source,
+    SampleTime time
 ) {
     i32 total_offset = 0;
 
@@ -106,7 +108,7 @@ std::string evaluate_pre_shaping_source(
         if (!anim.enabled) continue;
         for (const auto& prop : anim.properties) {
             if (auto* cop = std::get_if<CharacterOffsetProperty>(&prop)) {
-                total_offset += cop->offset;
+                total_offset += static_cast<i32>(std::lround(cop->offset.evaluate(time)));
             }
         }
     }

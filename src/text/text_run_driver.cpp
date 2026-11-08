@@ -61,6 +61,10 @@ void update_text_run_shape_per_frame(
 ) {
     // ── Guard: static-shape fast path (layout nullptr is no-op) ─────
     if (!shape.layout) return;
+    if (!shape.has_pre_shaping_source) {
+        shape.pre_shaping_source = shape.layout->source_text;
+        shape.has_pre_shaping_source = true;
+    }
     shape.caret.frame = static_cast<f64>(time.integral_frame().integral());
 
     // ── PR 9 — re-sample AnimatedTextDocument first, then animators ──
@@ -134,7 +138,7 @@ void update_text_run_shape_per_frame(
     // ── Pre-shaping phase: rebuild layout when offset_source differs. ─
     if (has_pre_shaping_properties(shape.animators)) {
         std::string offset_source = evaluate_pre_shaping_source(
-            shape.animators, shape.layout->source_text);
+            shape.animators, shape.pre_shaping_source, time);
 
         if (offset_source != shape.layout->source_text) {
             TextDocument td;

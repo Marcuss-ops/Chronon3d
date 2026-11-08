@@ -206,7 +206,7 @@ bool TextAnimatorSpec::is_valid() const {
     // name — RotationProperty::degrees (NOT value), AnchorProperty::value,
     // SkewProperty::{angle, axis}, StrokeColorProperty::color,
     // StrokeWidthProperty::width,
-    // BaselineShiftProperty::pixels, CharacterOffsetProperty::offset (i32).
+    // BaselineShiftProperty::pixels and CharacterOffsetProperty::offset.
     // Lumping multiple static-value types into one `p.value` branch
     // (e.g. Rotation+Anchor) is a COMPILE ERROR because RotationProperty
     // has no `value` field.  Each must be explicitly dispatched.
@@ -242,12 +242,14 @@ bool TextAnimatorSpec::is_valid() const {
                     return detail::check_clean_av(p.width);
                 } else if constexpr (std::is_same_v<P, BaselineShiftProperty>) {
                     return detail::check_clean_av(p.pixels);
+                } else if constexpr (std::is_same_v<P, CharacterOffsetProperty>) {
+                    return detail::check_clean_av(p.offset);
                 } else if constexpr (std::is_same_v<P, BackgroundColorProperty>) {
                     return detail::check_clean_av(p.color) &&
                            detail::check_clean_av(p.padding_em) &&
                            detail::check_clean_av(p.radius_em);
                 } else {
-                    // CharacterOffsetProperty (i32) — integers cannot be NaN/Inf.
+                    // CharacterOffsetProperty is sampled and rounded to an integer.
                     return true;
                 }
             },

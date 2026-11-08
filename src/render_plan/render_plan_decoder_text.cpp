@@ -305,11 +305,11 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                 }
             }
             if (track.property == "character_offset") {
-                const auto& key = track.keyframes.front();
-                if (key.value[0] < -10000.0f || key.value[0] > 10000.0f ||
-                    std::floor(key.value[0]) != key.value[0] || key.frame.integral() != 0 ||
-                    track.keyframes.size() != 1)
-                    throw std::runtime_error("character_offset requires one static integer keyframe at frame 0 in [-10000, 10000]");
+                for (const auto& key : track.keyframes) {
+                    if (key.value[0] < -10000.0f || key.value[0] > 10000.0f ||
+                        std::floor(key.value[0]) != key.value[0])
+                        throw std::runtime_error("character_offset keyframes require integer values in [-10000, 10000]");
+                }
             } else if (track.property == "anchor") {
                 for (const auto& key : track.keyframes) {
                     if (key.value.empty() || key.value.size() > 3) {

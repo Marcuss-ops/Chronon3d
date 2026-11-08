@@ -494,10 +494,10 @@ bool SceneHasher::layer_is_static(const Layer& layer) {
 // duplication source is frame-1, so both frames must already be in the tail.
 //
 // Field convention for the generic property sweep below: every animatable
-// property member is an `AnimatedValue<T>` named in that set; plain data
-// members (e.g. CharacterOffsetProperty::offset) are constant by construction
-// and settle trivially.  A NEW animated member with an out-of-set name must be
-// added to the sweep — the naming convention is the contract.
+// property member is an `AnimatedValue<T>` named in that set and is swept
+// below (including CharacterOffsetProperty::offset since P1-02).  A NEW
+// animated member with an out-of-set name must be added to the sweep — the
+// naming convention is the contract.
 namespace {
 
 template <typename T>
@@ -541,6 +541,8 @@ bool animator_property_settled_at(const T& property, Frame frame) {
         settled = settled && animator_member_settled_at(property.width, frame);
     if constexpr (requires { property.pixels; })
         settled = settled && animator_member_settled_at(property.pixels, frame);
+    if constexpr (requires { property.offset; })
+        settled = settled && animator_member_settled_at(property.offset, frame);
     return settled;
 }
 

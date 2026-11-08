@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <chronon3d/core/types/sample_time.hpp>
 
 namespace chronon3d {
 
@@ -63,7 +64,8 @@ namespace chronon3d {
 
 [[nodiscard]] std::string evaluate_pre_shaping_source(
     const std::vector<TextAnimatorSpec>& animators,
-    std::string_view original_source
+    std::string_view original_source,
+    SampleTime time = {}
 );
 
 } // namespace chronon3d

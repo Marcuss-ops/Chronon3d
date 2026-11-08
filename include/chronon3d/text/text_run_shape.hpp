@@ -155,6 +155,11 @@ struct TextRunShape {
     TextLayoutSpec layout_spec{};
     TextCaretSpec caret{};
 
+    // Stable authoring source for animated PreShaping properties. The layout
+    // source is transformed, so it cannot be used as the next frame's input.
+    std::string pre_shaping_source{};
+    bool has_pre_shaping_source{false};
+
     // P2-05 — authored spacing baseline for PreLayout animators.  The driver
     // evaluates reflow_word_spacing/reflow_line_spacing on top of these values;
     // keeping them separate prevents repeated frames from accumulating the

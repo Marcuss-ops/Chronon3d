@@ -18,6 +18,7 @@
 #include <chronon3d/text/animation/glyph_instance_state.hpp>
 
 #include <string>
+#include <variant>
 
 using namespace chronon3d;
 
@@ -198,6 +199,54 @@ TEST_CASE("evaluate_pre_shaping_source: total offset zero returns original") {
     std::vector<TextAnimatorSpec> animators{spec1, spec2};
     auto result = evaluate_pre_shaping_source(animators, "HELLO");
     CHECK(result == "HELLO");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P1-02 — animated CharacterOffset: sampled per frame, stateless
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+
+TextAnimatorSpec make_animated_offset_animator(float end_offset) {
+    TextAnimatorSpec spec;
+    spec.properties.push_back(CharacterOffsetProperty{});
+    auto* offset = std::get_if<CharacterOffsetProperty>(&spec.properties.back());
+    CHECK(offset != nullptr);
+    if (offset == nullptr) return spec;
+    offset->offset.add_keyframe(Frame{0}, 0.0f);
+    offset->offset.add_keyframe(Frame{10}, end_offset);
+    return spec;
+}
+
+SampleTime sample_at(int frame) {
+    return SampleTime::from_frame_int(Frame{frame}, FrameRate{30, 1});
+}
+
+} // namespace
+
+TEST_CASE("CharacterOffset P1-02: animated offset samples each frame") {
+    std::vector<TextAnimatorSpec> animators{make_animated_offset_animator(4.0f)};
+
+    CHECK(evaluate_pre_shaping_source(animators, "ABCDEF", sample_at(0)) == "ABCDEF");
+    CHECK(evaluate_pre_shaping_source(animators, "ABCDEF", sample_at(5)) == "CDEFGH");
+    CHECK(evaluate_pre_shaping_source(animators, "ABCDEF", sample_at(10)) == "EFGHIJ");
+}
+
+TEST_CASE("CharacterOffset P1-02: fractional offsets round to the nearest codepoint") {
+    std::vector<TextAnimatorSpec> animators{make_animated_offset_animator(3.0f)};
+
+    // frame 5 -> 1.5, rounded away from zero -> 2
+    CHECK(evaluate_pre_shaping_source(animators, "ABC", sample_at(5)) == "CDE");
+}
+
+TEST_CASE("CharacterOffset P1-02: evaluation is stateless across frames") {
+    std::vector<TextAnimatorSpec> animators{make_animated_offset_animator(2.0f)};
+
+    CHECK(evaluate_pre_shaping_source(animators, "AB", sample_at(10)) == "CD");
+    // Returning to frame 0 must re-apply the offset to the authored source,
+    // not to the already-shifted text (the old cumulative-shift bug).
+    CHECK(evaluate_pre_shaping_source(animators, "AB", sample_at(0)) == "AB");
+    CHECK(evaluate_pre_shaping_source(animators, "AB", sample_at(10)) == "CD");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
