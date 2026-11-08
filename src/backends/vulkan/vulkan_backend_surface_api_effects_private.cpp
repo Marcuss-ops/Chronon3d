@@ -155,6 +155,29 @@ graph::RenderOpResult VulkanBackend::camera_ring_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::sdf_bevel_surfaces(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle scratch_a,
+    runtime::RenderSurfaceHandle scratch_b,
+    runtime::RenderSurfaceHandle scratch_c,
+    const SdfBevelParams& params, float time_seconds) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 5> touched{
+        destination, source, scratch_a, scratch_b, scratch_c};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->sdf_bevel(destination, source, scratch_a, scratch_b, scratch_c,
+                          params, time_seconds);
+    });
+#else
+    (void)destination; (void)source; (void)scratch_a; (void)scratch_b;
+    (void)scratch_c; (void)params; (void)time_seconds;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::sdf_bevel_surfaces: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::warp_bulk_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,

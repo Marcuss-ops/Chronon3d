@@ -255,6 +255,14 @@ struct ParagraphStyle {
     /// Empty string means no ellipsis hint is provided.
     std::string ellipsis{"\xE2\x80\xA6"};  // U+2026
 
+    // 17. explicit spacing (P2-05).  Unlike `spacing` above (justification
+    // multipliers), these are absolute pixel gaps consumed by the composer:
+    // word_spacing is added after every whitespace cluster, line_spacing is
+    // added between composed lines.  Both are PreLayout and participate in
+    // TextLayoutCacheKey identity.
+    f32 word_spacing{0.0f};
+    f32 line_spacing{0.0f};
+
     // ── Equality ────────────────────────────────────────────────────────
     bool operator==(const ParagraphStyle&) const noexcept = default;
 };

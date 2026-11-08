@@ -200,6 +200,36 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
             }
             style_plan.glow = std::move(glow_plan);
         }
+        if (style.contains("text_caret")) {
+            if (layer.type != LayerType::Text)
+                throw std::runtime_error("style.text_caret is only valid for text layers");
+            const auto& caret = style.at("text_caret");
+            if (!caret.is_object())
+                throw std::runtime_error("style.text_caret must be an object");
+            TextCaretPlan plan;
+            if (caret.contains("byte_index")) {
+                if (!caret.at("byte_index").is_number_integer())
+                    throw std::runtime_error("style.text_caret.byte_index must be an integer");
+                const auto index = caret.at("byte_index").get<std::int64_t>();
+                if (index < 0 || index > 1000000)
+                    throw std::runtime_error("style.text_caret.byte_index must be in [0, 1000000]");
+                plan.byte_index = static_cast<std::size_t>(index);
+            }
+            plan.width = caret.value("width", 2.0f);
+            plan.height = caret.value("height", 0.0f);
+            plan.color = caret.value("color", std::string{"#FFFFFF"});
+            plan.opacity = caret.value("opacity", 1.0f);
+            plan.blink_period_frames = caret.value("blink_period_frames", 0);
+            plan.blink_duty = caret.value("blink_duty", 0.5f);
+            if (!std::isfinite(plan.width) || plan.width <= 0.0f || plan.width > 256.0f ||
+                !std::isfinite(plan.height) || plan.height < 0.0f || plan.height > 4096.0f ||
+                !std::isfinite(plan.opacity) || plan.opacity < 0.0f || plan.opacity > 1.0f ||
+                !std::isfinite(plan.blink_duty) || plan.blink_duty < 0.0f || plan.blink_duty > 1.0f ||
+                plan.blink_period_frames < 0 || plan.blink_period_frames > 1000000 ||
+                plan.color.size() < 7)
+                throw std::runtime_error("style.text_caret values are outside supported bounds");
+            style_plan.text_caret = std::move(plan);
+        }
         if (style.contains("background")) {
             const auto& background = style.at("background");
             BackgroundStyle background_plan;

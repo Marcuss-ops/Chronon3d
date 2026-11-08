@@ -82,4 +82,32 @@ TEST_CASE("Strict Vulkan DirectionalBlur matches software and invalid parameters
     CHECK_FALSE(vulkan_strict(DirectionalBlurParams{.angle = 20.0f, .length = 6.0f, .samples = 0}, partial_clip).ok);
 }
 
+TEST_CASE("Strict Vulkan SdfBevel matches software shading and fails closed outside the window") {
+    auto sdf_bevel = renderer::create_sdf_bevel_effect_processor();
+    const SdfBevelParams base{
+        .bevel_width = 6.0f,
+        .bevel_height = 4.0f,
+        .rim_width = 1.5f,
+        .rim_color = Color{0.78f, 0.58f, 0.30f, 1.0f},
+        .rim_intensity = 0.8f,
+        .highlight = 0.45f,
+        .shade = 0.3f,
+        .light_angle = -135.0f,
+        .light_elevation = 38.0f,
+        .light_orbit_speed = 0.0f,
+        .shadow_distance = 0.0f,
+        .shadow_softness = 0.0f,
+        .shadow_opacity = 0.0f};
+    check_parity(*sdf_bevel, base);
+
+    // The certified native window is explicit; malformed or oversized plans
+    // fall back to the software processor instead of being silently approved.
+    auto oversized = base;
+    oversized.bevel_width = 257.0f;
+    CHECK_FALSE(vulkan_strict(oversized, std::nullopt).ok);
+    auto nan_light = base;
+    nan_light.light_angle = std::nanf("");
+    CHECK_FALSE(vulkan_strict(nan_light, std::nullopt).ok);
+}
+
 #endif // CHRONON3D_ENABLE_VULKAN

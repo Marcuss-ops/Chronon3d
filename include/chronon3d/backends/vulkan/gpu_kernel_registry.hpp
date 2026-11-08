@@ -39,6 +39,7 @@ enum class GpuKernelId : std::uint8_t {
     OcclusionTag,
     ShadowCaster,
     ShadowApply,
+    SdfBevel,
 };
 
 class GpuKernelRegistry {

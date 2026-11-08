@@ -46,6 +46,10 @@ public:
     TextRunBuilder& name(std::string value);
     TextRunBuilder& from_animated_document(
         std::shared_ptr<const AnimatedTextDocument> document);
+    TextRunBuilder& caret(TextCaretSpec spec) {
+        m_spec->caret = std::move(spec);
+        return *this;
+    }
 
     LayerBuilder& commit();
 

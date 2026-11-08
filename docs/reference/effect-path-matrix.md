@@ -58,5 +58,16 @@ sources. Do not edit by hand.
 | 50 | Retro TV | `RetroTvParams` | yes | unsupported | no |
 | 51 | Film Halation | `HalationParams` | yes | unsupported | no |
 | 52 | Anamorphic Streak | `AnamorphicStreakParams` | yes | unsupported | no |
+| 53 | Color Matrix | `ColorMatrixParams` | yes | native | no |
+| 54 | Lottie Two-Color Tint | `LottieTintParams` | yes | unsupported | no |
+| 55 | Lottie Tritone | `LottieTritoneParams` | yes | unsupported | no |
+| 56 | Posterize | `PosterizeParams` | yes | native | no |
+| 57 | Color Map | `ColorMapParams` | yes | native | no |
+| 58 | Linear Wipe | `LinearWipeParams` | yes | native | no |
+| 59 | Min Max | `MinMaxParams` | yes | native | no |
+| 60 | Stretch Warp | `StretchWarpParams` | yes | native | no |
+| 61 | Lens Flare | `LensFlareParams` | yes | native | no |
+| 62 | Camera Ring Defocus | `CameraRingParams` | yes | native | no |
+| 63 | SDF Bevel | `SdfBevelParams` | yes | native | no |
 
-Totals: 52 catalog effects, 48 with native Vulkan routes.
+Totals: 63 catalog effects, 57 with native Vulkan routes.

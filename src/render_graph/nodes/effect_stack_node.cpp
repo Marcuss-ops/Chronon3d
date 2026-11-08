@@ -311,6 +311,11 @@ NodeExecResult EffectStackNode::execute(
                         ctx, one_effect, *result, native_clip, current_source,
                         current_source_framebuffer);
                     break;
+                case effects::EffectType::SdfBevel:
+                    stage_handled = native_effects::try_native_full_frame_sdf_bevel(
+                        ctx, one_effect, *result, native_clip, current_source,
+                        current_source_framebuffer);
+                    break;
                 case effects::EffectType::Sharpen:
                     stage_handled = native_effects::try_native_full_frame_sharpen(
                         ctx, one_effect, *result, native_clip, current_source);
@@ -440,6 +445,11 @@ NodeExecResult EffectStackNode::execute(
                 native_source_available ? inputs[0].get() : nullptr);
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_drop_shadow(
+                    ctx, active_effects, *result, native_clip, native_source,
+                    native_source_available ? inputs[0].get() : nullptr);
+            }
+            if (!native_handled) {
+                native_handled = native_effects::try_native_full_frame_sdf_bevel(
                     ctx, active_effects, *result, native_clip, native_source,
                     native_source_available ? inputs[0].get() : nullptr);
             }

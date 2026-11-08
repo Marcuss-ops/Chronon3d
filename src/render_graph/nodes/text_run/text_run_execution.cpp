@@ -150,6 +150,10 @@ void prepare_per_frame_shape(
     view.layout_spec = source.layout_spec;
     view.cache = source.cache;
     view.dissolve_mix = source.dissolve_mix;
+    // P1-10: the caret is static shape state, but the worker-owned view must
+    // carry it into the software raster pass; only its sampled frame changes
+    // per invocation.
+    view.caret = source.caret;
 
     if (view.layout) reset_glyph_states_in_place(view.glyphs, view.layout->placed);
     else view.glyphs.clear();

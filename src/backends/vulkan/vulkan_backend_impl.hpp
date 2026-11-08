@@ -532,6 +532,16 @@ struct VulkanBackend::Impl {
         float highlight_gain;
         std::int32_t iris_blades;
     };
+    // Mirrors sdf_bevel.comp: six std430 vec4 groups (96 bytes).
+    struct SdfBevelPush {
+        float rim_r, rim_g, rim_b, rim_a;
+        float shadow_r, shadow_g, shadow_b, shadow_a;
+        float light_x, light_y, light_z, light_pad;
+        float bevel_width, bevel_height, rim_width, rim_intensity;
+        float highlight, shade, shadow_distance, shadow_softness;
+        float shadow_opacity, width, height, mode;
+    };
+    static_assert(sizeof(SdfBevelPush) == 96, "SdfBevel push must be 96 bytes");
     void record_dof_depth_stamp(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& depth, const Image& layer,
                                 const DofDepthStampPush& push);
@@ -548,6 +558,9 @@ struct VulkanBackend::Impl {
     void record_camera_ring(VkCommandBuffer command, VkDescriptorSet descriptors,
                             const Image& destination, const Image& source,
                             const CameraRingParams& params);
+    void record_sdf_bevel(VkCommandBuffer command, VkDescriptorSet descriptors,
+                          const Image& destination, const Image& source,
+                          const SdfBevelPush& push);
     void record_warp_bulk(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination, const Image& source,
                           const graph::WarpBulkParams& params);
@@ -694,6 +707,12 @@ struct VulkanBackend::Impl {
     void camera_ring(runtime::RenderSurfaceHandle destination,
                      runtime::RenderSurfaceHandle source,
                      const CameraRingParams& params);
+    void sdf_bevel(runtime::RenderSurfaceHandle destination,
+                   runtime::RenderSurfaceHandle source,
+                   runtime::RenderSurfaceHandle scratch_a,
+                   runtime::RenderSurfaceHandle scratch_b,
+                   runtime::RenderSurfaceHandle scratch_c,
+                   const SdfBevelParams& params, float time_seconds);
     void warp_bulk(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source,
                    runtime::RenderSurfaceHandle aux,

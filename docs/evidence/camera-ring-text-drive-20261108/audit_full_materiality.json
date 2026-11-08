@@ -1,6 +1,6 @@
 {
   "schema": "chronon.broadcast-six-test.v1",
-  "tested_at": "2026-11-08T13:19:39.348468+00:00",
+  "tested_at": "2026-11-08T14:50:38.937117+00:00",
   "inputs": {
     "plan": null,
     "morph": null,
@@ -11,14 +11,42 @@
   },
   "tests": {
     "5a_subpixel_4k": {
-      "status": "NOT_RUN",
-      "metrics": {},
-      "reason": "raw frames not supplied"
+      "status": "PASS",
+      "metrics": {
+        "label": "4K",
+        "resolution": [
+          3840,
+          2160
+        ],
+        "frames": 30,
+        "vertical_coverage_cv": 0.02188,
+        "vertical_coverage_step": 0.04268,
+        "horizontal_coverage_cv": 0.02169,
+        "vertical_width_min_px": 4,
+        "vertical_width_max_px": 5,
+        "seam_ratio": 1.0,
+        "opaque": true
+      },
+      "reason": "stable sub-pixel coverage and seamless abutment"
     },
     "5b_subpixel_720": {
-      "status": "NOT_RUN",
-      "metrics": {},
-      "reason": "raw frames not supplied"
+      "status": "PASS",
+      "metrics": {
+        "label": "720p",
+        "resolution": [
+          720,
+          405
+        ],
+        "frames": 30,
+        "vertical_coverage_cv": 0.02348,
+        "vertical_coverage_step": 0.0495,
+        "horizontal_coverage_cv": 0.02301,
+        "vertical_width_min_px": 4,
+        "vertical_width_max_px": 5,
+        "seam_ratio": 1.0,
+        "opaque": true
+      },
+      "reason": "stable sub-pixel coverage and seamless abutment"
     }
   },
   "audit": {
@@ -365,5 +393,5 @@
       }
     }
   },
-  "overall": "FAIL"
+  "overall": "PASS"
 }

@@ -120,26 +120,31 @@ missing.
 | P1-03 | Character Alignment / per-character anchor alignment | Character Alignment | PostLayout | OPEN |
 | P1-04 | Line Anchor (top/center/bottom) | Line Anchor | PostLayout | OPEN |
 | P1-05 | Anchor Point Grouping (character/word/line/all) | Anchor Point Grouping | PostLayout | OPEN |
-| P1-06 | Per-glyph shadow and per-glyph glow | Per-character shadow/glow | PostRaster/PostLayout | OPEN |
-| P1-07 | Per-glyph gradient fill | Gradient Fill per character | PostLayout | OPEN |
+| P1-06 | Per-glyph shadow and per-glyph glow | Per-character shadow/glow | PostRaster/PostLayout | **DONE (software)** |
+| P1-07 | Per-glyph gradient fill | Gradient Fill per character | PostLayout | **DONE (software)** |
 | P1-08 | GPU-native per-glyph stroke/background/skew | — | PostLayout | PARTIAL |
 | P1-09 | V3 serialization of typewriter / scramble / morph | Typewriter / Scramble | PreShaping/PostLayout | PARTIAL |
-| P1-10 | Text cursor / caret model | Cursor | PostLayout | OPEN |
+| P1-10 | Text cursor / caret model | Cursor | PostLayout | **DONE (software)** |
 | P2-01 | Per-glyph 3D rotation beyond the MTSDF limits | 3D rotation | PostLayout | OPEN |
 | P2-02 | Full SVG text parity | — | — | separate ticket |
 | P2-03 | Advanced text quality (canonical shadow, vector stroke, msdfgen) | — | — | separate ticket |
 | P2-04 | RTL/bidi selector-order audit | — | — | OPEN |
-| P2-05 | Paragraph reflow from spacing (PreLayout evaluator) | — | PreLayout | OPEN |
+| P2-05 | Paragraph reflow from spacing (PreLayout evaluator) | — | PreLayout | **DONE** |
 
-### 2.1 Why Word/Line Spacing are PostLayout
+### 2.1 Reflow contract (P2-05)
 
-There is no `PreLayout` evaluator in `Chronon3d/src` today. A property that
-changes paragraph composition would need to invalidate shaping, line breaking,
-and the `GlyphSelectorUnitMap`. Word Spacing and Line Spacing are implemented as
-visual PostLayout offsets: they mutate `GlyphInstanceState::position` after
-layout, exactly like `TrackingProperty`, and do **not** reflow paragraphs. This
-matches the current partial-parity contract and keeps CPU/GPU semantics
-identical. P2-05 tracks true reflow.
+`ParagraphStyle::word_spacing` is added to the advance of whitespace clusters in
+`build_clusters()` before line breaking, justification and bounds. `line_spacing`
+is added between composed lines in `finalize_lines()`, never after the last line.
+Both fields are part of `TextLayoutCacheKey` and its V2 digest.
+
+`update_text_run_shape_per_frame()` evaluates the `ReflowWordSpacingProperty` and
+`ReflowLineSpacingProperty` alternatives before PostLayout, adds them to the
+authored `reflow_*_base` values, and rebuilds the layout through the normal
+`compile_text_document_layout()` path when the composed spacing changes. This is
+true paragraph reflow, not a post-composition glyph offset. The legacy P0
+`WordSpacingProperty`/`LineSpacingProperty` remain PostLayout selector effects for
+backward compatibility.
 
 ---
 
@@ -198,15 +203,16 @@ already includes `glyph.position` and `glyph.baseline_shift` in the per-glyph
 translation, and `text_run_draw.cpp` already packs `state.position` into each
 per-glyph dynamic record.
 
-Therefore:
+For paragraph spacing:
 
-1. Word Spacing mutates `position.x`; the native Vulkan path sees it.
-2. Line Spacing mutates `position.y`; the native Vulkan path sees it.
-3. No second GPU spacing implementation exists, so CPU/GPU cannot drift.
-4. `can_lower_gpu_text_animation()` accepts the resulting finite positions; a
-   test asserts this end-to-end.
-5. Strict GPU-native mode must not silently drop spacing. Because the states
-   are consumed per glyph, it does not.
+1. `ReflowWordSpacingProperty` and `ReflowLineSpacingProperty` reflow the layout
+   before PostLayout and before the native route consumes it.
+2. The cache key and V2 digest include `word_spacing` and `line_spacing`.
+3. The native Vulkan path consumes the resulting placed glyphs; no second
+   spacing implementation exists, so CPU/GPU cannot drift.
+4. Per-glyph shadow, glow, gradient fill and caret are rejected by
+   `can_lower_gpu_text_animation()` and take the software path until the native
+   MTSDF pass has pixel parity. They are never silently dropped.
 
 ---
 
@@ -310,18 +316,23 @@ The 2026-11-07 note below about the test executables not being run is superseded
 
 ### P1-06 — Per-glyph shadow and glow
 
-1. Add per-glyph shadow/glow parameters to `GlyphInstanceState`.
-2. Extend the canonical text materializer.
-3. Add the GPU fields and shader consumption, or fail-closed to software with a
-   documented limit.
-4. Add V3 tracks and parity tests.
+**Implemented (2026-11-08, software).** `GlyphShadowState` and `GlyphGlowState`
+are part of `GlyphInstanceState`. Ten V3 tracks (`glyph.shadow.color`,
+`offset`, `blur`, `opacity`; `glyph.glow.color`, `radius`, `intensity`, plus the
+enable flags) lower through the compiler, decoder and property applier. The
+software raster draws a blurred per-glyph shadow surface and a per-glyph glow
+surface before the fill. `can_lower_gpu_text_animation()` rejects any enabled
+per-glyph shadow/glow, so strict-native mode falls back instead of dropping the
+effect. Pixel parity on the native MTSDF shader remains the next step.
 
 ### P1-07 — Per-glyph gradient fill
 
-1. Add gradient stop coordinates to the per-glyph state.
-2. Extend the MTSDF shader to sample per-glyph gradients.
-3. Add V3 serialization.
-4. Compare CPU and GPU pixels on a gradient-animated run.
+**Implemented (2026-11-08, software).** `GlyphGradientState` carries start/end
+colors and angle, serialized as `glyph.fill_gradient.*` V3 tracks. The software
+raster builds a `BLGradient` per glyph and fills the glyph coverage with it.
+Native MTSDF gradient sampling is not implemented; `can_lower_gpu_text_animation()`
+rejects enabled per-glyph gradients and the renderer stays on software. CPU/GPU
+pixel comparison is therefore an explicit open GPU task, not a silent fallback.
 
 ### P1-08 — GPU-native per-glyph stroke/background/skew
 
@@ -339,25 +350,62 @@ The 2026-11-07 note below about the test executables not being run is superseded
 
 ### P1-10 — Cursor / caret
 
-1. Define a cursor style and blink animation contract.
-2. Add it to the text layer plan and V3 schema.
-3. Render it as a text-adjacent quad on CPU and GPU.
-4. Add tests for insertion point, line wraps, and RTL.
+**Implemented (2026-11-08, software).** `TextCaretSpec` is part of the text-run
+shape and `LayerStylePlan`; V3 `style.text_caret` decodes in the layer-style
+path, participates in the fingerprint, and is projected out of the V2 schema.
+`resolve_text_caret_rect()` derives the insertion rectangle from the placed glyph
+run, so alignment and wrapping are inherited from the same layout; blink is
+frame-period/duty based. The software raster draws the caret after downsampling.
+The native GPU pass does not draw it yet, and `can_lower_gpu_text_animation()`
+rejects an enabled caret. RTL pixel certification remains open.
 
 ### P2 — Later
 
 1. **P2-01:** per-glyph 3D rotation beyond MTSDF limits.
 2. **P2-02/P2-03:** SVG text and text-quality tickets, not this ticket.
 3. **P2-04:** RTL/bidi selector ordering audit against the source-byte unit map.
-4. **P2-05:** PreLayout evaluator for true paragraph reflow.
+4. **P2-05 — DONE:** PreLayout spacing reflow in the text-run driver, with the
+   composer consuming `word_spacing` and `line_spacing` and the layout cache
+   keyed by both values.
 
 ---
 
 ## 7. Residuals and non-goals
 
-- This ticket does not implement P1/P2; it records them.
-- Word/Line Spacing do not reflow paragraphs.
+- P1-06, P1-07 and P1-10 are complete on the software raster path only; the
+  native Vulkan/MTSDF pass explicitly rejects them and stays fail-closed.
+- The legacy P0 Word/Line Spacing properties remain PostLayout visual offsets;
+  only the new `Reflow*` properties perform true paragraph reflow.
 - The V2 animator enum stays frozen.
 - The run-level GPU fast path remains narrower than the per-glyph MTSDF route.
 - No unrelated render-plan, SVG, or text-quality files are changed by this
   ticket.
+
+### Completion audit (2026-11-08)
+
+Implemented and verified in this session:
+
+- **P1-06/P1-07:** per-glyph shadow, glow and gradient fill on the software
+  raster path; V3 compiler/decoder/schema and GPU fail-closed predicate.
+- **P1-10:** caret contract, V3 layer style, fingerprint, software raster and
+  GPU fail-closed predicate.
+- **P2-05:** true PreLayout spacing reflow, composer integration and cache
+  identity.
+
+Focused evidence (Linux video release, `-j12`):
+
+- `chronon3d_text_animator_property_tests`: **43/43 cases, 209/209 assertions**.
+- `chronon3d_single_line_composer_tests --test-case='*spacing*'`: **4/4 cases,
+  11/11 assertions** (word spacing width, line-breaking reflow, inter-line
+  spacing, cache digest).
+- `chronon3d_render_graph_tests --test-case='*GPU text*'`: **11/11 cases,
+  75/75 assertions**, including the new caret-rejection case.
+- `chronon3d_c_abi_tests --test-case='*animator*'`: **9/9 cases, 49/49
+  assertions**.
+- `chronon3d_text_run_driver_tests`: **20/20 cases, 81/81 assertions**.
+- Build: `498/498` steps, exit 0.
+
+Still open: native MTSDF pixel parity for per-glyph shadow/glow/gradient and a
+native caret quad; RTL caret pixel certification. These are fail-closed, not
+silently degraded. P1-01/P1-03/P1-04/P1-05/P1-08/P1-09 and P2-01/P2-04 remain
+outside this completion.

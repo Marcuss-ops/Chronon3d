@@ -80,6 +80,56 @@
      "chroma_dispersion": 0.006,
      "anamorphic_stretch": 1.15,
      "samples": 64
+    },
+    {
+     "type": "catalog",
+     "effect_id": "light.sdf_bevel",
+     "params": [
+      {
+       "param": "bevel_width",
+       "value": 16.0
+      },
+      {
+       "param": "bevel_height",
+       "value": 12.0
+      },
+      {
+       "param": "rim_width",
+       "value": 3.0
+      },
+      {
+       "param": "rim_intensity",
+       "value": 0.75
+      },
+      {
+       "param": "highlight",
+       "value": 0.65
+      },
+      {
+       "param": "shade",
+       "value": 0.42
+      },
+      {
+       "param": "light_angle",
+       "value": -135.0
+      },
+      {
+       "param": "light_elevation",
+       "value": 38.0
+      },
+      {
+       "param": "shadow_distance",
+       "value": 12.0
+      },
+      {
+       "param": "shadow_softness",
+       "value": 6.0
+      },
+      {
+       "param": "shadow_opacity",
+       "value": 0.75
+      }
+     ]
     }
    ],
    "animation": {
@@ -160,6 +210,40 @@
          "value": 0.0
         }
        ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "film_grain",
+   "type": "color",
+   "color": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "size": [
+    1920,
+    1080
+   ],
+   "position": [
+    0,
+    0
+   ],
+   "start_frame": 0,
+   "duration_frames": 300,
+   "opacity": 0.006,
+   "blend_mode": "screen",
+   "effects": [
+    {
+     "type": "catalog",
+     "effect_id": "generate.noise",
+     "params": [
+      {
+       "param": "amount",
+       "value": 0.85
       }
      ]
     }

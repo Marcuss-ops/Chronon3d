@@ -197,6 +197,101 @@ void VulkanBackend::Impl::camera_ring(runtime::RenderSurfaceHandle destination,
     ++stats.passes_executed;
 }
 
+void VulkanBackend::Impl::sdf_bevel(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle scratch_a,
+    runtime::RenderSurfaceHandle scratch_b,
+    runtime::RenderSurfaceHandle scratch_c,
+    const SdfBevelParams& params, float time_seconds) {
+    const auto finite = [](float value) { return std::isfinite(value); };
+    if (!finite(time_seconds) || !finite(params.bevel_width) ||
+        !finite(params.bevel_height) || !finite(params.rim_width) ||
+        !finite(params.rim_intensity) || !finite(params.highlight) ||
+        !finite(params.shade) || !finite(params.light_angle) ||
+        !finite(params.light_elevation) || !finite(params.light_orbit_speed) ||
+        !finite(params.shadow_distance) || !finite(params.shadow_softness) ||
+        !finite(params.shadow_opacity) || !finite(params.rim_color.r) ||
+        !finite(params.rim_color.g) || !finite(params.rim_color.b) ||
+        !finite(params.rim_color.a) || !finite(params.shadow_color.r) ||
+        !finite(params.shadow_color.g) || !finite(params.shadow_color.b) ||
+        !finite(params.shadow_color.a)) {
+        throw std::invalid_argument(
+            "Vulkan SDF bevel parameters must be finite");
+    }
+    auto& dst_image = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    auto& a_image = resolve_image(scratch_a);
+    auto& b_image = resolve_image(scratch_b);
+    auto& c_image = resolve_image(scratch_c);
+    if (!src_image.initialized ||
+        dst_image.width != src_image.width ||
+        dst_image.height != src_image.height ||
+        a_image.width != src_image.width ||
+        a_image.height != src_image.height ||
+        b_image.width != src_image.width ||
+        b_image.height != src_image.height ||
+        c_image.width != src_image.width ||
+        c_image.height != src_image.height) {
+        throw std::invalid_argument(
+            "Vulkan SDF bevel references incompatible surfaces");
+    }
+    if (!frame_batch.active) {
+        throw std::logic_error(
+            "Vulkan SDF bevel requires an active frame batch");
+    }
+
+    constexpr float kPi = 3.14159265358979323846f;
+    const float azimuth =
+        (params.light_angle + params.light_orbit_speed * time_seconds) *
+        (kPi / 180.0f);
+    const float elevation =
+        std::clamp(params.light_elevation, 0.0f, 89.0f) * (kPi / 180.0f);
+    const float lx = std::cos(azimuth) * std::cos(elevation);
+    const float ly = std::sin(azimuth) * std::cos(elevation);
+    const float lz = std::sin(elevation);
+
+    SdfBevelPush push{
+        params.rim_color.r, params.rim_color.g, params.rim_color.b,
+        params.rim_color.a,
+        params.shadow_color.r, params.shadow_color.g, params.shadow_color.b,
+        params.shadow_color.a,
+        lx, ly, lz, 0.0f,
+        params.bevel_width, params.bevel_height, params.rim_width,
+        params.rim_intensity,
+        params.highlight, params.shade, params.shadow_distance,
+        params.shadow_softness,
+        params.shadow_opacity, static_cast<float>(dst_image.width),
+        static_cast<float>(dst_image.height), 0.0f};
+
+    const auto d0 = allocate_pass_descriptor_set();
+    write_matte_descriptors(d0, a_image, src_image, src_image);
+    const auto d1 = allocate_pass_descriptor_set();
+    write_matte_descriptors(d1, b_image, a_image, src_image);
+    const auto d2 = allocate_pass_descriptor_set();
+    write_matte_descriptors(d2, c_image, b_image, b_image);
+    const auto d3 = allocate_pass_descriptor_set();
+    write_matte_descriptors(d3, a_image, c_image, b_image);
+    const auto d4 = allocate_pass_descriptor_set();
+    write_matte_descriptors(d4, dst_image, src_image, a_image);
+
+    const auto cmd = active_command_buffer();
+    const auto dispatch = [&](VkDescriptorSet descriptors, Image& out,
+                              const Image& in, const Image& aux, int mode) {
+        emit_pass_sync(cmd, {&out, &in, &aux}, runtime::GpuPassKind::Blur);
+        push.mode = static_cast<float>(mode);
+        record_sdf_bevel(cmd, descriptors, out, in, push);
+        out.initialized = true;
+        ++frame_batch.pass_count;
+        ++stats.passes_executed;
+    };
+    dispatch(d0, a_image, src_image, src_image, 0);
+    dispatch(d1, b_image, a_image, src_image, 1);
+    dispatch(d2, c_image, b_image, b_image, 2);
+    dispatch(d3, a_image, c_image, b_image, 3);
+    dispatch(d4, dst_image, src_image, a_image, 4);
+}
+
 void VulkanBackend::Impl::warp_bulk(runtime::RenderSurfaceHandle destination,
                                     runtime::RenderSurfaceHandle source,
                                     runtime::RenderSurfaceHandle aux,

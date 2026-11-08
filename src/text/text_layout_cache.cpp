@@ -71,6 +71,8 @@ u64 TextLayoutCacheKey::digest_v2() const {
     seed = hash_combine(seed, hash_semantic(paragraph.first_line_indent));
     seed = hash_combine(seed, hash_semantic(paragraph.space_before));
     seed = hash_combine(seed, hash_semantic(paragraph.space_after));
+    seed = hash_combine(seed, hash_semantic(paragraph.word_spacing));
+    seed = hash_combine(seed, hash_semantic(paragraph.line_spacing));
     seed = hash_combine(seed, hash_semantic(paragraph.spacing.word_min));
     seed = hash_combine(seed, hash_semantic(paragraph.spacing.word_desired));
     seed = hash_combine(seed, hash_semantic(paragraph.spacing.word_max));

@@ -340,6 +340,145 @@ bool try_native_full_frame_drop_shadow(
     return true;
 }
 
+// Native SDF bevel keeps the complete authored look on Vulkan: exact
+// separable distance transform, dynamic bevel/rim shading and the projected
+// shadow. The supported window is explicit so a malformed plan fails closed
+// instead of silently approving an unsupported parameter set.
+bool try_native_full_frame_sdf_bevel(
+    RenderGraphContext& ctx, const EffectStack& effect_stack,
+    Framebuffer& result, const std::optional<raster::BBox>& clip,
+    runtime::RenderSurfaceHandle borrowed_source,
+    const Framebuffer* borrowed_source_framebuffer) {
+    (void)clip;
+    if (!ctx.backend || !ctx.backend_stats_api()->supports_native_surfaces() ||
+        !ctx.surface_registry || effect_stack.size() != 1 ||
+        result.width() <= 0 || result.height() <= 0) {
+        return false;
+    }
+    const auto& instance = effect_stack[0];
+    if (!instance.enabled ||
+        instance.effect_type != effects::EffectType::SdfBevel) {
+        return false;
+    }
+    const auto* params = std::get_if<SdfBevelParams>(&instance.params);
+    if (!params) return false;
+    const float values[] = {
+        params->bevel_width, params->bevel_height, params->rim_width,
+        params->rim_intensity, params->highlight, params->shade,
+        params->light_angle, params->light_elevation,
+        params->light_orbit_speed, params->shadow_distance,
+        params->shadow_softness, params->shadow_opacity,
+        params->rim_color.r, params->rim_color.g, params->rim_color.b,
+        params->rim_color.a, params->shadow_color.r, params->shadow_color.g,
+        params->shadow_color.b, params->shadow_color.a};
+    for (float value : values) {
+        if (!std::isfinite(value)) return false;
+    }
+    if (params->bevel_width < 0.0f || params->bevel_width > 256.0f ||
+        std::abs(params->bevel_height) > 256.0f ||
+        params->rim_width < 0.0f || params->rim_width > 128.0f ||
+        params->rim_intensity < 0.0f || params->rim_intensity > 4.0f ||
+        params->highlight < 0.0f || params->highlight > 4.0f ||
+        params->shade < 0.0f || params->shade > 1.0f ||
+        params->light_elevation < -90.0f ||
+        params->light_elevation > 90.0f ||
+        std::abs(params->light_orbit_speed) > 720.0f ||
+        params->shadow_distance < 0.0f ||
+        params->shadow_distance > 512.0f ||
+        params->shadow_softness < 0.0f ||
+        params->shadow_softness > 64.0f ||
+        params->shadow_opacity < 0.0f ||
+        params->shadow_opacity > 1.0f) {
+        return false;
+    }
+
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
+    const bool source_borrowed =
+        borrowed_source != runtime::kInvalidRenderSurfaceHandle;
+    const bool source_needs_expansion = source_borrowed &&
+        borrowed_source_framebuffer &&
+        (borrowed_source_framebuffer->width() != result.width() ||
+         borrowed_source_framebuffer->height() != result.height() ||
+         borrowed_source_framebuffer->origin_x() != result.origin_x() ||
+         borrowed_source_framebuffer->origin_y() != result.origin_y());
+    auto source = source_borrowed ? borrowed_source : result.surface_handle();
+    if (source == runtime::kInvalidRenderSurfaceHandle) return false;
+    if (source_needs_expansion) {
+        const auto expanded = ctx.surface_registry->create(desc);
+        if (expanded == runtime::kInvalidRenderSurfaceHandle ||
+            !ctx.backend_surface_api()->create_surface(expanded, desc).ok()) {
+            if (expanded != runtime::kInvalidRenderSurfaceHandle)
+                ctx.surface_registry->release(expanded);
+            return false;
+        }
+        auto expand_op =
+            ctx.backend_surface_api()->initialize_transparent_surface(expanded);
+        if (expand_op.ok()) {
+            const int offset_x =
+                borrowed_source_framebuffer->origin_x() - result.origin_x();
+            const int offset_y =
+                borrowed_source_framebuffer->origin_y() - result.origin_y();
+            expand_op = ctx.backend_surface_api()->transform_surface(
+                expanded, source, offset_x, offset_y, 1.0f);
+        }
+        if (!expand_op.ok()) {
+            (void)ctx.backend_surface_api()->release_surface(expanded);
+            ctx.surface_registry->release(expanded);
+            return false;
+        }
+        source = expanded;
+    }
+
+    std::array<runtime::RenderSurfaceHandle, 4> owned{};
+    const auto cleanup = [&] {
+        if (source_needs_expansion) {
+            (void)ctx.backend_surface_api()->release_surface(source);
+            ctx.surface_registry->release(source);
+        }
+        for (auto handle : owned) {
+            if (handle != runtime::kInvalidRenderSurfaceHandle) {
+                (void)ctx.backend_surface_api()->release_surface(handle);
+                ctx.surface_registry->release(handle);
+            }
+        }
+    };
+    for (auto& handle : owned) {
+        handle = ctx.surface_registry->create(desc);
+        if (handle == runtime::kInvalidRenderSurfaceHandle) {
+            cleanup();
+            return false;
+        }
+    }
+    for (auto handle : owned) {
+        if (!ctx.backend_surface_api()->create_surface(handle, desc).ok()) {
+            cleanup();
+            return false;
+        }
+    }
+
+    const auto [output, scratch_a, scratch_b, scratch_c] = owned;
+    const auto dispatched = ctx.backend_surface_api()->sdf_bevel_surfaces(
+        output, source, scratch_a, scratch_b, scratch_c, *params,
+        ctx.frame_input.time_seconds);
+    if (!dispatched.ok()) {
+        spdlog::error("[native-sdf-bevel] Vulkan pass failed: {}",
+                      dispatched.error().message);
+        cleanup();
+        return false;
+    }
+    for (std::size_t i = 1; i < owned.size(); ++i) {
+        (void)ctx.backend_surface_api()->release_surface(owned[i]);
+        ctx.surface_registry->release(owned[i]);
+    }
+    if (source_needs_expansion) {
+        (void)ctx.backend_surface_api()->release_surface(source);
+        ctx.surface_registry->release(source);
+    }
+    result.set_surface_handle(output);
+    result.mark_gpu_authoritative();
+    return true;
+}
+
 bool try_native_full_frame_tint(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,

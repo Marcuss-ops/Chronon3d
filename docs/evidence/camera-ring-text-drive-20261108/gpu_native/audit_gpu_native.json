@@ -1,6 +1,6 @@
 {
   "schema": "chronon.broadcast-six-test.v1",
-  "tested_at": "2026-11-08T13:35:19.652037+00:00",
+  "tested_at": "2026-11-08T14:50:51.746038+00:00",
   "inputs": {
     "plan": null,
     "morph": null,
@@ -11,14 +11,42 @@
   },
   "tests": {
     "5a_subpixel_4k": {
-      "status": "NOT_RUN",
-      "metrics": {},
-      "reason": "raw frames not supplied"
+      "status": "PASS",
+      "metrics": {
+        "label": "4K",
+        "resolution": [
+          3840,
+          2160
+        ],
+        "frames": 30,
+        "vertical_coverage_cv": 0.02188,
+        "vertical_coverage_step": 0.04268,
+        "horizontal_coverage_cv": 0.02169,
+        "vertical_width_min_px": 4,
+        "vertical_width_max_px": 5,
+        "seam_ratio": 1.0,
+        "opaque": true
+      },
+      "reason": "stable sub-pixel coverage and seamless abutment"
     },
     "5b_subpixel_720": {
-      "status": "NOT_RUN",
-      "metrics": {},
-      "reason": "raw frames not supplied"
+      "status": "PASS",
+      "metrics": {
+        "label": "720p",
+        "resolution": [
+          720,
+          405
+        ],
+        "frames": 30,
+        "vertical_coverage_cv": 0.02348,
+        "vertical_coverage_step": 0.0495,
+        "horizontal_coverage_cv": 0.02301,
+        "vertical_width_min_px": 4,
+        "vertical_width_max_px": 5,
+        "seam_ratio": 1.0,
+        "opaque": true
+      },
+      "reason": "stable sub-pixel coverage and seamless abutment"
     }
   },
   "audit": {
@@ -55,16 +83,28 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "calories_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     },
     "camera_ring_text_02_sharp_center.plan.json": {
@@ -100,16 +140,28 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "sharp_center_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     },
     "camera_ring_text_03_every_detail.plan.json": {
@@ -145,16 +197,28 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "every_detail_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     },
     "camera_ring_text_04_soft_amber.plan.json": {
@@ -190,16 +254,28 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "soft_amber_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     },
     "camera_ring_text_05_high_chroma.plan.json": {
@@ -235,16 +311,28 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "high_chroma_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     },
     "camera_ring_text_06_monochrome.plan.json": {
@@ -280,18 +368,30 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "monochrome_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     }
   },
-  "overall": "FAIL"
+  "overall": "PASS"
 }

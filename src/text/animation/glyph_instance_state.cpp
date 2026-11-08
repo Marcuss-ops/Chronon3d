@@ -62,6 +62,13 @@ void reset_glyph_states_in_place(
         gs.background_radius_em = 0.0f;
         gs.stroke = {0.0f, 0.0f, 0.0f, 0.0f};
         gs.stroke_width = 0.0f;
+        // Per-glyph paint effects are part of the animated state too: a
+        // worker-owned glyph buffer is reused across runs/frames, so leaving
+        // these enabled leaks a previous run's glow/shadow/gradient into an
+        // unrelated text layer.
+        gs.shadow = {};
+        gs.glow = {};
+        gs.fill_gradient = {};
     }
 }
 

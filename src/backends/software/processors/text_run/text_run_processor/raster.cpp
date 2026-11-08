@@ -20,6 +20,7 @@
 //          s.all_active_glyphs (built here).
 
 #include "text_run_stages.hpp"
+#include <chronon3d/text/text_run_shape.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include "../../../blend2d/blend2d_bridge.hpp"
 #include "../../../blend2d/blend2d_paint.hpp"  // canonical to_bl_rgba + build_bl_gradient
@@ -248,6 +249,36 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
     const auto& shape = params.shape;
     const auto& layout = *shape.layout;
 
+    if (std::getenv("CHRONON3D_TEXT_GLYPH_DEBUG") != nullptr) {
+        const std::size_t count = std::min<std::size_t>(2, std::min(
+            layout.placed.glyphs.size(), shape.glyphs.size()));
+        for (std::size_t i = 0; i < count; ++i) {
+            const auto& pg = layout.placed.glyphs[i];
+            const auto& gs = shape.glyphs[i];
+            std::fprintf(stderr,
+                "[text-glyph-debug] text='%s' i=%zu gid=%u x=%.2f y=%.2f "
+                "bbox=(%.2f,%.2f,%.2f,%.2f) opacity=%.3f "
+                "fill=(%.2f,%.2f,%.2f,%.2f) pos=(%.2f,%.2f) "
+                "layout=(%.2f,%.2f) scale=(%.2f,%.2f,%.2f) rot=(%.2f,%.2f,%.2f) "
+                "anchor=(%.2f,%.2f) blur=%.2f base=%.2f bg_a=%.2f "
+                "grad=%d sh=%d glow=%d "
+                "box=(%.1f,%.1f) offset=(%.1f,%.1f) caret=%d byte=%zu\n",
+                layout.source_text.c_str(), i, pg.glyph_id, pg.x, pg.y,
+                pg.bbox_x0, pg.bbox_y0, pg.bbox_x1, pg.bbox_y1,
+                gs.opacity, gs.fill.r, gs.fill.g, gs.fill.b, gs.fill.a,
+                gs.position.x, gs.position.y,
+                gs.layout_position.x, gs.layout_position.y,
+                gs.scale.x, gs.scale.y, gs.scale.z,
+                gs.rotation.x, gs.rotation.y, gs.rotation.z,
+                gs.anchor.x, gs.anchor.y, gs.blur, gs.baseline_shift,
+                gs.background.a, gs.fill_gradient.enabled ? 1 : 0,
+                gs.shadow.enabled ? 1 : 0, gs.glow.enabled ? 1 : 0,
+                shape.layout_spec.box.x, shape.layout_spec.box.y,
+                s.offset_x, s.offset_y,
+                shape.caret.enabled ? 1 : 0, shape.caret.byte_index);
+        }
+    }
+
     // Opt-in source geometry dump for range-highlight diagnostics. This is
     // the actual HarfBuzz/FreeType placed layout consumed by this raster pass;
     // it records byte cluster, advance and ink bounds without reconstructing
@@ -368,6 +399,13 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
             }
             const auto& g = source_glyphs[gi];
             const std::size_t span_idx = glyph_span_indices[gi];
+            if (std::getenv("CHRONON3D_TEXT_GLYPH_DEBUG") != nullptr && gi < 2) {
+                std::fprintf(stderr,
+                    "[text-draw-debug] text='%s' gi=%u span=%zu fonts=%zu "
+                    "gid=%u opacity=%.3f\n",
+                    layout.source_text.c_str(), gi, span_idx,
+                    s.span_fonts.size(), g.glyph_id, g.opacity);
+            }
             if (span_idx >= s.span_fonts.size() ||
                 span_idx >= s.span_handles.size()) {
                 continue;
@@ -594,6 +632,31 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                     text_fill_gradient = blend2d_bridge::paint::build_bl_gradient(
                         glyph_fill, 0.0f, -ascent, layout.bounds.x, layout.line_height);
                 }
+                std::optional<BLGradient> glyph_fill_gradient;
+                if (!override_color.has_value() && g.fill_gradient.enabled) {
+                    const auto& anchor = source_placed.glyphs[gi];
+                    const f32 box_x0 = anchor.bbox_x0;
+                    const f32 box_x1 = anchor.bbox_x1 > anchor.bbox_x0
+                        ? anchor.bbox_x1 : anchor.bbox_x0 + std::max(1.0f, anchor.advance_x);
+                    const f32 box_y0 = anchor.bbox_y0;
+                    const f32 box_y1 = anchor.bbox_y1 > anchor.bbox_y0
+                        ? anchor.bbox_y1 : box_y0 + std::max(1.0f, layout.line_height);
+                    const f32 cx = (box_x0 + box_x1) * 0.5f;
+                    const f32 cy = (box_y0 + box_y1) * 0.5f;
+                    const f32 half = 0.5f * std::sqrt(
+                        (box_x1 - box_x0) * (box_x1 - box_x0) +
+                        (box_y1 - box_y0) * (box_y1 - box_y0));
+                    const f32 radians = g.fill_gradient.angle_degrees *
+                        3.14159265358979323846f / 180.0f;
+                    const f32 dx = std::cos(radians) * half;
+                    const f32 dy = std::sin(radians) * half;
+                    std::vector<BLGradientStop> stops;
+                    stops.emplace_back(0.0, to_bl_rgba(g.fill_gradient.start));
+                    stops.emplace_back(1.0, to_bl_rgba(g.fill_gradient.end));
+                    glyph_fill_gradient.emplace(
+                        BLLinearGradientValues(cx - dx, cy - dy, cx + dx, cy + dy),
+                        BL_EXTEND_MODE_PAD, stops.data(), stops.size());
+                }
                 if (!override_color && !fill_pattern_image.empty()) {
                     const auto& tile = *shape.paint.fill_pattern;
                     const auto& m = tile.transform;
@@ -604,7 +667,8 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                                       pattern_transform);
                     ctx.setGlobalAlpha(static_cast<double>(op_alpha * shape.paint.fill.a));
                     ctx.setFillStyle(pattern);
-                } else if (text_fill_gradient) ctx.setFillStyle(*text_fill_gradient);
+                } else if (glyph_fill_gradient) ctx.setFillStyle(*glyph_fill_gradient);
+                else if (text_fill_gradient) ctx.setFillStyle(*text_fill_gradient);
                 else ctx.setFillStyle(to_bl_rgba(final_fill));
 
                 if (gi >= glyph_span_indices.size() ||
@@ -688,6 +752,73 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
             params.fb, shadow_img, shadow_model,
             params.opacity, BlendMode::Normal);
         release_surface(s, std::move(shadow_img));
+    }
+
+    // ── P1-06 / P1-07 — per-glyph shadow + glow layers. ─────────────────
+    // Drawn before the main run so they sit under the glyphs.  Each glyph
+    // gets its own surface because blur/offset are selector-driven and can
+    // differ from glyph to glyph.  The native GPU lane rejects these states
+    // (gpu_text_run_animation.cpp), so this is the faithful fallback.
+    for (std::size_t gi = 0; gi < shape.glyphs.size(); ++gi) {
+        const auto& glyph = shape.glyphs[gi];
+        const auto& anchor = layout.placed.glyphs[gi];
+        const auto composite_effect = [&](BLImage& effect,
+                                          const Vec2& offset,
+                                          const Color& color,
+                                          f32 alpha_scale) {
+            if (effect.empty()) return;
+            scale_prgb32_alpha(effect, color.a * alpha_scale);
+            BLImage downsampled;
+            BLImage* output = &effect;
+            if (s.raster_space.scale > 1) {
+                downsampled = acquire_surface(s, s.img_w, s.img_h);
+                if (downsampled.empty())
+                    downsampled = BLImage(s.img_w, s.img_h, BL_FORMAT_PRGB32);
+                downsample_supersampled(
+                    downsampled, effect, s.raster_space.scale, s);
+                output = &downsampled;
+            }
+            Mat4 model = params.model_matrix;
+            model = glm::translate(model,
+                Vec3(s.offset_x + offset.x, s.offset_y + offset.y, 0.0f));
+            chronon3d::blend2d_bridge::composite_bl_image_transformed(
+                params.fb, *output, model, params.opacity, BlendMode::Normal);
+            if (!downsampled.empty()) release_surface(s, std::move(downsampled));
+        };
+
+        if (glyph.shadow.enabled && glyph.shadow.opacity > 0.0f) {
+            BLImage effect = acquire_surface(s, s.ss_img_w, s.ss_img_h);
+            if (effect.empty()) effect = BLImage(s.ss_img_w, s.ss_img_h, BL_FORMAT_PRGB32);
+            const std::vector<std::uint32_t> one{static_cast<std::uint32_t>(gi)};
+            Color tint = glyph.shadow.color;
+            tint.a = 1.0f;
+            const auto drawn = render_tier_to_image(
+                effect, tint, detail::bucket_radius_for_tier(glyph.shadow.blur),
+                shape.glyphs, layout.placed, one, s.raster_space,
+                s.per_glyph_span_idx);
+            if (drawn > 0) {
+                composite_effect(effect, glyph.shadow.offset, glyph.shadow.color,
+                                 glyph.shadow.opacity);
+            }
+            release_surface(s, std::move(effect));
+        }
+        if (glyph.glow.enabled && glyph.glow.intensity > 0.0f) {
+            BLImage effect = acquire_surface(s, s.ss_img_w, s.ss_img_h);
+            if (effect.empty()) effect = BLImage(s.ss_img_w, s.ss_img_h, BL_FORMAT_PRGB32);
+            const std::vector<std::uint32_t> one{static_cast<std::uint32_t>(gi)};
+            Color tint = glyph.glow.color;
+            tint.a = 1.0f;
+            const auto drawn = render_tier_to_image(
+                effect, tint, detail::bucket_radius_for_tier(glyph.glow.radius),
+                shape.glyphs, layout.placed, one, s.raster_space,
+                s.per_glyph_span_idx);
+            if (drawn > 0) {
+                composite_effect(effect, Vec2{0.0f, 0.0f}, glyph.glow.color,
+                                 glyph.glow.intensity);
+            }
+            release_surface(s, std::move(effect));
+        }
+        (void)anchor;
     }
 
     // ── Stage 5 — Main run: tiered per-glyph blur compositing ────────────
@@ -819,6 +950,21 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
         downsample_supersampled(ds_img, s.img, s.raster_space.scale, s);
         release_surface(s, std::move(s.img));  // free supersampled
         s.img = std::move(ds_img);
+    }
+
+    // ── P1-10 — insertion caret, drawn in the composed text surface. ────
+    if (shape.caret.enabled) {
+        const auto caret = resolve_text_caret_rect(shape);
+        if (caret.visible && caret.width > 0.0f && caret.height > 0.0f) {
+            BLContext ctx(s.img);
+            ctx.setCompOp(BL_COMP_OP_SRC_OVER);
+            Color color = shape.caret.color;
+            color.a *= shape.caret.opacity;
+            ctx.setFillStyle(to_bl_rgba(color));
+            ctx.fillRect(BLRect(caret.x - s.offset_x, caret.y - s.offset_y,
+                                 caret.width, caret.height));
+            ctx.end();
+        }
     }
 
     // Populate the renderer-owned canonical glyph atlas after the first

@@ -578,6 +578,28 @@ void append_text_layer_for_scene(
         .font_engine(font_engine.get());
     if (prepared_text_counters[index])
         text_builder.from_animated_document(prepared_text_counters[index]);
+    if (std::getenv("CHRONON3D_CARET_DEBUG") != nullptr) {
+        std::fprintf(stderr, "[caret-compiler] layer='%s' style=%d caret=%d\n",
+            layer.id.c_str(), layer.style ? 1 : 0,
+            (layer.style && layer.style->text_caret) ? 1 : 0);
+    }
+    if (layer.style && layer.style->text_caret) {
+        const auto& source = *layer.style->text_caret;
+        const auto color = parse_hex_color(source.color);
+        if (!color)
+            throw std::runtime_error(
+                "text caret on layer '" + layer.id + "' has an invalid color");
+        TextCaretSpec caret;
+        caret.enabled = true;
+        caret.byte_index = source.byte_index;
+        caret.width = source.width;
+        caret.height = source.height;
+        caret.color = *color;
+        caret.opacity = source.opacity;
+        caret.blink_period_frames = source.blink_period_frames;
+        caret.blink_duty = source.blink_duty;
+        text_builder.caret(std::move(caret));
+    }
     detail::apply_text_animators(text_builder, layer, plan.canvas.fps);
     detail::apply_text_glow(builder, layer);
     return;
