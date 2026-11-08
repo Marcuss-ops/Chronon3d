@@ -136,6 +136,38 @@ orchestrazione) resta in
 build, CTest e gate. Vedi [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) per
 lo stato aggiornato.
 
+## Windows release lane (same-SHA)
+
+`.github/workflows/ci.yml` contiene il job `Windows (Release)`: configura il
+preset `win-release`, costruisce `chronon3d_cli` e i test, esegue
+`ctest --preset win-test` e produce una ricevuta legata alla stessa SHA:
+
+| File | Contenuto |
+|---|---|
+| `windows-release.sha256` | SHA-256 del CLI release e delle DLL adiacenti, in formato `sha256sum` |
+| `windows-release.json` | commit completo, versione, preset, dimensione e hash di ogni artefatto |
+| `ci_status.json` | conteggi dei test prodotti da `tools/ci_status_from_junit.py` sullo stesso commit |
+
+La corsia fa parte della `Chronon CI` canonica su ogni trigger: su pull request
+e push esegue la suite focalizzata (la stessa della corsia Linux), mentre
+`workflow_dispatch` esegue la suite completa. Su Windows l'IPC è disabilitato:
+l'unico trasporto disponibile è il memfd Linux, quindi la corsia Windows non
+finge di supportarlo. Un checkout con SHA diverso da quello dell'evento, un test
+rosso o un artefatto assente fanno fallire il job: non esiste un percorso
+advisory. Il job non certifica da solo la v0.1; la promozione richiede ancora la
+checklist same-SHA qui sopra.
+
+## Corsia CI push: fast, non full
+
+Le fasi CI canoniche in `tools/gates/manifest.sh` sono `build_fast` e
+`unit_tests`; la corsia push di `Chronon CI` esegue quindi
+`chronon3d_tests_fast` e il CTest focalizzato, non l'aggregato
+`chronon3d_tests`. La build Debug completa riempiva il disco del runner hosted
+da 14 GiB e moriva con `No space left on device` prima di arrivare ai test. La
+suite completa resta un gate di release separato (eseguibile con
+`workflow_dispatch`, che la corsia Windows usa già) e non è implicita nel verde
+di `main-truth`.
+
 ## Criterio di chiusura
 
 Un lavoro è chiuso soltanto quando:

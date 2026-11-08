@@ -15,6 +15,12 @@ env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+  # Hosted runners ran out of disk during the full Debug build: the runner
+  # process itself died with "No space left on device" while compiling
+  # chronon3d_tests. Drop each port's build tree as soon as it is installed and
+  # keep ccache bounded; the preinstalled SDK cleanup step below frees the rest.
+  VCPKG_INSTALL_OPTIONS: "--clean-after-build"
+  CCACHE_MAXSIZE: "2G"
   # Hosted runners have 4 vCPUs; capping the build keeps peak memory bounded
   # (the uncapped Linux Debug lane lost the runner to an OOM kill).
   CMAKE_BUILD_PARALLEL_LEVEL: "4"
@@ -48,6 +54,18 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
 
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # The image ships SDKs this build never uses; removing them is the
+          # difference between a finished full build and the runner dying on
+          # ENOSPC (runs 5124-5134 all lost the disk mid-build).
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+            /usr/share/swift /usr/local/.ghcup
+          sudo apt-get clean
+          df -h
+
       - name: Gate / Test Hygiene
         if: runner.os == 'Linux'
         run: bash tools/check_test_hygiene.sh
@@ -64,27 +82,48 @@ jobs:
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
 
+      # vcpkg re-downloads every source tarball on each run. A transient
+      # github.com / upstream timeout then fails Configure before any compiler
+      # runs (the 2026-11-08 main run died this way on two portfiles). Persist
+      # the resolved downloads and let the retry below reuse them.
+      - name: Restore vcpkg source downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/downloads
+          key: vcpkg-downloads-${{ runner.os }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-downloads-${{ runner.os }}-${{ env.VCPKG_COMMIT }}-
+
       - name: Initialize MSVC developer environment
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure
-        run: cmake --preset ${{ matrix.config.preset }}
+        run: |
+          for attempt in 1 2 3; do
+            if cmake --preset ${{ matrix.config.preset }}; then
+              exit 0
+            fi
+            echo "::warning::configure attempt ${attempt}/3 failed; retrying in 15s"
+            sleep 15
+          done
+          echo "::error::configure failed after 3 attempts"
+          exit 1
 
-      - name: Build (Fast — PR)
-        if: github.event_name == 'pull_request'
+      - name: Build fast tests (PR / push)
+        if: github.event_name != 'workflow_dispatch'
         run: cmake --build --preset ${{ matrix.config.build_preset }} --target chronon3d_tests_fast
 
-      - name: Build (Full — Push)
-        if: github.event_name != 'pull_request'
+      - name: Build full tests (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
         run: cmake --build --preset ${{ matrix.config.build_preset }} --target chronon3d_tests
 
-      - name: Run Tests (Fast — PR)
-        if: github.event_name == 'pull_request'
+      - name: Run fast tests (PR / push)
+        if: github.event_name != 'workflow_dispatch'
         run: |
           ctest --preset ${{ matrix.config.test_preset }} \
             -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_render_job_contract_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests|chronon3d_motion_plan_adapter_tests|chronon3d_backend_registry_tests" \
-            --output-on-failure --output-junit test-results-${{ matrix.config.slug }}.xml
+            --output-on-failure --output-junit "${{ github.workspace }}/test-results-${{ matrix.config.slug }}.xml"
       - name: Run RenderPlan v2/v3 adapter interoperability gate
         if: runner.os == 'Linux'
         run: |
@@ -92,11 +131,11 @@ jobs:
           cmake --build --preset linux-ci-motion-adapter --target chronon3d_motion_plan_adapter_tests
           ctest --preset linux-ci-motion-adapter-test -R '^chronon3d_motion_plan_adapter_tests$' --output-on-failure
 
-      - name: Run Tests (Full — Push)
-        if: github.event_name != 'pull_request'
+      - name: Run full tests (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
         run: |
           ctest --preset ${{ matrix.config.test_preset }} \
-            --output-on-failure --output-junit test-results-${{ matrix.config.slug }}.xml
+            --output-on-failure --output-junit "${{ github.workspace }}/test-results-${{ matrix.config.slug }}.xml"
 
       - name: Clang-Tidy (PR, Linux only)
         if: runner.os == 'Linux' && github.event_name == 'pull_request'
@@ -112,7 +151,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           python3 tools/ci_status_from_junit.py \
-            --junit "test-results-${{ matrix.config.slug }}.xml" \
+            --junit "${{ github.workspace }}/test-results-${{ matrix.config.slug }}.xml" \
             --commit "${{ github.sha }}" --workflow "${{ github.workflow }}" --out "ci_status.json"
 
       - uses: actions/upload-artifact@v4
@@ -122,6 +161,106 @@ jobs:
           path: ci_status.json
           retention-days: 90
           if-no-files-found: ignore
+
+  windows-release:
+    # Release-build proof for the preset that already exists in
+    # cmake/presets/windows.json. The lane is part of the canonical Chronon CI
+    # on every trigger: PR and push build the focused suite, manual dispatch
+    # builds the full suite. main-truth gates on this job's result together with
+    # the Linux matrix, so a Windows release artifact always has a same-SHA run.
+    name: Windows (Release)
+    runs-on: windows-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Verify same-SHA checkout
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $env:GITHUB_SHA) {
+            throw "checkout SHA $actual != event SHA $env:GITHUB_SHA"
+          }
+          Write-Host "same-SHA verified: $actual"
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.10
+
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Initialize MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Restore vcpkg source downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/downloads
+          key: vcpkg-downloads-${{ runner.os }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-downloads-${{ runner.os }}-${{ env.VCPKG_COMMIT }}-
+
+      - name: Configure (Windows Release)
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            cmake --preset win-release
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Host "::warning::configure attempt $attempt/3 failed; retrying in 15s"
+            Start-Sleep -Seconds 15
+          }
+          Write-Error "configure failed after 3 attempts"
+          exit 1
+
+      - name: Build release CLI and focused tests (PR / push)
+        if: github.event_name != 'workflow_dispatch'
+        run: cmake --build --preset win --target chronon3d_cli chronon3d_tests_fast
+
+      - name: Build release CLI and full tests (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: cmake --build --preset win --target chronon3d_cli chronon3d_tests
+
+      - name: Run focused release tests (PR / push)
+        if: github.event_name != 'workflow_dispatch'
+        run: >-
+          ctest --preset win-test
+          -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_render_job_contract_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests|chronon3d_motion_plan_adapter_tests|chronon3d_backend_registry_tests"
+          --output-on-failure --output-junit "${{ github.workspace }}/windows-test-results.xml"
+
+      - name: Run full release suite (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: ctest --preset win-test --output-on-failure --output-junit "${{ github.workspace }}/windows-test-results.xml"
+
+      - name: Generate same-SHA test status
+        run: >-
+          python tools/ci_status_from_junit.py
+          --junit "${{ github.workspace }}/windows-test-results.xml"
+          --commit "${{ github.sha }}"
+          --workflow "${{ github.workflow }}"
+          --out windows-release-receipt/ci_status.json
+
+      - name: Generate SHA-256 release manifest
+        run: >-
+          python tools/windows_release_manifest.py
+          --build-dir build/chronon/win-release
+          --commit "${{ github.sha }}"
+          --version-file version.txt
+          --preset win-release
+          --out-dir windows-release-receipt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-${{ github.sha }}
+          path: |
+            windows-release-receipt/
+            windows-test-results.xml
+          retention-days: 90
+          if-no-files-found: error
 
   golden-e2e:
     name: Gate 8 / golden-e2e
@@ -137,6 +276,14 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build ccache pkg-config
 
+      - name: Free disk space (Linux)
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+            /usr/share/swift /usr/local/.ghcup
+          sudo apt-get clean
+          df -h
+
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: 3.31.10
@@ -147,6 +294,14 @@ jobs:
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Restore vcpkg source downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/downloads
+          key: vcpkg-downloads-${{ runner.os }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-downloads-${{ runner.os }}-${{ env.VCPKG_COMMIT }}-
 
       # Same proven lane as svg-motion.yml, with GPU and native FFmpeg off:
       # the golden gate exercises the software renderer, not a GPU backend.
