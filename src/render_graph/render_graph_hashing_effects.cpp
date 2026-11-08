@@ -93,6 +93,29 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2,
             }
             break;
         }
+        case SdfBevel: {
+            if (auto* p = std::get_if<SdfBevelParams>(&e.params)) {
+                if (semantic_v2) {
+                    seed = hash_combine(seed, hash_value(p->bevel_width));
+                    seed = hash_combine(seed, hash_value(p->bevel_height));
+                    seed = hash_combine(seed, hash_value(p->rim_width));
+                    seed = hash_combine(seed, hash_color(p->rim_color));
+                    seed = hash_combine(seed, hash_value(p->rim_intensity));
+                    seed = hash_combine(seed, hash_value(p->highlight));
+                    seed = hash_combine(seed, hash_value(p->shade));
+                    seed = hash_combine(seed, hash_value(p->light_angle));
+                    seed = hash_combine(seed, hash_value(p->light_elevation));
+                    seed = hash_combine(seed, hash_value(p->light_orbit_speed));
+                    seed = hash_combine(seed, hash_value(p->shadow_distance));
+                    seed = hash_combine(seed, hash_value(p->shadow_softness));
+                    seed = hash_combine(seed, hash_value(p->shadow_opacity));
+                    seed = hash_combine(seed, hash_color(p->shadow_color));
+                } else {
+                    seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+                }
+            }
+            break;
+        }
         case Glow: {
             if (auto* p = std::get_if<GlowParams>(&e.params))
                 seed = hash_combine(seed, semantic_v3

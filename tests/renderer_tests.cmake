@@ -173,6 +173,7 @@ chronon3d_add_test_suite(
         effects/test_fractal_noise.cpp
         effects/test_radial_blur.cpp
         effects/test_camera_ring.cpp
+        effects/test_sdf_bevel.cpp
         effects/test_stroke.cpp
         renderer/effects/test_adjustment_layer.cpp
         renderer/effects/test_advanced_effects.cpp

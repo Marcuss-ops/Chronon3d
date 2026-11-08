@@ -236,20 +236,20 @@ void append_color_layer_for_scene(
             std::min(solid_size.x, solid_size.y) * 0.5f);
         params.color = solid_color;
         params.fill = graphics::FillStyle::solid(solid_color);
-        if (layer.position_dimensions < 2) {
-            builder.pin_to(Anchor::Center);
-            params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
-        }
+        if (layer.position_dimensions < 2) builder.pin_to(Anchor::Center);
+        // Rect/rounded-rect geometry is authored around its top-left corner.
+        // Centre the local geometry even when the layer carries an explicit
+        // position; otherwise [960, 540] shifts a 1920x1080 plate into the
+        // bottom-right quadrant and leaves the rest of the frame black.
+        params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
         builder.rounded_rect("color", std::move(params));
         return;
     }
     RectParams params;
     params.size = solid_size;
     params.color = solid_color;
-    if (layer.position_dimensions < 2) {
-        builder.pin_to(Anchor::Center);
-        params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
-    }
+    if (layer.position_dimensions < 2) builder.pin_to(Anchor::Center);
+    params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
     builder.rect("color", std::move(params));
     return;
 

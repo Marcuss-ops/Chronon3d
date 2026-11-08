@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/color/output_transform.hpp>
+#include <chronon3d/color/tone_map_framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <limits>
 using namespace chronon3d;
 
@@ -218,4 +220,24 @@ TEST_CASE("output_transform: matches old Color::linear_to_srgb8 for sRGB") {
         const uint8_t new_way = linear_to_srgb8(v);
         CHECK(old_way == new_way);
     }
+}
+
+TEST_CASE("color::tone_map_framebuffer compresses HDR and reports the boundary range") {
+    Framebuffer fb(4, 1);
+    fb.set_pixel(0, 0, Color{8.0f, 2.0f, 0.5f, 1.0f});
+    fb.set_pixel(1, 0, Color{0.5f, 0.5f, 0.5f, 0.25f});
+
+    const auto stats = tone_map_framebuffer(
+        fb, ToneMapOperator::AcesFitted, 1.0f);
+    CHECK(stats.max_linear > 1.0f);
+    CHECK(stats.max_mapped <= 1.0f);
+    CHECK(fb.get_pixel(0, 0).r >= 0.0f);
+    CHECK(fb.get_pixel(0, 0).r <= 1.0f);
+    CHECK(fb.get_pixel(0, 0).r > fb.get_pixel(0, 0).b);
+    CHECK(fb.get_pixel(0, 0).a == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(1, 0).a == doctest::Approx(0.25f));
+    CHECK_THROWS_AS(
+        tone_map_framebuffer(fb, ToneMapOperator::AcesFitted,
+                             std::numeric_limits<float>::infinity()),
+        std::invalid_argument);
 }

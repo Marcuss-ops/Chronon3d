@@ -1,4 +1,5 @@
 #include "video_sink_adapter.hpp"
+#include "tone_map_apply.hpp"
 
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -36,12 +37,16 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     }
     const size_t expected_size = encoder_frame.storage.size();
 
+    auto tone_mapped = apply_output_tone_map(
+        fb, options_.color_transform, "video_adapter",
+        static_cast<std::int64_t>(frames_written_));
     std::optional<Framebuffer> ocio_frame;
-    const Framebuffer* conversion_source = &fb;
+    const Framebuffer* conversion_source =
+        tone_mapped ? &*tone_mapped : &fb;
     bool ocio_applied = false;
 #ifdef CHRONON3D_ENABLE_OCIO
     if (ocio_output_transform_) {
-        ocio_frame.emplace(fb);
+        ocio_frame.emplace(*conversion_source);
         for (int y = 0; y < ocio_frame->height(); ++y) {
             Color* row = ocio_frame->pixels_row(y);
             for (int x = 0; x < ocio_frame->width(); ++x) row[x].a = 1.0f;

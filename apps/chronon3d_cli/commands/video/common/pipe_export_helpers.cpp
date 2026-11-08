@@ -2,6 +2,7 @@
 
 #include "../../../utils/video/encoder_config_resolution.hpp"
 
+#include <chronon3d/color/output_transform.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
@@ -9,6 +10,7 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
+#include <cmath>
 #include <exception>
 #include <filesystem>
 #include <spdlog/spdlog.h>
@@ -124,6 +126,31 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
             "the shared VideoSink path only emits SDR metadata and samples");
         return std::nullopt;
     }
+    const auto tone_map = color::parse_tone_map_operator(opts.pipe.tone_map);
+    if (!tone_map) {
+        spdlog::error(
+            "[video] unknown tone-map operator '{}' (accepted: none, reinhard, aces)",
+            opts.pipe.tone_map);
+        return std::nullopt;
+    }
+    if (!std::isfinite(opts.pipe.exposure) || opts.pipe.exposure < 0.0f ||
+        opts.pipe.exposure > 64.0f) {
+        spdlog::error("[video] exposure must be finite and in [0, 64]");
+        return std::nullopt;
+    }
+    if (*tone_map != color::ToneMapOperator::None &&
+        !opts.pipe.ocio_display.empty()) {
+        spdlog::error(
+            "[video] tone-map and OCIO display/view are mutually exclusive "
+            "output transforms");
+        return std::nullopt;
+    }
+    if (*tone_map != color::ToneMapOperator::None && hdr_output) {
+        spdlog::error(
+            "[video] tone-map produces an SDR signal and cannot be combined "
+            "with PQ/HLG output");
+        return std::nullopt;
+    }
 
     // Fail-closed parse of the pipe surface format against the canonical
     // vocabulary. An unknown name must abort the export: mapping it onto RGBA
@@ -189,6 +216,8 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
         .color_transform = {
             .output = parse_color_output(opts.pipe.color_output),
             .reference_white_nits = opts.pipe.reference_white_nits,
+            .tone_map = *tone_map,
+            .exposure = opts.pipe.exposure,
         },
         .ocio_config_path = opts.pipe.ocio_config_path,
         .ocio_source_space = opts.pipe.ocio_source_space,

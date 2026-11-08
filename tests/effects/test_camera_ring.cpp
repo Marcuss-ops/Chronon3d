@@ -273,6 +273,14 @@ TEST_CASE("CameraRing: chromatic dispersion is zero on-axis and radial at the "
 // Test 5 — Dynamic rig coupling + deterministic performance proxy
 // ===========================================================================
 
+TEST_CASE("CameraRing: production kernel accepts 64 jittered taps") {
+    CameraRingParams p = fixture_params();
+    p.samples = 64;
+    CHECK_NOTHROW(p.validate());
+    p.samples = 65;
+    CHECK_THROWS(p.validate());
+}
+
 TEST_CASE("CameraRing: camera speed narrows the safe zone and widens defocus") {
     CameraRingParams p = fixture_params();
     const auto rest = effects::camera_ring_coupled_optics(p, 0.0f);

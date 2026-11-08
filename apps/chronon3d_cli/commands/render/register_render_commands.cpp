@@ -291,6 +291,12 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
     video->add_option("--color-output", args.video_settings.color_output,
                       "Video output color space (HDR PQ/HLG require the native CPU encoder)")
         ->check(CLI::IsMember({"srgb", "rec709", "linearsrgb", "pq", "hlg"}));
+    video->add_option("--tone-map", args.video_settings.tone_map,
+                      "HDR→SDR tone map applied before the output transfer: none, reinhard, aces")
+        ->check(CLI::IsMember({"none", "reinhard", "aces"}));
+    video->add_option("--exposure", args.video_settings.exposure,
+                      "Linear exposure multiplier applied before tone mapping")
+        ->check(CLI::Range(0.0, 64.0));
     video->add_option("--reference-white-nits", args.video_settings.reference_white_nits,
                       "Reference white luminance for PQ/HLG output (nits)")
         ->check(CLI::PositiveNumber);

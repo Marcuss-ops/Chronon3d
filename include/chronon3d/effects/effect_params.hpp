@@ -615,8 +615,9 @@ struct AnamorphicStreakParams {
 // ── Camera Ring / Petzval field-curvature defocus ───────────────────────────
 // The in-focus zone is an ellipse around the optical center; the circle of
 // confusion grows with normalized radius and saturates at max_blur_radius.
-// Sampling uses a deterministic 16-tap Poisson disc. Chromatic dispersion is
-// radial and scaled by CoC², so the optical axis stays spectrally clean.
+// Sampling uses a per-pixel-rotated golden-angle spiral (up to 64 taps) so a
+// large CoC cannot collapse into a handful of discrete ghost copies. Chromatic
+// dispersion is radial and scaled by CoC², so the optical axis stays clean.
 struct CameraRingParams {
     Vec2 center{0.5f, 0.5f};
     Vec2 axis_scale{0.68f, 0.32f};
@@ -625,7 +626,7 @@ struct CameraRingParams {
     float max_blur_radius{0.022f};    // maximum UV radius (fraction of width)
     float chroma_dispersion{0.007f};  // radial R/B separation at maximum CoC
     float anamorphic_stretch{1.0f};   // horizontal kernel stretch [0.1, 4]
-    std::uint32_t samples{16};        // deterministic Poisson taps [1, 16]
+    std::uint32_t samples{64};        // jittered golden-angle taps [1, 64]
 
     void validate() const {
         if (!std::isfinite(center.x) || !std::isfinite(center.y) ||
@@ -649,9 +650,33 @@ struct CameraRingParams {
         if (!std::isfinite(anamorphic_stretch) || anamorphic_stretch < 0.1f ||
             anamorphic_stretch > 4.0f)
             throw std::invalid_argument("CameraRing anamorphic_stretch must be finite in [0.1, 4]");
-        if (samples == 0 || samples > 16)
-            throw std::invalid_argument("CameraRing samples must be in [1, 16]");
+        if (samples == 0 || samples > 64)
+            throw std::invalid_argument("CameraRing samples must be in [1, 64]");
     }
+};
+
+// ── SDF bevel with dynamic lighting and shadow ─────────────────────────────
+// The effect rebuilds a signed distance field from the layer alpha on every
+// execution, so the bevel, rim and cast shadow follow the projected silhouette
+// instead of being baked into the source PNG.  `light_angle` is measured in
+// degrees in screen space (0 = +X, 90 = +Y/down); `light_elevation` is the
+// angle above the screen plane.  `bevel_height` controls how steep the relief
+// reads against `bevel_width`.
+struct SdfBevelParams {
+    f32 bevel_width{14.0f};
+    f32 bevel_height{10.0f};
+    f32 rim_width{3.0f};
+    Color rim_color{0.78f, 0.58f, 0.30f, 1.0f};
+    f32 rim_intensity{0.90f};
+    f32 highlight{0.55f};
+    f32 shade{0.34f};
+    f32 light_angle{-135.0f};
+    f32 light_elevation{38.0f};
+    f32 light_orbit_speed{0.0f};
+    f32 shadow_distance{32.0f};
+    f32 shadow_softness{22.0f};
+    f32 shadow_opacity{0.55f};
+    Color shadow_color{0.0f, 0.0f, 0.0f, 1.0f};
 };
 
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
@@ -666,6 +691,7 @@ using EffectParams = std::variant<
     BrightnessParams,
     ContrastParams,
     DropShadowParams,
+    SdfBevelParams,
     GlowParams,
     BloomParams,
     Fake3DWaveParams,

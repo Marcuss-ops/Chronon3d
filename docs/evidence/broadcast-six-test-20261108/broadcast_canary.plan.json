@@ -1,0 +1,681 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "broadcast_six_test_canary",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 120
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "color",
+      "color": [
+        0.03,
+        0.042,
+        0.052,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 120,
+      "effects": [
+        {
+          "type": "vignette",
+          "radius": 0.7,
+          "softness": 0.7,
+          "amount": 0.42,
+          "color": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "contact_shadow",
+      "type": "shape",
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 120,
+      "opacity": 0.7,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -500.0,
+              -220.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              480.0,
+              -220.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              480.0,
+              300.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -500.0,
+              300.0
+            ]
+          },
+          {
+            "type": "close"
+          }
+        ],
+        "fill": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "effects": [
+        {
+          "type": "gaussian_blur",
+          "radius": 8
+        }
+      ]
+    },
+    {
+      "id": "card",
+      "type": "shape",
+      "size": [
+        980,
+        520
+      ],
+      "position": [
+        -30,
+        20
+      ],
+      "start_frame": 0,
+      "duration_frames": 120,
+      "shape": {
+        "type": "rounded_rect",
+        "radius": 28,
+        "fill": [
+          0.055,
+          0.095,
+          0.14,
+          1.0
+        ]
+      },
+      "effects": [
+        {
+          "type": "catalog",
+          "effect_id": "light.sdf_bevel",
+          "params": [
+            {
+              "param": "bevel_width",
+              "value": 16.0
+            },
+            {
+              "param": "bevel_height",
+              "value": 12.0
+            },
+            {
+              "param": "rim_width",
+              "value": 3.0
+            },
+            {
+              "param": "rim_intensity",
+              "value": 0.75
+            },
+            {
+              "param": "highlight",
+              "value": 0.65
+            },
+            {
+              "param": "shade",
+              "value": 0.42
+            },
+            {
+              "param": "light_angle",
+              "value": -135.0
+            },
+            {
+              "param": "light_elevation",
+              "value": 38.0
+            },
+            {
+              "param": "shadow_distance",
+              "value": 12.0
+            },
+            {
+              "param": "shadow_softness",
+              "value": 6.0
+            },
+            {
+              "param": "shadow_opacity",
+              "value": 0.75
+            }
+          ]
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.0
+              },
+              {
+                "frame": 10,
+                "value": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "text": "SIX TESTS",
+      "size": [
+        1200,
+        220
+      ],
+      "position": [
+        930,
+        495
+      ],
+      "start_frame": 1,
+      "duration_frames": 119,
+      "style": {
+        "font": "tests/fixtures/Inter-Bold.ttf",
+        "font_size": 150,
+        "fill": "#EAF4FF"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale",
+            "easing": "bezier",
+            "bezier_curve": [
+              0.35,
+              0.7,
+              0.2,
+              1.0
+            ],
+            "keyframes": [
+              {
+                "frame": 1,
+                "value": [
+                  0.94,
+                  0.94
+                ]
+              },
+              {
+                "frame": 91,
+                "value": [
+                  1.0,
+                  1.0
+                ]
+              }
+            ]
+          },
+          {
+            "property": "opacity",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 1,
+                "value": 0.0
+              },
+              {
+                "frame": 20,
+                "value": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "underline",
+      "type": "shape",
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        -30,
+        250
+      ],
+      "start_frame": 2,
+      "duration_frames": 118,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -380.0,
+              0.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              380.0,
+              0.0
+            ]
+          }
+        ],
+        "stroke": {
+          "color": [
+            0.25882352941176473,
+            0.8509803921568627,
+            1.0,
+            1.0
+          ],
+          "width": 6.0
+        },
+        "fill": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "operators": [
+          {
+            "kind": "trim",
+            "params": {
+              "start": 0.0,
+              "end": 0.0,
+              "offset": 0.0,
+              "animation": {
+                "keyframes": [
+                  {
+                    "frame": 2,
+                    "value": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ],
+                    "easing": "bezier",
+                    "bezier_curve": [
+                      0.35,
+                      0.7,
+                      0.2,
+                      1.0
+                    ]
+                  },
+                  {
+                    "frame": 8,
+                    "value": [
+                      0.0,
+                      1.0,
+                      0.0
+                    ],
+                    "easing": "in_cubic"
+                  },
+                  {
+                    "frame": 32,
+                    "value": [
+                      1.0,
+                      1.0,
+                      0.0
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 2,
+                "value": 0.0
+              },
+              {
+                "frame": 5,
+                "value": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "badge",
+      "type": "shape",
+      "size": [
+        180,
+        180
+      ],
+      "position": [
+        490,
+        -220
+      ],
+      "start_frame": 3,
+      "duration_frames": 117,
+      "shape": {
+        "type": "ellipse",
+        "fill": [
+          0.85,
+          0.55,
+          0.12,
+          1.0
+        ]
+      },
+      "effects": [
+        {
+          "type": "catalog",
+          "effect_id": "light.sdf_bevel",
+          "params": [
+            {
+              "param": "bevel_width",
+              "value": 7.0
+            },
+            {
+              "param": "bevel_height",
+              "value": 5.0
+            },
+            {
+              "param": "rim_width",
+              "value": 1.5
+            },
+            {
+              "param": "rim_intensity",
+              "value": 0.5
+            },
+            {
+              "param": "highlight",
+              "value": 0.5
+            },
+            {
+              "param": "shade",
+              "value": 0.35
+            },
+            {
+              "param": "light_angle",
+              "value": -135.0
+            },
+            {
+              "param": "light_elevation",
+              "value": 38.0
+            },
+            {
+              "param": "shadow_distance",
+              "value": 0.0
+            },
+            {
+              "param": "shadow_opacity",
+              "value": 0.0
+            }
+          ]
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale",
+            "easing": "bezier",
+            "bezier_curve": [
+              0.35,
+              0.7,
+              0.2,
+              1.0
+            ],
+            "keyframes": [
+              {
+                "frame": 3,
+                "value": [
+                  0.7,
+                  0.7
+                ]
+              },
+              {
+                "frame": 33,
+                "value": [
+                  1.0,
+                  1.0
+                ]
+              }
+            ]
+          },
+          {
+            "property": "opacity",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 3,
+                "value": 0.0
+              },
+              {
+                "frame": 10,
+                "value": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "corner_ticks",
+      "type": "shape",
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 120,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -900.0,
+              -500.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -900.0,
+              -460.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -860.0,
+              -460.0
+            ]
+          },
+          {
+            "type": "move_to",
+            "point": [
+              860.0,
+              -500.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              860.0,
+              -460.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              900.0,
+              -460.0
+            ]
+          },
+          {
+            "type": "move_to",
+            "point": [
+              -900.0,
+              500.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -900.0,
+              460.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -860.0,
+              460.0
+            ]
+          },
+          {
+            "type": "move_to",
+            "point": [
+              860.0,
+              500.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              860.0,
+              460.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              900.0,
+              460.0
+            ]
+          }
+        ],
+        "stroke": {
+          "color": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "width": 5.0
+        },
+        "fill": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "effects": [
+        {
+          "type": "chromatic_aberration",
+          "red_offset": 0.0,
+          "blue_offset": 0.0,
+          "red_transform": {
+            "scale": [
+              1.0004,
+              1.0004
+            ],
+            "translation": [
+              0.0,
+              0.0
+            ]
+          },
+          "blue_transform": {
+            "scale": [
+              0.9996,
+              0.9996
+            ],
+            "translation": [
+              0.0,
+              0.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "film_grain",
+      "type": "color",
+      "color": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 120,
+      "opacity": 0.006,
+      "blend_mode": "screen",
+      "effects": [
+        {
+          "type": "catalog",
+          "effect_id": "generate.noise",
+          "params": [
+            {
+              "param": "amount",
+              "value": 0.85
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "broadcast_six_test_canary_1080p.mp4",
+    "format": "mp4",
+    "codec": "h264",
+    "color_space": "srgb"
+  }
+}

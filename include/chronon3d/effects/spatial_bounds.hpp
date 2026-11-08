@@ -129,6 +129,22 @@ struct SpatialHalo {
     return drop_shadow_spatial_halo(p);
 }
 
+// The SDF bevel rebuilds its shadow from the projected silhouette.  Its halo
+// must cover the widest bevel/rim plus the worst-case shadow reach in any
+// direction because the light angle can be animated at runtime.
+[[nodiscard]] inline SpatialHalo effect_spatial_halo(
+    const SdfBevelParams& p) noexcept {
+    f32 extent = std::max({p.bevel_width, p.rim_width, 0.0f});
+    if (p.shadow_opacity > 0.0f && p.shadow_distance > 0.0f) {
+        DropShadowParams drop;
+        drop.radius = std::max(0.0f, p.shadow_softness);
+        const f32 reach = std::max(0.0f, p.shadow_distance) * 1.65f;
+        drop.offset = {reach, reach};
+        extent += spatial_halo_extent(drop_shadow_spatial_halo(drop));
+    }
+    return uniform_spatial_halo(extent + 2.0f);
+}
+
 [[nodiscard]] inline SpatialHalo offset_spatial_halo(
     const OffsetParams& p) noexcept {
     return {

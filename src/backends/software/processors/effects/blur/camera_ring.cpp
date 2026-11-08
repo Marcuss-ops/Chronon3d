@@ -78,7 +78,7 @@ void apply_camera_ring(Framebuffer& fb, const CameraRingParams& params,
     const float width = static_cast<float>(source.width());
     const float height = static_cast<float>(source.height());
     const float aspect = width / height;
-    const int taps = static_cast<int>(params.samples);
+    const std::uint32_t taps = params.samples;
 
     for (int y = y0; y < y1; ++y) {
         Color* dst = fb.pixels_row(y);
@@ -105,10 +105,13 @@ void apply_camera_ring(Framebuffer& fb, const CameraRingParams& params,
                 chroma_y = delta_y / delta_len * chroma_amount * aspect;
             }
 
+            const float rotation =
+                effects::camera_ring_pixel_jitter(static_cast<std::uint32_t>(x),
+                                                  static_cast<std::uint32_t>(y)) *
+                6.28318530718f;
             Color accumulated{0.0f, 0.0f, 0.0f, 0.0f};
-            for (int tap = 0; tap < taps; ++tap) {
-                const Vec2 offset = effects::kCameraRingPoissonDisc[
-                    static_cast<std::size_t>(tap)];
+            for (std::uint32_t tap = 0; tap < taps; ++tap) {
+                const Vec2 offset = effects::camera_ring_tap_offset(tap, taps, rotation);
                 const float base_u = u + offset.x * radius_x;
                 const float base_v = v + offset.y * radius_y;
                 const Color green = sample_prefiltered_clamped(source, base_u, base_v);

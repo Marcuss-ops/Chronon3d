@@ -114,6 +114,12 @@ private:
                     }
                 break;
             }
+            case SdfBevel: {
+                if (auto* p = std::get_if<SdfBevelParams>(&inst.params))
+                    max_spread = std::max(max_spread,
+                        effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
+                break;
+            }
             case Offset: {
                 if (auto* p = std::get_if<OffsetParams>(&inst.params)) {
                     const auto halo = effects::offset_spatial_halo(*p);

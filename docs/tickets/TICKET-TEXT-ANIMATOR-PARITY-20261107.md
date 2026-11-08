@@ -1,6 +1,6 @@
 # TICKET-TEXT-ANIMATOR-PARITY-20261107 — After Effects text-animator parity
 
-**Status:** OPEN — P0 `Word Spacing` / `Line Spacing` implemented in this session; P1/P2 backlog open.
+**Status:** OPEN — P0 `Word Spacing` / `Line Spacing` implemented and verified (2026-11-08); P1/P2 backlog open.
 **Owner:** Chronon3D text/runtime.
 **Scope:** animated text layers, not full SVG text. SVG-specific gaps remain in
 [`TICKET-SVG-TEXT-PARITY-REMAINING.md`](TICKET-SVG-TEXT-PARITY-REMAINING.md) and
@@ -233,6 +233,20 @@ Focused checks:
 Record the exact target names and results in the session close-out. If a target
 name differs, use `cmake --build ... --target help` rather than launching a
 full build.
+
+### Session evidence (2026-11-08)
+
+The 2026-11-07 note below about the test executables not being run is superseded.
+
+- `cmake --build build/chronon/linux-video-release --target
+  chronon3d_text_animator_property_tests -j4`: 401/401 step, exit 0, 54.16 s,
+  peak RSS 1.46 GB (bounded concurrency, no OOM pressure).
+- `chronon3d_text_animator_property_tests`: **39/39 cases, 178/178
+  assertions**, exit 0.
+- Filter `--test-case='*Spacing*'`: **3/3 cases, 11/11 assertions** (cumulative
+  word spacing, selector weight + animated value, cumulative line spacing).
+- The V3 decoder and V2 frozen-enum gates listed above were **not run in this
+  session**; they belong to their own targets and were not rebuilt here.
 
 ### Session evidence (2026-11-07)
 
