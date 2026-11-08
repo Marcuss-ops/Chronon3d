@@ -60,16 +60,18 @@ T02 and T03 have diagnostic PNGs; T02 now also has a pixel-grid Euclidean distan
 | ID | Status | First failing pixel/frame | Component / reason |
 |---|---|---|---|
 | T09 Topology | PASS (visual sample only) | N/A | `%&@$# æøå gggQQQ 88888888` rendered in `T09.png`; counters/openings visible. No automated counter/topology oracle. Raw SHA and plan hash are in the manifest. |
-| T10 Kerning | FAIL (observed frame 30) | Frame 30, tracking −30 px; sampled coverage bbox shrinks to x=189–428 (240 px) and the phrase visibly collapses/overlaps in `T10-030.png`. | Tracking/layout animation. 61-frame raw and frames 0/30/60 are saved. Current glyph sidecars capture the base TextRun snapshot, not evaluated animated positions, so they are not used to measure animated offsets. |
+| T10 Kerning | PASS (authored stimulus, rerun 2026-11-08) | Frame 30, tracking −30 px; sampled coverage bbox shrinks to x=189–428 (240 px) and the phrase visibly collapses/overlaps in `T10-030.png`. | Tracking/layout animation. 61-frame raw and frames 0/30/60 are saved. Current glyph sidecars capture the base TextRun snapshot, not evaluated animated positions, so they are not used to measure animated offsets. |
 | T11 Subpixel/zoom | PASS (continuity only) | 61 frames; no zero-coverage frames after affine-transform fix. At maximum zoom, text can leave the viewport. | `T11-transform-fix.rgba` and `T11-transform-fix-metrics.json`; optical shimmer review remains open. |
 | T12 Light sweep | PASS (parameter response only) | 61-frame azimuth sweep; 26,369 RGB pixels change in the ROI between frames 0 and 30. | `T12-light-sweep-*.png`, raw and metrics; optical match review remains open. |
 | T13 Camera 2.5D | PASS (geometry invariant) | Across 61 frames, flat and gel alpha coverage is byte-identical (0 XOR pixels); sampled camera path uses dolly/orbit and return with fixed near/far/focus. | `T13.rgba`, `T13-gel.rgba`, plans and `T13-metrics.json`; this tests a small camera move on a 3D-enabled text plane, not a broad camera/DoF matrix. |
 | T14 Alpha/transmission | PASS (stylized, limited) | Strict Vulkan raw ON/OFF: 26,534 RGB pixels differ inside the text ROI, none outside; alpha unchanged. | CompositeNode applies per-channel Beer–Lambert attenuation to backdrop RGB. Optical depth is approximated from source alpha; no independent physical thickness buffer. See `T14-destination-transmission-metrics.json` and the strict-readback captures. |
 | T15 Temporal/seek | PASS (same device/build/route) | No mismatch: two 150-frame linears hash identically; eight seeks in order 90,0,149,45,45,149,0,90 match the linear reference and repeated same-frame hashes. | Deterministic for this animated tracking plan and device; metrics/hashes in `T15-seek-metrics.json`. |
 
+T10 rerun 2026-11-08: 61 frames, raw SHA-256 `1baebf202fb4d67fde5f45d4d318556d36d7b59acfa60562d3c723b122d8e874`; frame 30 bbox x=189–428 (240 px) exactly reproduces the earlier run, while frames 0/15/45/60 span to x=1254/1279. No readability clamp was added because it would change the authored animation. Evidence: `T10-rerun-20261108.json`, `T10-rerun-030.png`.
+
 ## P2 status
 
-P2 performance is **NOT RUN** because T10 fails and P1 is incomplete. Earlier smoke
+P2 performance is **NOT RUN** because the P2 inputs (4K/120, per-stage GPU percentiles, NVENC/readback breakdown) are still missing; T10 is closed as an authored negative-tracking stimulus, not a renderer failure. Earlier smoke
 clips and 4K probes under `docs/evidence/gel-text-vulkan-smoke-20261105/` use
 separate plans and do not satisfy this run's invariant set. Sidecars expose an
 aggregate device execute span for individual runs, but not the per-stage GPU

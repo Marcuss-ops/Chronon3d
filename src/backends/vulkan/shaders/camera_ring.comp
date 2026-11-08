@@ -65,23 +65,16 @@ vec4 sample_prefiltered_clamped(vec2 uv, ivec2 size) {
                    sample_bilinear_clamped(uv + half_texel, size));
 }
 
-void main() {
-    ivec2 size = imageSize(destination_image);
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-    if (pixel.x >= size.x || pixel.y >= size.y) return;
-
-    vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(size);
+float ring_coc(vec2 uv) {
     vec2 delta = (uv - params.center) / max(params.axis_scale, vec2(1.0e-4));
     float radius_norm = length(delta);
     float span = max(params.outer_radius - params.inner_radius, 1.0e-6);
     float t = clamp((radius_norm - params.inner_radius) / span, 0.0, 1.0);
-    float coc = t * t * (3.0 - 2.0 * t);
+    return t * t * (3.0 - 2.0 * t);
+}
 
-    if (coc <= 0.001) {
-        imageStore(destination_image, pixel, imageLoad(source_image, pixel));
-        return;
-    }
-
+vec4 gather_camera_ring(vec2 uv, ivec2 pixel, ivec2 size, float coc,
+                        bool prefilter, int tap_limit) {
     float aspect = float(size.x) / float(size.y);
     float radius = coc * params.max_blur_radius;
     vec2 radial = uv - params.center;
@@ -90,7 +83,7 @@ void main() {
     float chroma_amount = coc * coc * params.chroma_dispersion;
     vec2 chroma = chroma_dir * chroma_amount * vec2(1.0, aspect);
 
-    int taps = clamp(params.sample_count, 1, 64);
+    int taps = clamp(min(params.sample_count, tap_limit), 1, 64);
     float rotation = interleaved_gradient_noise(vec2(pixel)) * 6.28318530718;
     float last_tap = max(float(taps - 1), 1.0);
     vec4 accumulated = vec4(0.0);
@@ -102,10 +95,77 @@ void main() {
         vec2 offset = disc * vec2(radius * params.anamorphic_stretch,
                                   radius * aspect);
         vec2 base_uv = uv + offset;
-        vec4 green = sample_prefiltered_clamped(base_uv, size);
-        float red = sample_prefiltered_clamped(base_uv + chroma, size).r;
-        float blue = sample_prefiltered_clamped(base_uv - chroma, size).b;
-        accumulated += vec4(red, green.g, blue, green.a);
+        vec4 green = prefilter ? sample_prefiltered_clamped(base_uv, size)
+                               : sample_bilinear_clamped(base_uv, size);
+        vec4 red = prefilter ? sample_prefiltered_clamped(base_uv + chroma, size)
+                             : sample_bilinear_clamped(base_uv + chroma, size);
+        vec4 blue = prefilter ? sample_prefiltered_clamped(base_uv - chroma, size)
+                              : sample_bilinear_clamped(base_uv - chroma, size);
+        accumulated += vec4(red.r, green.g, blue.b, green.a);
     }
-    imageStore(destination_image, pixel, accumulated / float(taps));
+    return accumulated / float(taps);
+}
+
+// A 16x16 workgroup shares one gather per 4x4 (or 2x2) pixel block when the
+// CoC is large. The blur is low-frequency there, so replicating the block
+// centre is visually equivalent and cuts the gather count 16x. Small radii
+// keep the per-pixel golden-angle gather and the 2x2 sensor prefilter; the
+// safe-zone copy is always exact. All threads reach every barrier because the
+// mode is uniform per workgroup.
+shared vec4 tile[16][16];
+shared int tile_mode;
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 local = ivec2(gl_LocalInvocationID.xy);
+    bool in_bounds = pixel.x < size.x && pixel.y < size.y;
+
+    vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(size);
+    float coc = ring_coc(uv);
+
+    if (local.x == 0 && local.y == 0) {
+        vec2 group_uv =
+            (vec2(gl_WorkGroupID.xy * uvec2(16u)) + vec2(8.0)) / vec2(size);
+        float group_radius_px =
+            ring_coc(group_uv) * params.max_blur_radius * float(size.x);
+        tile_mode = group_radius_px >= 24.0 ? 16
+                  : (group_radius_px >= 8.0 ? 8
+                  : (group_radius_px >= 3.0 ? 4
+                  : (group_radius_px >= 1.0 ? 2 : 1)));
+    }
+    barrier();
+    int mode = tile_mode;
+
+    if (mode == 1) {
+        if (!in_bounds) return;
+        if (coc <= 0.001) {
+            imageStore(destination_image, pixel, imageLoad(source_image, pixel));
+        } else {
+            imageStore(destination_image, pixel,
+                       gather_camera_ring(uv, pixel, size, coc, true, 64));
+        }
+        return;
+    }
+
+    int tap_limit = mode >= 16 ? 8 : (mode >= 8 ? 16 : 64);
+    if (in_bounds && (local.x % mode == 0) && (local.y % mode == 0)) {
+        tile[local.y][local.x] =
+            gather_camera_ring(uv, pixel, size, coc, false, tap_limit);
+    }
+    barrier();
+    if (!in_bounds) return;
+
+    if (coc <= 0.001) {
+        imageStore(destination_image, pixel, imageLoad(source_image, pixel));
+        return;
+    }
+
+    ivec2 origin = ivec2(local.x - local.x % mode, local.y - local.y % mode);
+    ivec2 origin_pixel = pixel - (local - origin);
+    vec2 origin_uv = (vec2(origin_pixel) + vec2(0.5)) / vec2(size);
+    vec4 result = ring_coc(origin_uv) > 0.001
+        ? tile[origin.y][origin.x]
+        : gather_camera_ring(uv, pixel, size, coc, false, tap_limit);
+    imageStore(destination_image, pixel, result);
 }

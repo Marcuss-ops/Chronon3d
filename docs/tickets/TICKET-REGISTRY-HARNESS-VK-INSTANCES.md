@@ -71,6 +71,14 @@ toccare i test.
 - Il solo file surfaces: 23 casi, 22 passati, 1 fallito, 0 `-9`; il fallimento
   è la stessa riga 518.
 
+### Misura 2026-11-08 (release, llvmpipe)
+
+`VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json`, binario
+`chronon3d_backend_registry_tests` del preset release: **134 casi, 123 passati,
+11 falliti, 0 `VkResult=-9`**, 4462 assertion fallite su 1.933.817. Il sintomo
+di esaurimento istanze è assente; i fallimenti residui sono mismatch reali di
+effect parity e surface, non `vkCreateInstance`. Il gate 130/130 resta aperto.
+
 Conclusione: il `-9` non è un tetto del backend né un leak di risorse. In
 questa sessione headless l'ICD NVIDIA (`nvidia_icd.json` →
 `libGLX_nvidia.so.0`) chiude il proprio contesto driver dopo 26 cicli di
@@ -99,8 +107,9 @@ suite gira con gli stessi casi e le stesse asserzioni.
 - [ ] `chronon3d_backend_registry_tests` completo gira **130/130 casi, 0
       interrotti** in un solo processo, con lo stesso numero di asserzioni
       verdi di oggi (1.906.529) o superiore.
-      *Verifica in corso dopo il drain dei lease: su llvmpipe la suite era
-      129/130 prima della correzione; il rosso residuo è la riga 518.*
+      *Verifica 2026-11-08: llvmpipe esegue 134 casi senza `-9`; 123 passano e
+      11 falliscono su pixel/assertion. Il drain dei lease non è bastato a
+      chiudere il gate; il rosso residuo non è più l'esaurimento istanze.*
 - [x] Nessun caso viene rimosso, skippato o riordinato per aggirare il limite,
       e nessuno script di misura esporta `VK_ICD_FILENAMES`.
 
