@@ -249,36 +249,6 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
     const auto& shape = params.shape;
     const auto& layout = *shape.layout;
 
-    if (std::getenv("CHRONON3D_TEXT_GLYPH_DEBUG") != nullptr) {
-        const std::size_t count = std::min<std::size_t>(2, std::min(
-            layout.placed.glyphs.size(), shape.glyphs.size()));
-        for (std::size_t i = 0; i < count; ++i) {
-            const auto& pg = layout.placed.glyphs[i];
-            const auto& gs = shape.glyphs[i];
-            std::fprintf(stderr,
-                "[text-glyph-debug] text='%s' i=%zu gid=%u x=%.2f y=%.2f "
-                "bbox=(%.2f,%.2f,%.2f,%.2f) opacity=%.3f "
-                "fill=(%.2f,%.2f,%.2f,%.2f) pos=(%.2f,%.2f) "
-                "layout=(%.2f,%.2f) scale=(%.2f,%.2f,%.2f) rot=(%.2f,%.2f,%.2f) "
-                "anchor=(%.2f,%.2f) blur=%.2f base=%.2f bg_a=%.2f "
-                "grad=%d sh=%d glow=%d "
-                "box=(%.1f,%.1f) offset=(%.1f,%.1f) caret=%d byte=%zu\n",
-                layout.source_text.c_str(), i, pg.glyph_id, pg.x, pg.y,
-                pg.bbox_x0, pg.bbox_y0, pg.bbox_x1, pg.bbox_y1,
-                gs.opacity, gs.fill.r, gs.fill.g, gs.fill.b, gs.fill.a,
-                gs.position.x, gs.position.y,
-                gs.layout_position.x, gs.layout_position.y,
-                gs.scale.x, gs.scale.y, gs.scale.z,
-                gs.rotation.x, gs.rotation.y, gs.rotation.z,
-                gs.anchor.x, gs.anchor.y, gs.blur, gs.baseline_shift,
-                gs.background.a, gs.fill_gradient.enabled ? 1 : 0,
-                gs.shadow.enabled ? 1 : 0, gs.glow.enabled ? 1 : 0,
-                shape.layout_spec.box.x, shape.layout_spec.box.y,
-                s.offset_x, s.offset_y,
-                shape.caret.enabled ? 1 : 0, shape.caret.byte_index);
-        }
-    }
-
     // Opt-in source geometry dump for range-highlight diagnostics. This is
     // the actual HarfBuzz/FreeType placed layout consumed by this raster pass;
     // it records byte cluster, advance and ink bounds without reconstructing
@@ -399,13 +369,6 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
             }
             const auto& g = source_glyphs[gi];
             const std::size_t span_idx = glyph_span_indices[gi];
-            if (std::getenv("CHRONON3D_TEXT_GLYPH_DEBUG") != nullptr && gi < 2) {
-                std::fprintf(stderr,
-                    "[text-draw-debug] text='%s' gi=%u span=%zu fonts=%zu "
-                    "gid=%u opacity=%.3f\n",
-                    layout.source_text.c_str(), gi, span_idx,
-                    s.span_fonts.size(), g.glyph_id, g.opacity);
-            }
             if (span_idx >= s.span_fonts.size() ||
                 span_idx >= s.span_handles.size()) {
                 continue;

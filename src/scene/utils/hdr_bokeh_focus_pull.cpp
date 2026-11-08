@@ -20,6 +20,7 @@
 #include <chronon3d/core/composition/register_builtin_compositions.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/presets/font_asset_paths.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -119,7 +120,6 @@ Composition hdr_bokeh_focus_pull_composition() {
             // can rasterize the HDR discs. The camera still drives the DoF and
             // the CameraRing center/focus rack below.
             l.screen_space();
-            l.pin_to(Anchor::Center);
             // Transparent full-canvas extent. The native CameraRing fast path
             // requires the layer clip to cover the blurred result, and the
             // emitter ring alone would clip the CoC at its outer bounds.
@@ -177,7 +177,7 @@ Composition hdr_bokeh_focus_pull_composition() {
                 .content = {.value = "BOKEH"},
                 .style = {
                     .font = {
-                        .font_path = "assets/fonts/Inter-Black.ttf",
+                        .font_path = presets::inter_black_font_path(),
                         .font_family = "Inter",
                         .font_weight = 900,
                         .font_size = 164.0f,
@@ -201,7 +201,7 @@ Composition hdr_bokeh_focus_pull_composition() {
                 .content = {.value = "HDR TONEMAP · FOCUS PULL · 64 TAP"},
                 .style = {
                     .font = {
-                        .font_path = "assets/fonts/Inter-Light.ttf",
+                        .font_path = presets::inter_light_font_path(),
                         .font_family = "Inter",
                         .font_weight = 300,
                         .font_size = 34.0f,

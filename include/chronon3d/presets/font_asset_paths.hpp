@@ -21,11 +21,16 @@
 namespace chronon3d::presets {
 
 inline constexpr std::string_view kInterBoldFontAsset     = "assets/fonts/Inter-Bold.ttf";
+inline constexpr std::string_view kInterBlackFontAsset    = "assets/fonts/Inter-Black.ttf";
 inline constexpr std::string_view kInterRegularFontAsset  = "assets/fonts/Inter-Regular.ttf";
+inline constexpr std::string_view kInterLightFontAsset    = "assets/fonts/Inter-Light.ttf";
 inline constexpr std::string_view kPoppinsBoldFontAsset   = "assets/fonts/Poppins-Bold.ttf";
 inline constexpr std::string_view kPoppinsRegularFontAsset = "assets/fonts/Poppins-Regular.ttf";
 
 inline std::string inter_bold_font_path()     { return std::string(kInterBoldFontAsset); }
+inline std::string inter_black_font_path()    { return std::string(kInterBlackFontAsset); }
+inline std::string inter_regular_font_path()  { return std::string(kInterRegularFontAsset); }
+inline std::string inter_light_font_path()    { return std::string(kInterLightFontAsset); }
 inline std::string poppins_bold_font_path()   { return std::string(kPoppinsBoldFontAsset); }
 inline std::string poppins_regular_font_path() { return std::string(kPoppinsRegularFontAsset); }
 

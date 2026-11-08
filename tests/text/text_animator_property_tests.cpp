@@ -1137,6 +1137,23 @@ TEST_CASE("P1-06/P1-07: per-glyph shadow, glow and gradient are evaluated") {
     CHECK(states[0].fill_gradient.angle_degrees == doctest::Approx(90.0f));
 }
 
+TEST_CASE("P1-06: per-glyph shadow offset honors partial selector weight") {
+    TextAnimatorSpec spec;
+    spec.id = "partial_shadow_offset";
+    spec.selectors.push_back({});
+    spec.selectors.back().amount.set(50.0f);
+    spec.properties.push_back(
+        GlyphShadowOffsetProperty{Vec3{4.0f, 6.0f, 0.0f}});
+
+    const auto states = evaluate_animator_stack(
+        {spec}, make_test_placed_run_prop(1), make_source_prop(1),
+        SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+    REQUIRE(states.size() == 1);
+    CHECK(states[0].shadow.enabled);
+    CHECK(states[0].shadow.offset.x == doctest::Approx(2.0f));
+    CHECK(states[0].shadow.offset.y == doctest::Approx(3.0f));
+}
+
 TEST_CASE("P1-10: caret resolves from the placed glyph run and blinks") {
     TextRunShape shape;
     auto layout = std::make_shared<TextRunLayout>();
