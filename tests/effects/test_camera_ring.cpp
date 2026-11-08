@@ -19,7 +19,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/effects/camera_ring.hpp>
 #include <chronon3d/math/color.hpp>
-#include "src/backends/software/processors/effects/blur/camera_ring.hpp"
+#include "src/backends/software/processors/effects/blur/camera_ring_processor.hpp"
 #include "tests/effects/test_helpers.hpp"
 
 #include <algorithm>

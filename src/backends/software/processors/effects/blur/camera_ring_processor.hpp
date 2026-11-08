@@ -1,7 +1,7 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// camera_ring.hpp — software kernel for Petzval field-curvature defocus.
+// camera_ring_processor.hpp — software kernel for Petzval field-curvature defocus.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/memory/framebuffer.hpp>

@@ -1,4 +1,4 @@
-#include "camera_ring.hpp"
+#include "camera_ring_processor.hpp"
 
 #include <chronon3d/effects/camera_ring.hpp>
 
