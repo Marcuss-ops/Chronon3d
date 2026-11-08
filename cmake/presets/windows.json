@@ -11,15 +11,15 @@
         "rhs": "Windows"
       },
       "displayName": "Windows Release CI",
-      "description": "Windows release CI preset matching the win/win-test aliases consumed by .github/workflows/ci.yml.",
+      "description": "Windows release CI preset matching the win/win-test aliases consumed by .github/workflows/ci.yml. IPC is off because the only transport implementation is the Linux memfd backend.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "VCPKG_TARGET_TRIPLET": "x64-windows",
         "CHRONON3D_BUILD_CLI": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_ENABLE_IPC": "ON",
+        "CHRONON3D_ENABLE_IPC": "OFF",
         "CHRONON3D_ENABLE_VERIFICATION": "ON",
-        "VCPKG_MANIFEST_FEATURES": "tests;ipc"
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     }
   ],
@@ -27,7 +27,7 @@
     {
       "name": "win",
       "configurePreset": "win-release",
-      "jobs": 8
+      "jobs": 4
     }
   ],
   "testPresets": [
