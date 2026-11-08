@@ -136,7 +136,7 @@ orchestrazione) resta in
 build, CTest e gate. Vedi [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) per
 lo stato aggiornato.
 
-## Windows release lane (same-SHA)
+## Windows release lane (same-SHA, manual-only)
 
 `.github/workflows/ci.yml` contiene il job `Windows (Release)`: configura il
 preset `win-release`, costruisce `chronon3d_cli` e i test, esegue
@@ -148,9 +148,8 @@ preset `win-release`, costruisce `chronon3d_cli` e i test, esegue
 | `windows-release.json` | commit completo, versione, preset, dimensione e hash di ogni artefatto |
 | `ci_status.json` | conteggi dei test prodotti da `tools/ci_status_from_junit.py` sullo stesso commit |
 
-La corsia fa parte della `Chronon CI` canonica su ogni trigger: su pull request
-e push esegue la suite focalizzata (la stessa della corsia Linux), mentre
-`workflow_dispatch` esegue la suite completa. Su Windows l'IPC è disabilitato:
+La corsia è **manuale** (`workflow_dispatch`): non viene eseguita su push né su
+pull request e non è richiesta da `main-truth`. Su Windows l'IPC è disabilitato:
 l'unico trasporto disponibile è il memfd Linux, quindi la corsia Windows non
 finge di supportarlo. Un checkout con SHA diverso da quello dell'evento, un test
 rosso o un artefatto assente fanno fallire il job: non esiste un percorso
@@ -164,9 +163,9 @@ Le fasi CI canoniche in `tools/gates/manifest.sh` sono `build_fast` e
 `chronon3d_tests_fast` e il CTest focalizzato, non l'aggregato
 `chronon3d_tests`. La build Debug completa riempiva il disco del runner hosted
 da 14 GiB e moriva con `No space left on device` prima di arrivare ai test. La
-suite completa resta un gate di release separato (eseguibile con
-`workflow_dispatch`, che la corsia Windows usa già) e non è implicita nel verde
-di `main-truth`.
+suite completa, la corsia Windows e `Gate 8 / golden-e2e` restano gate di
+release separati, eseguibili solo con `workflow_dispatch`, e non sono impliciti
+nel verde di `main-truth`.
 
 ## Criterio di chiusura
 
