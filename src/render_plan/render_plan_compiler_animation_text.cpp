@@ -229,6 +229,13 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
             animator.properties.push_back(chronon3d::ReflowLineSpacingProperty{
                 animated_text_value(track, 0.0f, track.property, fps)});
             break;
+        case AnimationPropertyKind::LineAnchor: {
+            const int mode = track.keyframes.empty() ? 0 :
+                static_cast<int>(scalar_value(track.keyframes.front(), "line_anchor"));
+            animator.properties.push_back(chronon3d::LineAnchorProperty{
+                static_cast<chronon3d::LineAnchorMode>(mode)});
+            break;
+        }
         case AnimationPropertyKind::GlyphShadowColor:
             animator.properties.push_back(chronon3d::GlyphShadowColorProperty{
                 animated_text_color(track, track.property, fps,

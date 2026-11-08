@@ -1807,7 +1807,8 @@
             "glyph_gradient_end_color",
             "glyph_gradient_angle",
             "reflow_word_spacing",
-            "reflow_line_spacing"
+            "reflow_line_spacing",
+            "line_anchor"
           ]
         },
         "easing": {
@@ -2251,6 +2252,38 @@
                       "type": "integer",
                       "minimum": -10000,
                       "maximum": 10000
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "property": {
+                "const": "line_anchor"
+              }
+            },
+            "required": [
+              "property"
+            ]
+          },
+          "then": {
+            "properties": {
+              "keyframes": {
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "properties": {
+                    "frame": {
+                      "const": 0
+                    },
+                    "value": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 2
                     }
                   }
                 }

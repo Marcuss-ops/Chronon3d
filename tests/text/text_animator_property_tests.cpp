@@ -985,6 +985,56 @@ TEST_CASE("Property: LineSpacingProperty adds a cumulative gap between lines") {
     CHECK(states[2].position.y == doctest::Approx(16.0f));
 }
 
+TEST_CASE("Property: LineAnchorProperty shifts the block from the first-line baseline") {
+    auto placed = make_test_placed_run_prop(1);
+    placed.ascent = 12.0f;
+    placed.descent = 4.0f;
+    placed.total_height = 36.0f;  // two 16px lines plus 4px leading
+
+    const auto shift_for = [&](LineAnchorMode mode) {
+        TextAnimatorSpec spec;
+        spec.id = "line_anchor";
+        spec.selectors.push_back({});
+        spec.selectors.back().shape = TextSelectorShape::Square;
+        spec.selectors.back().amount.set(100.0f);
+        spec.properties.push_back(LineAnchorProperty{mode});
+        const auto states = evaluate_animator_stack(
+            {spec}, placed, "A",
+            SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+        REQUIRE(states.size() == 1);
+        return states[0].position.y;
+    };
+
+    CHECK(shift_for(LineAnchorMode::Top) == doctest::Approx(12.0f));
+    CHECK(shift_for(LineAnchorMode::Center) == doctest::Approx(-6.0f));
+    CHECK(shift_for(LineAnchorMode::Bottom) == doctest::Approx(-24.0f));
+}
+
+TEST_CASE("Property: LineAnchorProperty composes with LineSpacing without shifting line 0 twice") {
+    TextAnimatorSpec spec;
+    spec.id = "line_anchor_spacing";
+    spec.selectors.push_back({});
+    spec.selectors.back().shape = TextSelectorShape::Square;
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(LineAnchorProperty{LineAnchorMode::Top});
+    spec.properties.push_back(LineSpacingProperty{8.0f});
+
+    auto placed = make_test_placed_run_at_byte_offsets({0, 2, 4});
+    placed.ascent = 12.0f;
+    placed.total_height = 48.0f;
+
+    const auto states = evaluate_animator_stack(
+        {spec}, placed, "a\nb\nc",
+        SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+
+    REQUIRE(states.size() == 3);
+    // Anchor: +12 for every glyph.  Line spacing: +0/+8/+16, so line 0
+    // receives only the anchor shift.
+    CHECK(states[0].position.y == doctest::Approx(12.0f));
+    CHECK(states[1].position.y == doctest::Approx(20.0f));
+    CHECK(states[2].position.y == doctest::Approx(28.0f));
+}
+
 TEST_CASE("Property: TrackingProperty with partial selector weight halves the spread") {
     // weight=50% means each glyph still gets the same RUNNING cumulative
     // (the apply uses the current value before increment), but the
