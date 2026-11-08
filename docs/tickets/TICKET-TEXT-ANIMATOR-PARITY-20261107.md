@@ -1,6 +1,6 @@
 # TICKET-TEXT-ANIMATOR-PARITY-20261107 — After Effects text-animator parity
 
-**Status:** OPEN — P0 `Word Spacing` / `Line Spacing`, P1-02 animated `Character Offset`, P1-06/P1-07 software effects, P1-10 caret and P2-05 reflow implemented and verified (2026-11-08); P1/P2 backlog open.
+**Status:** OPEN — P0 `Word Spacing` / `Line Spacing`, P1-02 animated `Character Offset`, P1-04 `Line Anchor`, P1-06/P1-07 software effects, P1-10 caret and P2-05 reflow implemented and verified (2026-11-08); P1/P2 backlog open.
 **Owner:** Chronon3D text/runtime.
 **Scope:** animated text layers, not full SVG text. SVG-specific gaps remain in
 [`TICKET-SVG-TEXT-PARITY-REMAINING.md`](TICKET-SVG-TEXT-PARITY-REMAINING.md) and
@@ -118,7 +118,7 @@ missing.
 | P1-01 | Character Value / arbitrary codepoint substitution per selector | Character Value | PreShaping | OPEN |
 | P1-02 | Fully animated Character Offset (all keyframes, selector-driven) | Character Offset | PreShaping | **DONE (run-level)** |
 | P1-03 | Character Alignment / per-character anchor alignment | Character Alignment | PostLayout | OPEN |
-| P1-04 | Line Anchor (top/center/bottom) | Line Anchor | PostLayout | OPEN |
+| P1-04 | Line Anchor (top/center/bottom) | Line Anchor | PostLayout | **DONE** |
 | P1-05 | Anchor Point Grouping (character/word/line/all) | Anchor Point Grouping | PostLayout | OPEN |
 | P1-06 | Per-glyph shadow and per-glyph glow | Per-character shadow/glow | PostRaster/PostLayout | **DONE (software)** |
 | P1-07 | Per-glyph gradient fill | Gradient Fill per character | PostLayout | **DONE (software)** |
@@ -266,6 +266,20 @@ The 2026-11-07 note below about the test executables not being run is superseded
 - `chronon3d_text_animator_property_tests`: **44/44 cases, 213/213
   assertions**.
 
+### P1-04 evidence (2026-11-08)
+
+- Build `-j14` of `chronon3d_core_tests`, `chronon3d_c_abi_tests` and
+  `chronon3d_text_animator_property_tests`: **583/583 steps, exit 0**.
+- `chronon3d_text_animator_property_tests`: **46/46 cases, 223/223
+  assertions** (two new Line Anchor cases: Top/Center/Bottom shifts
+  `12/-6/-24` with `ascent=12`, `total_height=36`; composition with
+  `LineSpacing=8` yields y `12/20/28`, so line 0 is not shifted twice).
+- `chronon3d_c_abi_tests --test-case='*line_anchor*'`: **1/1 case, 7/7
+  assertions** (mode 2 accepted; 3, 1.5 and multi-keyframe rejected).
+- `chronon3d_c_abi_tests`: **454/454 cases, 10070/10070 assertions**.
+- `chronon3d_core_tests --test-case='*CharacterOffset*'`: **25/25 cases,
+  35/35 assertions** (P1-02 regression gate).
+
 ### Session evidence (2026-11-07)
 
 - `chronon3d_text_core` built cleanly: 6/6 steps.
@@ -323,10 +337,20 @@ The 2026-11-07 note below about the test executables not being run is superseded
 
 ### P1-04 — Line Anchor
 
-1. Define top/center/bottom anchors relative to the first line baseline.
-2. Add a PostLayout property that shifts all glyphs by the anchor offset.
-3. Compose it with Line Spacing without double-applying line 0.
-4. Add V3 serialization and tests.
+**Implemented (2026-11-08).**
+
+1. **DONE** — `LineAnchorMode { Top, Center, Bottom }` is defined relative to
+   the authored block extents: `Top = +ascent`, `Center = ascent -
+   total_height/2`, `Bottom = ascent - total_height`, with the first-line
+   baseline at glyph `y = 0`.
+2. **DONE** — `LineAnchorProperty` is PostLayout and run-level: the evaluator
+   computes one uniform vertical shift from `PlacedGlyphRun::ascent` and
+   `total_height` and applies it to every glyph. Selectors do not scope it.
+3. **DONE** — Line Spacing keeps its cumulative gap at zero on line 0, so the
+   anchor shift and the spacing gaps compose without shifting line 0 twice.
+4. **DONE** — V3 `line_anchor` accepts exactly one integer mode keyframe
+   (0=Top, 1=Center, 2=Bottom) at frame 0; the schema, decoder and compiler
+   share the same bound.
 
 ### P1-05 — Anchor Point Grouping
 
@@ -400,7 +424,9 @@ rejects an enabled caret. RTL pixel certification remains open.
   only the new `Reflow*` properties perform true paragraph reflow.
 - P1-02 offsets are run-level: selectors are resolved after shaping, so a
   selector-scoped Character Offset would need a pre-shaping unit map and is not
-  part of this contract.
+  part of this contract. The design for that map is ADR-037.
+- P1-04 Line Anchor is run-level and uses the authored `PlacedGlyphRun` extents
+  (`ascent`, `total_height`); it is not selector-scoped.
 - The V2 animator enum stays frozen.
 - The run-level GPU fast path remains narrower than the per-glyph MTSDF route.
 - No unrelated render-plan, SVG, or text-quality files are changed by this
@@ -419,6 +445,9 @@ Implemented and verified in this session:
 - **P1-02:** animated Character Offset (`AnimatedValue<f32>`, V3 multi-keyframe,
   stable pre-shaping source, stateless per-frame evaluation) verified by core,
   animator and decoder suites.
+- **P1-04:** static Line Anchor (`Top`/`Center`/`Bottom`) with a run-level
+  PostLayout shift from `ascent`/`total_height`, V3 single-keyframe enum and
+  Line Spacing composition verified by animator and C ABI decoder suites.
 
 Focused evidence (Linux video release, `-j12`):
 
@@ -436,5 +465,5 @@ Focused evidence (Linux video release, `-j12`):
 
 Still open: native MTSDF pixel parity for per-glyph shadow/glow/gradient and a
 native caret quad; RTL caret pixel certification. These are fail-closed, not
-silently degraded. P1-01/P1-03/P1-04/P1-05/P1-08/P1-09 and P2-01/P2-04 remain
+silently degraded. P1-01/P1-03/P1-05/P1-08/P1-09 and P2-01/P2-04 remain
 outside this completion.

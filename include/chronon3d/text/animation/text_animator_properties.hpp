@@ -169,6 +169,20 @@ struct LineSpacingProperty {
     AnimatedValue<f32> pixels{0.0f};
 };
 
+/// P1-04 — run-level vertical anchor for the whole text block.  The shift is
+/// measured from the first-line baseline (glyph y = 0) and applied uniformly
+/// to every glyph in PostLayout.  Line Spacing keeps line 0 at zero, so the
+/// two properties compose without shifting line 0 twice.
+enum class LineAnchorMode : u8 {
+    Top = 0,     // top of the block (baseline - ascent) at the origin
+    Center = 1,  // vertical centre of the whole block at the origin
+    Bottom = 2,  // bottom of the last line (block height - ascent) at the origin
+};
+
+struct LineAnchorProperty {
+    LineAnchorMode mode{LineAnchorMode::Top};
+};
+
 /// After Effects-style Character Offset: shifts the character value
 /// (code point) by a sampled amount.  The animated value is evaluated at
 /// the frame time and rounded to an integer codepoint shift.  Wraps within
@@ -281,7 +295,8 @@ using TextAnimatorProperty = std::variant<
     GlyphGradientEndColorProperty,
     GlyphGradientAngleProperty,
     ReflowWordSpacingProperty,
-    ReflowLineSpacingProperty
+    ReflowLineSpacingProperty,
+    LineAnchorProperty
 >;
 
 } // namespace chronon3d

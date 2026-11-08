@@ -90,6 +90,36 @@ void evaluate_animator(
     bool saw_word = false;
     bool saw_line = false;
 
+    // ── P1-04 — run-level line anchor ────────────────────────────────────
+    // The mode is a static enum; the shift is derived once from the authored
+    // layout extents and applied to every glyph.  Line Spacing starts its
+    // cumulative gap at zero on line 0, so the two compose without shifting
+    // the first line twice.
+    bool has_line_anchor = false;
+    LineAnchorMode line_anchor_mode{LineAnchorMode::Top};
+    for (const auto& prop : spec.properties) {
+        if (const auto* anchor = std::get_if<LineAnchorProperty>(&prop)) {
+            line_anchor_mode = anchor->mode;
+            has_line_anchor = true;
+        }
+    }
+    f32 line_anchor_shift = 0.0f;
+    if (has_line_anchor && placed != nullptr && glyph_count > 0) {
+        const f32 ascent = placed->ascent;
+        const f32 block_height = placed->total_height;
+        switch (line_anchor_mode) {
+            case LineAnchorMode::Top:
+                line_anchor_shift = ascent;
+                break;
+            case LineAnchorMode::Center:
+                line_anchor_shift = ascent - block_height * 0.5f;
+                break;
+            case LineAnchorMode::Bottom:
+                line_anchor_shift = ascent - block_height;
+                break;
+        }
+    }
+
     for (size_t gi = 0; gi < glyph_count; ++gi) {
         // Compute combined selector weight for this glyph (compiled path).
         SelectorWeight weight = evaluate_compiled_selectors(
@@ -126,6 +156,13 @@ void evaluate_animator(
             line_spacing_offset = cumulative_line_spacing;
         }
 
+        if (has_line_anchor) {
+            if (spec.transform_mode == TextPropertyBlendMode::Replace)
+                glyph_states[gi].position.y = line_anchor_shift;
+            else
+                glyph_states[gi].position.y += line_anchor_shift;
+        }
+
         // Apply each property scaled by the weight.
         for (const auto& prop : spec.properties) {
             // FASE 2a: skip PreShaping properties — they're already
@@ -133,6 +170,7 @@ void evaluate_animator(
             // the animator stack.  Skipping here avoids wasted
             // std::visit dispatch to the no-op branch.
             if (std::holds_alternative<CharacterOffsetProperty>(prop) ||
+                std::holds_alternative<LineAnchorProperty>(prop) ||
                 std::holds_alternative<ReflowWordSpacingProperty>(prop) ||
                 std::holds_alternative<ReflowLineSpacingProperty>(prop)) {
                 continue;

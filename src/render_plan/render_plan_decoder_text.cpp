@@ -228,7 +228,7 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                 "text animator property track");
             auto track = decode_animation_track(property);
             const auto allowed_property = [](const std::string& property) {
-                static constexpr std::array<std::string_view, 36> properties{
+                static constexpr std::array<std::string_view, 37> properties{
                     "position", "position_x", "position_y", "scale", "scale_x", "scale_y",
                     "opacity", "blur", "tracking", "word_spacing", "line_spacing",
                     "reflow_word_spacing", "reflow_line_spacing",
@@ -239,7 +239,8 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                     "glyph_shadow_color", "glyph_shadow_offset", "glyph_shadow_blur",
                     "glyph_shadow_opacity", "glyph_glow_color", "glyph_glow_radius",
                     "glyph_glow_intensity", "glyph_gradient_start_color",
-                    "glyph_gradient_end_color", "glyph_gradient_angle"};
+                    "glyph_gradient_end_color", "glyph_gradient_angle",
+                    "line_anchor"};
                 return std::find(properties.begin(), properties.end(), property) != properties.end();
             };
             if (!allowed_property(track.property))
@@ -310,6 +311,15 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                         std::floor(key.value[0]) != key.value[0])
                         throw std::runtime_error("character_offset keyframes require integer values in [-10000, 10000]");
                 }
+            } else if (track.property == "line_anchor") {
+                if (track.keyframes.size() != 1 ||
+                    track.keyframes.front().frame.integral() != 0 ||
+                    track.keyframes.front().value[0] < 0.0f ||
+                    track.keyframes.front().value[0] > 2.0f ||
+                    std::floor(track.keyframes.front().value[0]) !=
+                        track.keyframes.front().value[0])
+                    throw std::runtime_error(
+                        "line_anchor requires exactly one integer mode keyframe (0..2) at frame 0");
             } else if (track.property == "anchor") {
                 for (const auto& key : track.keyframes) {
                     if (key.value.empty() || key.value.size() > 3) {

@@ -59,6 +59,7 @@ enum class AnimationPropertyKind : std::uint8_t {
     GlyphGradientAngle,
     ReflowWordSpacing,
     ReflowLineSpacing,
+    LineAnchor,
 };
 
 [[nodiscard]] inline AnimationPropertyKind animation_property_kind(std::string_view name) {
@@ -99,6 +100,7 @@ enum class AnimationPropertyKind : std::uint8_t {
         {"glyph_gradient_angle", Kind::GlyphGradientAngle},
         {"reflow_word_spacing", Kind::ReflowWordSpacing},
         {"reflow_line_spacing", Kind::ReflowLineSpacing},
+        {"line_anchor", Kind::LineAnchor},
         {"light_intensity", Kind::LightIntensity},
         {"light_color", Kind::LightColor},
         {"light_direction", Kind::LightDirection},

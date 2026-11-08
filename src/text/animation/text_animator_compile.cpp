@@ -249,7 +249,8 @@ bool TextAnimatorSpec::is_valid() const {
                            detail::check_clean_av(p.padding_em) &&
                            detail::check_clean_av(p.radius_em);
                 } else {
-                    // CharacterOffsetProperty is sampled and rounded to an integer.
+                    // Static-only properties (e.g. LineAnchorProperty) have
+                    // no AnimatedValue to validate.
                     return true;
                 }
             },
