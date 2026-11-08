@@ -1,0 +1,297 @@
+{
+  "schema": "chronon.broadcast-six-test.v1",
+  "tested_at": "2026-11-08T10:27:18.187710+00:00",
+  "inputs": {
+    "plan": null,
+    "morph": null,
+    "canary_frames": 0,
+    "hierarchy_plan": null,
+    "hierarchy_frames": 0,
+    "audit_dir": "docs/evidence/camera-ring-text-drive-20261108"
+  },
+  "tests": {
+    "5a_subpixel_4k": {
+      "status": "NOT_RUN",
+      "metrics": {},
+      "reason": "raw frames not supplied"
+    },
+    "5b_subpixel_720": {
+      "status": "NOT_RUN",
+      "metrics": {},
+      "reason": "raw frames not supplied"
+    }
+  },
+  "audit": {
+    "camera_ring_text_01_calories.plan.json": {
+      "1_velocity_profile": {
+        "status": "FAIL",
+        "metrics": {
+          "track_layer": "calories_title",
+          "track_property": "scale",
+          "duration_frames": 299.0,
+          "peak_time_normalized": 0.0292,
+          "tail_speed_ratio": 1.0,
+          "max_acceleration_step_ratio": 0.0,
+          "peak_speed_per_frame": 0.003344,
+          "samples": 481
+        },
+        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+      },
+      "3_hierarchy_stagger": {
+        "status": "N/A",
+        "metrics": {
+          "animated_layers": 1,
+          "start_frames": [
+            0
+          ],
+          "stagger_ms": [],
+          "distinct_starts": 1
+        },
+        "reason": "single-focus composition; stagger hierarchy is not applicable"
+      },
+      "4_trim_dynamics": {
+        "status": "N/A",
+        "metrics": {},
+        "reason": "no animated trim path"
+      },
+      "6_materiality_static": {
+        "status": "FAIL",
+        "metrics": {
+          "bevel_present": false,
+          "bevel_layer": null,
+          "bevel_params": {},
+          "grain_present": false,
+          "chroma_present": true,
+          "vignette_present": true
+        },
+        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+      }
+    },
+    "camera_ring_text_02_sharp_center.plan.json": {
+      "1_velocity_profile": {
+        "status": "FAIL",
+        "metrics": {
+          "track_layer": "sharp_center_title",
+          "track_property": "scale",
+          "duration_frames": 239.0,
+          "peak_time_normalized": 0.0292,
+          "tail_speed_ratio": 1.0,
+          "max_acceleration_step_ratio": 0.0,
+          "peak_speed_per_frame": 0.004184,
+          "samples": 481
+        },
+        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+      },
+      "3_hierarchy_stagger": {
+        "status": "N/A",
+        "metrics": {
+          "animated_layers": 1,
+          "start_frames": [
+            0
+          ],
+          "stagger_ms": [],
+          "distinct_starts": 1
+        },
+        "reason": "single-focus composition; stagger hierarchy is not applicable"
+      },
+      "4_trim_dynamics": {
+        "status": "N/A",
+        "metrics": {},
+        "reason": "no animated trim path"
+      },
+      "6_materiality_static": {
+        "status": "FAIL",
+        "metrics": {
+          "bevel_present": false,
+          "bevel_layer": null,
+          "bevel_params": {},
+          "grain_present": false,
+          "chroma_present": true,
+          "vignette_present": true
+        },
+        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+      }
+    },
+    "camera_ring_text_03_every_detail.plan.json": {
+      "1_velocity_profile": {
+        "status": "FAIL",
+        "metrics": {
+          "track_layer": "every_detail_title",
+          "track_property": "scale",
+          "duration_frames": 179.0,
+          "peak_time_normalized": 0.0292,
+          "tail_speed_ratio": 1.0,
+          "max_acceleration_step_ratio": 0.0,
+          "peak_speed_per_frame": 0.005587,
+          "samples": 481
+        },
+        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+      },
+      "3_hierarchy_stagger": {
+        "status": "N/A",
+        "metrics": {
+          "animated_layers": 1,
+          "start_frames": [
+            0
+          ],
+          "stagger_ms": [],
+          "distinct_starts": 1
+        },
+        "reason": "single-focus composition; stagger hierarchy is not applicable"
+      },
+      "4_trim_dynamics": {
+        "status": "N/A",
+        "metrics": {},
+        "reason": "no animated trim path"
+      },
+      "6_materiality_static": {
+        "status": "FAIL",
+        "metrics": {
+          "bevel_present": false,
+          "bevel_layer": null,
+          "bevel_params": {},
+          "grain_present": false,
+          "chroma_present": true,
+          "vignette_present": true
+        },
+        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+      }
+    },
+    "camera_ring_text_04_soft_amber.plan.json": {
+      "1_velocity_profile": {
+        "status": "FAIL",
+        "metrics": {
+          "track_layer": "soft_amber_title",
+          "track_property": "scale",
+          "duration_frames": 239.0,
+          "peak_time_normalized": 0.0292,
+          "tail_speed_ratio": 1.0,
+          "max_acceleration_step_ratio": 0.0,
+          "peak_speed_per_frame": 0.004184,
+          "samples": 481
+        },
+        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+      },
+      "3_hierarchy_stagger": {
+        "status": "N/A",
+        "metrics": {
+          "animated_layers": 1,
+          "start_frames": [
+            0
+          ],
+          "stagger_ms": [],
+          "distinct_starts": 1
+        },
+        "reason": "single-focus composition; stagger hierarchy is not applicable"
+      },
+      "4_trim_dynamics": {
+        "status": "N/A",
+        "metrics": {},
+        "reason": "no animated trim path"
+      },
+      "6_materiality_static": {
+        "status": "FAIL",
+        "metrics": {
+          "bevel_present": false,
+          "bevel_layer": null,
+          "bevel_params": {},
+          "grain_present": false,
+          "chroma_present": true,
+          "vignette_present": true
+        },
+        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+      }
+    },
+    "camera_ring_text_05_high_chroma.plan.json": {
+      "1_velocity_profile": {
+        "status": "FAIL",
+        "metrics": {
+          "track_layer": "high_chroma_title",
+          "track_property": "scale",
+          "duration_frames": 179.0,
+          "peak_time_normalized": 0.0292,
+          "tail_speed_ratio": 1.0,
+          "max_acceleration_step_ratio": 0.0,
+          "peak_speed_per_frame": 0.005587,
+          "samples": 481
+        },
+        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+      },
+      "3_hierarchy_stagger": {
+        "status": "N/A",
+        "metrics": {
+          "animated_layers": 1,
+          "start_frames": [
+            0
+          ],
+          "stagger_ms": [],
+          "distinct_starts": 1
+        },
+        "reason": "single-focus composition; stagger hierarchy is not applicable"
+      },
+      "4_trim_dynamics": {
+        "status": "N/A",
+        "metrics": {},
+        "reason": "no animated trim path"
+      },
+      "6_materiality_static": {
+        "status": "FAIL",
+        "metrics": {
+          "bevel_present": false,
+          "bevel_layer": null,
+          "bevel_params": {},
+          "grain_present": false,
+          "chroma_present": true,
+          "vignette_present": true
+        },
+        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+      }
+    },
+    "camera_ring_text_06_monochrome.plan.json": {
+      "1_velocity_profile": {
+        "status": "FAIL",
+        "metrics": {
+          "track_layer": "monochrome_title",
+          "track_property": "scale",
+          "duration_frames": 209.0,
+          "peak_time_normalized": 0.0292,
+          "tail_speed_ratio": 1.0,
+          "max_acceleration_step_ratio": 0.0,
+          "peak_speed_per_frame": 0.004785,
+          "samples": 481
+        },
+        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+      },
+      "3_hierarchy_stagger": {
+        "status": "N/A",
+        "metrics": {
+          "animated_layers": 1,
+          "start_frames": [
+            0
+          ],
+          "stagger_ms": [],
+          "distinct_starts": 1
+        },
+        "reason": "single-focus composition; stagger hierarchy is not applicable"
+      },
+      "4_trim_dynamics": {
+        "status": "N/A",
+        "metrics": {},
+        "reason": "no animated trim path"
+      },
+      "6_materiality_static": {
+        "status": "FAIL",
+        "metrics": {
+          "bevel_present": false,
+          "bevel_layer": null,
+          "bevel_params": {},
+          "grain_present": false,
+          "chroma_present": false,
+          "vignette_present": true
+        },
+        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain; no peripheral chromatic dispersion"
+      }
+    }
+  },
+  "overall": "PASS"
+}

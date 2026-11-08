@@ -1,4 +1,5 @@
 #include "native_av_encoder.hpp"
+#include "tone_map_apply.hpp"
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
@@ -92,12 +93,16 @@ bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) 
         return false;
     }
 
+    auto tone_mapped = apply_output_tone_map(
+        fb, options_.color_transform, "native_av",
+        static_cast<std::int64_t>(frames_written_));
     std::optional<Framebuffer> ocio_frame;
-    const Framebuffer* conversion_source = &fb;
+    const Framebuffer* conversion_source =
+        tone_mapped ? &*tone_mapped : &fb;
     bool ocio_applied = false;
 #ifdef CHRONON3D_ENABLE_OCIO
     if (ocio_output_transform_) {
-        ocio_frame.emplace(fb);
+        ocio_frame.emplace(*conversion_source);
         // Video has no alpha plane. Composite over black in scene-linear
         // premultiplied space before a nonlinear display transform.
         for (int y = 0; y < ocio_frame->height(); ++y) {

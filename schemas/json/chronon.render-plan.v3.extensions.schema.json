@@ -84,6 +84,7 @@
             "light.glow",
             "light.bloom",
             "distort.fake_3d_wave",
+            "light.sdf_bevel",
             "color.saturation",
             "color.hue_rotate",
             "color.invert",
@@ -289,6 +290,7 @@
             "light.glow",
             "light.bloom",
             "distort.fake_3d_wave",
+            "light.sdf_bevel",
             "color.saturation",
             "color.hue_rotate",
             "color.invert",
@@ -6506,7 +6508,7 @@
                     "samples": {
                       "type": "integer",
                       "minimum": 1,
-                      "maximum": 16
+                      "maximum": 64
                     }
                   }
                 },

@@ -32,7 +32,9 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
+#include <string_view>
 
 namespace chronon3d {
 namespace color {
@@ -56,6 +58,26 @@ enum class ToneMapOperator : uint8_t {
     Reinhard,
     AcesFitted,
 };
+
+/// Stable wire/CLI name for a tone-map operator. The parser and the option
+/// vocabulary both read this table, so names cannot drift from the enum.
+[[nodiscard]] inline const char* tone_map_operator_name(
+    ToneMapOperator op) noexcept {
+    switch (op) {
+        case ToneMapOperator::None:       return "none";
+        case ToneMapOperator::Reinhard:   return "reinhard";
+        case ToneMapOperator::AcesFitted: return "aces";
+    }
+    return "none";
+}
+
+[[nodiscard]] inline std::optional<ToneMapOperator> parse_tone_map_operator(
+    std::string_view name) noexcept {
+    if (name == "none")     return ToneMapOperator::None;
+    if (name == "reinhard") return ToneMapOperator::Reinhard;
+    if (name == "aces")     return ToneMapOperator::AcesFitted;
+    return std::nullopt;
+}
 
 // ---------------------------------------------------------------------------
 // Rgb8 — 8-bit per channel RGB (no alpha)

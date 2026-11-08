@@ -40,6 +40,12 @@ namespace chronon3d::graph::detail {
                     effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
             break;
         }
+        case SdfBevel: {
+            if (auto* p = std::get_if<SdfBevelParams>(&inst.params))
+                max_spread = std::max(max_spread,
+                    effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
+            break;
+        }
         case Glow: {
             if (auto* p = std::get_if<GlowParams>(&inst.params))
                 max_spread = std::max(max_spread,
@@ -96,6 +102,15 @@ LayerSpatialHalo compute_layer_spatial_halo(const Layer& layer) {
             break;
         case DropShadow:
             if (const auto* p = std::get_if<DropShadowParams>(&inst.params)) {
+                const auto effect_halo = effects::effect_spatial_halo(*p);
+                halo.left = std::max(halo.left, effect_halo.left);
+                halo.top = std::max(halo.top, effect_halo.top);
+                halo.right = std::max(halo.right, effect_halo.right);
+                halo.bottom = std::max(halo.bottom, effect_halo.bottom);
+            }
+            break;
+        case SdfBevel:
+            if (const auto* p = std::get_if<SdfBevelParams>(&inst.params)) {
                 const auto effect_halo = effects::effect_spatial_halo(*p);
                 halo.left = std::max(halo.left, effect_halo.left);
                 halo.top = std::max(halo.top, effect_halo.top);

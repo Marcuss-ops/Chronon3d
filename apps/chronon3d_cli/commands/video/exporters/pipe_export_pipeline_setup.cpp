@@ -4,6 +4,7 @@
 #include "../../../utils/video/encoder_config_resolution.hpp"
 #include "../../../utils/video/variant_batch.hpp"
 
+#include <chronon3d/color/output_transform.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -350,6 +351,16 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         return session;
     }
     pipe_options->direct_yuv_mode = direct_yuv_requested;
+    if (pipe_options->direct_yuv_mode &&
+        (pipe_options->color_transform.tone_map !=
+             color::ToneMapOperator::None ||
+         pipe_options->color_transform.exposure != 1.0f)) {
+        spdlog::error(
+            "[video] tone-map/exposure requires the host-frame encoder lane; "
+            "direct-yuv bypasses the linear framebuffer");
+        session->encoder.reset();
+        return session;
+    }
     pipe_options->audio_start_seconds = static_cast<double>(start.integral()) /
         (opts.output.fps_value() > 0.0 ? opts.output.fps_value() : 30.0);
     pipe_options->audio_end_seconds = static_cast<double>(end.integral()) /

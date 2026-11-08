@@ -92,6 +92,7 @@ std::unique_ptr<EffectProcessor> create_scanlines_effect_processor();
 std::unique_ptr<EffectProcessor> create_retro_tv_effect_processor();
 std::unique_ptr<EffectProcessor> create_halation_effect_processor();
 std::unique_ptr<EffectProcessor> create_anamorphic_streak_effect_processor();
+std::unique_ptr<EffectProcessor> create_sdf_bevel_effect_processor();
 
 void register_builtin_processors(SoftwareRegistry& registry) {
     // Shapes
@@ -127,6 +128,7 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_effect_processor<BrightnessParams>(create_brightness_effect_processor());
     registry.register_effect_processor<ContrastParams>(create_contrast_effect_processor());
     registry.register_effect_processor<DropShadowParams>(create_drop_shadow_effect_processor());
+    registry.register_effect_processor<SdfBevelParams>(create_sdf_bevel_effect_processor());
     registry.register_effect_processor<GlowParams>(create_glow_effect_processor());
     registry.register_effect_processor<BloomParams>(create_bloom_effect_processor());
     registry.register_effect_processor<SaturationParams>(create_saturation_effect_processor());

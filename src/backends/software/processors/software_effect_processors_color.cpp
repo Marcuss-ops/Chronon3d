@@ -241,6 +241,16 @@ public:
     }
 };
 
+class SoftwareSdfBevelEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<SdfBevelParams>(&params);
+        if (!p) throw std::runtime_error("SDF bevel processor received invalid parameters");
+        apply_sdf_bevel_effect(fb, *p, context.time_seconds, context.diagnostics_enabled);
+    }
+};
+
 class SoftwareBloomEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
@@ -790,6 +800,10 @@ std::unique_ptr<EffectProcessor> create_glow_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_drop_shadow_effect_processor() {
     return std::make_unique<SoftwareDropShadowEffectProcessor>();
+};
+
+std::unique_ptr<EffectProcessor> create_sdf_bevel_effect_processor() {
+    return std::make_unique<SoftwareSdfBevelEffectProcessor>();
 };
 
 std::unique_ptr<EffectProcessor> create_bloom_effect_processor() {

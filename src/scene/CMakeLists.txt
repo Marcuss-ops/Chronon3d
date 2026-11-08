@@ -8,6 +8,7 @@
 add_library(chronon3d_scene OBJECT
     # Local files outside subsystem dirs
     utils/dark_grid_background.cpp
+    utils/hdr_bokeh_focus_pull.cpp
     # Moved into src/scene/ to eliminate ../ cross-directory references
     timeline_builder.cpp
     layout_solver.cpp

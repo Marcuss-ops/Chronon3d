@@ -11,12 +11,18 @@
 //   r     = length(delta)
 //   CoC   = smoothstep(inner_radius, outer_radius, r)
 //
-// `axis_scale` is the elliptical eccentricity: a smaller Y coefficient keeps
-// a horizontal text corridor sharp while the top/bottom edges fall outside
-// the Petzval focal surface. The blur radius is `CoC * max_blur_radius` in
-// UV-width units; the Y offset is multiplied by aspect ratio so the bokeh
-// disc stays circular in pixel space. Chromatic dispersion is proportional to
-// CoC² and therefore exactly zero on the optical axis.
+// `axis_scale` is the elliptical eccentricity. For a horizontal type line use
+// a large X coefficient (about 1.8-2.0) and a Y coefficient around 0.65-0.75:
+// the safe zone then covers the glyph height while still allowing the line end
+// to enter the defocus falloff. The blur radius is `CoC * max_blur_radius` in
+// UV-width units; the Y offset is multiplied by aspect ratio so the bokeh disc
+// stays circular in pixel space. Chromatic dispersion is proportional to CoC²
+// and therefore exactly zero on the optical axis.
+//
+// Taps use a golden-angle spiral rotated per pixel. A fixed disc becomes
+// visible as N translated copies when the radius is large; rotating the same
+// spiral independently for every pixel breaks that periodicity into a smooth
+// optical grain instead.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/effects/effect_params.hpp>
@@ -25,10 +31,11 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 
 namespace chronon3d::effects {
 
-// 16-sample Poisson disc from the production optical shader contract.
+// Legacy 16-sample Poisson disc, retained for diagnostics and A/B captures.
 inline constexpr std::array<Vec2, 16> kCameraRingPoissonDisc{{
     Vec2{-0.326212f, -0.405810f}, Vec2{-0.840144f, -0.073580f},
     Vec2{-0.695914f,  0.457137f}, Vec2{-0.203345f,  0.620716f},
@@ -44,6 +51,29 @@ inline constexpr std::array<Vec2, 16> kCameraRingPoissonDisc{{
 /// normalized screen coordinates ([0, 1] across the full frame). The function
 /// is C1-continuous across both the inner safe-zone boundary and the outer
 /// saturation radius because smoothstep has zero derivative at both ends.
+/// Golden-angle sample in the unit disc. `rotation` is the per-pixel phase in
+/// radians; the first tap sits exactly on the optical centre.
+[[nodiscard]] inline Vec2 camera_ring_tap_offset(
+    std::uint32_t tap, std::uint32_t taps, float rotation) noexcept {
+    constexpr float kGoldenAngle = 2.399963229728653f;
+    if (taps <= 1) return Vec2{0.0f, 0.0f};
+    const float fi = static_cast<float>(tap);
+    const float radius = std::sqrt(fi / static_cast<float>(taps - 1));
+    const float angle = fi * kGoldenAngle + rotation;
+    return Vec2{std::cos(angle) * radius, std::sin(angle) * radius};
+}
+
+/// Stable per-pixel phase in [0, 1). The hash depends only on the pixel, not
+/// on the frame, so a static shot gets fixed grain instead of temporal boiling.
+[[nodiscard]] inline float camera_ring_pixel_jitter(
+    std::uint32_t x, std::uint32_t y) noexcept {
+    std::uint32_t h = x * 0x8da6b343u ^ y * 0xd8163841u;
+    h ^= h >> 13;
+    h *= 0x85ebca6bu;
+    h ^= h >> 16;
+    return static_cast<float>(h & 0x00ffffffu) / 16777216.0f;
+}
+
 [[nodiscard]] inline float camera_ring_coc(
     const CameraRingParams& params, float u, float v) noexcept {
     const float sx = std::max(params.axis_scale.x, 1.0e-4f);

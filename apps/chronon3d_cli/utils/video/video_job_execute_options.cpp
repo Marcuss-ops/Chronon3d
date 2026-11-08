@@ -35,6 +35,8 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     pipe.pipe_pixfmt = job.video_settings.pipe_pixfmt;
     pipe.pipe_writer = job.video_settings.pipe_writer;
     pipe.color_output = job.video_settings.color_output;
+    pipe.tone_map = job.video_settings.tone_map;
+    pipe.exposure = job.video_settings.exposure;
     pipe.ocio_config_path = job.video_settings.ocio_config_path;
     pipe.ocio_source_space = job.video_settings.ocio_source_space;
     pipe.ocio_display = job.video_settings.ocio_display;

@@ -5,6 +5,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include "../common/render_error_formatter.hpp"
+#include "../video/tone_map_apply.hpp"
 
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
@@ -260,20 +261,48 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
 
     const auto t_encode0 = profiling::now();
 
+    const auto tone_map = color::parse_tone_map_operator(color_settings.tone_map);
+    if (!tone_map) {
+        spdlog::error("Unknown tone-map operator '{}' for output frame {}",
+                      color_settings.tone_map, frame);
+        ok = false;
+        return -1.0;
+    }
+    color::OutputTransformOptions tone_map_options;
+    tone_map_options.tone_map = *tone_map;
+    tone_map_options.exposure = color_settings.exposure;
+
     ImageWriteOptions write_options;
     write_options.format = image_format_from_path(path);
     write_options.exr_white_luminance_nits = exr_white_luminance_nits;
-    const Framebuffer* frame_to_write = fb.get();
+    if (tone_map_requested(tone_map_options) &&
+        write_options.format != ImageFormat::Png) {
+        spdlog::error(
+            "tone-map/exposure is an SDR display transform and requires PNG output; "
+            "EXR stays scene-linear");
+        ok = false;
+        return -1.0;
+    }
+    auto tone_mapped_frame = apply_output_tone_map(
+        *fb, tone_map_options, "still", frame.as_i64());
+    const Framebuffer* frame_to_write =
+        tone_mapped_frame ? &*tone_mapped_frame : fb.get();
 #ifdef CHRONON3D_ENABLE_OCIO
     std::shared_ptr<Framebuffer> transformed_frame;
     if (color_settings.ocio_output_transform) {
+        if (*tone_map != color::ToneMapOperator::None) {
+            spdlog::error(
+                "OCIO display/view and tone-map are mutually exclusive output transforms");
+            ok = false;
+            return -1.0;
+        }
         if (write_options.format != ImageFormat::Png) {
             spdlog::error(
                 "OCIO display/view transforms require PNG output; EXR output must remain scene-linear");
             ok = false;
             return -1.0;
         }
-        transformed_frame = std::make_shared<Framebuffer>(*fb);
+        transformed_frame = std::make_shared<Framebuffer>(*frame_to_write);
         if (!color_settings.ocio_output_transform->apply_framebuffer(*transformed_frame)) {
             spdlog::error("OCIO display/view transform failed for output frame {}", frame);
             ok = false;

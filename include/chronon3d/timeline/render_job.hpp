@@ -100,6 +100,11 @@ struct VideoSettings {
     bool        ffmpeg_verbose{false};
     std::string pipe_pixfmt{"rgba"};
     std::string color_output{"srgb"};
+    // Output-boundary HDR→SDR compression: "none" | "reinhard" | "aces".
+    // Applied to linear light before the output transfer function, so values
+    // above 1.0 are compressed instead of clipped by linear_to_srgb8.
+    std::string tone_map{"none"};
+    float       exposure{1.0f};
     // Optional OCIO display/view transform applied before encoding.
     std::string ocio_config_path;
     std::string ocio_source_space;

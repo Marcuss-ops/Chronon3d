@@ -256,7 +256,7 @@ void decode_camera_ring_effect(LayerPlan::EffectPlan& effect,
                 effect.camera_ring_max_blur_radius = raw_effect.value("max_blur_radius", 0.022f);
                 effect.camera_ring_chroma_dispersion = raw_effect.value("chroma_dispersion", 0.007f);
                 effect.camera_ring_anamorphic_stretch = raw_effect.value("anamorphic_stretch", 1.0f);
-                effect.camera_ring_samples = raw_effect.value("samples", 16u);
+                effect.camera_ring_samples = raw_effect.value("samples", 64u);
                 if (!std::isfinite(effect.camera_ring_inner_radius) ||
                     !std::isfinite(effect.camera_ring_outer_radius) ||
                     effect.camera_ring_inner_radius < 0.0f ||
@@ -275,8 +275,8 @@ void decode_camera_ring_effect(LayerPlan::EffectPlan& effect,
                     effect.camera_ring_anamorphic_stretch < 0.1f ||
                     effect.camera_ring_anamorphic_stretch > 4.0f)
                     throw std::runtime_error("Camera Ring anamorphic_stretch must be in [0.1, 4]");
-                if (effect.camera_ring_samples == 0 || effect.camera_ring_samples > 16)
-                    throw std::runtime_error("Camera Ring samples must be in [1, 16]");
+                if (effect.camera_ring_samples == 0 || effect.camera_ring_samples > 64)
+                    throw std::runtime_error("Camera Ring samples must be in [1, 64]");
 }
 
 void decode_gaussian_blur_effect(LayerPlan::EffectPlan& effect,

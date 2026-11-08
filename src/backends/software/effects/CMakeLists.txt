@@ -11,5 +11,6 @@ target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/glow_pipeline.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/glow_pipeline_converters.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/effect_shadow_impl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/effect_sdf_bevel_impl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/effect_stack.cpp
 )

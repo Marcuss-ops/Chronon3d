@@ -1,0 +1,230 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "broadcast_subpixel_4k",
+  "canvas": {
+    "width": 3840,
+    "height": 2160,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 30
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "color",
+      "color": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "size": [
+        3840,
+        2160
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 30
+    },
+    {
+      "id": "vertical_line",
+      "type": "shape",
+      "size": [
+        3840,
+        2160
+      ],
+      "position": [
+        0.0,
+        0.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 30,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -921.5999999999999,
+              -324.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -921.5999999999999,
+              324.0
+            ]
+          }
+        ],
+        "stroke": {
+          "color": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "width": 3.0
+        },
+        "fill": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": [
+                  1.0,
+                  1.0
+                ]
+              },
+              {
+                "frame": 29,
+                "value": [
+                  0.9967447916666666,
+                  0.9967447916666666
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "horizontal_line",
+      "type": "shape",
+      "size": [
+        3840,
+        2160
+      ],
+      "position": [
+        0.0,
+        0.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 30,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -576.0,
+              604.8
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              576.0,
+              604.8
+            ]
+          }
+        ],
+        "stroke": {
+          "color": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "width": 3.0
+        },
+        "fill": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": [
+                  1.0,
+                  1.0
+                ]
+              },
+              {
+                "frame": 29,
+                "value": [
+                  1.0049603174603174,
+                  1.0049603174603174
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "left_plate",
+      "type": "shape",
+      "size": [
+        230.89999999999998,
+        432.0
+      ],
+      "position": [
+        883.4499999999998,
+        -216.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 30,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.9,
+          0.9,
+          0.9,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "right_plate",
+      "type": "shape",
+      "size": [
+        230.89999999999998,
+        432.0
+      ],
+      "position": [
+        1113.35,
+        -216.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 30,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.9,
+          0.9,
+          0.9,
+          1.0
+        ]
+      }
+    }
+  ],
+  "output": {
+    "path": "broadcast_subpixel_4k.mp4",
+    "format": "mp4",
+    "codec": "h264",
+    "color_space": "srgb"
+  }
+}

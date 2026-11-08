@@ -697,6 +697,19 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             .length = effect.directional_length,
                             .samples = effect.directional_samples});
                         break;
+                    case EffectKind::CameraRing:
+                        builder.effect(CameraRingParams{
+                            .center = Vec2{effect.camera_ring_center[0],
+                                           effect.camera_ring_center[1]},
+                            .axis_scale = Vec2{effect.camera_ring_axis_scale[0],
+                                               effect.camera_ring_axis_scale[1]},
+                            .inner_radius = effect.camera_ring_inner_radius,
+                            .outer_radius = effect.camera_ring_outer_radius,
+                            .max_blur_radius = effect.camera_ring_max_blur_radius,
+                            .chroma_dispersion = effect.camera_ring_chroma_dispersion,
+                            .anamorphic_stretch = effect.camera_ring_anamorphic_stretch,
+                            .samples = effect.camera_ring_samples});
+                        break;
                     case EffectKind::Fill:
                         builder.effect(FillParams{
                             .color = Color{effect.effect_color[0], effect.effect_color[1],

@@ -467,3 +467,8 @@ CHRONON_EFFECT(62, CameraRing, CameraRingParams, ids::BlurCameraRing,
     "Camera Ring Defocus", EffectCategory::Blur, EffectStage::LayerPostTransform,
     EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Expand,
     BoundsPolicy::Expand, false, false)
+
+CHRONON_EFFECT(63, SdfBevel, SdfBevelParams, ids::LightSdfBevel,
+    "SDF Bevel", EffectCategory::Light, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Expand,
+    BoundsPolicy::Expand, false, false)

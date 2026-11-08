@@ -1,0 +1,338 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "broadcast_hierarchy_60fps",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 60,
+    "fps_den": 1,
+    "duration_frames": 120
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "color",
+      "color": [
+        0.018,
+        0.024,
+        0.032,
+        1.0
+      ],
+      "size": [
+        960,
+        540
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 120,
+      "effects": [
+        {
+          "type": "vignette",
+          "radius": 0.72,
+          "softness": 0.7,
+          "amount": 0.35,
+          "color": [
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "base_card",
+      "type": "shape",
+      "size": [
+        420,
+        240
+      ],
+      "position": [
+        0,
+        30
+      ],
+      "start_frame": 0,
+      "duration_frames": 120,
+      "shape": {
+        "type": "rounded_rect",
+        "radius": 18,
+        "fill": [
+          0.02,
+          0.03,
+          0.04,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": [
+                  0.98,
+                  0.98
+                ]
+              },
+              {
+                "frame": 20,
+                "value": [
+                  1.0,
+                  1.0
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "core_icon",
+      "type": "shape",
+      "size": [
+        110,
+        110
+      ],
+      "position": [
+        -260,
+        40
+      ],
+      "start_frame": 2,
+      "duration_frames": 118,
+      "shape": {
+        "type": "ellipse",
+        "fill": [
+          0.35,
+          0.85,
+          1.0,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 2,
+                "value": [
+                  0.01,
+                  0.01
+                ]
+              },
+              {
+                "frame": 42,
+                "value": [
+                  1.0,
+                  1.0
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "data_bars",
+      "type": "shape",
+      "size": [
+        220,
+        180
+      ],
+      "position": [
+        160,
+        40
+      ],
+      "start_frame": 4,
+      "duration_frames": 116,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -90.0,
+              30.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -90.0,
+              -60.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -52.0,
+              -60.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -52.0,
+              30.0
+            ]
+          },
+          {
+            "type": "close"
+          },
+          {
+            "type": "move_to",
+            "point": [
+              -26.0,
+              30.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -26.0,
+              -20.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              12.0,
+              -20.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              12.0,
+              30.0
+            ]
+          },
+          {
+            "type": "close"
+          },
+          {
+            "type": "move_to",
+            "point": [
+              38.0,
+              30.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              38.0,
+              -80.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              76.0,
+              -80.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              76.0,
+              30.0
+            ]
+          },
+          {
+            "type": "close"
+          }
+        ],
+        "fill": [
+          0.88,
+          0.95,
+          1.0,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 4,
+                "value": [
+                  0.01,
+                  0.01
+                ]
+              },
+              {
+                "frame": 44,
+                "value": [
+                  1.0,
+                  1.0
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "highlight",
+      "type": "shape",
+      "size": [
+        80,
+        80
+      ],
+      "position": [
+        340,
+        -30
+      ],
+      "start_frame": 6,
+      "duration_frames": 114,
+      "shape": {
+        "type": "rounded_rect",
+        "radius": 16,
+        "fill": [
+          0.9,
+          0.58,
+          0.14,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 6,
+                "value": [
+                  0.01,
+                  0.01
+                ]
+              },
+              {
+                "frame": 46,
+                "value": [
+                  1.0,
+                  1.0
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "output": {
+    "path": "broadcast_hierarchy_60fps.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

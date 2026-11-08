@@ -22,6 +22,21 @@ std::optional<NodeExecutionError> apply_native_layer_dof(
     auto expanded = ctx.acquire_owned_fb(width, height, true);
     output = ctx.acquire_owned_fb(width, height, true);
     auto depth = ctx.acquire_owned_fb(width, height, true);
+    auto scratch = ctx.acquire_owned_fb(width, height, true);
+    // These three canvases are node-local intermediates. The graph owns only
+    // `output`; without this guard every DoF node leaked three full-canvas
+    // RGBA32F surfaces per frame and exhausted VRAM after ~128 frames.
+    struct NativeScratchRelease {
+        RenderGraphContext& ctx;
+        Framebuffer* expanded;
+        Framebuffer* depth;
+        Framebuffer* scratch;
+        ~NativeScratchRelease() {
+            if (scratch) release_native_surface(ctx, *scratch);
+            if (depth) release_native_surface(ctx, *depth);
+            if (expanded) release_native_surface(ctx, *expanded);
+        }
+    } release{ctx, expanded.get(), depth.get(), scratch.get()};
     if (!ensure_native_surface(ctx, const_cast<Framebuffer&>(layer), "LayerDoF.source") ||
         !ensure_empty_native_surface(ctx, *expanded) ||
         !ensure_empty_native_surface(ctx, *output) ||
@@ -57,7 +72,6 @@ std::optional<NodeExecutionError> apply_native_layer_dof(
         return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
             "LayerDoF", "failed to stamp per-layer depth and alpha coverage"};
 
-    auto scratch = ctx.acquire_owned_fb(width, height, true);
     if (!ensure_empty_native_surface(ctx, *scratch))
         return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
             "LayerDoF", "failed to materialize scratch surface"};

@@ -34,6 +34,10 @@ struct PipeOptions {
 
     /// Output colour space: "srgb", "rec709", "linearsrgb".
     std::string color_output{"srgb"};
+    /// HDR→SDR tone map: "none", "reinhard", "aces". Applied before the
+    /// output transfer function, on scene-linear light.
+    std::string tone_map{"none"};
+    float exposure{1.0f};
     std::string ocio_config_path;
     std::string ocio_source_space;
     std::string ocio_display;

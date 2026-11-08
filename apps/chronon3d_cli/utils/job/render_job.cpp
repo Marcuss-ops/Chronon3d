@@ -9,6 +9,7 @@
 // same header the `render --plan` route uses (TICKET-TEXT-QUALITY-V2 P0-0b).
 #include "output_lane_pixel_truth.hpp"
 
+#include <chronon3d/color/output_transform.hpp>
 #include <chronon3d/media/video/video_config.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
@@ -63,6 +64,28 @@ void finalize_video_settings(RenderJob& job) {
     if (!std::isfinite(job.video_settings.reference_white_nits) ||
         job.video_settings.reference_white_nits <= 0.0f) {
         throw std::invalid_argument("reference_white_nits must be finite and positive");
+    }
+    const auto tone_map =
+        color::parse_tone_map_operator(job.video_settings.tone_map);
+    if (!tone_map) {
+        throw std::invalid_argument(
+            "tone_map must be one of: none, reinhard, aces");
+    }
+    if (!std::isfinite(job.video_settings.exposure) ||
+        job.video_settings.exposure < 0.0f ||
+        job.video_settings.exposure > 64.0f) {
+        throw std::invalid_argument("exposure must be finite and in [0, 64]");
+    }
+    if (*tone_map != color::ToneMapOperator::None &&
+        !job.video_settings.ocio_display.empty()) {
+        throw std::invalid_argument(
+            "tone_map and OCIO display/view are mutually exclusive output transforms");
+    }
+    const bool hdr_output = job.video_settings.color_output == "pq" ||
+                            job.video_settings.color_output == "hlg";
+    if (*tone_map != color::ToneMapOperator::None && hdr_output) {
+        throw std::invalid_argument(
+            "tone_map produces an SDR signal and cannot be combined with PQ/HLG output");
     }
     if (job.video_settings.frames_dir.empty()) {
         job.video_settings.frames_dir = "chronon_" +
