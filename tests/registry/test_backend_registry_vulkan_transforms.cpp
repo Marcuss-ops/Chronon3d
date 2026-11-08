@@ -928,16 +928,16 @@ TEST_CASE("Vulkan native occlusion holds a mesh half behind a 2.5D plane in both
             return std::array<float, 4>{actual[index], actual[index + 1],
                                         actual[index + 2], actual[index + 3]};
         };
-        const auto near = probe(23);   // mesh half in front of the plane
-        const auto far = probe(37);    // mesh half behind the plane
-        INFO("native near " << near[0] << "," << near[2] << " far "
-             << far[0] << "," << far[2]);
-        CHECK(near[0] > 0.8f);
-        CHECK(near[2] < 0.1f);
-        CHECK(near[3] > 0.8f);
-        CHECK(far[2] > 0.8f);
-        CHECK(far[0] < 0.1f);
-        CHECK(far[3] > 0.8f);
+        const auto near_sample = probe(23);   // mesh half in front of the plane
+        const auto far_sample = probe(37);    // mesh half behind the plane
+        INFO("native near " << near_sample[0] << "," << near_sample[2] << " far "
+             << far_sample[0] << "," << far_sample[2]);
+        CHECK(near_sample[0] > 0.8f);
+        CHECK(near_sample[2] < 0.1f);
+        CHECK(near_sample[3] > 0.8f);
+        CHECK(far_sample[2] > 0.8f);
+        CHECK(far_sample[0] < 0.1f);
+        CHECK(far_sample[3] > 0.8f);
     }
 
     for (const auto handle : {canvas, plane, mesh, plane_depth, mesh_depth,
