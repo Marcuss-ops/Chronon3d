@@ -72,6 +72,7 @@ std::unique_ptr<EffectProcessor> create_offset_effect_processor();
 std::unique_ptr<EffectProcessor> create_curves_effect_processor();
 std::unique_ptr<EffectProcessor> create_stroke_effect_processor();
 std::unique_ptr<EffectProcessor> create_radial_blur_effect_processor();
+std::unique_ptr<EffectProcessor> create_camera_ring_effect_processor();
 std::unique_ptr<EffectProcessor> create_directional_blur_effect_processor();
 std::unique_ptr<EffectProcessor> create_corner_pin_effect_processor();
 std::unique_ptr<EffectProcessor> create_twirl_effect_processor();
@@ -160,6 +161,7 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_effect_processor<OffsetParams>(create_offset_effect_processor());
     registry.register_effect_processor<DirectionalBlurParams>(create_directional_blur_effect_processor());
     registry.register_effect_processor<RadialBlurParams>(create_radial_blur_effect_processor());
+    registry.register_effect_processor<CameraRingParams>(create_camera_ring_effect_processor());
     registry.register_effect_processor<StrokeParams>(create_stroke_effect_processor());
     registry.register_effect_processor<CurvesParams>(create_curves_effect_processor());
     registry.register_effect_processor<CornerPinParams>(create_corner_pin_effect_processor());

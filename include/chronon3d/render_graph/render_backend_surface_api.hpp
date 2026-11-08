@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/render_backend_surface_types.hpp>
 
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/math/glm_types.hpp>
@@ -101,6 +102,9 @@ public:
     virtual RenderOpResult radial_blur_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         float center_x_px, float center_y_px, float amount, int tap_count);
+    virtual RenderOpResult camera_ring_surface(
+        runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
+        const CameraRingParams& params);
     virtual RenderOpResult warp_bulk_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         runtime::RenderSurfaceHandle aux, const WarpBulkParams& params);

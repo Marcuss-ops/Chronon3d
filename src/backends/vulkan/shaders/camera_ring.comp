@@ -1,0 +1,109 @@
+#version 450
+
+// ---------------------------------------------------------------------------
+// camera_ring.comp — Petzval field-curvature defocus.
+//
+// This is the GPU twin of
+// src/backends/software/processors/effects/blur/camera_ring.cpp. Both consume
+// the same normalized-space contract from include/chronon3d/effects/
+// camera_ring.hpp:
+//   delta = (uv - center) / axis_scale
+//   CoC   = smoothstep(inner_radius, outer_radius, length(delta))
+//   blur  = CoC * max_blur_radius (UV-width units)
+//   chroma = normalize(uv - center) * CoC² * chroma_dispersion
+//
+// The 16 tap weights are uniform (sum = 1), so the kernel preserves luminous
+// energy. Y offsets are multiplied by the frame aspect ratio so the bokeh
+// disc is circular in pixel space. Each reconstruction sample is prefiltered
+// with a 2x2 pixel sensor-integration box to suppress checker-frequency
+// residue from the stochastic taps. Pixels inside the elliptical safe zone
+// are forwarded exactly, preserving vector-text sharpness on the optical axis.
+// ---------------------------------------------------------------------------
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+
+layout(push_constant) uniform CameraRingPush {
+    vec2 center;
+    vec2 axis_scale;
+    float inner_radius;
+    float outer_radius;
+    float max_blur_radius;
+    float chroma_dispersion;
+    float anamorphic_stretch;
+    int sample_count;
+    int pad0;
+    int pad1;
+} params;
+
+const vec2 kPoissonDisc[16] = vec2[](
+    vec2(-0.326212, -0.405810), vec2(-0.840144, -0.073580),
+    vec2(-0.695914,  0.457137), vec2(-0.203345,  0.620716),
+    vec2( 0.962340, -0.194983), vec2( 0.473434, -0.480026),
+    vec2( 0.519456,  0.767022), vec2( 0.185461, -0.893124),
+    vec2( 0.507431,  0.064425), vec2( 0.896420,  0.412458),
+    vec2(-0.321940, -0.932615), vec2(-0.791559, -0.597710),
+    vec2(-0.000100, -0.100000), vec2(-0.370000,  0.180000),
+    vec2( 0.220000,  0.340000), vec2(-0.110000, -0.280000)
+);
+
+vec4 sample_bilinear_clamped(vec2 uv, ivec2 size) {
+    vec2 pixel = uv * vec2(size) - vec2(0.5);
+    pixel = clamp(pixel, vec2(0.0), vec2(size - ivec2(1)));
+    ivec2 p0 = ivec2(floor(pixel));
+    vec2 t = pixel - vec2(p0);
+    ivec2 p1 = min(p0 + ivec2(1), size - ivec2(1));
+    vec4 c00 = imageLoad(source_image, p0);
+    vec4 c10 = imageLoad(source_image, ivec2(p1.x, p0.y));
+    vec4 c01 = imageLoad(source_image, ivec2(p0.x, p1.y));
+    vec4 c11 = imageLoad(source_image, p1);
+    return mix(mix(c00, c10, t.x), mix(c01, c11, t.x), t.y);
+}
+
+vec4 sample_prefiltered_clamped(vec2 uv, ivec2 size) {
+    vec2 half_texel = vec2(0.5) / vec2(size);
+    return 0.25 * (sample_bilinear_clamped(uv - half_texel, size) +
+                   sample_bilinear_clamped(uv + vec2(half_texel.x, -half_texel.y), size) +
+                   sample_bilinear_clamped(uv + vec2(-half_texel.x, half_texel.y), size) +
+                   sample_bilinear_clamped(uv + half_texel, size));
+}
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(size);
+    vec2 delta = (uv - params.center) / max(params.axis_scale, vec2(1.0e-4));
+    float radius_norm = length(delta);
+    float span = max(params.outer_radius - params.inner_radius, 1.0e-6);
+    float t = clamp((radius_norm - params.inner_radius) / span, 0.0, 1.0);
+    float coc = t * t * (3.0 - 2.0 * t);
+
+    if (coc <= 0.001) {
+        imageStore(destination_image, pixel, imageLoad(source_image, pixel));
+        return;
+    }
+
+    float aspect = float(size.x) / float(size.y);
+    float radius = coc * params.max_blur_radius;
+    vec2 radial = uv - params.center;
+    float radial_len = length(radial);
+    vec2 chroma_dir = radial_len > 1.0e-6 ? radial / radial_len : vec2(0.0);
+    float chroma_amount = coc * coc * params.chroma_dispersion;
+    vec2 chroma = chroma_dir * chroma_amount * vec2(1.0, aspect);
+
+    int taps = clamp(params.sample_count, 1, 16);
+    vec4 accumulated = vec4(0.0);
+    for (int i = 0; i < taps; ++i) {
+        vec2 offset = kPoissonDisc[i] * vec2(radius * params.anamorphic_stretch,
+                                              radius * aspect);
+        vec2 base_uv = uv + offset;
+        vec4 green = sample_prefiltered_clamped(base_uv, size);
+        float red = sample_prefiltered_clamped(base_uv + chroma, size).r;
+        float blue = sample_prefiltered_clamped(base_uv - chroma, size).b;
+        accumulated += vec4(red, green.g, blue, green.a);
+    }
+    imageStore(destination_image, pixel, accumulated / float(taps));
+}

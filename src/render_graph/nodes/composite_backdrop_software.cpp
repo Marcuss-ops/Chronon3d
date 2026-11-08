@@ -200,13 +200,34 @@ NodeExecResult execute_backdrop_software(
                 const Color& gel = top_row[x - top.origin_x()];
                 if (gel_transmission && mode == BlendMode::Normal) {
                     const float alpha = std::clamp(gel.a, 0.0f, 1.0f);
+                    const float da = std::clamp(backdrop.a, 0.0f, 1.0f);
+                    const float inv_da = da > 1.0e-6f ? 1.0f / da : 0.0f;
+                    const float bg_luma = 0.2126f * backdrop.r * inv_da +
+                                          0.7152f * backdrop.g * inv_da +
+                                          0.0722f * backdrop.b * inv_da;
+                    const float t = std::clamp((bg_luma - 0.45f) / 0.45f, 0.0f, 1.0f);
+                    const float backlit = t * t * (3.0f - 2.0f * t);
+                    // Backlit gel becomes more transmissive and its surface
+                    // washes toward white; alpha=0 still leaves the backdrop
+                    // untouched, so no rectangle can leak outside the glyph.
+                    const float effective_alpha =
+                        alpha * (1.0f - 0.45f * backlit);
                     const float red_transmission =
-                        std::max(1.0f - alpha, 1e-6f);
+                        std::max(1.0f - effective_alpha, 1e-6f);
+                    const float wash = 0.85f * backlit;
+                    const float surface_r = gel.r * (1.0f - wash) +
+                                            effective_alpha * wash;
+                    const float surface_g = gel.g * (1.0f - wash) +
+                                            effective_alpha * wash;
+                    const float surface_b = gel.b * (1.0f - wash) +
+                                            effective_alpha * wash;
+                    const float body_lift =
+                        0.12f * backlit * effective_alpha;
                     backdrop = Color{
-                        gel.r + backdrop.r * red_transmission,
-                        gel.g + backdrop.g * std::pow(red_transmission, 1.0f / 3.0f),
-                        gel.b + backdrop.b * std::pow(red_transmission, 1.0f / 24.0f),
-                        alpha + std::clamp(backdrop.a, 0.0f, 1.0f) * (1.0f - alpha)};
+                        surface_r + backdrop.r * red_transmission + body_lift,
+                        surface_g + backdrop.g * std::pow(red_transmission, 1.0f / 3.0f) + body_lift,
+                        surface_b + backdrop.b * std::pow(red_transmission, 1.0f / 24.0f) + body_lift,
+                        effective_alpha + da * (1.0f - effective_alpha)};
                 } else {
                     backdrop = compositor::blend(gel, backdrop, mode);
                 }

@@ -612,6 +612,48 @@ struct AnamorphicStreakParams {
     }
 };
 
+// ── Camera Ring / Petzval field-curvature defocus ───────────────────────────
+// The in-focus zone is an ellipse around the optical center; the circle of
+// confusion grows with normalized radius and saturates at max_blur_radius.
+// Sampling uses a deterministic 16-tap Poisson disc. Chromatic dispersion is
+// radial and scaled by CoC², so the optical axis stays spectrally clean.
+struct CameraRingParams {
+    Vec2 center{0.5f, 0.5f};
+    Vec2 axis_scale{0.68f, 0.32f};
+    float inner_radius{0.22f};        // safe-zone radius in normalized CoC space
+    float outer_radius{0.78f};        // radius where defocus reaches its maximum
+    float max_blur_radius{0.022f};    // maximum UV radius (fraction of width)
+    float chroma_dispersion{0.007f};  // radial R/B separation at maximum CoC
+    float anamorphic_stretch{1.0f};   // horizontal kernel stretch [0.1, 4]
+    std::uint32_t samples{16};        // deterministic Poisson taps [1, 16]
+
+    void validate() const {
+        if (!std::isfinite(center.x) || !std::isfinite(center.y) ||
+            center.x < 0.0f || center.x > 1.0f ||
+            center.y < 0.0f || center.y > 1.0f)
+            throw std::invalid_argument("CameraRing center must be finite in [0, 1]");
+        if (!std::isfinite(axis_scale.x) || !std::isfinite(axis_scale.y) ||
+            axis_scale.x <= 0.0f || axis_scale.x > 4.0f ||
+            axis_scale.y <= 0.0f || axis_scale.y > 4.0f)
+            throw std::invalid_argument("CameraRing axis_scale must be finite in (0, 4]");
+        if (!std::isfinite(inner_radius) || !std::isfinite(outer_radius) ||
+            inner_radius < 0.0f || inner_radius > 4.0f ||
+            outer_radius <= inner_radius || outer_radius > 4.0f)
+            throw std::invalid_argument("CameraRing requires 0 <= inner_radius < outer_radius <= 4");
+        if (!std::isfinite(max_blur_radius) || max_blur_radius < 0.0f ||
+            max_blur_radius > 0.25f)
+            throw std::invalid_argument("CameraRing max_blur_radius must be finite in [0, 0.25]");
+        if (!std::isfinite(chroma_dispersion) || chroma_dispersion < 0.0f ||
+            chroma_dispersion > 0.1f)
+            throw std::invalid_argument("CameraRing chroma_dispersion must be finite in [0, 0.1]");
+        if (!std::isfinite(anamorphic_stretch) || anamorphic_stretch < 0.1f ||
+            anamorphic_stretch > 4.0f)
+            throw std::invalid_argument("CameraRing anamorphic_stretch must be finite in [0.1, 4]");
+        if (samples == 0 || samples > 16)
+            throw std::invalid_argument("CameraRing samples must be in [1, 16]");
+    }
+};
+
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info
 // comparison — strictly faster than std::any_cast's runtime type check.
@@ -657,7 +699,7 @@ using EffectParams = std::variant<
     SharpenParams, RoughenEdgesParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
     ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
     LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams,
-    LiftGammaGainParams, ColorMatrixParams, PosterizeParams, ColorMapParams, LinearWipeParams, MinMaxParams, StretchWarpParams, LensFlareParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams
+    LiftGammaGainParams, ColorMatrixParams, PosterizeParams, ColorMapParams, LinearWipeParams, MinMaxParams, StretchWarpParams, LensFlareParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams, CameraRingParams
 >;
 
 } // namespace chronon3d

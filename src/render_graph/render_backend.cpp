@@ -318,6 +318,15 @@ RenderOpResult RenderBackendSurfaceApi::radial_blur_surface(
             "RenderBackend::radial_blur_surface: native surfaces are not supported"));
     }
 
+RenderOpResult RenderBackendSurfaceApi::camera_ring_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        const CameraRingParams& /*params*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::camera_ring_surface: native surfaces are not supported"));
+    }
+
 RenderOpResult RenderBackendSurfaceApi::warp_bulk_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,

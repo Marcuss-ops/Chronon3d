@@ -26,6 +26,7 @@
 #include "blur_comp_spv.hpp"
 #include "directional_blur_comp_spv.hpp"
 #include "radial_blur_comp_spv.hpp"
+#include "camera_ring_comp_spv.hpp"
 #include "warp_bulk_comp_spv.hpp"
 #include "generate_bulk_comp_spv.hpp"
 #include "lut_bulk_comp_spv.hpp"
@@ -47,6 +48,7 @@
 #include "blur_abi.hpp"
 #include "directional_blur_abi.hpp"
 #include "radial_blur_abi.hpp"
+#include "camera_ring_abi.hpp"
 #include "warp_bulk_abi.hpp"
 #include "generate_bulk_abi.hpp"
 #include "lut_bulk_abi.hpp"
@@ -206,6 +208,19 @@ TEST_CASE("radial_blur shader ABI") {
     CHECK(find_binding(abi, 0, 1)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     CHECK(abi.push_constant_size == RadialBlurShaderAbi::kPushConstantSize);
     CHECK(RadialBlurShaderAbi::kPushConstantSize == 16);
+    CHECK(abi.local_size_x == 16);
+    CHECK(abi.local_size_y == 16);
+    CHECK(abi.local_size_z == 1);
+}
+
+TEST_CASE("camera_ring shader ABI") {
+    auto abi = REFLECT_SHADER(chronon3d_camera_ring_comp_spv);
+    REQUIRE(find_binding(abi, 0, 0) != nullptr);
+    CHECK(find_binding(abi, 0, 0)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    REQUIRE(find_binding(abi, 0, 1) != nullptr);
+    CHECK(find_binding(abi, 0, 1)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    CHECK(abi.push_constant_size == CameraRingShaderAbi::kPushConstantSize);
+    CHECK(CameraRingShaderAbi::kPushConstantSize == 48);
     CHECK(abi.local_size_x == 16);
     CHECK(abi.local_size_y == 16);
     CHECK(abi.local_size_z == 1);

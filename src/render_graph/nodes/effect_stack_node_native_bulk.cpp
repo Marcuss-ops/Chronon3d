@@ -158,6 +158,45 @@ bool try_native_full_frame_radial_blur(RenderGraphContext& ctx,
     return true;
 }
 
+// ── CameraRing / Petzval field-curvature defocus ───────────────────────────
+bool try_native_full_frame_camera_ring(RenderGraphContext& ctx,
+                                       const EffectStack& effect_stack,
+                                       Framebuffer& result,
+                                       const std::optional<raster::BBox>& clip,
+                                       runtime::RenderSurfaceHandle borrowed_source) {
+    using namespace bulk_detail;
+    if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
+        effect_stack.size() != 1) {
+        return false;
+    }
+    const auto& instance = effect_stack[0];
+    if (!instance.enabled || instance.effect_type != effects::EffectType::CameraRing)
+        return false;
+    const auto* p = std::get_if<CameraRingParams>(&instance.params);
+    if (!p) return false;
+    try {
+        p->validate();
+    } catch (...) {
+        return false;
+    }
+    // CPU identity fast paths forward untouched without a dispatch.
+    if (p->samples <= 1 || p->max_blur_radius <= 0.0f)
+        return bulk_true_forward(ctx, result, borrowed_source);
+
+    runtime::RenderSurfaceHandle source = runtime::kInvalidRenderSurfaceHandle;
+    const auto destination = bulk_alloc_destination(ctx, result, borrowed_source, source);
+    if (destination == runtime::kInvalidRenderSurfaceHandle) return false;
+    const auto dispatched = ctx.backend_surface_api()->camera_ring_surface(
+        destination, source, *p);
+    if (!dispatched.ok()) {
+        bulk_release_surface(ctx, destination);
+        return false;
+    }
+    result.set_surface_handle(destination);
+    result.mark_gpu_authoritative();
+    return true;
+}
+
 // ── WarpBulk single-effect dispatcher ──────────────────────────────────────
 bool try_native_full_frame_warp_bulk(RenderGraphContext& ctx,
                                      const EffectStack& effect_stack,

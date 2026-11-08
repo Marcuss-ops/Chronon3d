@@ -670,6 +670,18 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         }
                         break;
                     }
+                    case EffectKind::LightRays:
+                        builder.effect(LightRaysParams{
+                            .origin = Vec2{effect.light_rays_origin[0],
+                                           effect.light_rays_origin[1]},
+                            .length = effect.light_rays_length,
+                            .density = effect.light_rays_density,
+                            .color = Color{effect.light_rays_color[0],
+                                           effect.light_rays_color[1],
+                                           effect.light_rays_color[2],
+                                           effect.light_rays_color[3]},
+                            .decay = effect.light_rays_decay});
+                        break;
                     case EffectKind::AnamorphicStreak:
                         builder.effect(AnamorphicStreakParams{
                             .threshold = effect.streak_threshold,

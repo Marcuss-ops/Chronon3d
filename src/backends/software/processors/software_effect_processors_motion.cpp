@@ -8,6 +8,7 @@
 #include "effects/generate/checkerboard.hpp"
 #include "effects/generate/four_color_gradient.hpp"
 #include "effects/generate/light_rays.hpp"
+#include "effects/blur/camera_ring.hpp"
 #include "effects/blur/directional_blur.hpp"
 #include "effects/blur/radial_blur.hpp"
 #include "effects/stroke/stroke.hpp"
@@ -42,6 +43,16 @@ public:
                               p->amount, p->render_samples,
                               *context.effect_scratch, context.clip);
         }
+    }
+};
+
+class SoftwareCameraRingEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<CameraRingParams>(&params);
+        if (!p) throw std::runtime_error("CameraRing processor received invalid parameters");
+        apply_camera_ring(fb, *p, context.clip);
     }
 };
 
@@ -192,6 +203,10 @@ std::unique_ptr<EffectProcessor> create_offset_effect_processor() {
 std::unique_ptr<EffectProcessor> create_radial_blur_effect_processor() {
     return std::make_unique<SoftwareRadialBlurEffectProcessor>();
 };
+
+std::unique_ptr<EffectProcessor> create_camera_ring_effect_processor() {
+    return std::make_unique<SoftwareCameraRingEffectProcessor>();
+}
 
 std::unique_ptr<EffectProcessor> create_directional_blur_effect_processor() {
     return std::make_unique<SoftwareDirectionalBlurEffectProcessor>();

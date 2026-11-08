@@ -173,6 +173,30 @@ void VulkanBackend::Impl::radial_blur(runtime::RenderSurfaceHandle destination,
     throw std::logic_error("Vulkan radial blur requires an active frame batch");
 }
 
+void VulkanBackend::Impl::camera_ring(runtime::RenderSurfaceHandle destination,
+                                       runtime::RenderSurfaceHandle source,
+                                       const CameraRingParams& params) {
+    params.validate();
+    auto& dst_image = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    if (!src_image.initialized ||
+        dst_image.width != src_image.width ||
+        dst_image.height != src_image.height) {
+        throw std::invalid_argument("Vulkan camera ring references incompatible surfaces");
+    }
+    if (!frame_batch.active) {
+        throw std::logic_error("Vulkan camera ring requires an active frame batch");
+    }
+    const auto descriptors = allocate_pass_descriptor_set();
+    write_descriptors(descriptors, dst_image, src_image);
+    const auto cmd = active_command_buffer();
+    emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::Blur);
+    record_camera_ring(cmd, descriptors, dst_image, src_image, params);
+    dst_image.initialized = true;
+    ++frame_batch.pass_count;
+    ++stats.passes_executed;
+}
+
 void VulkanBackend::Impl::warp_bulk(runtime::RenderSurfaceHandle destination,
                                     runtime::RenderSurfaceHandle source,
                                     runtime::RenderSurfaceHandle aux,

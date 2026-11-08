@@ -356,6 +356,37 @@ TEST_CASE("Typewriter reveal keeps already shaped glyph positions stable") {
     }
 }
 
+TEST_CASE("GPU MTSDF consumes word spacing from resolved glyph positions") {
+    auto placed = make_test_placed_run(3);
+    placed.glyphs[1].byte_offset = 2;
+    placed.glyphs[2].byte_offset = 4;
+
+    TextAnimatorSpec animator;
+    animator.selectors.push_back(full_glyph_selector());
+    animator.properties.push_back(WordSpacingProperty{12.0f});
+
+    const auto states = evaluate_animator_stack(
+        {animator}, placed, "a b c",
+        SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+    REQUIRE(states.size() == 3);
+    CHECK(states[1].position.x == doctest::Approx(12.0f));
+    CHECK(states[2].position.x == doctest::Approx(24.0f));
+
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = placed;
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = states;
+    REQUIRE(can_lower_gpu_text_animation(shape));
+
+    const auto first = make_gpu_glyph_placement(
+        states[0], 0.0f, 0.0f, 1.0f, 1.0f);
+    const auto second = make_gpu_glyph_placement(
+        states[1], 0.0f, 0.0f, 1.0f, 1.0f);
+    CHECK(second.tx - first.tx == doctest::Approx(
+        states[1].layout_position.x - states[0].layout_position.x + 12.0f));
+}
+
 TEST_CASE("Text animation evaluation is deterministic under random access") {
     const auto placed = make_test_placed_run(6);
     const std::string source = "CHRONO";

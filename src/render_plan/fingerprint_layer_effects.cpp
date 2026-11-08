@@ -292,6 +292,18 @@ void add_layer_effects_and_masks(CanonicalPlanWriter& out, const LayerPlan& laye
                 out.add_size(static_cast<std::size_t>(effect.radial_render_samples));
                 out.add_size(static_cast<std::size_t>(effect.radial_preview_samples));
             } break;
+            case LayerPlan::EffectKindPlan::CameraRing: {
+                out.add_float(effect.camera_ring_center[0]);
+                out.add_float(effect.camera_ring_center[1]);
+                out.add_float(effect.camera_ring_axis_scale[0]);
+                out.add_float(effect.camera_ring_axis_scale[1]);
+                out.add_float(effect.camera_ring_inner_radius);
+                out.add_float(effect.camera_ring_outer_radius);
+                out.add_float(effect.camera_ring_max_blur_radius);
+                out.add_float(effect.camera_ring_chroma_dispersion);
+                out.add_float(effect.camera_ring_anamorphic_stretch);
+                out.add_size(static_cast<std::size_t>(effect.camera_ring_samples));
+            } break;
             case LayerPlan::EffectKindPlan::Mosaic: {
                 out.add_size(effect.block_size);
             } break;

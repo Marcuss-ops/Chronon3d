@@ -60,6 +60,7 @@ std::string_view effect_id_for_plan_kind(LayerPlan::EffectKindPlan kind) {
         case K::Halation: return LightHalation;
         case K::AnamorphicStreak: return LightAnamorphicStreak;
         case K::Fill: return GenerateFill;
+        case K::CameraRing: return BlurCameraRing;
     }
     return {};
 }
@@ -90,6 +91,8 @@ LayerPlan::EffectKindPlan decode_effect_kind(std::string_view name) {
         {"retro_tv", K::RetroTv},
         {"halation", K::Halation},
         {"anamorphic_streak", K::AnamorphicStreak},
+        {"camera_ring", K::CameraRing},
+        {"petzval_defocus", K::CameraRing},
     };
     const auto found = kinds.find(name);
     if (found == kinds.end()) throw std::runtime_error("unsupported layer effect type");
@@ -140,6 +143,7 @@ constexpr EffectDecoderEntry kEffectDecoders[] = {
     {LayerPlan::EffectKindPlan::Halation, &decode_halation_effect},
     {LayerPlan::EffectKindPlan::AnamorphicStreak, &decode_anamorphic_streak_effect},
     {LayerPlan::EffectKindPlan::Fill, &decode_catalog_effect},
+    {LayerPlan::EffectKindPlan::CameraRing, &decode_camera_ring_effect},
 };
 
 const EffectDecoderEntry* find_effect_decoder(LayerPlan::EffectKindPlan kind) {

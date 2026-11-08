@@ -7,6 +7,7 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/render_graph/compiler/compiled_resource_table.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/tracing/tracing.hpp>
@@ -544,6 +545,9 @@ struct VulkanBackend::Impl {
                             const Image& destination, const Image& source,
                             float center_x_px, float center_y_px,
                             float amount, int tap_count);
+    void record_camera_ring(VkCommandBuffer command, VkDescriptorSet descriptors,
+                            const Image& destination, const Image& source,
+                            const CameraRingParams& params);
     void record_warp_bulk(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination, const Image& source,
                           const graph::WarpBulkParams& params);
@@ -687,6 +691,9 @@ struct VulkanBackend::Impl {
                      runtime::RenderSurfaceHandle source,
                      float center_x_px, float center_y_px,
                      float amount, int tap_count);
+    void camera_ring(runtime::RenderSurfaceHandle destination,
+                     runtime::RenderSurfaceHandle source,
+                     const CameraRingParams& params);
     void warp_bulk(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source,
                    runtime::RenderSurfaceHandle aux,

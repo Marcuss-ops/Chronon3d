@@ -508,6 +508,9 @@ public:
     graph::RenderOpResult radial_blur_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, float, int) override;
+    graph::RenderOpResult camera_ring_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        const CameraRingParams&) override;
     graph::RenderOpResult warp_bulk_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, const graph::WarpBulkParams&) override;

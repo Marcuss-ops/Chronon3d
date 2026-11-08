@@ -98,6 +98,7 @@
             "distort.offset",
             "distort.directional_blur",
             "distort.radial_blur",
+            "blur.camera_ring",
             "stylize.stroke",
             "generate.fractal_noise",
             "generate.checkerboard",
@@ -302,6 +303,7 @@
             "distort.offset",
             "distort.directional_blur",
             "distort.radial_blur",
+            "blur.camera_ring",
             "stylize.stroke",
             "generate.fractal_noise",
             "generate.checkerboard",
@@ -1758,7 +1760,7 @@
       ]
     },
     "animator_property_track": {
-      "description": "V3 override of the V2 animator property track. V3 adds per-glyph rotation, color, anchor, skew, baseline, background, and stroke animation; V2 plans keep the frozen V2 enum.",
+      "description": "V3 override of the V2 animator property track. V3 adds per-glyph rotation, color, anchor, skew, baseline, background, stroke animation, and word/line spacing; V2 plans keep the frozen V2 enum.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1777,6 +1779,8 @@
             "opacity",
             "blur",
             "tracking",
+            "word_spacing",
+            "line_spacing",
             "rotation",
             "fill_color",
             "skew",
@@ -2104,6 +2108,36 @@
             "properties": {
               "property": {
                 "const": "baseline_shift"
+              }
+            },
+            "required": [
+              "property"
+            ]
+          },
+          "then": {
+            "properties": {
+              "keyframes": {
+                "items": {
+                  "properties": {
+                    "value": {
+                      "type": "number",
+                      "minimum": -1000,
+                      "maximum": 1000
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "property": {
+                "enum": [
+                  "word_spacing",
+                  "line_spacing"
+                ]
               }
             },
             "required": [
@@ -6408,6 +6442,71 @@
                       "type": "integer",
                       "minimum": 2,
                       "maximum": 128
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "camera_ring"
+                    },
+                    "time": {
+                      "$ref": "#/$defs/effect_time"
+                    },
+                    "center": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "axis_scale": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": {
+                        "type": "number",
+                        "minimum": 0.0001,
+                        "maximum": 4
+                      }
+                    },
+                    "inner_radius": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 4
+                    },
+                    "outer_radius": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 4
+                    },
+                    "max_blur_radius": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 0.25
+                    },
+                    "chroma_dispersion": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 0.1
+                    },
+                    "anamorphic_stretch": {
+                      "type": "number",
+                      "minimum": 0.1,
+                      "maximum": 4
+                    },
+                    "samples": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 16
                     }
                   }
                 },

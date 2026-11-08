@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/nodes/native_effects.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <span>
@@ -163,6 +164,14 @@ private:
                         max_spread = std::max(max_spread,
                             std::ceil(p->radius * 512.0f));
                     }
+                }
+                break;
+            }
+            case LightRays: {
+                if (auto* p = std::get_if<LightRaysParams>(&inst.params)) {
+                    const f32 length = std::isfinite(p->length)
+                        ? std::max(p->length, 0.0f) : 0.0f;
+                    max_spread = std::max(max_spread, length);
                 }
                 break;
             }

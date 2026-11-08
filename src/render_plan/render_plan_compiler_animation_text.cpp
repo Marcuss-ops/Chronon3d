@@ -213,6 +213,14 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
             animator.properties.push_back(chronon3d::TrackingProperty{
                 animated_text_value(track, 0.0f, track.property, fps)});
             break;
+        case AnimationPropertyKind::WordSpacing:
+            animator.properties.push_back(chronon3d::WordSpacingProperty{
+                animated_text_value(track, 0.0f, track.property, fps)});
+            break;
+        case AnimationPropertyKind::LineSpacing:
+            animator.properties.push_back(chronon3d::LineSpacingProperty{
+                animated_text_value(track, 0.0f, track.property, fps)});
+            break;
         case AnimationPropertyKind::RotationVector:
             animator.properties.push_back(chronon3d::RotationProperty{
                 animated_text_rotation(track, fps)});

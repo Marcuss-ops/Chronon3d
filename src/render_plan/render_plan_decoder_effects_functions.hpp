@@ -37,4 +37,5 @@ void decode_scanlines_effect(LayerPlan::EffectPlan&, const nlohmann::json&);
 void decode_retro_tv_effect(LayerPlan::EffectPlan&, const nlohmann::json&);
 void decode_halation_effect(LayerPlan::EffectPlan&, const nlohmann::json&);
 void decode_anamorphic_streak_effect(LayerPlan::EffectPlan&, const nlohmann::json&);
+void decode_camera_ring_effect(LayerPlan::EffectPlan&, const nlohmann::json&);
 }

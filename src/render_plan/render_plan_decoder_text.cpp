@@ -228,9 +228,10 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                 "text animator property track");
             auto track = decode_animation_track(property);
             const auto allowed_property = [](const std::string& property) {
-                static constexpr std::array<std::string_view, 22> properties{
+                static constexpr std::array<std::string_view, 24> properties{
                     "position", "position_x", "position_y", "scale", "scale_x", "scale_y",
-                    "opacity", "blur", "tracking", "rotation", "fill_color", "skew",
+                    "opacity", "blur", "tracking", "word_spacing", "line_spacing",
+                    "rotation", "fill_color", "skew",
                     "skew_axis", "anchor", "baseline_shift", "background_color",
                     "background_padding_em", "background_radius_em", "stroke_color",
                     "stroke_width", "character_offset", "light_direction"};
@@ -263,6 +264,8 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                 if ((track.property == "opacity" && (scalar < 0.f || scalar > 1.f)) ||
                     (track.property == "blur" && scalar < 0.f) ||
                     (track.property == "tracking" && (scalar < -1000.f || scalar > 1000.f)) ||
+                    (track.property == "word_spacing" && (scalar < -1000.f || scalar > 1000.f)) ||
+                    (track.property == "line_spacing" && (scalar < -1000.f || scalar > 1000.f)) ||
                     (track.property == "baseline_shift" && (scalar < -1000.f || scalar > 1000.f)) ||
                     (track.property == "skew" && (scalar < -80.f || scalar > 80.f)) ||
                     (track.property == "skew_axis" && (scalar < -1000000.f || scalar > 1000000.f)) ||

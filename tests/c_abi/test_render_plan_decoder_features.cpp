@@ -610,6 +610,40 @@ TEST_CASE("render plan V3 decodes the remaining animated text style properties")
     CHECK(properties[4].keyframes.back().value == std::vector<float>{1.0f, 0.0f, 0.0f, 1.0f});
 }
 
+TEST_CASE("render plan V3 decodes word_spacing and line_spacing animator tracks") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {
+            "id": "spacing",
+            "selectors": [{"unit": "word"}],
+            "properties": [
+                {"property": "word_spacing", "keyframes": [
+                    {"frame": 0, "value": 0},
+                    {"frame": 30, "value": 12}
+                ]},
+                {"property": "line_spacing", "keyframes": [
+                    {"frame": 0, "value": -4},
+                    {"frame": 30, "value": 8}
+                ]}
+            ]
+        }
+    ])JSON");
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
+    REQUIRE(decoded.has_value());
+    const auto& properties = decoded->layers[0].text_animators[0].properties;
+    REQUIRE(properties.size() == 2);
+    CHECK(properties[0].property == "word_spacing");
+    CHECK(properties[0].keyframes.back().value == std::vector<float>{12.0f});
+    CHECK(properties[1].property == "line_spacing");
+    CHECK(properties[1].keyframes.front().value == std::vector<float>{-4.0f});
+
+    source["layers"][0]["text_animators"][0]["properties"][0]
+          ["keyframes"][1]["value"] = 1001;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
 TEST_CASE("render plan V3 accepts bounded negative text tracking animation") {
     auto source = v3_text_plan();
     source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([

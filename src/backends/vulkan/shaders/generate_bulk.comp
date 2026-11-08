@@ -177,28 +177,57 @@ void main() {
         float dx = px - origin_x, dy = py - origin_y;
         float distance = sqrt(dx * dx + dy * dy);
         vec4 original = imageLoad(source_image, pixel);
-        if (distance <= 1.0e-6 || distance > max_length) {
+        if (py <= origin_y + 1.0) {
             imageStore(destination_image, pixel, original);
             return;
         }
-        int steps = clamp(int(ceil(distance * (1.0 / 12.0))) + 1, 2, 64);
+        // Trapcode-Shine style: integrate the source along the vertical
+        // column between the pixel and the word, instead of sweeping a
+        // 360-degree radial fan. This is the downward light shaft contract.
+        float downward = smoothstep(0.0, 0.08 * max_length, dy);
+        float span = py - origin_y;
+        float depth_fade = 1.0 - smoothstep(0.35 * max_length, max_length, span);
+        if (downward <= 0.0 || depth_fade <= 0.0 || span > max_length) {
+            imageStore(destination_image, pixel, original);
+            return;
+        }
+        int steps = clamp(int(ceil(span * (1.0 / 12.0))) + 1, 2, 64);
+        // Break the fixed text-column sampling grid so the shafts read as
+        // volumetric light instead of a striped extrusion.
+        float jitter = fract(sin(dot(vec2(px, py), vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
         float accumulated = 0.0;
         for (int i = 0; i < steps; ++i) {
             float t = float(i) / float(steps - 1);
-            vec4 s = sample_transparent(vec2(origin_x + dx * t, origin_y + dy * t), size);
-            float inv_a = s.a > 1.0e-8 ? 1.0 / s.a : 0.0;
-            vec3 straight = s.rgb * inv_a;
-            float luminance = max(0.0, (0.2126 * straight.r + 0.7152 * straight.g
-                                        + 0.0722 * straight.b) * s.a);
-            accumulated += luminance * pow(decay, (distance * t) / 8.0);
+            // A small convergence toward the word origin keeps the shafts
+            // from reading as a rigid vertical extrusion.
+            vec2 sample_center = vec2(px + (origin_x - px) * 0.06 * t +
+                                          jitter * (6.0 + 12.0 * t),
+                                      py - span * t);
+            float soft_width = 30.0 + 55.0 * t;
+            float luminance = 0.0;
+            const float tap_weights[5] = float[](0.1, 0.2, 0.4, 0.2, 0.1);
+            for (int tap = -2; tap <= 2; ++tap) {
+                vec4 s = sample_transparent(
+                    sample_center + vec2(soft_width * float(tap), 0.0), size);
+                float inv_a = s.a > 1.0e-8 ? 1.0 / s.a : 0.0;
+                vec3 straight = s.rgb * inv_a;
+                float tap_luma = max(0.0, (0.2126 * straight.r + 0.7152 * straight.g
+                                          + 0.0722 * straight.b) * s.a);
+                luminance += tap_luma * tap_weights[tap + 2];
+            }
+            accumulated += luminance * pow(decay, (span * t) / 8.0);
         }
         float energy = clamp(accumulated * density * 4.0 / float(steps), 0.0, 1.0);
+        energy *= downward * depth_fade;
         if (energy <= 0.0) { imageStore(destination_image, pixel, original); return; }
-        float ray_alpha = energy * clamp(color_a, 0.0, 1.0);
+        // Rays are light, not a cyan filter. A pale cyan shaft keeps the
+        // contribution additive over both dark jackets and the white slit.
+        float ray_alpha = energy * clamp(color_a, 0.0, 1.0) * 0.38;
+        vec3 shaft_color = mix(ray_color, vec3(1.0), 0.50);
         imageStore(destination_image, pixel, vec4(
-            original.r + ray_color.r * ray_alpha,
-            original.g + ray_color.g * ray_alpha,
-            original.b + ray_color.b * ray_alpha,
+            original.r + shaft_color.r * ray_alpha,
+            original.g + shaft_color.g * ray_alpha,
+            original.b + shaft_color.b * ray_alpha,
             original.a + ray_alpha * (1.0 - original.a)));
         return;
     }

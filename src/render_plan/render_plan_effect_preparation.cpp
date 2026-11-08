@@ -91,6 +91,19 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
             .render_samples = effect.radial_render_samples,
             .preview_samples = effect.radial_preview_samples});
         } break;
+        case LayerPlan::EffectKindPlan::CameraRing: {
+            CameraRingParams camera_ring;
+            camera_ring.center = Vec2{effect.camera_ring_center[0], effect.camera_ring_center[1]};
+            camera_ring.axis_scale = Vec2{effect.camera_ring_axis_scale[0], effect.camera_ring_axis_scale[1]};
+            camera_ring.inner_radius = effect.camera_ring_inner_radius;
+            camera_ring.outer_radius = effect.camera_ring_outer_radius;
+            camera_ring.max_blur_radius = effect.camera_ring_max_blur_radius;
+            camera_ring.chroma_dispersion = effect.camera_ring_chroma_dispersion;
+            camera_ring.anamorphic_stretch = effect.camera_ring_anamorphic_stretch;
+            camera_ring.samples = effect.camera_ring_samples;
+            camera_ring.validate();
+            prepared_effects[index].emplace_back(camera_ring);
+        } break;
         case LayerPlan::EffectKindPlan::GaussianBlur: {
             prepared_effects[index].emplace_back(BlurParams{.radius = effect.radius});
         } break;
