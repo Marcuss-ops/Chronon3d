@@ -101,13 +101,14 @@ TEST_CASE("software 3D mesh crossing a 2.5D plane uses per-pixel depth") {
         INFO("plane_first=" << plane_first);
         const auto combined = test::render_modular(make_scene(true, plane_first, 1.f, 1.f));
         REQUIRE(combined);
-        const auto near = combined->get_pixel(23, 32);
-        const auto far = combined->get_pixel(37, 32);
-        INFO("opaque near " << near.r << ", " << near.b << "; far " << far.r << ", " << far.b);
-        CHECK(near.r > 0.8f);
-        CHECK(near.b < 0.1f);
-        CHECK(far.b > 0.8f);
-        CHECK(far.r < 0.1f);
+        const auto near_pixel = combined->get_pixel(23, 32);
+        const auto far_pixel = combined->get_pixel(37, 32);
+        INFO("opaque near " << near_pixel.r << ", " << near_pixel.b << "; far "
+             << far_pixel.r << ", " << far_pixel.b);
+        CHECK(near_pixel.r > 0.8f);
+        CHECK(near_pixel.b < 0.1f);
+        CHECK(far_pixel.b > 0.8f);
+        CHECK(far_pixel.r < 0.1f);
 
         const auto transparent_mesh = test::render_modular(make_scene(true, plane_first, 0.5f, 1.f));
         REQUIRE(transparent_mesh);

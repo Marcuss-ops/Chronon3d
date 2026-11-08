@@ -636,13 +636,13 @@ TEST_CASE("render plan decoder enforces depth role conflict and fingerprints it"
         {"output", {{"path", "out.png"}}}};
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(base));
 
-    auto far = base;
-    far["layers"][0].erase("position");
-    far["layers"][0]["depth_role"] = "far_background";
-    auto near = far;
-    near["layers"][0]["depth_role"] = "foreground";
-    const auto far_plan = chronon3d::render_plan::decode_render_plan(far);
-    const auto near_plan = chronon3d::render_plan::decode_render_plan(near);
+    auto far_json = base;
+    far_json["layers"][0].erase("position");
+    far_json["layers"][0]["depth_role"] = "far_background";
+    auto near_json = far_json;
+    near_json["layers"][0]["depth_role"] = "foreground";
+    const auto far_plan = chronon3d::render_plan::decode_render_plan(far_json);
+    const auto near_plan = chronon3d::render_plan::decode_render_plan(near_json);
     REQUIRE(far_plan);
     REQUIRE(near_plan);
     CHECK(far_plan->content_fingerprint != near_plan->content_fingerprint);

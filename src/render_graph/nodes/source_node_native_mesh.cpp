@@ -264,7 +264,7 @@ bool try_native_inline_mesh(
             continue;
         }
         std::vector<ClipVertex> polygon{vertices[a], vertices[b], vertices[c]};
-        const auto clip_depth = [&](float plane, bool near) {
+        const auto clip_depth = [&](float plane, bool is_near) {
             std::vector<ClipVertex> clipped;
             if (polygon.empty()) return clipped;
             for (std::size_t j = 0; j < polygon.size(); ++j) {
@@ -272,8 +272,8 @@ bool try_native_inline_mesh(
                 const auto& v1 = polygon[(j + 1) % polygon.size()];
                 const float d0 = -v0.view_position.z, d1 = -v1.view_position.z;
                 if (!std::isfinite(d0) || !std::isfinite(d1)) return std::vector<ClipVertex>{};
-                const bool in0 = near ? d0 >= plane : d0 <= plane;
-                const bool in1 = near ? d1 >= plane : d1 <= plane;
+                const bool in0 = is_near ? d0 >= plane : d0 <= plane;
+                const bool in1 = is_near ? d1 >= plane : d1 <= plane;
                 if (in0 != in1) {
                     const float t = (plane - d0) / (d1 - d0);
                     clipped.push_back({glm::mix(v0.view_position, v1.view_position, t),
