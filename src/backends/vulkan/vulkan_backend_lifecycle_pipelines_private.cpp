@@ -9,6 +9,7 @@
 #include "blur_comp_spv.hpp"
 #include "directional_blur_comp_spv.hpp"
 #include "radial_blur_comp_spv.hpp"
+#include "camera_ring_comp_spv.hpp"
 #include "dof_depth_stamp_comp_spv.hpp"
 #include "dof_blur_comp_spv.hpp"
 #include "occlusion_tag_comp_spv.hpp"
@@ -166,6 +167,29 @@ void VulkanBackend::Impl::init_core_kernel_pipelines() {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::RadialBlur, radial_blur_pipeline, "RadialBlur");
         if (debug_context) debug_context->set_pipeline_name(radial_blur_pipeline, "Chronon3D.Pipeline.RadialBlur");
+
+        const VkShaderModuleCreateInfo camera_ring_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_camera_ring_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_camera_ring_comp_spv)};
+        VkShaderModule camera_ring_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &camera_ring_shader_info, nullptr, &camera_ring_shader),
+              "vkCreateShaderModule(camera_ring)");
+        const VkPipelineShaderStageCreateInfo camera_ring_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            camera_ring_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo camera_ring_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            camera_ring_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline camera_ring_pipeline = VK_NULL_HANDLE;
+        const VkResult camera_ring_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &camera_ring_pipeline_info, nullptr, &camera_ring_pipeline);
+        vkDestroyShaderModule(device, camera_ring_shader, nullptr);
+        check(camera_ring_result, "vkCreateComputePipelines(camera_ring)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::CameraRing, camera_ring_pipeline, "CameraRing");
+        if (debug_context) debug_context->set_pipeline_name(camera_ring_pipeline, "Chronon3D.Pipeline.CameraRing");
 
         const VkShaderModuleCreateInfo dof_depth_stamp_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

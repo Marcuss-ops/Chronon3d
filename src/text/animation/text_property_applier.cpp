@@ -10,7 +10,7 @@ namespace chronon3d::detail {
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // ONE source of truth for "what does property X do to a glyph state".
-// All 13 PostLayout TextAnimatorProperty variants are dispatched here.
+// All PostLayout TextAnimatorProperty variants are dispatched here.
 // CharacterOffsetProperty was moved to the PreShaping phase (FASE 2a)
 // — it is evaluated in `apply_character_offset_to_source()` in
 // src/text/animation/text_pre_shaping.cpp BEFORE shaping.
@@ -176,6 +176,13 @@ void apply_property_to_glyph(
             // We no-op here to avoid double-counting; the evaluator routes
             // TrackingProperty through detail::apply_tracking_to_glyph
             // BEFORE this dispatcher is reached.
+            (void)p;
+            (void)gs;
+        }
+        else if constexpr (std::is_same_v<T, WordSpacingProperty> ||
+                           std::is_same_v<T, LineSpacingProperty>) {
+            // Handled by evaluate_animator: spacing is cumulative across
+            // consecutive glyphs and needs the word/line unit map.
             (void)p;
             (void)gs;
         }

@@ -155,6 +155,20 @@ struct BaselineShiftProperty {
     AnimatedValue<f32> pixels{0.0f};  // vertical shift from baseline in pixels
 };
 
+/// PostLayout word gap, in pixels, inserted after each selected word.
+/// The gap is cumulative across the run and does not trigger line breaking
+/// or re-shaping; it mutates GlyphInstanceState::position.x after layout.
+struct WordSpacingProperty {
+    AnimatedValue<f32> pixels{0.0f};
+};
+
+/// PostLayout line gap, in pixels, inserted after each selected line.
+/// Line grouping comes from GlyphSelectorUnitMap; paragraph composition is
+/// intentionally unchanged.
+struct LineSpacingProperty {
+    AnimatedValue<f32> pixels{0.0f};
+};
+
 /// After Effects-style Character Offset: shifts the character value
 /// (code point) by a fixed amount.  Wraps within the alphanumeric range.
 /// Example: offset=1 turns 'A' into 'B', 'Z' into 'A'.
@@ -196,7 +210,9 @@ using TextAnimatorProperty = std::variant<
     StrokeWidthProperty,
     TrackingProperty,
     BaselineShiftProperty,
-    CharacterOffsetProperty
+    CharacterOffsetProperty,
+    WordSpacingProperty,
+    LineSpacingProperty
 >;
 
 } // namespace chronon3d

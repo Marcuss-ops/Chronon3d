@@ -52,6 +52,14 @@ namespace chronon3d::graph::detail {
                     effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
             break;
         }
+        case LightRays: {
+            if (auto* p = std::get_if<LightRaysParams>(&inst.params)) {
+                const f32 length = std::isfinite(p->length)
+                    ? std::max(p->length, 0.0f) : 0.0f;
+                max_spread = std::max(max_spread, length);
+            }
+            break;
+        }
         case Fake3DWave: {
             if (auto* p = std::get_if<Fake3DWaveParams>(&inst.params)) {
                 if (p->expand_bounds) {
@@ -129,6 +137,16 @@ LayerSpatialHalo compute_layer_spatial_halo(const Layer& layer) {
                 halo.top = std::max(halo.top, effect_halo.top);
                 halo.right = std::max(halo.right, effect_halo.right);
                 halo.bottom = std::max(halo.bottom, effect_halo.bottom);
+            }
+            break;
+        case LightRays:
+            if (const auto* p = std::get_if<LightRaysParams>(&inst.params)) {
+                const f32 length = std::isfinite(p->length)
+                    ? std::max(p->length, 0.0f) : 0.0f;
+                halo.left = std::max(halo.left, length);
+                halo.top = std::max(halo.top, length);
+                halo.right = std::max(halo.right, length);
+                halo.bottom = std::max(halo.bottom, length);
             }
             break;
         case Fake3DWave:

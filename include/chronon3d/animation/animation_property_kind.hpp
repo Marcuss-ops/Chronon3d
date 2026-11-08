@@ -44,6 +44,9 @@ enum class AnimationPropertyKind : std::uint8_t {
     LightIntensity,
     LightColor,
     LightDirection,
+    // New values are appended so existing enum numeric values stay stable.
+    WordSpacing,
+    LineSpacing,
 };
 
 [[nodiscard]] inline AnimationPropertyKind animation_property_kind(std::string_view name) {
@@ -70,6 +73,8 @@ enum class AnimationPropertyKind : std::uint8_t {
         {"background_radius_em", Kind::BackgroundRadius},
         {"stroke_color", Kind::StrokeColor}, {"stroke_width", Kind::StrokeWidth},
         {"character_offset", Kind::CharacterOffset},
+        {"word_spacing", Kind::WordSpacing},
+        {"line_spacing", Kind::LineSpacing},
         {"light_intensity", Kind::LightIntensity},
         {"light_color", Kind::LightColor},
         {"light_direction", Kind::LightDirection},

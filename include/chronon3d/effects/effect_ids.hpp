@@ -88,4 +88,9 @@ inline constexpr std::string_view StylizeRetroTv = "stylize.retro_tv";
 inline constexpr std::string_view LightHalation = "light.halation";
 inline constexpr std::string_view LightAnamorphicStreak = "light.anamorphic_streak";
 
+// ── Optical lens family ─────────────────────────────────────────────────────
+// Petzval field-curvature defocus: elliptical in-focus zone, progressive
+// Poisson-disc bokeh and CoC² radial chromatic dispersion.
+inline constexpr std::string_view BlurCameraRing = "blur.camera_ring";
+
 } // namespace chronon3d::effects::ids

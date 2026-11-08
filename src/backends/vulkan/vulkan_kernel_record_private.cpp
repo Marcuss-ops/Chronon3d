@@ -123,6 +123,36 @@ namespace chronon3d::backends::vulkan {
         ++stats.vk_cmd_dispatch_count;
     }
 
+    void VulkanBackend::Impl::record_camera_ring(VkCommandBuffer command,
+                      VkDescriptorSet descriptors,
+                      const Image& destination, const Image& source,
+                      const CameraRingParams& params) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::CameraRing)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float center_x, center_y;
+            float axis_x, axis_y;
+            float inner_radius, outer_radius, max_blur_radius, chroma_dispersion;
+            float anamorphic_stretch;
+            std::int32_t sample_count;
+            std::int32_t pad0, pad1;
+        } push{params.center.x, params.center.y,
+               params.axis_scale.x, params.axis_scale.y,
+               params.inner_radius, params.outer_radius,
+               params.max_blur_radius, params.chroma_dispersion,
+               params.anamorphic_stretch,
+               static_cast<std::int32_t>(params.samples), 0, 0};
+        static_assert(sizeof(push) == 48, "CameraRing push must be 48 bytes");
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(push), &push);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+        (void)source;
+    }
+
     void VulkanBackend::Impl::record_warp_bulk(VkCommandBuffer command,
                       VkDescriptorSet descriptors,
                       const Image& destination, const Image& source,

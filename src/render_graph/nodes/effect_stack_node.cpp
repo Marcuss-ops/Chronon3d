@@ -323,6 +323,10 @@ NodeExecResult EffectStackNode::execute(
                     stage_handled = native_effects::try_native_full_frame_radial_blur(
                         ctx, one_effect, *result, native_clip, current_source);
                     break;
+                case effects::EffectType::CameraRing:
+                    stage_handled = native_effects::try_native_full_frame_camera_ring(
+                        ctx, one_effect, *result, native_clip, current_source);
+                    break;
                 case effects::EffectType::Fake3DWave:
                 case effects::EffectType::CornerPin:
                 case effects::EffectType::Twirl:
@@ -363,7 +367,7 @@ NodeExecResult EffectStackNode::execute(
                 case effects::EffectType::LuminanceResponse:
                 case effects::EffectType::CreaseShading:
                     stage_handled = native_effects::try_native_full_frame_generate_bulk(
-                        ctx, one_effect, *result, local_clip, current_source);
+                        ctx, one_effect, *result, native_clip, current_source);
                     break;
                 case effects::EffectType::Curves:
                 case effects::EffectType::Lut3D:
@@ -454,6 +458,10 @@ NodeExecResult EffectStackNode::execute(
                     ctx, active_effects, *result, native_clip, native_source);
             }
             if (!native_handled) {
+                native_handled = native_effects::try_native_full_frame_camera_ring(
+                    ctx, active_effects, *result, native_clip, native_source);
+            }
+            if (!native_handled) {
                 // Single-effect DisplacementMap needs the resolved map layer
                 // from the second input, mirroring the strict-stack path.
                 runtime::RenderSurfaceHandle single_map_source =
@@ -480,7 +488,7 @@ NodeExecResult EffectStackNode::execute(
             }
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_generate_bulk(
-                    ctx, active_effects, *result, local_clip, native_source);
+                    ctx, active_effects, *result, native_clip, native_source);
             }
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_lut_bulk(

@@ -15,6 +15,7 @@
 #include "dof_blur_comp_spv.hpp"
 #include "dof_depth_stamp_comp_spv.hpp"
 #include "radial_blur_comp_spv.hpp"
+#include "camera_ring_comp_spv.hpp"
 #include "warp_bulk_comp_spv.hpp"
 #include "generate_bulk_comp_spv.hpp"
 #include "lut_bulk_comp_spv.hpp"
@@ -86,6 +87,7 @@ namespace chronon3d::backends::vulkan {
         CHRONON_HASH_SHADER(transform);
         CHRONON_HASH_SHADER(affine_transform);
         CHRONON_HASH_SHADER(blur);
+        CHRONON_HASH_SHADER(camera_ring);
         CHRONON_HASH_SHADER(sharpen);
         CHRONON_HASH_SHADER(bloom_threshold);
         CHRONON_HASH_SHADER(color_adjust);

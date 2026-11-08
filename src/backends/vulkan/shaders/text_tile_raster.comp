@@ -337,9 +337,11 @@ float composite_gel_body_alpha(float d_surf, float radius_px,
     float dome = gel_dome_height(u);
     float optical_thickness = clamp(0.35 + 1.45 * dome, 0.0, 2.0);
     // Scalar alpha is the source-over transmission contract at the composite
-    // stage. The old path sampled dst_image here, but text is rasterized to a
-    // transparent layer before the backdrop is connected by CompositeNode.
-    return clamp(1.0 - exp(-1.2 * optical_thickness), 0.0, 1.0);
+    // stage. Keep the core genuinely dielectric: the old 1.2 coefficient made
+    // the centre ~88% opaque, which hid the bright slit behind "or". The
+    // backdrop still receives bounded Beer-Lambert transmission and a
+    // luminance-driven backlit lift in composite.comp.
+    return clamp(1.0 - exp(-0.52 * optical_thickness), 0.0, 0.92);
 }
 
 vec3 shade_composite_gel_surface(
@@ -353,12 +355,9 @@ vec3 shade_composite_gel_surface(
     uint light_params) {
     // Stroke half-width in screen pixels scales with texel_to_screen
     // (canonical MTSDF em_px = 64 -> bold stroke half-width is ~3.6 texels).
-    // A razor-tight perimeter bevel radius (1.25 canonical em-texels) confines
-    // the rounded volumetric slope to the outermost ~2 px lip and clamps the
-    // stroke interior (u = 1) to a wide flat plateau with N = (0, 0, 1),
-    // preserving the sharp typographic stem geometry and open counters instead
-    // of inflating the character into a pillow/sausage.
-    float radius_px = clamp(1.25 * texel_to_screen, 2.0, 32.0);
+    // A 2.15-texel perimeter bevel keeps the rounded volume on the outer lip
+    // while the stroke interior (u = 1) stays a flat plateau with N = (0,0,1).
+    float radius_px = clamp(2.55 * texel_to_screen, 2.2, 48.0);
     float u = clamp(max(d_surf, 0.0) / radius_px, 0.0, 1.0);
     // Keep the GPU height and normal on the C2 smootherstep profile used by
     // text::gel::rounded_height(): h/r = 6u^5 - 15u^4 + 10u^3.
@@ -377,19 +376,23 @@ vec3 shade_composite_gel_surface(
         return vec3(d_surf >= 0.0 ? 1.0 : 0.0);
     }
 
-    // 1. Saturated solid cyan-aqua plastic/gel face with vertical chiaroscuro
-    //    gradient (bright cyan-turquoise body, non-punitive luminous lower half).
-    float v_clamped = pow(clamp(v_grad, 0.0, 1.0), 0.85);
+    // 1. Three-band dielectric body: cobalt/indigo base, turquoise centre,
+    //    cyan upper face. The acid-green crest is added separately from the
+    //    upper bevel normal so it stays a thin optical signature, not a green
+    //    body wash.
+    float v_clamped = smoothstep(0.0, 1.0, clamp(v_grad, 0.0, 1.0));
     vec3 c = clamp(base_color.rgb, vec3(0.0), vec3(1.0));
     float c_peak = max(c.r, max(c.g, max(c.b, 0.001)));
     vec3 c_norm = c / c_peak;
-    // Radiant cyan-turquoise body with luminous medium-cyan base (no pitch-black navy):
-    vec3 colBottom = vec3(0.00, 0.28, 0.58);
-    vec3 colTop    = vec3(0.00, 0.90, 1.00);
-    vec3 lower_body_tint = colBottom;
+    vec3 colBottom = vec3(0.005, 0.02, 0.24);
+    vec3 colMid    = vec3(0.00, 0.42, 0.70);
+    vec3 colTop    = vec3(0.00, 0.64, 0.86);
     vec3 upper_body_tint = colTop;
-    vec3 plateau_tint = mix(lower_body_tint, upper_body_tint, v_clamped);
-    vec3 edge_tint = plateau_tint * 0.80;
+    vec3 plateau_tint = mix(colBottom, colMid,
+                            smoothstep(0.0, 0.58, v_clamped));
+    plateau_tint = mix(plateau_tint, colTop,
+                       smoothstep(0.58, 1.0, v_clamped));
+    vec3 edge_tint = plateau_tint * 0.72;
     vec3 face = mix(edge_tint, plateau_tint, smoothstep(0.0, 0.65, dome));
 
     // Stage 02 (GEL-01 Core + gradient mode): return the luminous face directly
@@ -424,9 +427,9 @@ vec3 shade_composite_gel_surface(
                     composite_gel_body_alpha(d_surf, radius_px, effect_flags), 0.0);
     }
 
-    // 4. Gel thickness / internal refraction: dark rim at the lower flank (N.y > 0 in screen space)
+    // 4. Gel thickness / internal refraction: cobalt lower flank.
     float bottomRim = smoothstep(0.0, 0.6, N.y) * (1.0 - smoothstep(0.999, 0.95, N.z));
-    face = mix(face, vec3(0.00, 0.12, 0.35), bottomRim * 0.70);
+    face = mix(face, vec3(0.01, 0.04, 0.34), bottomRim * 0.82);
 
     // Overhead grazing directional light (in screen space y points down, so
     // azimuth = -1.5707963 points straight up).
@@ -460,7 +463,12 @@ vec3 shade_composite_gel_surface(
     const vec3 kGelAbsorption = vec3(0.36, 0.12, 0.01);
     shaded_face *= exp(-kGelAbsorption * dome);
     // Crisp cyan-aqua plateau boost so the flat interior reads as bright turquoise (~G=195..215, B=245..255).
-    shaded_face += upper_body_tint * (0.38 * smoothstep(0.45, 0.95, dome) * (0.50 + 0.50 * v_clamped));
+    shaded_face += upper_body_tint * (0.18 * smoothstep(0.45, 0.95, dome) * (0.50 + 0.50 * v_clamped));
+    // A pale authored fill (the centre word over the white slit) must read as
+    // white gel rather than keeping the cyan body ramp. Only the "or" run uses
+    // this path; cyan fills have c.r == 0 and are untouched.
+    float pale_gel = smoothstep(0.15, 0.65, c.r);
+    shaded_face = mix(shaded_face, vec3(0.98, 1.0, 1.0), 0.95 * pale_gel);
 
     // Toksvig geometric roughness from both SDF gradient length loss at medial
     // axes and screen-space Hessian curvature variance.
@@ -472,19 +480,54 @@ vec3 shade_composite_gel_surface(
     // Razor-sharp Blinn-Phong specular blade restricted to the upper bevel lip
     // with blinding HDR intensity and icy green-white hue
     float isBevel = 1.0 - smoothstep(0.96, 0.999, N.z);
-    float isUpper = smoothstep(0.10, 0.65, -N.y);
+    float isUpper = smoothstep(0.06, 0.55, -N.y);
     float specMask = isBevel * isUpper;
     float ndoth = max(dot(N, H), 0.0);
 
-    vec3 specularWhite = vec3(0.88, 1.00, 0.94) * (pow(ndoth, 40.0) * specMask * 4.5);
+    // The reference crest is lime/yellow-green, not white and not cyan. Apply
+    // it only on the upper bevel lip, after the body absorption, so it remains
+    // a thin saturated signature on every glyph.
+    vec3 acidGreen = vec3(0.22, 1.00, 0.14);
+    // Broaden the crest beyond the one-pixel bevel core: the reference has a
+    // visible acid-green blade on the upper lip of every glyph, not only a
+    // white specular pixel.
+    float upperCrest = smoothstep(0.0, 0.45, -N.y) *
+                       (0.60 + 0.40 * isBevel);
+    // The upper 15% of each glyph gets a thin lime coat too, so the crest is
+    // visible on every word, not only where the bevel normal happens to peak.
+    float topBand = smoothstep(0.80, 0.93, v_clamped);
+    // The glyph plane includes font ascent/descent padding, so v_clamped is
+    // not guaranteed to reach the visible ink top. Add a screen-space top
+    // edge from the SDF vertical gradient: d_b > d_t means the inside of the
+    // silhouette continues below this pixel, i.e. this is an upper lip.
+    float limeEdge = 1.0 - smoothstep(0.0, 2.4 * texel_to_screen,
+                                      max(d_surf, 0.0));
+    float limeTop = smoothstep(0.0, 0.55, sdf_gradient.y);
+    float limeCrest = max(topBand, limeEdge * limeTop);
+    upperCrest = max(upperCrest, limeCrest);
+    shaded_face = mix(shaded_face,
+                      acidGreen * (0.70 + 0.30 * half_lambert),
+                      0.97 * upperCrest);
+    shaded_face += acidGreen * (0.45 * limeCrest);
+    float lowerCrest = isBevel * smoothstep(0.12, 0.78, N.y);
+    shaded_face = mix(shaded_face, vec3(0.01, 0.04, 0.34),
+                      0.55 * lowerCrest);
+
+    // Razor-sharp Blinn-Phong specular blade restricted to the upper bevel.
+    // The crest is lime, not white: this is the primary optical signature.
+    vec3 specularWhite = acidGreen *
+        (pow(ndoth, 42.0) * specMask * 1.6);
+    vec3 crestSpecular = acidGreen *
+        (pow(ndoth, 16.0) * isUpper * isBevel * 2.4);
 
     // Dispersive bevel caustics: vibrant lime/emerald-cyan fringe on the upper lip,
     // deep indigo/violet-blue shift on the lower flank.
-    vec3 caustic_tint = vec3(0.35, 1.00, 0.45);
-    vec3 caustic_specular = caustic_tint * (1.60 * pow(ndoth, 24.0) * isUpper * isBevel);
+    vec3 caustic_tint = vec3(0.18, 1.00, 0.22);
+    vec3 caustic_specular = caustic_tint *
+        (2.10 * pow(ndoth, 22.0) * isUpper * isBevel);
 
-    vec3 spectral_tint = vec3(0.05, 0.12, 0.75);
-    vec3 spectral_specular = spectral_tint * (0.60 * bottomRim);
+    vec3 spectral_tint = vec3(0.04, 0.10, 0.82);
+    vec3 spectral_specular = spectral_tint * (0.75 * bottomRim);
 
     // Grazing Fresnel rim along the outer contour.
     float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.0);
@@ -492,12 +535,15 @@ vec3 shade_composite_gel_surface(
                       smoothstep(-0.5, 0.2, d_surf);
     float rim_response = max(fresnel * isBevel, 0.38 * edge_coat);
     float rim_dir = 0.28 + 0.72 * max(dot(N.xy, L.xy), 0.0);
-    vec3 rim_tint = mix(vec3(0.08, 0.76, 1.00),
-                        vec3(0.34, 1.00, 0.38), isUpper);
-    vec3 rim_light = rim_tint * (0.72 * rim_response * rim_dir);
+    vec3 rim_tint = mix(vec3(0.04, 0.42, 1.00),
+                        vec3(0.30, 1.00, 0.26), isUpper);
+    vec3 rim_light = rim_tint * (0.86 * rim_response * rim_dir);
 
-    return shaded_face + caustic_specular +
-           spectral_specular + specularWhite + rim_light;
+    vec3 final_color = shaded_face + caustic_specular +
+           spectral_specular + specularWhite + crestSpecular + rim_light;
+    // The pale centre word must read as white, translucent gel over the slit;
+    // a final coverage-gated wash removes the residual cyan/lime fringes.
+    return mix(final_color, vec3(0.97, 0.995, 1.0), 0.88 * pale_gel);
 }
 
 void main() {
@@ -890,6 +936,12 @@ void main() {
             float body_alpha = composite_gel_body_alpha(
                 d_surf, clamp(0.85 * owner_texel_to_screen, 1.0, 32.0),
                 owner_run.effect_flags);
+            // The upper lime lip is an opaque optical signature, not a
+            // translucent body tint; keep it readable over the white slit.
+            float crest_edge = 1.0 - smoothstep(
+                0.0, 2.4 * owner_texel_to_screen, max(d_surf, 0.0));
+            float crest_top = smoothstep(0.0, 0.55, sdf_gradient.y);
+            body_alpha = max(body_alpha, 0.94 * crest_edge * crest_top);
             vec4 gel_fill = vec4(lit, 1.0) *
                 (owner_fill.a * gel_coverage * owner_opacity * body_alpha);
             if (diagnostic_mode != 0u) {

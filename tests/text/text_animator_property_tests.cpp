@@ -50,6 +50,41 @@ std::string make_source_prop(size_t count) {
     return s;
 }
 
+// Place one glyph at each supplied source byte offset. This lets the unit-map
+// tests describe word/line boundaries without depending on a font shaper.
+PlacedGlyphRun make_test_placed_run_at_byte_offsets(
+    const std::vector<size_t>& byte_offsets) {
+    PlacedGlyphRun run;
+    for (size_t i = 0; i < byte_offsets.size(); ++i) {
+        PlacedGlyph g;
+        g.glyph_id = static_cast<u32>(i + 1);
+        g.cluster = static_cast<u32>(i);
+        g.is_cluster_start = true;
+        g.advance_x = 10.0f;
+        g.x = static_cast<float>(i) * 10.0f;
+        g.y = 0.0f;
+        g.byte_offset = byte_offsets[i];
+        g.byte_len = 1;
+        run.glyphs.push_back(g);
+
+        PlacedGlyphRun::Cluster cl;
+        cl.start_glyph = i;
+        cl.end_glyph = i + 1;
+        cl.byte_offset = byte_offsets[i];
+        cl.byte_len = 1;
+        cl.advance = 10.0f;
+        cl.raw_advance = 10.0f;
+        run.clusters.push_back(cl);
+    }
+    run.total_width = static_cast<float>(byte_offsets.size()) * 10.0f;
+    run.total_height = 16.0f;
+    run.ascent = 12.0f;
+    run.descent = 4.0f;
+    run.baseline = 12.0f;
+    run.font_size = 16.0f;
+    return run;
+}
+
 } // anonymous namespace
 
 TEST_CASE("Text spans seed per glyph fill and highlight even without animators") {
@@ -870,6 +905,64 @@ TEST_CASE("Property: TrackingProperty cumulative — first and last hold the gap
 
     CHECK(states[0].position.x == doctest::Approx(0.0f));
     CHECK(states[N - 1].position.x == doctest::Approx(static_cast<float>(N - 1) * 4.0f));
+}
+
+TEST_CASE("Property: WordSpacingProperty adds a cumulative gap between words") {
+    TextAnimatorSpec spec;
+    spec.id = "word_spacing";
+    spec.selectors.push_back({});
+    spec.selectors.back().shape = TextSelectorShape::Square;
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(WordSpacingProperty{12.0f});
+
+    auto placed = make_test_placed_run_at_byte_offsets({0, 2, 4});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+    auto states = evaluate_animator_stack({spec}, placed, "a b c", t);
+
+    REQUIRE(states.size() == 3);
+    CHECK(states[0].position.x == doctest::Approx(0.0f));
+    CHECK(states[1].position.x == doctest::Approx(12.0f));
+    CHECK(states[2].position.x == doctest::Approx(24.0f));
+}
+
+TEST_CASE("Property: WordSpacingProperty honours selector weight and animated value") {
+    TextAnimatorSpec spec;
+    spec.id = "word_spacing_half";
+    spec.selectors.push_back({});
+    spec.selectors.back().shape = TextSelectorShape::Square;
+    spec.selectors.back().amount.set(50.0f);
+
+    WordSpacingProperty spacing{0.0f};
+    spacing.pixels.add_keyframe(Frame{0}, 0.0f);
+    spacing.pixels.add_keyframe(Frame{30}, 20.0f);
+    spec.properties.push_back(spacing);
+
+    auto placed = make_test_placed_run_at_byte_offsets({0, 2, 4});
+    auto states = evaluate_animator_stack(
+        {spec}, placed, "a b c",
+        SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}));
+
+    REQUIRE(states.size() == 3);
+    CHECK(states[1].position.x == doctest::Approx(10.0f));
+    CHECK(states[2].position.x == doctest::Approx(20.0f));
+}
+
+TEST_CASE("Property: LineSpacingProperty adds a cumulative gap between lines") {
+    TextAnimatorSpec spec;
+    spec.id = "line_spacing";
+    spec.selectors.push_back({});
+    spec.selectors.back().shape = TextSelectorShape::Square;
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(LineSpacingProperty{8.0f});
+
+    auto placed = make_test_placed_run_at_byte_offsets({0, 2, 4});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+    auto states = evaluate_animator_stack({spec}, placed, "a\nb\nc", t);
+
+    REQUIRE(states.size() == 3);
+    CHECK(states[0].position.y == doctest::Approx(0.0f));
+    CHECK(states[1].position.y == doctest::Approx(8.0f));
+    CHECK(states[2].position.y == doctest::Approx(16.0f));
 }
 
 TEST_CASE("Property: TrackingProperty with partial selector weight halves the spread") {

@@ -16,6 +16,7 @@ enum class GpuKernelId : std::uint8_t {
     Blur,
     DirectionalBlur,
     RadialBlur,
+    CameraRing,
     WarpBulk,
     GenerateBulk,
     LutBulk,

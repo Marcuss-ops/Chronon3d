@@ -233,6 +233,52 @@ void decode_radial_blur_effect(LayerPlan::EffectPlan& effect,
                     throw std::runtime_error("Radial Blur parameters are outside supported bounds");
 }
 
+void decode_camera_ring_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
+                effect.kind = LayerPlan::EffectKindPlan::CameraRing;
+                const auto read_pair = [&raw_effect](const char* key,
+                        std::array<float, 2>& output, float minimum, float maximum) {
+                    if (!raw_effect.contains(key)) return;
+                    const auto& value = raw_effect.at(key);
+                    if (!value.is_array() || value.size() != 2)
+                        throw std::runtime_error(std::string("Camera Ring ") + key + " requires [x, y]");
+                    output[0] = value[0].get<float>();
+                    output[1] = value[1].get<float>();
+                    if (!std::isfinite(output[0]) || !std::isfinite(output[1]) ||
+                        output[0] < minimum || output[0] > maximum ||
+                        output[1] < minimum || output[1] > maximum)
+                        throw std::runtime_error(std::string("Camera Ring ") + key + " is outside its supported range");
+                };
+                read_pair("center", effect.camera_ring_center, 0.0f, 1.0f);
+                read_pair("axis_scale", effect.camera_ring_axis_scale, 1.0e-4f, 4.0f);
+                effect.camera_ring_inner_radius = raw_effect.value("inner_radius", 0.22f);
+                effect.camera_ring_outer_radius = raw_effect.value("outer_radius", 0.78f);
+                effect.camera_ring_max_blur_radius = raw_effect.value("max_blur_radius", 0.022f);
+                effect.camera_ring_chroma_dispersion = raw_effect.value("chroma_dispersion", 0.007f);
+                effect.camera_ring_anamorphic_stretch = raw_effect.value("anamorphic_stretch", 1.0f);
+                effect.camera_ring_samples = raw_effect.value("samples", 16u);
+                if (!std::isfinite(effect.camera_ring_inner_radius) ||
+                    !std::isfinite(effect.camera_ring_outer_radius) ||
+                    effect.camera_ring_inner_radius < 0.0f ||
+                    effect.camera_ring_outer_radius <= effect.camera_ring_inner_radius ||
+                    effect.camera_ring_outer_radius > 4.0f)
+                    throw std::runtime_error("Camera Ring requires 0 <= inner_radius < outer_radius <= 4");
+                if (!std::isfinite(effect.camera_ring_max_blur_radius) ||
+                    effect.camera_ring_max_blur_radius < 0.0f ||
+                    effect.camera_ring_max_blur_radius > 0.25f)
+                    throw std::runtime_error("Camera Ring max_blur_radius must be in [0, 0.25]");
+                if (!std::isfinite(effect.camera_ring_chroma_dispersion) ||
+                    effect.camera_ring_chroma_dispersion < 0.0f ||
+                    effect.camera_ring_chroma_dispersion > 0.1f)
+                    throw std::runtime_error("Camera Ring chroma_dispersion must be in [0, 0.1]");
+                if (!std::isfinite(effect.camera_ring_anamorphic_stretch) ||
+                    effect.camera_ring_anamorphic_stretch < 0.1f ||
+                    effect.camera_ring_anamorphic_stretch > 4.0f)
+                    throw std::runtime_error("Camera Ring anamorphic_stretch must be in [0.1, 4]");
+                if (effect.camera_ring_samples == 0 || effect.camera_ring_samples > 16)
+                    throw std::runtime_error("Camera Ring samples must be in [1, 16]");
+}
+
 void decode_gaussian_blur_effect(LayerPlan::EffectPlan& effect,
                             const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::GaussianBlur;

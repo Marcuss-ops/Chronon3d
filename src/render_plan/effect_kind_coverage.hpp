@@ -47,6 +47,7 @@ inline constexpr std::array kEffectKindCoverage{
     EffectKind::Halation,
     EffectKind::AnamorphicStreak,
     EffectKind::Fill,
+    EffectKind::CameraRing,
 };
 
 static_assert(kEffectKindCoverage.size() == magic_enum::enum_count<EffectKind>(),

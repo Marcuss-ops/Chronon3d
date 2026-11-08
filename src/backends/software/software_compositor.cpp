@@ -70,13 +70,31 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
             for (i32 x = sx0; x < sx1; ++x) {
                 const Color& s = source_row[x - src.origin_x()];
                 Color& d = destination_row[x - dst.origin_x()];
-                const float red_transmission = std::max(1.0f - std::clamp(s.a, 0.0f, 1.0f), 1e-6f);
+                const float sa = std::clamp(s.a, 0.0f, 1.0f);
+                const float da = std::clamp(d.a, 0.0f, 1.0f);
+                const float inv_da = da > 1.0e-6f ? 1.0f / da : 0.0f;
+                const float bg_luma = 0.2126f * d.r * inv_da +
+                                      0.7152f * d.g * inv_da +
+                                      0.0722f * d.b * inv_da;
+                const float t = std::clamp((bg_luma - 0.45f) / 0.45f, 0.0f, 1.0f);
+                const float backlit = t * t * (3.0f - 2.0f * t);
+                // On a backlit backdrop the gel becomes more transmissive and
+                // its surface washes toward white. Both terms are gated by
+                // coverage, so alpha=0 leaves the backdrop untouched.
+                const float effective_alpha = sa * (1.0f - 0.45f * backlit);
+                const float red_transmission = std::max(1.0f - effective_alpha, 1e-6f);
                 const float tr = red_transmission;
                 const float tg = std::pow(red_transmission, 0.4f / 1.2f);
                 const float tb = std::pow(red_transmission, 0.05f / 1.2f);
-                const float sa = std::clamp(s.a, 0.0f, 1.0f);
-                d = Color{s.r + d.r * tr, s.g + d.g * tg, s.b + d.b * tb,
-                          sa + std::clamp(d.a, 0.0f, 1.0f) * (1.0f - sa)};
+                const float wash = 0.85f * backlit;
+                const float surface_r = s.r * (1.0f - wash) + effective_alpha * wash;
+                const float surface_g = s.g * (1.0f - wash) + effective_alpha * wash;
+                const float surface_b = s.b * (1.0f - wash) + effective_alpha * wash;
+                const float body_lift = 0.12f * backlit * effective_alpha;
+                d = Color{surface_r + d.r * tr + body_lift,
+                          surface_g + d.g * tg + body_lift,
+                          surface_b + d.b * tb + body_lift,
+                          effective_alpha + da * (1.0f - effective_alpha)};
             }
         }
         return;

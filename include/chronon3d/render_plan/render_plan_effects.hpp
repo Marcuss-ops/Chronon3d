@@ -3,7 +3,7 @@
 #include <chronon3d/render_plan/render_plan_types.hpp>
 
 namespace chronon3d::render_plan {
-enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading, Scanlines, RetroTv, Halation, AnamorphicStreak, Fill };
+enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading, Scanlines, RetroTv, Halation, AnamorphicStreak, Fill, CameraRing };
 enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
 struct EffectPlan {
     EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -51,6 +51,15 @@ struct EffectPlan {
     float radial_amount{0.0f};
     int radial_render_samples{8};
     int radial_preview_samples{4};
+    // Camera Ring / Petzval field-curvature defocus.
+    std::array<float, 2> camera_ring_center{0.5f, 0.5f};
+    std::array<float, 2> camera_ring_axis_scale{0.68f, 0.32f};
+    float camera_ring_inner_radius{0.22f};
+    float camera_ring_outer_radius{0.78f};
+    float camera_ring_max_blur_radius{0.022f};
+    float camera_ring_chroma_dispersion{0.007f};
+    float camera_ring_anamorphic_stretch{1.0f};
+    std::uint32_t camera_ring_samples{16};
     float radius{0.0f};
     std::array<float, 2> offset{0.0f, 8.0f};
     std::array<float, 4> effect_color{0.0f, 0.0f, 0.0f, 0.35f};
