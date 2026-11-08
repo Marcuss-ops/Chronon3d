@@ -1005,7 +1005,7 @@ TEST_CASE("Vulkan disk bokeh kernel matches the CPU kernel within the frozen tol
     REQUIRE(backend.dof_blur_disk_surface(
                 destination_handle, source_handle, depth_handle,
                 0, 0, static_cast<int>(size), static_cast<int>(size),
-                kMaxRadius, false, kHighlightGain).ok());
+                kMaxRadius, false, kHighlightGain, 0).ok());
     std::vector<float> actual(pixels * 4, 0.0f);
     REQUIRE(backend.download_surface(destination_handle, actual).ok());
 

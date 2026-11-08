@@ -1,0 +1,38 @@
+{
+  "schema": "chronon.t10.tracking-rerun.v1",
+  "tested_at": "2026-11-08T13:35:00Z",
+  "plan": "docs/evidence/gel-text-stress-20261105/T10.plan.json",
+  "command": "chronon3d_cli render --plan docs/evidence/gel-text-stress-20261105/T10.plan.json --assets-root $PWD --backend vulkan --start-frame 0 --end-frame 60 --video-sink raw -o /tmp/T10-rerun.rgba",
+  "frames": 61,
+  "canvas": [
+    1280,
+    720
+  ],
+  "raw_sha256": "1baebf202fb4d67fde5f45d4d318556d36d7b59acfa60562d3c723b122d8e874",
+  "threshold_rgb": 40,
+  "bbox_x": {
+    "0": [
+      189,
+      1254
+    ],
+    "15": [
+      189,
+      1279
+    ],
+    "30": [
+      189,
+      428
+    ],
+    "45": [
+      189,
+      1279
+    ],
+    "60": [
+      189,
+      1254
+    ]
+  },
+  "finding": "At frame 30 tracking -30 px packs the phrase into a 240 px span (x=189..428), matching the 2026-11-06 run exactly. Other frames span to x=1254/1279. This is the authored negative-tracking stimulus, not renderer dropout.",
+  "decision": "No readability clamp: it would alter the authored animation. T10 is closed as an authored-stimulus reproduction with unchanged coverage.",
+  "note": "The raw 215 MB artifact is not committed; this JSON and T10-rerun-030.png are the retained evidence."
+}

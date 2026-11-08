@@ -93,13 +93,23 @@ Decoded `frame_000.png` and `frame_150.png` show lateral glyphs visibly
 defocused with radial chromatic separation, while the central “or” remains
 sharp.
 
-## Budget result
+## Budget result — PASS (2026-11-08 kernel)
 
-**FAIL.** The measured 1080p `blur` pass is **10.33 ms**, about 23× the
-requested **<0.45 ms** budget. This is a real native pass measurement, not a
-proxy. The 300-frame sidecar contains only one blur sample because the static
-fast path reused the effect output for the remaining 299 frames; no p95 across
-300 executed passes exists.
+**PASS.** The optimized 1080p `blur` pass measures **0.428 ms** on the RTX
+A4000, inside the requested **<0.45 ms** budget. The same native pass measured
+**10.33 ms** before the kernel change (about 24× slower); that earlier number
+is kept in the history above. The 300-frame sidecar contains one blur sample
+because the static fast path reuses the effect output for the remaining 299
+frames; no p95 across 300 executed passes exists.
+
+The shader now shares one golden-angle gather per 4×4, 8×8 or 16×16 pixel
+block when the circle of confusion is large (16×16 uses 8 taps, 8×8 uses 16),
+while small radii keep the per-pixel 2×2 prefilter and the full tap count. The
+elliptical safe zone is still copied exactly per pixel, and the fallback at a
+sharp block origin preserves the boundary. Decoded frame 0 differs from the
+previous render by MAE 1.06/255 (p99 36, max 177 at grain/edges); the layout
+and the sharp centre are unchanged. This is a diagnostic, not a new visual
+acceptance gate.
 
 The still/PNG lane is not a supported Vulkan pixel-truth surface and crashed
 (`SIGSEGV`, exit 139) when asked for a still; the video lane above is the

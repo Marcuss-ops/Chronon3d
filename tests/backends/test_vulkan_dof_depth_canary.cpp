@@ -125,7 +125,7 @@ TEST_CASE("Vulkan DoF point highlight fills a circular bokeh footprint") {
     REQUIRE(backend.upload_surface(depth_handle, desc, depth).ok());
     REQUIRE(backend.dof_blur_disk_surface(output_handle, source_handle,
         depth_handle, 0, 0, static_cast<int>(size), static_cast<int>(size),
-        radius, false, 0.0f).ok());
+        radius, false, 0.0f, 0).ok());
 
     std::vector<float> output(pixel_count * 4U, 0.0f);
     REQUIRE(backend.download_surface(output_handle, output).ok());
@@ -231,7 +231,7 @@ TEST_CASE("Vulkan DoF keeps an in-focus foreground bar clean of far bokeh") {
     REQUIRE(backend.upload_surface(depth_handle, desc, depth).ok());
     REQUIRE(backend.dof_blur_disk_surface(output_handle, source_handle,
         depth_handle, 0, 0, static_cast<int>(size), static_cast<int>(size),
-        far_radius, false, 0.0f).ok());
+        far_radius, false, 0.0f, 0).ok());
     std::vector<float> output(pixel_count * 4U, 0.0f);
     REQUIRE(backend.download_surface(output_handle, output).ok());
 
