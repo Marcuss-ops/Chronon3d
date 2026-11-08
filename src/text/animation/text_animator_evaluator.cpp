@@ -132,7 +132,9 @@ void evaluate_animator(
             // evaluated in `evaluate_pre_shaping_source()` before
             // the animator stack.  Skipping here avoids wasted
             // std::visit dispatch to the no-op branch.
-            if (std::holds_alternative<CharacterOffsetProperty>(prop)) {
+            if (std::holds_alternative<CharacterOffsetProperty>(prop) ||
+                std::holds_alternative<ReflowWordSpacingProperty>(prop) ||
+                std::holds_alternative<ReflowLineSpacingProperty>(prop)) {
                 continue;
             }
 

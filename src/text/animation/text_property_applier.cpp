@@ -194,6 +194,77 @@ void apply_property_to_glyph(
                 gs.baseline_shift += pixels * weight;
             }
         }
+        else if constexpr (std::is_same_v<T, GlyphShadowColorProperty>) {
+            const Color target = p.color.evaluate(time);
+            gs.shadow.color = {
+                gs.shadow.color.r + (target.r - gs.shadow.color.r) * weight,
+                gs.shadow.color.g + (target.g - gs.shadow.color.g) * weight,
+                gs.shadow.color.b + (target.b - gs.shadow.color.b) * weight,
+                gs.shadow.color.a + (target.a - gs.shadow.color.a) * weight};
+            gs.shadow.enabled = true;
+        }
+        else if constexpr (std::is_same_v<T, GlyphShadowOffsetProperty>) {
+            const Vec3 value = p.offset.evaluate(time);
+            if (blend == TextPropertyBlendMode::Replace)
+                gs.shadow.offset = Vec2{value.x, value.y};
+            else
+                gs.shadow.offset += Vec2{value.x * weight, value.y * weight};
+            gs.shadow.enabled = true;
+        }
+        else if constexpr (std::is_same_v<T, GlyphShadowBlurProperty>) {
+            gs.shadow.blur += p.radius.evaluate(time) * weight;
+            gs.shadow.enabled = true;
+        }
+        else if constexpr (std::is_same_v<T, GlyphShadowOpacityProperty>) {
+            gs.shadow.opacity = p.opacity.evaluate(time) * weight;
+            gs.shadow.enabled = true;
+        }
+        else if constexpr (std::is_same_v<T, GlyphGlowColorProperty>) {
+            const Color target = p.color.evaluate(time);
+            gs.glow.color = {
+                gs.glow.color.r + (target.r - gs.glow.color.r) * weight,
+                gs.glow.color.g + (target.g - gs.glow.color.g) * weight,
+                gs.glow.color.b + (target.b - gs.glow.color.b) * weight,
+                gs.glow.color.a + (target.a - gs.glow.color.a) * weight};
+            gs.glow.enabled = true;
+        }
+        else if constexpr (std::is_same_v<T, GlyphGlowRadiusProperty>) {
+            gs.glow.radius += p.radius.evaluate(time) * weight;
+            gs.glow.enabled = true;
+        }
+        else if constexpr (std::is_same_v<T, GlyphGlowIntensityProperty>) {
+            gs.glow.intensity = p.intensity.evaluate(time) * weight;
+            gs.glow.enabled = true;
+        }
+        else if constexpr (std::is_same_v<T, GlyphGradientStartColorProperty>) {
+            const Color target = p.color.evaluate(time);
+            gs.fill_gradient.start = {
+                gs.fill_gradient.start.r + (target.r - gs.fill_gradient.start.r) * weight,
+                gs.fill_gradient.start.g + (target.g - gs.fill_gradient.start.g) * weight,
+                gs.fill_gradient.start.b + (target.b - gs.fill_gradient.start.b) * weight,
+                gs.fill_gradient.start.a + (target.a - gs.fill_gradient.start.a) * weight};
+            gs.fill_gradient.enabled = true;
+        }
+        else if constexpr (std::is_same_v<T, GlyphGradientEndColorProperty>) {
+            const Color target = p.color.evaluate(time);
+            gs.fill_gradient.end = {
+                gs.fill_gradient.end.r + (target.r - gs.fill_gradient.end.r) * weight,
+                gs.fill_gradient.end.g + (target.g - gs.fill_gradient.end.g) * weight,
+                gs.fill_gradient.end.b + (target.b - gs.fill_gradient.end.b) * weight,
+                gs.fill_gradient.end.a + (target.a - gs.fill_gradient.end.a) * weight};
+            gs.fill_gradient.enabled = true;
+        }
+        else if constexpr (std::is_same_v<T, GlyphGradientAngleProperty>) {
+            gs.fill_gradient.angle_degrees += p.degrees.evaluate(time) * weight;
+            gs.fill_gradient.enabled = true;
+        }
+        else if constexpr (std::is_same_v<T, ReflowWordSpacingProperty> ||
+                           std::is_same_v<T, ReflowLineSpacingProperty>) {
+            // PreLayout: evaluated by the driver before rebuild, never applied
+            // to an already-composed glyph state.
+            (void)p;
+            (void)gs;
+        }
         else if constexpr (std::is_same_v<T, CharacterOffsetProperty>) {
             // FASE 2a: CharacterOffsetProperty is now a PreShaping
             // property evaluated in `apply_character_offset_to_source()`

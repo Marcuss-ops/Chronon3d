@@ -11,6 +11,7 @@
 #include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/render_plan/color_utils.hpp>
 #include <chronon3d/effects/effect_param_animation.hpp>
 // The compiled route reuses the RenderPlan text lowering verbatim instead of
 // keeping a second copy of the typography mapping.
@@ -177,6 +178,28 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     auto& text_builder = builder.text_run(
                         "text", chronon3d::prepare_text(definition))
                         .font_engine(font_engine);
+                    // P1-10: the compiled scene materializer is the path the
+                    // V3 plan render uses, so it must lower the caret just
+                    // like append_text_layer_for_scene does.
+                    if (text_plan.style && text_plan.style->text_caret) {
+                        const auto& source = *text_plan.style->text_caret;
+                        const auto caret_color =
+                            render_plan::parse_hex_color(source.color);
+                        if (!caret_color)
+                            throw std::runtime_error(
+                                "text caret on layer '" + layer.name +
+                                "' has an invalid color");
+                        TextCaretSpec caret;
+                        caret.enabled = true;
+                        caret.byte_index = source.byte_index;
+                        caret.width = source.width;
+                        caret.height = source.height;
+                        caret.color = *caret_color;
+                        caret.opacity = source.opacity;
+                        caret.blink_period_frames = source.blink_period_frames;
+                        caret.blink_duty = source.blink_duty;
+                        text_builder.caret(std::move(caret));
+                    }
                     render_plan::detail::apply_text_animators(
                         text_builder, text_plan, canvas_fps);
                     render_plan::detail::apply_text_glow(builder, text_plan);

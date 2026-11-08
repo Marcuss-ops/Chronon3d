@@ -12,6 +12,7 @@ set(_chronon3d_shaders
     directional_blur
     radial_blur
     camera_ring
+    sdf_bevel
     warp_bulk
     generate_bulk
     lut_bulk
@@ -63,6 +64,7 @@ set(_chronon3d_shader_abi_prefixes
     directional_blur:DirectionalBlur
     radial_blur:RadialBlur
     camera_ring:CameraRing
+    sdf_bevel:SdfBevel
     warp_bulk:WarpBulk
     generate_bulk:GenerateBulk
     lut_bulk:LutBulk

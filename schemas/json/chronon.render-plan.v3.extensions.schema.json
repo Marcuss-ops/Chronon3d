@@ -1795,7 +1795,19 @@
             "stroke_color",
             "stroke_width",
             "character_offset",
-            "light_direction"
+            "light_direction",
+            "glyph_shadow_color",
+            "glyph_shadow_offset",
+            "glyph_shadow_blur",
+            "glyph_shadow_opacity",
+            "glyph_glow_color",
+            "glyph_glow_radius",
+            "glyph_glow_intensity",
+            "glyph_gradient_start_color",
+            "glyph_gradient_end_color",
+            "glyph_gradient_angle",
+            "reflow_word_spacing",
+            "reflow_line_spacing"
           ]
         },
         "easing": {
@@ -7688,6 +7700,19 @@
           "style": {
             "type": "object",
             "properties": {
+              "text_caret": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "byte_index": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                  "width": {"type": "number", "exclusiveMinimum": 0, "maximum": 256},
+                  "height": {"type": "number", "minimum": 0, "maximum": 4096},
+                  "color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"},
+                  "opacity": {"type": "number", "minimum": 0, "maximum": 1},
+                  "blink_period_frames": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                  "blink_duty": {"type": "number", "minimum": 0, "maximum": 1}
+                }
+              },
               "extruded_text": {
                 "type": "boolean",
                 "default": false,

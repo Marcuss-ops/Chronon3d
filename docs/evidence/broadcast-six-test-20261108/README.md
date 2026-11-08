@@ -8,11 +8,13 @@ The evidence was rendered with the **Vulkan** backend on an NVIDIA RTX A4000
 Renders were run one at a time: host memory stayed around 8 GB used and GPU
 memory around 5.7 GB of 16 GB; no OOM occurred.
 
-The six existing camera-ring MP4s in
-`docs/evidence/camera-ring-text-drive-20261108/` are **not certified** by this
-bundle. They are text-only compositions and the plan-level audit in
-`report.json -> audit` marks them FAIL/N/A. The certified fixture is the
-purpose-built canary described below.
+The six camera-ring clips in
+`docs/evidence/camera-ring-text-drive-20261108/` are now certified separately:
+both their full-materiality and strict-GPU plans pass the plan-level audit
+(`1_velocity_profile` and `6_materiality_static` PASS; `3`/`4` N/A), and both
+`audit_full_materiality.json` and `gpu_native/audit_gpu_native.json` are
+`overall: PASS`. The purpose-built canary below remains the fixture for the
+full six-test matrix (morph, trim, sub-pixel and materiality pixels).
 
 ## Results
 
@@ -31,24 +33,30 @@ Test 1 is measured from the authored curve, test 2 from the SVG geometry, test
 static materiality sample; the canary is rendered at frames 60–90, where the
 entrance animations have settled.
 
+The canary pixel check is still rendered through the legacy fallback because
+`shape_repeater` has no native draw route. The six camera-ring clips do not use
+`shape_repeater` and are strict-native; the new Vulkan SDF bevel is covered by
+the strict parity test and by those six renders.
+
 ## Existing camera-ring plans: audit
 
-All six plans (`camera_ring_text_01…06`) have the same plan-level status:
+All six plans (`camera_ring_text_01…06`) now pass the applicable checks:
 
-- **1_velocity_profile: FAIL** — peak at 0.0292, outside 0.15–0.25; tail speed
-  ratio 1.000, not < 0.05.
+- **1_velocity_profile: PASS** — peak at 0.19, tail speed ratio 0.006564.
 - **3_hierarchy_stagger: N/A** — single-focus composition.
 - **4_trim_dynamics: N/A** — no animated trim path.
-- **6_materiality_static: FAIL** — no lit SDF bevel with contact shadow and no
-  non-zero film grain; the monochrome variant also has no peripheral chromatic
-  dispersion.
+- **6_materiality_static: PASS** — lit SDF bevel with contact shadow, non-zero
+  film grain, peripheral chromatic dispersion and vignette.
 
 `report.json` embeds this audit. `camera_ring_audit.json` is the standalone
-plan-only audit from the initial pass.
+audit and now also includes the 5a/5b raw inputs, so its `overall` is PASS.
+The same result is recorded in both camera-ring audit files.
 
 ## Artifacts
 
 - `report.json` — all metrics and the existing-plan audit.
+- `camera_ring_audit.json` — standalone camera-ring plan audit (now includes the
+  5a/5b raw inputs and reports `overall: PASS`).
 - `broadcast_canary.plan.json`, `broadcast_canary_1080p.mp4`,
   `canary_frame_090.png` — materiality/velocity canary (1080p30).
 - `broadcast_hierarchy_60fps.plan.json`, `broadcast_hierarchy_60fps.mp4`,
@@ -70,7 +78,7 @@ frames, never the encoded video. Raw frames live in
 ```bash
 cd Chronon3d
 cmake --build build/chronon/linux-video-release \
-    --target chronon3d_cli chronon3d_effects_tests -j6
+    --target chronon3d_cli chronon3d_effects_tests -j12
 
 ./build/chronon/linux-video-release/tests/chronon3d_effects_tests \
     --test-case="SdfBevel*"      # 6/6 cases, 20/20 assertions
@@ -128,7 +136,8 @@ python3 tools/broadcast_six_diagnostics.py \
 - **Test 6 grain band.** The diagnostic accepts 0.012–0.030 RMS to tolerate
   GPU/CPU texture variation; the measured 0.02306 is inside the brief's
   stricter 1.5–2.5 % band.
-- **Not certified: existing camera-ring clips.** The six MP4s in
-  `docs/evidence/camera-ring-text-drive-20261108/` are text-only; their plans
-  fail the velocity and materiality audits. They remain useful visual evidence
-  for the camera-ring effect, but they are not evidence for the six criteria.
+- **Canary strict-GPU limitation.** `shape_repeater` has no native draw
+  route, so the canary pixel check is rendered through the legacy fallback.
+  The six camera-ring clips do not use `shape_repeater` and are strict-native;
+  the new SDF bevel kernel is covered by the strict parity test. A native
+  shape-repeater route is a separate gap, not a bevel/grain gap.

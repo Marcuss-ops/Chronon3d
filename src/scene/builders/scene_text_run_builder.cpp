@@ -503,6 +503,8 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
     shape->animated_doc = std::move(animated_doc);
     shape->engine = prepared.engine;
     shape->layout_spec = prepared.layout_spec;
+    shape->reflow_word_spacing_base = prepared.layout_spec.paragraph.word_spacing;
+    shape->reflow_line_spacing_base = prepared.layout_spec.paragraph.line_spacing;
     shape->placement_kind = prepared.placement_kind;
 
     if (shape->animated_doc) {

@@ -51,6 +51,7 @@ std::unique_ptr<EffectProcessor> create_vignette_effect_processor();
 std::unique_ptr<EffectProcessor> create_mosaic_effect_processor();
 std::unique_ptr<EffectProcessor> create_keying_effect_processor();
 std::unique_ptr<EffectProcessor> create_drop_shadow_effect_processor();
+std::unique_ptr<EffectProcessor> create_sdf_bevel_effect_processor();
 std::unique_ptr<EffectProcessor> create_directional_blur_effect_processor();
 std::unique_ptr<EffectProcessor> create_radial_blur_effect_processor();
 std::unique_ptr<EffectProcessor> create_fake_3d_wave_effect_processor();

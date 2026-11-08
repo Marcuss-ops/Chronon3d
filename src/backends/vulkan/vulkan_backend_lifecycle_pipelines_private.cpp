@@ -10,6 +10,7 @@
 #include "directional_blur_comp_spv.hpp"
 #include "radial_blur_comp_spv.hpp"
 #include "camera_ring_comp_spv.hpp"
+#include "sdf_bevel_comp_spv.hpp"
 #include "dof_depth_stamp_comp_spv.hpp"
 #include "dof_blur_comp_spv.hpp"
 #include "occlusion_tag_comp_spv.hpp"
@@ -190,6 +191,29 @@ void VulkanBackend::Impl::init_core_kernel_pipelines() {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::CameraRing, camera_ring_pipeline, "CameraRing");
         if (debug_context) debug_context->set_pipeline_name(camera_ring_pipeline, "Chronon3D.Pipeline.CameraRing");
+
+        const VkShaderModuleCreateInfo sdf_bevel_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_sdf_bevel_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_sdf_bevel_comp_spv)};
+        VkShaderModule sdf_bevel_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &sdf_bevel_shader_info, nullptr, &sdf_bevel_shader),
+              "vkCreateShaderModule(sdf_bevel)");
+        const VkPipelineShaderStageCreateInfo sdf_bevel_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            sdf_bevel_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo sdf_bevel_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            sdf_bevel_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline sdf_bevel_pipeline = VK_NULL_HANDLE;
+        const VkResult sdf_bevel_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &sdf_bevel_pipeline_info, nullptr, &sdf_bevel_pipeline);
+        vkDestroyShaderModule(device, sdf_bevel_shader, nullptr);
+        check(sdf_bevel_result, "vkCreateComputePipelines(sdf_bevel)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::SdfBevel, sdf_bevel_pipeline, "SdfBevel");
+        if (debug_context) debug_context->set_pipeline_name(sdf_bevel_pipeline, "Chronon3D.Pipeline.SdfBevel");
 
         const VkShaderModuleCreateInfo dof_depth_stamp_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

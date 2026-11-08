@@ -130,7 +130,7 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     // MTSDF outlines are evaluated as a distance-field threshold, so their
     // result does not depend on the vector stroke miter limit. Keep the
     // cap/join/dash checks: those change the outline topology or end treatment.
-    if (!shape.layout || shape.animated_doc ||
+    if (!shape.layout || shape.animated_doc || shape.caret.enabled ||
         shape.paint.fill_style || shape.paint.stroke_style ||
         shape.paint.stroke_cap != LineCap::Butt ||
         shape.paint.stroke_join != LineJoin::Miter ||
@@ -172,6 +172,8 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
                    std::abs(glyph.anchor.z) <= 1e-6f &&
                    std::abs(glyph.skew) <= 1e-6f &&
                    std::abs(glyph.skew_axis) <= 1e-6f &&
+                   !glyph.shadow.enabled && !glyph.glow.enabled &&
+                   !glyph.fill_gradient.enabled &&
                    std::isfinite(glyph.scale.x) &&
                    std::isfinite(glyph.scale.y) &&
                    std::isfinite(glyph.scale.z) &&

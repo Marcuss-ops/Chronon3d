@@ -1,13 +1,13 @@
 {
   "schema": "chronon.broadcast-six-test.v1",
-  "tested_at": "2026-11-08T11:31:36.781384+00:00",
+  "tested_at": "2026-11-08T14:52:41.839003+00:00",
   "inputs": {
-    "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/docs/evidence/broadcast-six-test-20261108/broadcast_canary.plan.json",
-    "morph": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/docs/evidence/broadcast-six-test-20261108/broadcast_canary_morph.svg",
+    "plan": "docs/evidence/broadcast-six-test-20261108/broadcast_canary.plan.json",
+    "morph": "docs/evidence/broadcast-six-test-20261108/broadcast_canary_morph.svg",
     "canary_frames": 31,
-    "hierarchy_plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/docs/evidence/broadcast-six-test-20261108/broadcast_hierarchy_60fps.plan.json",
+    "hierarchy_plan": "docs/evidence/broadcast-six-test-20261108/broadcast_hierarchy_60fps.plan.json",
     "hierarchy_frames": 120,
-    "audit_dir": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/docs/evidence/camera-ring-text-drive-20261108"
+    "audit_dir": "docs/evidence/camera-ring-text-drive-20261108"
   },
   "tests": {
     "1_velocity_profile": {
@@ -27,7 +27,7 @@
     "2_topology_morph": {
       "status": "PASS",
       "metrics": {
-        "svg": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/docs/evidence/broadcast-six-test-20261108/broadcast_canary_morph.svg",
+        "svg": "docs/evidence/broadcast-six-test-20261108/broadcast_canary_morph.svg",
         "morphed_paths": 2,
         "samples": 41,
         "intersections_at_t_0_5": 0,
@@ -164,18 +164,18 @@
   "audit": {
     "camera_ring_text_01_calories.plan.json": {
       "1_velocity_profile": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
           "track_layer": "calories_title",
           "track_property": "scale",
-          "duration_frames": 299.0,
-          "peak_time_normalized": 0.0292,
-          "tail_speed_ratio": 1.0,
-          "max_acceleration_step_ratio": 0.0,
-          "peak_speed_per_frame": 0.003344,
+          "duration_frames": 90.0,
+          "peak_time_normalized": 0.19,
+          "tail_speed_ratio": 0.006564,
+          "max_acceleration_step_ratio": 0.008939,
+          "peak_speed_per_frame": 0.029509,
           "samples": 481
         },
-        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+        "reason": "cinematic impulse and damped tail confirmed"
       },
       "3_hierarchy_stagger": {
         "status": "N/A",
@@ -195,32 +195,44 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "calories_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     },
     "camera_ring_text_02_sharp_center.plan.json": {
       "1_velocity_profile": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
           "track_layer": "sharp_center_title",
           "track_property": "scale",
-          "duration_frames": 239.0,
-          "peak_time_normalized": 0.0292,
-          "tail_speed_ratio": 1.0,
-          "max_acceleration_step_ratio": 0.0,
-          "peak_speed_per_frame": 0.004184,
+          "duration_frames": 90.0,
+          "peak_time_normalized": 0.19,
+          "tail_speed_ratio": 0.006564,
+          "max_acceleration_step_ratio": 0.008939,
+          "peak_speed_per_frame": 0.029509,
           "samples": 481
         },
-        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+        "reason": "cinematic impulse and damped tail confirmed"
       },
       "3_hierarchy_stagger": {
         "status": "N/A",
@@ -240,32 +252,44 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "sharp_center_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     },
     "camera_ring_text_03_every_detail.plan.json": {
       "1_velocity_profile": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
           "track_layer": "every_detail_title",
           "track_property": "scale",
-          "duration_frames": 179.0,
-          "peak_time_normalized": 0.0292,
-          "tail_speed_ratio": 1.0,
-          "max_acceleration_step_ratio": 0.0,
-          "peak_speed_per_frame": 0.005587,
+          "duration_frames": 90.0,
+          "peak_time_normalized": 0.19,
+          "tail_speed_ratio": 0.006564,
+          "max_acceleration_step_ratio": 0.008939,
+          "peak_speed_per_frame": 0.029509,
           "samples": 481
         },
-        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+        "reason": "cinematic impulse and damped tail confirmed"
       },
       "3_hierarchy_stagger": {
         "status": "N/A",
@@ -285,32 +309,44 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "every_detail_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     },
     "camera_ring_text_04_soft_amber.plan.json": {
       "1_velocity_profile": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
           "track_layer": "soft_amber_title",
           "track_property": "scale",
-          "duration_frames": 239.0,
-          "peak_time_normalized": 0.0292,
-          "tail_speed_ratio": 1.0,
-          "max_acceleration_step_ratio": 0.0,
-          "peak_speed_per_frame": 0.004184,
+          "duration_frames": 90.0,
+          "peak_time_normalized": 0.19,
+          "tail_speed_ratio": 0.006564,
+          "max_acceleration_step_ratio": 0.008939,
+          "peak_speed_per_frame": 0.029509,
           "samples": 481
         },
-        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+        "reason": "cinematic impulse and damped tail confirmed"
       },
       "3_hierarchy_stagger": {
         "status": "N/A",
@@ -330,32 +366,44 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "soft_amber_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     },
     "camera_ring_text_05_high_chroma.plan.json": {
       "1_velocity_profile": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
           "track_layer": "high_chroma_title",
           "track_property": "scale",
-          "duration_frames": 179.0,
-          "peak_time_normalized": 0.0292,
-          "tail_speed_ratio": 1.0,
-          "max_acceleration_step_ratio": 0.0,
-          "peak_speed_per_frame": 0.005587,
+          "duration_frames": 90.0,
+          "peak_time_normalized": 0.19,
+          "tail_speed_ratio": 0.006564,
+          "max_acceleration_step_ratio": 0.008939,
+          "peak_speed_per_frame": 0.029509,
           "samples": 481
         },
-        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+        "reason": "cinematic impulse and damped tail confirmed"
       },
       "3_hierarchy_stagger": {
         "status": "N/A",
@@ -375,32 +423,44 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
+          "bevel_present": true,
+          "bevel_layer": "high_chroma_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
           "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     },
     "camera_ring_text_06_monochrome.plan.json": {
       "1_velocity_profile": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
           "track_layer": "monochrome_title",
           "track_property": "scale",
-          "duration_frames": 209.0,
-          "peak_time_normalized": 0.0292,
-          "tail_speed_ratio": 1.0,
-          "max_acceleration_step_ratio": 0.0,
-          "peak_speed_per_frame": 0.004785,
+          "duration_frames": 90.0,
+          "peak_time_normalized": 0.19,
+          "tail_speed_ratio": 0.006564,
+          "max_acceleration_step_ratio": 0.008939,
+          "peak_speed_per_frame": 0.029509,
           "samples": 481
         },
-        "reason": "peak at 0.029 outside 0.15-0.25; tail speed ratio 1.000 >= 0.05"
+        "reason": "cinematic impulse and damped tail confirmed"
       },
       "3_hierarchy_stagger": {
         "status": "N/A",
@@ -420,16 +480,28 @@
         "reason": "no animated trim path"
       },
       "6_materiality_static": {
-        "status": "FAIL",
+        "status": "PASS",
         "metrics": {
-          "bevel_present": false,
-          "bevel_layer": null,
-          "bevel_params": {},
-          "grain_present": false,
-          "chroma_present": false,
+          "bevel_present": true,
+          "bevel_layer": "monochrome_title",
+          "bevel_params": {
+            "bevel_width": 16.0,
+            "bevel_height": 12.0,
+            "rim_width": 3.0,
+            "rim_intensity": 0.75,
+            "highlight": 0.65,
+            "shade": 0.42,
+            "light_angle": -135.0,
+            "light_elevation": 38.0,
+            "shadow_distance": 12.0,
+            "shadow_softness": 6.0,
+            "shadow_opacity": 0.75
+          },
+          "grain_present": true,
+          "chroma_present": true,
           "vignette_present": true
         },
-        "reason": "no lit SDF bevel with contact shadow; no non-zero film grain; no peripheral chromatic dispersion"
+        "reason": "bevel, grain, contact shadow and peripheral dispersion present in plan and pixels"
       }
     }
   },

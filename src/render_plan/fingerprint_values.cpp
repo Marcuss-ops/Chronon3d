@@ -316,6 +316,16 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
         writer.add_float(glow.intensity);
         writer.add_string(glow.color);
     });
+    add_optional(out, style.text_caret,
+                 [](auto& writer, const TextCaretPlan& caret) {
+        writer.add_size(caret.byte_index);
+        writer.add_float(caret.width);
+        writer.add_float(caret.height);
+        writer.add_string(caret.color);
+        writer.add_float(caret.opacity);
+        writer.add_i64(caret.blink_period_frames);
+        writer.add_float(caret.blink_duty);
+    });
     add_optional(out, style.background,
                  [](auto& writer, const BackgroundStyle& background) {
         writer.add_string(background.color);

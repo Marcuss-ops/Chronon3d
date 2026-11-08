@@ -29,6 +29,18 @@ struct GlowStyle {
     std::string color{"#FFFFFF"};
 };
 
+// P1-10 — authored insertion caret.  Coordinates are byte offsets into the
+// layer text; the renderer resolves them against the placed glyph run.
+struct TextCaretPlan {
+    std::size_t byte_index{0};
+    float width{2.0f};
+    float height{0.0f};
+    std::string color{"#FFFFFF"};
+    float opacity{1.0f};
+    int blink_period_frames{0};
+    float blink_duty{0.5f};
+};
+
 struct BackgroundStyle {
     std::string color;
     std::optional<float> opacity;
@@ -76,6 +88,7 @@ struct LayerStylePlan {
     std::optional<BackdropBlurStyle> backdrop;
     std::optional<GlowStyle> glow;
     std::optional<BackgroundStyle> background;
+    std::optional<TextCaretPlan> text_caret;
 };
 
 // Generic AE-style text animator contract. Editorial motion ids are lowered

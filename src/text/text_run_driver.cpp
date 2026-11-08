@@ -46,6 +46,8 @@
 #include <chronon3d/text/animation/text_pre_shaping.hpp>
 #include <chronon3d/text/font_engine.hpp>  // P0-2 — font_layout_identity_of
 
+#include <cmath>
+
 namespace chronon3d {
 
 // ═══════════════════════════════════════════════════════════
@@ -55,10 +57,11 @@ namespace chronon3d {
 void update_text_run_shape_per_frame(
     TextRunShape& shape,
     SampleTime time,
-    TextLayoutCache* /*cache*/ /*M1.5#2: cache flows via shape.cache or compute path */
+    TextLayoutCache* cache /*M1.5#2: cache flows via shape.cache or compute path */
 ) {
     // ── Guard: static-shape fast path (layout nullptr is no-op) ─────
     if (!shape.layout) return;
+    shape.caret.frame = static_cast<f64>(time.integral_frame().integral());
 
     // ── PR 9 — re-sample AnimatedTextDocument first, then animators ──
     if (shape.animated_doc && shape.engine != nullptr) {
@@ -71,6 +74,51 @@ void update_text_run_shape_per_frame(
             // already captures the post-apply layout bytes.
             (void)apply_active_state_to_text_run_shape(
                 shape, state, *shape.engine, shape.layout_spec);
+        }
+    }
+
+    // ── P2-05 — PreLayout spacing reflow. ──────────────────────────
+    // Reflow properties feed the paragraph composer, so they must be
+    // applied before PostLayout evaluation.  A change in either amount
+    // rebuilds the layout and re-seeds glyph states; the cache key carries
+    // both values through ParagraphStyle.
+    f32 reflow_word_spacing = 0.0f;
+    f32 reflow_line_spacing = 0.0f;
+    bool has_reflow_spacing = false;
+    for (const auto& animator : shape.animators) {
+        for (const auto& prop : animator.properties) {
+            if (const auto* p = std::get_if<ReflowWordSpacingProperty>(&prop)) {
+                reflow_word_spacing += p->pixels.evaluate(time);
+                has_reflow_spacing = true;
+            } else if (const auto* p = std::get_if<ReflowLineSpacingProperty>(&prop)) {
+                reflow_line_spacing += p->pixels.evaluate(time);
+                has_reflow_spacing = true;
+            }
+        }
+    }
+    if (has_reflow_spacing && shape.engine != nullptr) {
+        const float target_word = shape.reflow_word_spacing_base + reflow_word_spacing;
+        const float target_line = shape.reflow_line_spacing_base + reflow_line_spacing;
+        auto& paragraph = shape.layout_spec.paragraph;
+        if (std::abs(paragraph.word_spacing - target_word) > 1e-4f ||
+            std::abs(paragraph.line_spacing - target_line) > 1e-4f) {
+            paragraph.word_spacing = target_word;
+            paragraph.line_spacing = target_line;
+            TextDocument td;
+            td.utf8 = shape.layout->source_text;
+            td.defaults.font = shape.layout->font;
+            td.split_paragraphs();
+            TextLayoutRequest request{
+                &td, &shape.layout_spec, td.defaults.font, 0};
+            request.features = shape.layout_spec.features;
+            TextCompileServices services{
+                shape.engine,
+                cache != nullptr ? cache : shape.cache, {}};
+            if (auto result = compile_text_document_layout(request, services);
+                result && result.value()) {
+                shape.layout = std::move(result.value());
+                reset_glyph_states_in_place(shape.glyphs, shape.layout->placed);
+            }
         }
     }
 

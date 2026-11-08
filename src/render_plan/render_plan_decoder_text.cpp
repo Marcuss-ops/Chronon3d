@@ -228,19 +228,26 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                 "text animator property track");
             auto track = decode_animation_track(property);
             const auto allowed_property = [](const std::string& property) {
-                static constexpr std::array<std::string_view, 24> properties{
+                static constexpr std::array<std::string_view, 36> properties{
                     "position", "position_x", "position_y", "scale", "scale_x", "scale_y",
                     "opacity", "blur", "tracking", "word_spacing", "line_spacing",
+                    "reflow_word_spacing", "reflow_line_spacing",
                     "rotation", "fill_color", "skew",
                     "skew_axis", "anchor", "baseline_shift", "background_color",
                     "background_padding_em", "background_radius_em", "stroke_color",
-                    "stroke_width", "character_offset", "light_direction"};
+                    "stroke_width", "character_offset", "light_direction",
+                    "glyph_shadow_color", "glyph_shadow_offset", "glyph_shadow_blur",
+                    "glyph_shadow_opacity", "glyph_glow_color", "glyph_glow_radius",
+                    "glyph_glow_intensity", "glyph_gradient_start_color",
+                    "glyph_gradient_end_color", "glyph_gradient_angle"};
                 return std::find(properties.begin(), properties.end(), property) != properties.end();
             };
             if (!allowed_property(track.property))
                 throw std::runtime_error("unsupported text animator property: " + track.property);
             const std::vector<std::size_t> arities = track.property == "light_direction"
                 ? std::vector<std::size_t>{3}
+                : track.property == "glyph_shadow_offset"
+                    ? std::vector<std::size_t>{2, 3}
                 : track.property == "position"
                 ? std::vector<std::size_t>{2, 3}
                 : track.property == "scale"
@@ -250,7 +257,10 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                         : track.property == "anchor"
                             ? std::vector<std::size_t>{1, 2, 3}
                             : (track.property == "fill_color" || track.property == "background_color" ||
-                               track.property == "stroke_color")
+                               track.property == "stroke_color" || track.property == "glyph_shadow_color" ||
+                               track.property == "glyph_glow_color" ||
+                               track.property == "glyph_gradient_start_color" ||
+                               track.property == "glyph_gradient_end_color")
                                 ? std::vector<std::size_t>{4}
                                 : std::vector<std::size_t>{1};
             validate_text_track(track, arities, "text animator property");
@@ -266,6 +276,13 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                     (track.property == "tracking" && (scalar < -1000.f || scalar > 1000.f)) ||
                     (track.property == "word_spacing" && (scalar < -1000.f || scalar > 1000.f)) ||
                     (track.property == "line_spacing" && (scalar < -1000.f || scalar > 1000.f)) ||
+                    (track.property == "reflow_word_spacing" && (scalar < -1000.f || scalar > 1000.f)) ||
+                    (track.property == "reflow_line_spacing" && (scalar < -1000.f || scalar > 1000.f)) ||
+                    (track.property == "glyph_shadow_blur" && (scalar < 0.f || scalar > 128.f)) ||
+                    (track.property == "glyph_shadow_opacity" && (scalar < 0.f || scalar > 1.f)) ||
+                    (track.property == "glyph_glow_radius" && (scalar < 0.f || scalar > 256.f)) ||
+                    (track.property == "glyph_glow_intensity" && (scalar < 0.f || scalar > 1.f)) ||
+                    (track.property == "glyph_gradient_angle" && (scalar < -3600.f || scalar > 3600.f)) ||
                     (track.property == "baseline_shift" && (scalar < -1000.f || scalar > 1000.f)) ||
                     (track.property == "skew" && (scalar < -80.f || scalar > 80.f)) ||
                     (track.property == "skew_axis" && (scalar < -1000000.f || scalar > 1000000.f)) ||
@@ -274,10 +291,18 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
                     (track.property == "stroke_width" && (scalar < 0.f || scalar > 256.f)))
                     throw std::runtime_error(track.property + " keyframe value is outside RenderPlan v3 bounds");
                 if (track.property == "fill_color" || track.property == "background_color" ||
-                    track.property == "stroke_color")
+                    track.property == "stroke_color" || track.property == "glyph_shadow_color" ||
+                    track.property == "glyph_glow_color" ||
+                    track.property == "glyph_gradient_start_color" ||
+                    track.property == "glyph_gradient_end_color")
                     for (const float component : key.value)
                         if (component < 0.f || component > 1.f)
                             throw std::runtime_error(track.property + " color components must be in [0, 1]");
+                if (track.property == "glyph_shadow_offset") {
+                    for (const float component : key.value)
+                        if (component < -1000.f || component > 1000.f)
+                            throw std::runtime_error("glyph_shadow_offset components must be in [-1000, 1000]");
+                }
             }
             if (track.property == "character_offset") {
                 const auto& key = track.keyframes.front();

@@ -221,6 +221,58 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
             animator.properties.push_back(chronon3d::LineSpacingProperty{
                 animated_text_value(track, 0.0f, track.property, fps)});
             break;
+        case AnimationPropertyKind::ReflowWordSpacing:
+            animator.properties.push_back(chronon3d::ReflowWordSpacingProperty{
+                animated_text_value(track, 0.0f, track.property, fps)});
+            break;
+        case AnimationPropertyKind::ReflowLineSpacing:
+            animator.properties.push_back(chronon3d::ReflowLineSpacingProperty{
+                animated_text_value(track, 0.0f, track.property, fps)});
+            break;
+        case AnimationPropertyKind::GlyphShadowColor:
+            animator.properties.push_back(chronon3d::GlyphShadowColorProperty{
+                animated_text_color(track, track.property, fps,
+                    chronon3d::Color{0.0f, 0.0f, 0.0f, 1.0f})});
+            break;
+        case AnimationPropertyKind::GlyphShadowOffset:
+            animator.properties.push_back(chronon3d::GlyphShadowOffsetProperty{
+                animated_text_value(track, chronon3d::Vec3{}, track.property, fps)});
+            break;
+        case AnimationPropertyKind::GlyphShadowBlur:
+            animator.properties.push_back(chronon3d::GlyphShadowBlurProperty{
+                animated_text_value(track, 0.0f, track.property, fps)});
+            break;
+        case AnimationPropertyKind::GlyphShadowOpacity:
+            animator.properties.push_back(chronon3d::GlyphShadowOpacityProperty{
+                animated_text_value(track, 1.0f, track.property, fps)});
+            break;
+        case AnimationPropertyKind::GlyphGlowColor:
+            animator.properties.push_back(chronon3d::GlyphGlowColorProperty{
+                animated_text_color(track, track.property, fps,
+                    chronon3d::Color{1.0f, 1.0f, 1.0f, 1.0f})});
+            break;
+        case AnimationPropertyKind::GlyphGlowRadius:
+            animator.properties.push_back(chronon3d::GlyphGlowRadiusProperty{
+                animated_text_value(track, 0.0f, track.property, fps)});
+            break;
+        case AnimationPropertyKind::GlyphGlowIntensity:
+            animator.properties.push_back(chronon3d::GlyphGlowIntensityProperty{
+                animated_text_value(track, 1.0f, track.property, fps)});
+            break;
+        case AnimationPropertyKind::GlyphGradientStartColor:
+            animator.properties.push_back(chronon3d::GlyphGradientStartColorProperty{
+                animated_text_color(track, track.property, fps,
+                    chronon3d::Color{1.0f, 1.0f, 1.0f, 1.0f})});
+            break;
+        case AnimationPropertyKind::GlyphGradientEndColor:
+            animator.properties.push_back(chronon3d::GlyphGradientEndColorProperty{
+                animated_text_color(track, track.property, fps,
+                    chronon3d::Color{0.0f, 0.0f, 0.0f, 1.0f})});
+            break;
+        case AnimationPropertyKind::GlyphGradientAngle:
+            animator.properties.push_back(chronon3d::GlyphGradientAngleProperty{
+                animated_text_value(track, 0.0f, track.property, fps)});
+            break;
         case AnimationPropertyKind::RotationVector:
             animator.properties.push_back(chronon3d::RotationProperty{
                 animated_text_rotation(track, fps)});

@@ -372,3 +372,43 @@ TEST_CASE("SingleLine: multi-line body text with left align") {
         CHECK(line.glyph_scale == doctest::Approx(1.0f));
     }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// 10. P2-05 — authored spacing reflows the paragraph during composition
+// ══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("SingleLine: word_spacing widens the composed whitespace advance") {
+    auto run = make_test_run({20.0f, 10.0f, 20.0f}, "a b");
+    ParagraphStyle style;
+    style.word_spacing = 20.0f;
+
+    auto layout = compose_single_line_paragraph(run, 200.0f, style, "a b");
+    REQUIRE(layout.lines.size() == 1);
+    CHECK(layout.lines[0].natural_width == doctest::Approx(70.0f));
+    CHECK(layout.bounds.x == doctest::Approx(70.0f));
+}
+
+TEST_CASE("SingleLine: word_spacing participates in line breaking") {
+    auto run = make_test_run({40.0f, 10.0f, 40.0f}, "a b");
+    ParagraphStyle base;
+    auto base_layout = compose_single_line_paragraph(run, 95.0f, base, "a b");
+    REQUIRE(base_layout.lines.size() == 1);
+
+    ParagraphStyle spaced;
+    spaced.word_spacing = 20.0f;
+    auto spaced_layout = compose_single_line_paragraph(run, 95.0f, spaced, "a b");
+    CHECK(spaced_layout.lines.size() == 2);
+}
+
+TEST_CASE("SingleLine: line_spacing adds only inter-line height") {
+    auto run = make_test_run(std::vector<float>(8, 20.0f), "abcdefgh");
+    ParagraphStyle base;
+    auto base_layout = compose_single_line_paragraph(run, 40.0f, base, "abcdefgh");
+    REQUIRE(base_layout.lines.size() == 4);
+
+    ParagraphStyle spaced;
+    spaced.line_spacing = 7.0f;
+    auto spaced_layout = compose_single_line_paragraph(run, 40.0f, spaced, "abcdefgh");
+    REQUIRE(spaced_layout.lines.size() == 4);
+    CHECK(spaced_layout.bounds.y - base_layout.bounds.y == doctest::Approx(21.0f));
+}

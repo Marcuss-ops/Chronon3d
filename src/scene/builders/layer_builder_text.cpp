@@ -240,6 +240,13 @@ Layer LayerBuilder::build() {
                 prepared, engine_for_shape, local_time, spec.animated_doc);
             if (shape) {
                 shape->placement_kind = prepared.frame.placement.kind;
+                shape->caret = spec.caret;
+                if (std::getenv("CHRONON3D_CARET_DEBUG") != nullptr) {
+                    std::fprintf(stderr,
+                        "[caret-builder] name='%s' enabled=%d byte=%zu\n",
+                        spec.name.c_str(), shape->caret.enabled ? 1 : 0,
+                        shape->caret.byte_index);
+                }
                 // ANCHOR EXACTLY-ONCE CONTRACT:
                 // resolve_text_placement() already consumed the box anchor
                 // when it computed layout_origin (= pin − anchor_offset),

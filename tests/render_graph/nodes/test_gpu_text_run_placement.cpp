@@ -135,6 +135,20 @@ TEST_CASE("GPU MTSDF scale plus translation keeps the authored pivot fixed") {
     }
 }
 
+TEST_CASE("GPU text rejects the caret until the native pass draws it") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run(1);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+    CHECK(can_lower_gpu_text_animation(shape));
+
+    shape.caret.enabled = true;
+    shape.caret.byte_index = 1;
+    CHECK_FALSE(can_lower_gpu_text_animation(shape));
+}
+
 TEST_CASE("GPU text lowers Z-only rotation and samples it per glyph") {
     auto layout = std::make_shared<TextRunLayout>();
     layout->placed = make_test_placed_run(3);

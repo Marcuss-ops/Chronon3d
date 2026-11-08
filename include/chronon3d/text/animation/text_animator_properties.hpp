@@ -186,6 +186,61 @@ struct CharacterOffsetProperty {
     i32 offset{0};                     // number of codepoints to shift
 };
 
+// ── P1-06 / P1-07 — per-glyph paint animators ───────────────────────────
+// These properties write GlyphInstanceState::shadow / glow / fill_gradient.
+// They are PostLayout (visual-only); no re-shaping or reflow is involved.
+struct GlyphShadowColorProperty {
+    AnimatedValue<Color> color{Color{0.0f, 0.0f, 0.0f, 1.0f}};
+};
+
+struct GlyphShadowOffsetProperty {
+    AnimatedValue<Vec3> offset{Vec3{0.0f, 0.0f, 0.0f}};  // z unused
+};
+
+struct GlyphShadowBlurProperty {
+    AnimatedValue<f32> radius{0.0f};
+};
+
+struct GlyphShadowOpacityProperty {
+    AnimatedValue<f32> opacity{1.0f};
+};
+
+struct GlyphGlowColorProperty {
+    AnimatedValue<Color> color{Color{1.0f, 1.0f, 1.0f, 1.0f}};
+};
+
+struct GlyphGlowRadiusProperty {
+    AnimatedValue<f32> radius{0.0f};
+};
+
+struct GlyphGlowIntensityProperty {
+    AnimatedValue<f32> intensity{1.0f};
+};
+
+struct GlyphGradientStartColorProperty {
+    AnimatedValue<Color> color{Color{1.0f, 1.0f, 1.0f, 1.0f}};
+};
+
+struct GlyphGradientEndColorProperty {
+    AnimatedValue<Color> color{Color{0.0f, 0.0f, 0.0f, 1.0f}};
+};
+
+struct GlyphGradientAngleProperty {
+    AnimatedValue<f32> degrees{0.0f};
+};
+
+// ── P2-05 — reflow animators (PreLayout) ────────────────────────────────
+// Unlike WordSpacingProperty/LineSpacingProperty (PostLayout, visual-only),
+// these feed the paragraph composer and rebuild the layout when they change.
+// They are evaluated by the driver before PostLayout animators run.
+struct ReflowWordSpacingProperty {
+    AnimatedValue<f32> pixels{0.0f};
+};
+
+struct ReflowLineSpacingProperty {
+    AnimatedValue<f32> pixels{0.0f};
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TextAnimatorProperty — variant covering all supported property types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -212,7 +267,19 @@ using TextAnimatorProperty = std::variant<
     BaselineShiftProperty,
     CharacterOffsetProperty,
     WordSpacingProperty,
-    LineSpacingProperty
+    LineSpacingProperty,
+    GlyphShadowColorProperty,
+    GlyphShadowOffsetProperty,
+    GlyphShadowBlurProperty,
+    GlyphShadowOpacityProperty,
+    GlyphGlowColorProperty,
+    GlyphGlowRadiusProperty,
+    GlyphGlowIntensityProperty,
+    GlyphGradientStartColorProperty,
+    GlyphGradientEndColorProperty,
+    GlyphGradientAngleProperty,
+    ReflowWordSpacingProperty,
+    ReflowLineSpacingProperty
 >;
 
 } // namespace chronon3d

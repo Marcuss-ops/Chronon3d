@@ -511,6 +511,10 @@ public:
     graph::RenderOpResult camera_ring_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const CameraRingParams&) override;
+    graph::RenderOpResult sdf_bevel_surfaces(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        runtime::RenderSurfaceHandle, const SdfBevelParams&, float) override;
     graph::RenderOpResult warp_bulk_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, const graph::WarpBulkParams&) override;

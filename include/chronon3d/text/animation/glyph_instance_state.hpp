@@ -27,6 +27,34 @@ struct PlacedGlyphRun;
 // (preserved across frames); animated `position`, `scale`, `rotation`,
 // `opacity`, etc. are what each animator mutates per frame.
 
+// ── Per-glyph paint extensions (P1-06 / P1-07) ───────────────────────────
+// These are intentionally stored on GlyphInstanceState rather than on
+// TextRunShape: an animator may select any subset of glyphs, so a run-level
+// shadow/glow/gradient cannot express the authored result.  The software
+// raster consumes them per glyph; the native GPU text lane fails closed
+// until it can reproduce the same pixel contract.
+struct GlyphShadowState {
+    bool enabled{false};
+    Color color{0.0f, 0.0f, 0.0f, 1.0f};
+    Vec2 offset{0.0f, 0.0f};       // pixels, glyph-local
+    f32 blur{0.0f};                // Gaussian radius in pixels
+    f32 opacity{1.0f};
+};
+
+struct GlyphGlowState {
+    bool enabled{false};
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+    f32 radius{0.0f};              // Gaussian radius in pixels
+    f32 intensity{1.0f};
+};
+
+struct GlyphGradientState {
+    bool enabled{false};
+    Color start{1.0f, 1.0f, 1.0f, 1.0f};
+    Color end{0.0f, 0.0f, 0.0f, 1.0f};
+    f32 angle_degrees{0.0f};       // 0 = left→right, 90 = top→bottom
+};
+
 struct GlyphInstanceState {
     u32 glyph_id{0};                  // font-specific glyph index
 
@@ -52,6 +80,10 @@ struct GlyphInstanceState {
     f32 background_radius_em{0.0f};
     Color stroke{0.0f, 0.0f, 0.0f, 0.0f};     // stroke color (alpha=0 → disabled)
     f32 stroke_width{0.0f};                 // stroke width
+
+    GlyphShadowState shadow{};
+    GlyphGlowState glow{};
+    GlyphGradientState fill_gradient{};
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

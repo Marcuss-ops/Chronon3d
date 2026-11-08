@@ -72,6 +72,10 @@ inline void apply_kinsoku(
         const char32_t cp = decode_codepoint_at(
             source_text, cluster.source_byte_start);
         cluster.whitespace = is_whitespace_codepoint(cp);
+        // P2-05: an authored word gap is part of the composed advance, so
+        // line breaking, justification and ink bounds all see the reflowed
+        // width instead of an offset applied after composition.
+        if (cluster.whitespace) cluster.advance += style.word_spacing;
         cluster.punctuation = is_punctuation_codepoint(cp);
         cluster.mandatory_break = is_mandatory_break_codepoint(cp);
         cluster.hyphenation_point = is_soft_hyphen_at(

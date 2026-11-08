@@ -119,6 +119,9 @@ inline void finalize_lines(
         }
         line_height *= leading_scale;
         cumulative_height += line_height;
+        // P2-05: absolute inter-line gap (not a multiplier), applied only
+        // between lines so the last line does not add trailing height.
+        if (li + 1 < result.lines.size()) cumulative_height += style.line_spacing;
 
         const float effective_width =
             line.final_width + left_overhang + right_overhang;

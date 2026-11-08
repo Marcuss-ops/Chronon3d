@@ -327,6 +327,18 @@ RenderOpResult RenderBackendSurfaceApi::camera_ring_surface(
             "RenderBackend::camera_ring_surface: native surfaces are not supported"));
     }
 
+RenderOpResult RenderBackendSurfaceApi::sdf_bevel_surfaces(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*scratch_a*/,
+        runtime::RenderSurfaceHandle /*scratch_b*/,
+        runtime::RenderSurfaceHandle /*scratch_c*/,
+        const SdfBevelParams& /*params*/, float /*time_seconds*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::sdf_bevel_surfaces: native surfaces are not supported"));
+    }
+
 RenderOpResult RenderBackendSurfaceApi::warp_bulk_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,

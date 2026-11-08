@@ -26,6 +26,11 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
     CHECK(shadow->route == GpuEffectRoute::NativeZeroReadback);
     CHECK(shadow->diagnostic.find("alpha-mask") != std::string_view::npos);
 
+    const auto* sdf_bevel = graph::gpu_effect_capability(EffectType::SdfBevel);
+    REQUIRE(sdf_bevel != nullptr);
+    CHECK(sdf_bevel->route == GpuEffectRoute::NativeZeroReadback);
+    CHECK(sdf_bevel->diagnostic.find("separable SDF") != std::string_view::npos);
+
     const auto* bloom = graph::gpu_effect_capability(EffectType::Bloom);
     REQUIRE(bloom != nullptr);
     CHECK(bloom->route == GpuEffectRoute::NativeZeroReadback);

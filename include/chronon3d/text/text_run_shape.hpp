@@ -38,6 +38,9 @@
 #include <chronon3d/text/text_layout_spec.hpp>     // TextLayoutSpec
 #include <chronon3d/text/text_placement.hpp>               // TextPlacementKind
 
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
 #include <memory>
 #include <vector>
 
@@ -58,6 +61,31 @@ class TextLayoutCache;
 } // namespace chronon3d
 
 namespace chronon3d {
+
+// ── P1-10 — text insertion caret ────────────────────────────────────────
+// A caret is not a free-standing shape: it is resolved from the same placed
+// glyph run as the text, so it follows alignment, wrapping, tracking and
+// per-glyph animation.  The renderer draws it as a text-space quad; the GPU
+// text lane rejects it until the native pass can reproduce that contract.
+struct TextCaretSpec {
+    bool enabled{false};
+    std::size_t byte_index{0};
+    f32 width{2.0f};
+    f32 height{0.0f};            // 0 = font ascent + descent
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+    f32 opacity{1.0f};
+    i32 blink_period_frames{0};  // 0 = steady caret
+    f32 blink_duty{0.5f};
+    f64 frame{0.0};              // sampled frame, used only for blinking
+};
+
+struct TextCaretRect {
+    bool visible{false};
+    f32 x{0.0f};
+    f32 y{0.0f};
+    f32 width{0.0f};
+    f32 height{0.0f};
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunShape — batched text run with per-glyph animation state
@@ -125,6 +153,14 @@ struct TextRunShape {
     std::shared_ptr<const AnimatedTextDocument> animated_doc{};
     FontEngine* engine{nullptr};
     TextLayoutSpec layout_spec{};
+    TextCaretSpec caret{};
+
+    // P2-05 — authored spacing baseline for PreLayout animators.  The driver
+    // evaluates reflow_word_spacing/reflow_line_spacing on top of these values;
+    // keeping them separate prevents repeated frames from accumulating the
+    // animated amount into the authored paragraph style.
+    f32 reflow_word_spacing_base{0.0f};
+    f32 reflow_line_spacing_base{0.0f};
 
     // Fase B3 — per-shape layout cache (replaces process-wide global).
     // Set by the materializer/engine to the session-owned TextLayoutCache.
@@ -175,6 +211,52 @@ struct TextRunShape {
     std::vector<GlyphInstanceState> dissolve_glyphs{};          // empty when no crossfade
     float dissolve_mix{0.0f};                                   // current blend factor
 };
+
+/// Resolve the authored insertion point against the placed glyph run.  The
+/// caret sits at the leading edge of the cluster containing byte_index; for
+/// an index at the run end it sits after the last glyph.  Coordinates are
+/// run-local and use the same origin as PlacedGlyph::x/y.
+[[nodiscard]] inline TextCaretRect resolve_text_caret_rect(const TextRunShape& shape) {
+    TextCaretRect rect;
+    if (!shape.caret.enabled || !shape.layout || shape.layout->placed.glyphs.empty())
+        return rect;
+    const auto& placed = shape.layout->placed;
+    const auto& glyphs = placed.glyphs;
+    const std::size_t index = shape.caret.byte_index;
+
+    const PlacedGlyph* anchor = &glyphs.back();
+    for (const auto& glyph : glyphs) {
+        if (index >= glyph.byte_offset && index <= glyph.byte_offset + glyph.byte_len) {
+            anchor = &glyph;
+            break;
+        }
+        if (index > glyph.byte_offset) anchor = &glyph;
+    }
+
+    f32 x = anchor->x;
+    if (index > anchor->byte_offset && anchor->byte_len > 0) {
+        const f32 fraction = std::min(
+            1.0f, static_cast<f32>(index - anchor->byte_offset) /
+                      static_cast<f32>(anchor->byte_len));
+        x += anchor->advance_x * fraction;
+    }
+    f32 height = shape.caret.height > 0.0f
+        ? shape.caret.height : placed.ascent + placed.descent;
+    if (!(height > 0.0f)) height = shape.layout->font_size;
+
+    bool visible = true;
+    if (shape.caret.blink_period_frames > 0) {
+        const double period = static_cast<double>(shape.caret.blink_period_frames);
+        const double phase = std::fmod(std::max(0.0, shape.caret.frame), period);
+        visible = phase < period * std::clamp(shape.caret.blink_duty, 0.0f, 1.0f);
+    }
+    rect.visible = visible && shape.caret.opacity > 0.0f;
+    rect.x = x;
+    rect.y = anchor->y - placed.ascent;
+    rect.width = std::max(0.0f, shape.caret.width);
+    rect.height = height;
+    return rect;
+}
 
 /// Per-frame text state kept separate from the immutable shape payload.
 /// Layouts are shared and glyph state is reused by the executor scratch; the

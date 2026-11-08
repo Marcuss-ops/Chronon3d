@@ -1,0 +1,344 @@
+#version 450
+
+// ---------------------------------------------------------------------------
+// sdf_bevel.comp — native Vulkan SDF bevel.
+//
+// GPU twin of src/backends/software/effects/effect_sdf_bevel_impl.cpp.
+// The signed distance field is rebuilt from the layer alpha with an exact
+// separable nearest-source transform (no local search window).  Both the
+// distance to transparency and the distance to content are carried in the
+// same four passes, so the signed field matches the software oracle:
+//
+//   mode 0  row left pass: nearest outside seed (R) + nearest content seed (G)
+//   mode 1  row right pass: combine right seeds, keep inactive channel marker
+//   mode 2  column forward pass: nearest seed from this row or above
+//   mode 3  column backward pass: combine, write signed sdf into R
+//   mode 4  shading, rim, specular and projected shadow
+//
+// sdf < 0 inside the silhouette, sdf > 0 outside.  The passes are separate
+// dispatches with a storage-image barrier between them, so no invocation ever
+// reads a pixel another invocation is writing.
+// ---------------------------------------------------------------------------
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+layout(binding = 2, rgba32f) uniform readonly image2D aux_image;
+
+layout(push_constant) uniform SdfBevelPush {
+    vec4 rim_color;
+    vec4 shadow_color;
+    vec4 light;      // xyz = final light direction, w unused
+    vec4 geometry;   // bevel_width, bevel_height, rim_width, rim_intensity
+    vec4 shading;    // highlight, shade, shadow_distance, shadow_softness
+    vec4 control;    // shadow_opacity, width, height, mode
+} p;
+
+const float k_far = 1.0e20;
+// No-candidate marker. Outside pixels encode their own x as -(x + 1) so the
+// column transform can use the entire outside row as a seed set.
+const float k_none = -1.0e7;
+
+float sample_alpha_bilinear(ivec2 size, vec2 pixel) {
+    const vec2 base = floor(pixel - vec2(0.5));
+    const vec2 f = pixel - vec2(0.5) - base;
+    const ivec2 i0 = clamp(ivec2(base), ivec2(0), size - 1);
+    const ivec2 i1 = clamp(ivec2(base) + ivec2(1), ivec2(0), size - 1);
+    const float a00 = imageLoad(source_image, ivec2(i0.x, i0.y)).a;
+    const float a10 = imageLoad(source_image, ivec2(i1.x, i0.y)).a;
+    const float a01 = imageLoad(source_image, ivec2(i0.x, i1.y)).a;
+    const float a11 = imageLoad(source_image, ivec2(i1.x, i1.y)).a;
+    return mix(mix(a00, a10, f.x), mix(a01, a11, f.x), f.y);
+}
+
+void main() {
+    const ivec2 size = imageSize(source_image);
+    const int mode = int(p.control.w + 0.5);
+
+    if (mode == 0) {
+        // Left pass.  R: nearest outside seed; G: nearest content seed.
+        // Outside pixels carry their own encoded x in R, and inside pixels
+        // carry their own x in G, so both column transforms have seeds.
+        const int y = int(gl_GlobalInvocationID.x);
+        if (y >= size.y) return;
+        float last_outside = -1.0;
+        float last_inside = -1.0;
+        for (int x = 0; x < size.x; ++x) {
+            const float a = imageLoad(source_image, ivec2(x, y)).a;
+            float seed_outside;
+            float seed_inside;
+            if (a <= 0.5) {
+                last_outside = float(x);
+                seed_outside = -(float(x) + 1.0);
+                seed_inside = (last_inside >= 0.0) ? last_inside : k_none;
+            } else {
+                last_inside = float(x);
+                seed_outside = (last_outside >= 0.0) ? last_outside : k_none;
+                // The content field needs a seed on every inside pixel, not a
+                // marker: otherwise a fully opaque row contributes no content
+                // candidate to the column transform.
+                seed_inside = float(x);
+            }
+            imageStore(destination_image, ivec2(x, y),
+                       vec4(seed_outside, seed_inside, 0.0, 0.0));
+        }
+        return;
+    }
+
+    if (mode == 1) {
+        // Right pass, combined with the left seeds written by mode 0.
+        const int y = int(gl_GlobalInvocationID.x);
+        if (y >= size.y) return;
+        float right_outside = -1.0;
+        float right_inside = -1.0;
+        for (int x = size.x - 1; x >= 0; --x) {
+            const float a = imageLoad(aux_image, ivec2(x, y)).a;
+            if (a <= 0.5) right_outside = float(x);
+            else right_inside = float(x);
+            const vec2 seeds = imageLoad(source_image, ivec2(x, y)).rg;
+            if (a <= 0.5) {
+                float chosen = seeds.g;
+                if (right_inside >= 0.0 &&
+                    (chosen == k_none ||
+                     abs(right_inside - float(x)) < abs(chosen - float(x)))) {
+                    chosen = right_inside;
+                }
+                imageStore(destination_image, ivec2(x, y),
+                           vec4(-(float(x) + 1.0), chosen, 0.0, 0.0));
+            } else {
+                float chosen = seeds.r;
+                if (right_outside >= 0.0 &&
+                    (chosen == k_none ||
+                     abs(right_outside - float(x)) < abs(chosen - float(x)))) {
+                    chosen = right_outside;
+                }
+                imageStore(destination_image, ivec2(x, y),
+                           vec4(chosen, float(x), 0.0, 0.0));
+            }
+        }
+        return;
+    }
+
+    if (mode == 2) {
+        // Forward column pass for both distance fields.
+        const int x = int(gl_GlobalInvocationID.x);
+        if (x >= size.x) return;
+        float best_outside_x = -1.0;
+        float best_outside_y = -1.0;
+        float best_outside_d2 = k_far;
+        float best_inside_x = -1.0;
+        float best_inside_y = -1.0;
+        float best_inside_d2 = k_far;
+        for (int y = 0; y < size.y; ++y) {
+            if (best_outside_y >= 0.0) {
+                const float dx = best_outside_x - float(x);
+                const float dy = float(y) - best_outside_y;
+                best_outside_d2 = dx * dx + dy * dy;
+            }
+            if (best_inside_y >= 0.0) {
+                const float dx = best_inside_x - float(x);
+                const float dy = float(y) - best_inside_y;
+                best_inside_d2 = dx * dx + dy * dy;
+            }
+            const vec2 seeds = imageLoad(source_image, ivec2(x, y)).rg;
+            if (seeds.r != k_none) {
+                const float outside_x =
+                    seeds.r >= 0.0 ? seeds.r : (-seeds.r - 1.0);
+                const float dx = outside_x - float(x);
+                const float d2 = dx * dx;
+                if (d2 < best_outside_d2) {
+                    best_outside_d2 = d2;
+                    best_outside_x = outside_x;
+                    best_outside_y = float(y);
+                }
+            }
+            if (seeds.g != k_none) {
+                const float dx = seeds.g - float(x);
+                const float d2 = dx * dx;
+                if (d2 < best_inside_d2) {
+                    best_inside_d2 = d2;
+                    best_inside_x = seeds.g;
+                    best_inside_y = float(y);
+                }
+            }
+            const float forward_outside =
+                (best_outside_y >= 0.0 ? sqrt(best_outside_d2) : k_far);
+            const float forward_inside =
+                (best_inside_y >= 0.0 ? sqrt(best_inside_d2) : k_far);
+            imageStore(destination_image, ivec2(x, y),
+                       vec4(forward_outside, forward_inside, 0.0, 0.0));
+        }
+        return;
+    }
+
+    if (mode == 3) {
+        // Backward column pass and signed-SDF combination.
+        const int x = int(gl_GlobalInvocationID.x);
+        if (x >= size.x) return;
+        float best_outside_x = -1.0;
+        float best_outside_y = -1.0;
+        float best_outside_d2 = k_far;
+        float best_inside_x = -1.0;
+        float best_inside_y = -1.0;
+        float best_inside_d2 = k_far;
+        for (int y = size.y - 1; y >= 0; --y) {
+            if (best_outside_y >= 0.0) {
+                const float dx = best_outside_x - float(x);
+                const float dy = float(y) - best_outside_y;
+                best_outside_d2 = dx * dx + dy * dy;
+            }
+            if (best_inside_y >= 0.0) {
+                const float dx = best_inside_x - float(x);
+                const float dy = float(y) - best_inside_y;
+                best_inside_d2 = dx * dx + dy * dy;
+            }
+            const vec2 seeds = imageLoad(aux_image, ivec2(x, y)).rg;
+            const bool is_outside = seeds.r != k_none && seeds.r < 0.0;
+            if (seeds.r != k_none) {
+                const float outside_x =
+                    seeds.r >= 0.0 ? seeds.r : (-seeds.r - 1.0);
+                const float dx = outside_x - float(x);
+                const float d2 = dx * dx;
+                if (d2 < best_outside_d2) {
+                    best_outside_d2 = d2;
+                    best_outside_x = outside_x;
+                    best_outside_y = float(y);
+                }
+            }
+            if (seeds.g != k_none) {
+                const float dx = seeds.g - float(x);
+                const float d2 = dx * dx;
+                if (d2 < best_inside_d2) {
+                    best_inside_d2 = d2;
+                    best_inside_x = seeds.g;
+                    best_inside_y = float(y);
+                }
+            }
+            const float backward_outside =
+                (best_outside_y >= 0.0) ? sqrt(best_outside_d2) : k_far;
+            const float backward_inside =
+                (best_inside_y >= 0.0) ? sqrt(best_inside_d2) : k_far;
+            const vec2 forward = imageLoad(source_image, ivec2(x, y)).rg;
+            const float distance_outside = min(forward.r, backward_outside);
+            const float distance_inside = min(forward.g, backward_inside);
+            const float sdf = is_outside ? distance_inside : -distance_outside;
+            imageStore(destination_image, ivec2(x, y),
+                       vec4(sdf, 0.0, 0.0, 0.0));
+        }
+        return;
+    }
+
+    // mode 4 — shading, rim, specular and projected shadow.
+    const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    const vec4 source = imageLoad(source_image, pixel);
+    const float sdf = imageLoad(aux_image, pixel).r;
+    const vec3 straight = source.a > 1.0e-6
+        ? source.rgb / source.a
+        : vec3(0.0);
+
+    const vec3 light_dir = normalize(p.light.xyz);
+    const vec2 planar = light_dir.xy;
+    const float planar_len = length(planar);
+    const vec2 shadow_dir = planar_len > 1.0e-4
+        ? -planar / planar_len
+        : vec2(0.0, 1.0);
+
+    // ── Projected shadow: offset + Gaussian-weighted silhouette samples. ──
+    float shadow_alpha = 0.0;
+    const float shadow_opacity = p.control.x;
+    const float shadow_distance = p.shading.z;
+    const float shadow_softness = max(p.shading.w, 0.0);
+    if (shadow_opacity > 0.0 && shadow_distance > 0.0) {
+        const vec2 offset = shadow_dir * shadow_distance;
+        const float sigma = max(shadow_softness * 0.5, 0.5);
+        const float spacing = sigma * 0.5;
+        float weight_sum = 0.0;
+        float accum = 0.0;
+        if (shadow_softness <= 0.0) {
+            accum = sample_alpha_bilinear(
+                size, vec2(pixel) + vec2(0.5) + offset);
+            weight_sum = 1.0;
+        } else {
+            for (int j = -3; j <= 3; ++j) {
+                for (int i = -3; i <= 3; ++i) {
+                    const vec2 tap = vec2(float(i), float(j)) * spacing;
+                    const float r2 = dot(tap, tap) / (sigma * sigma);
+                    const float weight = exp(-0.5 * r2);
+                    const vec2 sample_pixel =
+                        vec2(pixel) + vec2(0.5) + offset + tap;
+                    accum += sample_alpha_bilinear(size, sample_pixel) * weight;
+                    weight_sum += weight;
+                }
+            }
+        }
+        shadow_alpha = accum / max(weight_sum, 1.0e-6) *
+                       shadow_opacity * p.shadow_color.a;
+        shadow_alpha = clamp(shadow_alpha, 0.0, 1.0);
+    }
+
+    vec3 bevel_rgb = straight;
+    // Unshaded pixels must keep their original premultiplied RGB exactly:
+    // the software oracle deliberately leaves alpha-zero texels intact.
+    vec3 content_premultiplied = source.rgb;
+    if (source.a > 0.5 && sdf < 0.0) {
+        const float bevel_width = max(p.geometry.x, 0.001);
+        const float slope = clamp(p.geometry.y / bevel_width, 0.05, 4.0);
+        const float rim_width = max(p.geometry.z, 0.0);
+        const float rim_intensity = max(p.geometry.w, 0.0);
+        const float edge = clamp(1.0 + sdf / bevel_width, 0.0, 1.0);
+
+        // Gradient of the signed field points outward from the silhouette.
+        float gx = 0.0;
+        float gy = 0.0;
+        if (pixel.x > 0 && pixel.x + 1 < size.x) {
+            const float left = imageLoad(aux_image, pixel + ivec2(-1, 0)).r;
+            const float right = imageLoad(aux_image, pixel + ivec2(1, 0)).r;
+            gx = (right - left) * 0.5;
+        }
+        if (pixel.y > 0 && pixel.y + 1 < size.y) {
+            const float top = imageLoad(aux_image, pixel + ivec2(0, -1)).r;
+            const float bottom = imageLoad(aux_image, pixel + ivec2(0, 1)).r;
+            gy = (bottom - top) * 0.5;
+        }
+        const float gradient_len = length(vec2(gx, gy));
+        vec2 normal2 = vec2(0.0);
+        if (gradient_len > 1.0e-5) {
+            normal2 = vec2(gx, gy) / gradient_len;
+        }
+        const vec3 normal = normalize(vec3(
+            normal2.x * edge * slope,
+            normal2.y * edge * slope,
+            1.0));
+
+        const float ndl = clamp(dot(normal, light_dir), 0.0, 1.0);
+        const float diffuse = 0.55 + 0.55 * ndl;
+        const float light_mult = 1.0 + (diffuse - 1.0) * edge;
+        const float shade_mult = 1.0 - p.shading.y * edge * (1.0 - ndl);
+
+        bevel_rgb = straight * light_mult * shade_mult;
+
+        const vec3 half_dir = normalize(light_dir + vec3(0.0, 0.0, 1.0));
+        const float specular = pow(clamp(dot(normal, half_dir), 0.0, 1.0), 26.0) *
+                               max(p.shading.x, 0.0) * edge;
+        bevel_rgb += specular * vec3(0.95, 0.88, 0.72);
+
+        if (rim_width > 0.0 && rim_intensity > 0.0) {
+            const float rim_t = clamp(1.0 + sdf / rim_width, 0.0, 1.0);
+            const float rim_mask = rim_t * rim_t * (3.0 - 2.0 * rim_t);
+            const float rim_light = 0.30 + 0.70 * ndl;
+            const float rim_alpha = clamp(rim_mask * rim_intensity * rim_light, 0.0, 1.0);
+            bevel_rgb = mix(bevel_rgb, p.rim_color.rgb, rim_alpha);
+        }
+        bevel_rgb = clamp(bevel_rgb, 0.0, 1.0);
+        content_premultiplied = bevel_rgb * source.a;
+    }
+
+    // Source-over the (premultiplied) content over the projected shadow.
+    const vec3 shadow_rgb = p.shadow_color.rgb * shadow_alpha;
+    const vec3 out_rgb = content_premultiplied + shadow_rgb * (1.0 - source.a);
+    const float out_alpha = source.a + shadow_alpha * (1.0 - source.a);
+    imageStore(destination_image, pixel,
+               vec4(clamp(out_rgb, 0.0, 1.0), clamp(out_alpha, 0.0, 1.0)));
+}

@@ -2,6 +2,8 @@
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/animation/text_animator_stack.hpp>
 #include <chronon3d/text/text_run_layout.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
+#include <chronon3d/text/text_layout_cache.hpp>
 using namespace chronon3d;
 
 
@@ -208,6 +210,24 @@ TEST_CASE("Property: initial states have identity values") {
         CHECK(gs.blur == doctest::Approx(0.0f));
         CHECK(gs.fill.r == doctest::Approx(1.0f));
         CHECK(gs.stroke.a == doctest::Approx(0.0f)); // stroke disabled
+    }
+}
+
+TEST_CASE("Property: reset clears per-glyph paint effects") {
+    auto placed = make_test_placed_run_prop(2);
+    auto states = make_initial_glyph_states(placed);
+    REQUIRE(states.size() == 2);
+    states[0].shadow.enabled = true;
+    states[0].glow.enabled = true;
+    states[0].fill_gradient.enabled = true;
+    states[1].shadow.enabled = true;
+
+    reset_glyph_states_in_place(states, placed);
+
+    for (const auto& gs : states) {
+        CHECK_FALSE(gs.shadow.enabled);
+        CHECK_FALSE(gs.glow.enabled);
+        CHECK_FALSE(gs.fill_gradient.enabled);
     }
 }
 
@@ -1080,4 +1100,78 @@ TEST_CASE("Property: TrackingProperty Replace vs Add in a multi-animator stack")
             CHECK(states[i].position.x == doctest::Approx(expected));
         }
     }
+}
+
+TEST_CASE("P1-06/P1-07: per-glyph shadow, glow and gradient are evaluated") {
+    TextAnimatorSpec spec;
+    spec.id = "paint_extensions";
+    spec.selectors.push_back({});
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(GlyphShadowColorProperty{Color{0.1f, 0.2f, 0.3f, 1.0f}});
+    spec.properties.push_back(GlyphShadowOffsetProperty{Vec3{2.0f, 3.0f, 0.0f}});
+    spec.properties.push_back(GlyphShadowBlurProperty{6.0f});
+    spec.properties.push_back(GlyphShadowOpacityProperty{0.4f});
+    spec.properties.push_back(GlyphGlowColorProperty{Color{0.8f, 0.9f, 1.0f, 1.0f}});
+    spec.properties.push_back(GlyphGlowRadiusProperty{12.0f});
+    spec.properties.push_back(GlyphGlowIntensityProperty{0.7f});
+    spec.properties.push_back(GlyphGradientStartColorProperty{Color{1.0f, 0.0f, 0.0f, 1.0f}});
+    spec.properties.push_back(GlyphGradientEndColorProperty{Color{0.0f, 0.0f, 1.0f, 1.0f}});
+    spec.properties.push_back(GlyphGradientAngleProperty{90.0f});
+
+    const auto states = evaluate_animator_stack(
+        {spec}, make_test_placed_run_prop(1), make_source_prop(1),
+        SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+    REQUIRE(states.size() == 1);
+    CHECK(states[0].shadow.enabled);
+    CHECK(states[0].shadow.color.r == doctest::Approx(0.1f));
+    CHECK(states[0].shadow.offset.x == doctest::Approx(2.0f));
+    CHECK(states[0].shadow.offset.y == doctest::Approx(3.0f));
+    CHECK(states[0].shadow.blur == doctest::Approx(6.0f));
+    CHECK(states[0].shadow.opacity == doctest::Approx(0.4f));
+    CHECK(states[0].glow.enabled);
+    CHECK(states[0].glow.radius == doctest::Approx(12.0f));
+    CHECK(states[0].glow.intensity == doctest::Approx(0.7f));
+    CHECK(states[0].fill_gradient.enabled);
+    CHECK(states[0].fill_gradient.start.r == doctest::Approx(1.0f));
+    CHECK(states[0].fill_gradient.end.b == doctest::Approx(1.0f));
+    CHECK(states[0].fill_gradient.angle_degrees == doctest::Approx(90.0f));
+}
+
+TEST_CASE("P1-10: caret resolves from the placed glyph run and blinks") {
+    TextRunShape shape;
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run_prop(3);
+    layout->font_size = 16.0f;
+    shape.layout = layout;
+    shape.caret.enabled = true;
+    shape.caret.byte_index = 2;
+    shape.caret.width = 3.0f;
+    shape.caret.blink_period_frames = 10;
+    shape.caret.blink_duty = 0.5f;
+
+    shape.caret.frame = 2.0;
+    auto rect = resolve_text_caret_rect(shape);
+    CHECK(rect.visible);
+    CHECK(rect.x == doctest::Approx(20.0f));
+    CHECK(rect.y == doctest::Approx(-12.0f));
+    CHECK(rect.width == doctest::Approx(3.0f));
+    CHECK(rect.height == doctest::Approx(16.0f));
+
+    shape.caret.frame = 7.0;
+    CHECK_FALSE(resolve_text_caret_rect(shape).visible);
+
+    shape.caret.byte_index = 3;
+    shape.caret.frame = 0.0;
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(30.0f));
+}
+
+TEST_CASE("P2-05: reflow spacing participates in layout cache identity") {
+    TextLayoutCacheKey base;
+    auto word = base;
+    word.paragraph.word_spacing = 8.0f;
+    auto line = base;
+    line.paragraph.line_spacing = 4.0f;
+    CHECK(base.digest() != word.digest());
+    CHECK(base.digest() != line.digest());
+    CHECK(word.digest() != line.digest());
 }
