@@ -8,7 +8,7 @@
 #include "effects/generate/checkerboard.hpp"
 #include "effects/generate/four_color_gradient.hpp"
 #include "effects/generate/light_rays.hpp"
-#include "effects/blur/camera_ring.hpp"
+#include "effects/blur/camera_ring_processor.hpp"
 #include "effects/blur/directional_blur.hpp"
 #include "effects/blur/radial_blur.hpp"
 #include "effects/stroke/stroke.hpp"
