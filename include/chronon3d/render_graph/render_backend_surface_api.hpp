@@ -17,6 +17,17 @@
 
 namespace chronon3d::graph {
 
+/// One region upload for `upload_surface_regions`. The source span must stay
+/// valid for the duration of the call; a batching backend copies it into its
+/// staging storage before returning.
+struct SurfaceRegionUpload {
+    std::int32_t x{0};
+    std::int32_t y{0};
+    std::uint32_t width{0};
+    std::uint32_t height{0};
+    std::span<const float> rgba{};
+};
+
 /// Native surface allocation, transfer, compositing, and effect operations.
 class RenderBackendSurfaceApi {
 public:
@@ -185,6 +196,13 @@ public:
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle target,
         runtime::RenderSurfaceHandle matte, bool luma, bool inverted,
         int matte_origin_x = 0, int matte_origin_y = 0);
+    /// Uploads several disjoint regions of the same surface. The default
+    /// implementation loops over upload_surface_region; a backend that can
+    /// record multiple copies in one submission overrides it. Appended at the
+    /// end of the interface so existing virtual slots keep their index.
+    virtual RenderOpResult upload_surface_regions(
+        runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc,
+        std::span<const SurfaceRegionUpload> regions);
 };
 
 } // namespace chronon3d::graph

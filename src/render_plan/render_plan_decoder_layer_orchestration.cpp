@@ -17,6 +17,73 @@
 #include <unordered_set>
 namespace chronon3d::render_plan::detail {
 
+namespace {
+
+// Reuse the layer span validator so keyframe ranges and layer ranges cannot
+// drift into two different definitions of a valid span.
+std::vector<TextSpanOverride> decode_transition_keyframe_spans(
+    const nlohmann::json& raw_spans, const std::string& text) {
+    LayerPlan holder;
+    holder.type = LayerType::Text;
+    holder.text = text;
+    nlohmann::json value = nlohmann::json::object();
+    value["spans"] = raw_spans;
+    decode_layer_text_spans(holder, value);
+    return std::move(holder.text_spans);
+}
+
+std::vector<TextGlyphPaintRange> decode_transition_keyframe_paint_ranges(
+    const nlohmann::json& raw_ranges, const std::string& text) {
+    if (!raw_ranges.is_array() || raw_ranges.size() > 65536)
+        throw std::runtime_error(
+            "text_transitions keyframe glyph_paint_ranges must be an array of at most 65536 entries");
+    const auto boundary = [&](std::size_t offset) {
+        return offset == 0 || offset == text.size() ||
+            (static_cast<unsigned char>(text[offset]) & 0xc0U) != 0x80U;
+    };
+    const auto valid_offset = [&](const nlohmann::json& offset) {
+        if (!offset.is_number_integer()) return false;
+        if (offset.is_number_unsigned())
+            return offset.get<std::uint64_t>() <= text.size();
+        const auto signed_offset = offset.get<std::int64_t>();
+        return signed_offset >= 0 &&
+            static_cast<std::uint64_t>(signed_offset) <= text.size();
+    };
+
+    std::vector<TextGlyphPaintRange> ranges;
+    std::size_t previous_end = 0;
+    for (const auto& raw_range : raw_ranges) {
+        if (!raw_range.is_object())
+            throw std::runtime_error("each text transition paint range must be an object");
+        for (auto field = raw_range.begin(); field != raw_range.end(); ++field)
+            if (field.key() != "start" && field.key() != "end" &&
+                field.key() != "color")
+                throw std::runtime_error(
+                    "text transition paint range contains unsupported field '" +
+                    field.key() + "'");
+        if (!raw_range.contains("start") || !valid_offset(raw_range.at("start")) ||
+            !raw_range.contains("end") || !valid_offset(raw_range.at("end")) ||
+            !raw_range.contains("color") || !raw_range.at("color").is_string())
+            throw std::runtime_error(
+                "text transition paint range requires start/end byte offsets within the keyframe text and a color");
+        const auto start = raw_range.at("start").get<std::size_t>();
+        const auto end = raw_range.at("end").get<std::size_t>();
+        if (start < previous_end || start >= end || end > text.size() ||
+            !boundary(start) || !boundary(end))
+            throw std::runtime_error(
+                "text transition paint ranges must be sorted, non-overlapping UTF-8 byte ranges within the keyframe text");
+        const auto color = decode_text_span_color(
+            raw_range.at("color").get<std::string>());
+        if (!color)
+            throw std::runtime_error("text transition paint range has invalid color");
+        previous_end = end;
+        ranges.push_back({start, end, *color});
+    }
+    return ranges;
+}
+
+} // namespace
+
 
 LayerPlan::StaggerPlan decode_stagger(const nlohmann::json& raw) {
     LayerPlan::StaggerPlan plan;
@@ -168,7 +235,8 @@ void decode_layer_text_transitions(LayerPlan& layer, const nlohmann::json& value
     std::int64_t previous_frame = -1;
     for (const auto& entry : raw.at("keyframes")) {
         reject_unknown(entry, {"frame", "text", "transition", "scramble",
-                               "morph", "typewriter"},
+                               "morph", "typewriter", "spans",
+                               "glyph_paint_ranges"},
                        "text_transitions keyframe");
         if (!entry.contains("frame") || !entry.contains("text"))
             throw std::runtime_error("text_transitions keyframe requires frame and text");
@@ -189,6 +257,13 @@ void decode_layer_text_transitions(LayerPlan& layer, const nlohmann::json& value
             keyframe.transition != "scramble" && keyframe.transition != "morph" &&
             keyframe.transition != "typewriter")
             throw std::runtime_error("text_transitions has an unsupported transition");
+
+        if (entry.contains("spans"))
+            keyframe.spans = decode_transition_keyframe_spans(
+                entry.at("spans"), text);
+        if (entry.contains("glyph_paint_ranges"))
+            keyframe.glyph_paint_ranges = decode_transition_keyframe_paint_ranges(
+                entry.at("glyph_paint_ranges"), text);
 
         if (entry.contains("scramble")) {
             if (keyframe.transition != "scramble")

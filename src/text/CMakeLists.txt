@@ -82,6 +82,7 @@ target_include_directories(chronon3d_text_mtsdf PUBLIC
 target_link_libraries(chronon3d_text_mtsdf PUBLIC
     chronon3d
     freetype
+    TBB::tbb       # parallel per-row distance-field scan in mtsdf_generator.cpp
 )
 
 # These sources must remain separate TUs because they contain colliding

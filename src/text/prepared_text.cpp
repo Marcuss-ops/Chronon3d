@@ -24,7 +24,8 @@ PreparedText prepare_text(const TextDefinition& def) {
     };
     pt.animation = def.animation;
     pt.glyph_paint_ranges = def.glyph_paint_ranges;
-    if (!pt.glyph_paint_ranges.empty()) pt.animation.cache_layout = false;
+    if (!pt.spans.empty() || !pt.glyph_paint_ranges.empty())
+        pt.animation.cache_layout = false;
     return pt;
 }
 

@@ -32,6 +32,12 @@ PreparedTextTransitions build_text_transitions(
     for (const auto& keyframe : transitions.keyframes) {
         auto definition_at_frame = base_definition;
         definition_at_frame.content.value = keyframe.text;
+        // A transition keyframe owns the ranges authored against its own
+        // text.  The layer-level range block remains mutually exclusive with
+        // text_transitions, so there is no ambiguity about which string a
+        // range addresses.
+        definition_at_frame.spans = keyframe.spans;
+        definition_at_frame.glyph_paint_ranges = keyframe.glyph_paint_ranges;
         chronon3d::SourceTextKeyframe source_key;
         source_key.frame = keyframe.frame;
         source_key.document = chronon3d::to_text_document(definition_at_frame);

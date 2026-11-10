@@ -154,6 +154,15 @@ struct TextRunShape {
     std::shared_ptr<const AnimatedTextDocument> animated_doc{};
     FontEngine* engine{nullptr};
     TextLayoutSpec layout_spec{};
+    // Identity of the document (text + spans + paint ranges) currently
+    // compiled into `layout` / `dissolve_layout`.  The driver compares these
+    // to the sampled keyframe document so a style-only change still rebuilds.
+    u64 animated_document_hash{0};
+    // False means `layout` was compiled without spans/paint ranges, so a
+    // target hash of 0 on a fresh shape is still a valid cache hit for an
+    // unstyled Hold frame.  True forces the hash comparison below.
+    bool animated_document_style{false};
+    u64 dissolve_document_hash{0};
     TextCaretSpec caret{};
 
     // Stable authoring source for animated PreShaping properties. The layout

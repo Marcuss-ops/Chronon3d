@@ -77,6 +77,50 @@ void add_layer_identity_and_mesh(CanonicalPlanWriter& out, const LayerPlan& laye
             writer.add_string(keyframe.morph.easing);
             writer.add_float(keyframe.typewriter.chars_per_frame);
             writer.add_string(keyframe.typewriter.easing);
+            writer.add_size(keyframe.spans.size());
+            for (const auto& span : keyframe.spans) {
+                writer.add_size(span.byte_start);
+                writer.add_size(span.byte_end);
+                add_optional(writer, span.color, [](auto& nested, const Color& color) {
+                    nested.add_float(color.r); nested.add_float(color.g);
+                    nested.add_float(color.b); nested.add_float(color.a);
+                });
+                add_optional(writer, span.font_size_multiplier, [](auto& nested, float value) {
+                    nested.add_float(value);
+                });
+                add_optional(writer, span.tracking, [](auto& nested, float value) {
+                    nested.add_float(value);
+                });
+                add_optional(writer, span.semantic_id, [](auto& nested, const std::string& value) {
+                    nested.add_string(value);
+                });
+                add_optional(writer, span.stroke, [](auto& nested, const TextStrokeStyle& stroke) {
+                    nested.add_float(stroke.width_em);
+                    add_optional(nested, stroke.color, [](auto& color_writer, const Color& color) {
+                        color_writer.add_float(color.r); color_writer.add_float(color.g);
+                        color_writer.add_float(color.b); color_writer.add_float(color.a);
+                    });
+                });
+                add_optional(writer, span.highlight, [](auto& nested, const TextHighlightStyle& highlight) {
+                    add_optional(nested, highlight.background, [](auto& color_writer, const Color& color) {
+                        color_writer.add_float(color.r); color_writer.add_float(color.g);
+                        color_writer.add_float(color.b); color_writer.add_float(color.a);
+                    });
+                    add_optional(nested, highlight.padding_em, [](auto& field_writer, float value) {
+                        field_writer.add_float(value);
+                    });
+                    add_optional(nested, highlight.radius_em, [](auto& field_writer, float value) {
+                        field_writer.add_float(value);
+                    });
+                });
+            }
+            writer.add_size(keyframe.glyph_paint_ranges.size());
+            for (const auto& range : keyframe.glyph_paint_ranges) {
+                writer.add_size(range.byte_start);
+                writer.add_size(range.byte_end);
+                writer.add_float(range.color.r); writer.add_float(range.color.g);
+                writer.add_float(range.color.b); writer.add_float(range.color.a);
+            }
         }
     });
     add_optional(out, layer.parent, [](auto& writer, const std::string& value) {

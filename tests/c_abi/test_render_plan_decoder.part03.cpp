@@ -943,6 +943,47 @@ TEST_CASE("render plan V3 decodes explicit text_transitions with bounded transit
     CHECK(keyframes[2].morph.direction == "from_center");
     CHECK(keyframes[3].transition == "cut");
 
+    // T2-01: each keyframe owns the spans and paint ranges authored against
+    // its own text.  They must survive decoding on that exact keyframe.
+    auto styled = source;
+    styled["layers"][0]["text_transitions"]["keyframes"][1]["spans"] =
+        nlohmann::json::array({
+            {{"start", 0}, {"end", 2},
+             {"style", {{"color", "#FF0000"}}}},
+        });
+    styled["layers"][0]["text_transitions"]["keyframes"][2]
+        ["glyph_paint_ranges"] = nlohmann::json::array({
+            {{"start", 0}, {"end", 5}, {"color", "#00FF00"}},
+        });
+    const auto styled_decoded = chronon3d::render_plan::decode_render_plan(styled);
+    const std::string styled_error = styled_decoded.has_value()
+        ? std::string{} : styled_decoded.error().path + ": " +
+            styled_decoded.error().message;
+    REQUIRE_MESSAGE(styled_decoded.has_value(), styled_error);
+    const auto& styled_keyframes =
+        styled_decoded->layers[0].text_transitions->keyframes;
+    REQUIRE(styled_keyframes[1].spans.size() == 1);
+    CHECK(styled_keyframes[1].spans[0].byte_start == 0);
+    CHECK(styled_keyframes[1].spans[0].byte_end == 2);
+    REQUIRE(styled_keyframes[2].glyph_paint_ranges.size() == 1);
+    CHECK(styled_keyframes[2].glyph_paint_ranges[0].byte_start == 0);
+    CHECK(styled_keyframes[2].glyph_paint_ranges[0].byte_end == 5);
+
+    auto bad_keyframe_span = source;
+    bad_keyframe_span["layers"][0]["text_transitions"]["keyframes"][1]["spans"] =
+        nlohmann::json::array({
+            {{"start", 0}, {"end", 99},
+             {"style", {{"color", "#FF0000"}}}},
+        });
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_keyframe_span));
+
+    auto bad_paint_range = source;
+    bad_paint_range["layers"][0]["text_transitions"]["keyframes"][1]
+        ["glyph_paint_ranges"] = nlohmann::json::array({
+            {{"start", 2}, {"end", 1}, {"color", "#00FF00"}},
+        });
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_paint_range));
+
     auto unknown = source;
     unknown["layers"][0]["text_transitions"]["keyframes"][1]["transition"] = "bogus";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(unknown));

@@ -26,6 +26,7 @@ extern "C" {
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <unordered_set>
 #include <utility>
 #include <string_view>
@@ -172,11 +173,24 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare_impl(
             return nullptr;
         }
         if (layer.video_source) {
+            // Scene layers retain their logical assets/<...> spelling. Image
+            // layers are resolved by ImageCache with the per-job resolver,
+            // but the native decoder opens paths directly and therefore must
+            // receive the corresponding mounted, absolute path here.
+            auto resolved_source = *layer.video_source;
+            const auto resolved_path = asset_resolver.resolve(
+                std::filesystem::path(resolved_source.path));
+            if (!resolved_path) {
+                reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                             "error", "video_asset_not_prepared"};
+                return nullptr;
+            }
+            resolved_source.path = resolved_path->string();
             if (video_path.empty()) {
-                video_path = layer.video_source->path;
+                video_path = resolved_source.path;
             } else {
                 video_layers.push_back(DirectVideoLayer{
-                    std::string(layer.name), *layer.video_source});
+                    std::string(layer.name), std::move(resolved_source)});
             }
         }
     }

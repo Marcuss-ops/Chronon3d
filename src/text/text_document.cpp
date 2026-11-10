@@ -100,6 +100,15 @@ bool TextDocument::validate() const {
         prev_end = s.byte_end;
     }
 
+    // ── Glyph paint ranges ──────────────────────────────────────────────
+    prev_end = 0;
+    for (const auto& r : glyph_paint_ranges) {
+        if (r.byte_start > len || r.byte_end > len) return false;
+        if (r.byte_start >= r.byte_end) return false;
+        if (r.byte_start < prev_end) return false;
+        prev_end = r.byte_end;
+    }
+
     // ── Paragraphs ──────────────────────────────────────────────────────
     if (paragraphs.empty()) {
         // Empty paragraphs vector is valid — split_paragraphs() will fill it.
@@ -420,6 +429,14 @@ u64 hash_text_document(const TextDocument& doc) {
     seed = hcombine(seed, hval(doc.spans.size()));
     for (const auto& s : doc.spans) {
         seed = hcombine(seed, hash_text_style_span(s));
+    }
+
+    // Post-shaping paint ranges
+    seed = hcombine(seed, hval(doc.glyph_paint_ranges.size()));
+    for (const auto& r : doc.glyph_paint_ranges) {
+        seed = hcombine(seed, hval(r.byte_start));
+        seed = hcombine(seed, hval(r.byte_end));
+        seed = hcombine(seed, hbytes(&r.color, sizeof(Color)));
     }
 
     // Paragraphs

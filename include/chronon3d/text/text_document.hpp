@@ -100,6 +100,12 @@ struct TextDocument {
     /// Sorted by byte_start, non-overlapping.
     std::vector<TextStyleSpan> spans;
 
+    /// Post-shaping paint ranges authored against this document's UTF-8
+    /// bytes.  Kept on the runtime document so an animated transition can
+    /// carry a complete per-keyframe text definition instead of only the
+    /// string; the layout compiler applies these after shaping.
+    std::vector<TextGlyphPaintRange> glyph_paint_ranges;
+
     /// Paragraph boundaries and styles.
     /// Sorted by byte_start, non-overlapping, covering [0, utf8.size()).
     /// If empty after construction, a single default ParagraphRange is

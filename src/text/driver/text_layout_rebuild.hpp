@@ -49,14 +49,23 @@ namespace chronon3d::text::driver {
     const EffectiveTextState& target
 ) noexcept;
 
-/// Active-side rebuild: build a single-paragraph `TextDocument` from
-/// `target_text` + `effective_font`, run `build_text_run` with `cache`,
-/// and — on success — swap `shape.layout` + re-seed `shape.glyphs`.
-/// Returns true iff the rebuild produced a layout (caller signals
-/// upstream cache invalidation when true).
+/// Project a keyframe document onto the text visible at this frame.  Spans
+/// and glyph paint ranges are clipped to UTF-8 boundaries, and paragraphs are
+/// rebuilt for the projected string.  This keeps per-keyframe styling alive
+/// during typewriter/scramble/morph transitions.
+[[nodiscard]] TextDocument project_document_for_frame(
+    const TextDocument& source,
+    const std::string& text,
+    const FontSpec& font
+);
+
+/// Active-side rebuild: project `target_document` onto `effective_font`, run
+/// `build_text_run` with `cache`, and — on success — swap `shape.layout` +
+/// re-seed `shape.glyphs`.  Returns true iff the rebuild produced a layout
+/// (caller signals upstream cache invalidation when true).
 [[nodiscard]] bool rebuild_active_side(
     TextRunShape& shape,
-    const std::string& target_text,
+    const TextDocument& target_document,
     const FontSpec& effective_font,
     const TextLayoutSpec& layout_spec,
     FontEngine& engine,

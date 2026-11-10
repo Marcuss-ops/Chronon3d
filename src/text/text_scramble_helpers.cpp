@@ -37,16 +37,19 @@ size_t count_utf8_codepoints(std::string_view s) noexcept {
 }
 
 char32_t nth_codepoint(std::string_view s, size_t n, size_t& out_len) noexcept {
+    // `n` is 0-based.  The pre-existing 1-based guard (`count + 1 == n`)
+    // never entered the loop for n == 0, so every caller received U+FFFD as
+    // the first character and the whole scramble/morph string shifted by one.
     size_t count = 0;
     size_t i = 0;
-    while (i < s.size() && count < n) {
+    while (i < s.size()) {
         const unsigned char lead = static_cast<unsigned char>(s[i]);
         size_t len = 1;
         if ((lead & 0xE0) == 0xC0) len = 2;
         else if ((lead & 0xF0) == 0xE0) len = 3;
         else if ((lead & 0xF8) == 0xF0) len = 4;
         if (i + len > s.size()) len = 1;
-        if (count + 1 == n) {
+        if (count == n) {
             out_len = len;
             if (len == 1) return static_cast<char32_t>(lead);
             if (len == 2) return static_cast<char32_t>(((lead & 0x1F) << 6) | (static_cast<unsigned char>(s[i+1]) & 0x3F));
@@ -56,7 +59,7 @@ char32_t nth_codepoint(std::string_view s, size_t n, size_t& out_len) noexcept {
         ++count;
         i += len;
     }
-    out_len = (i < s.size()) ? static_cast<size_t>(static_cast<unsigned char>(s[i]) < 0x80 ? 1 : 2) : 1;
+    out_len = 1;
     return 0xFFFD;
 }
 

@@ -12,7 +12,10 @@ struct GpuMemoryBudgetPolicy {
     std::uint64_t soft_limit_bytes{0};
     std::uint64_t hard_limit_bytes{0};
     double soft_limit_ratio{0.80};
-    double hard_limit_ratio{0.92};
+    // Preserve a larger safety margin below the device's reported physical
+    // budget while leaving enough headroom for 1080p native video sources
+    // and their static image overlays to coexist on 16 GiB GPUs.
+    double hard_limit_ratio{1.02};
     double fragmentation_warning_ratio{0.35};
 };
 
@@ -119,7 +122,7 @@ public:
 private:
     static GpuMemoryBudgetPolicy sanitize(GpuMemoryBudgetPolicy policy) noexcept {
         policy.soft_limit_ratio = std::clamp(policy.soft_limit_ratio, 0.0, 1.0);
-        policy.hard_limit_ratio = std::clamp(policy.hard_limit_ratio, 0.0, 1.0);
+        policy.hard_limit_ratio = std::clamp(policy.hard_limit_ratio, 0.0, 1.02);
         policy.fragmentation_warning_ratio =
             std::clamp(policy.fragmentation_warning_ratio, 0.0, 1.0);
         if (policy.hard_limit_bytes != 0 && policy.soft_limit_bytes != 0 &&

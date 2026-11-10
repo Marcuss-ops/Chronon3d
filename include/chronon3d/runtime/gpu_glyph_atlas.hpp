@@ -305,6 +305,32 @@ private:
         std::uint32_t row_height{0};
     };
 
+    /// One reserved glyph region whose pixels are not yet on the device.
+    /// `coverage` points into the caller's batch span, which must outlive the
+    /// upload call.
+    struct PendingRegion {
+        GpuGlyphKey key;
+        GlyphLocation location{};
+        GpuGlyphMetrics metrics{};
+        std::uint16_t page_index{0};
+        RenderSurfaceHandle page_handle{kInvalidRenderSurfaceHandle};
+        SurfaceDesc page_desc{};
+        std::span<const float> coverage{};
+    };
+
+    /// Reserves a page region for one glyph. Requires `m_mutex` held
+    /// exclusively; does not upload or publish the location.
+    [[nodiscard]] Result<PendingRegion, GpuGlyphAtlasError>
+        reserve_region_locked(const GpuGlyphKey& key, std::uint32_t width,
+                              std::uint32_t height,
+                              const GpuGlyphMetrics& metrics,
+                              const DistanceFieldProfile& profile);
+
+    /// Publishes a reserved region after its pixels were uploaded. Requires
+    /// `m_mutex` held exclusively. A key published concurrently keeps the
+    /// first location; the duplicate reservation is wasted, by policy.
+    void publish_region_locked(PendingRegion&& pending);
+
     [[nodiscard]] Result<std::size_t, GpuGlyphAtlasError> page_for_glyph(
         GlyphRepresentation representation,
         const DistanceFieldProfile& profile,

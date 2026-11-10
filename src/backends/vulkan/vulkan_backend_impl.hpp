@@ -512,6 +512,11 @@ struct VulkanBackend::Impl {
                                 std::uint32_t width, std::uint32_t height,
                                 std::span<const float> rgba,
                                 bool wait_for_completion);
+    std::uint64_t upload_regions(
+        runtime::RenderSurfaceHandle handle,
+        const runtime::SurfaceDesc& desc,
+        std::span<const graph::SurfaceRegionUpload> regions,
+        bool wait_for_completion);
     std::uint64_t upload_rows(runtime::RenderSurfaceHandle handle,
                               const runtime::SurfaceDesc& desc,
                               const raster::BBox& clip,

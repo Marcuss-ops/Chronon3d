@@ -297,6 +297,12 @@ struct TextTransitionKeyframePlan {
     TextTransitionScramblePlan scramble{};
     TextTransitionMorphPlan morph{};
     TextTransitionTypewriterPlan typewriter{};
+    // Style ranges authored against THIS keyframe's text.  The base layer
+    // spans stay mutually exclusive with text_transitions; each keyframe is
+    // validated independently so a range can never address another
+    // keyframe's string.
+    std::vector<TextSpanOverride> spans;
+    std::vector<TextGlyphPaintRange> glyph_paint_ranges;
 };
 
 struct TextTransitionsPlan {

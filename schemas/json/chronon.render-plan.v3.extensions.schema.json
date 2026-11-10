@@ -490,6 +490,117 @@
                 "type": "string",
                 "maxLength": 65536
               },
+              "spans": {
+                "type": "array",
+                "maxItems": 65536,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "semantic_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "style": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "minProperties": 1,
+                      "properties": {
+                        "color": {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+                        },
+                        "font_size_mult": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 100
+                        },
+                        "tracking": {
+                          "type": "number",
+                          "minimum": -1000,
+                          "maximum": 1000
+                        },
+                        "stroke": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "color": {
+                              "type": "string",
+                              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+                            },
+                            "width_em": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 100
+                            }
+                          },
+                          "minProperties": 1
+                        },
+                        "highlight": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+                            },
+                            "padding_em": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "radius_em": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 100
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "glyph_paint_ranges": {
+                "type": "array",
+                "maxItems": 65536,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "start",
+                    "end",
+                    "color"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "color": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+                    }
+                  }
+                }
+              },
               "transition": {
                 "enum": [
                   "hold",

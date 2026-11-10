@@ -186,7 +186,8 @@ RenderPreparationResult prepare_render_scene(
             if (!acquired.ok()) {
                 result.preparation_error = make_preparation_error(
                     PreparationError::Code::CorruptedAsset,
-                    "static image GPU promotion failed: " + ref.path,
+                    "static image GPU promotion failed: " + ref.path +
+                        " (" + acquired.error + ")",
                     {}, ref.path, ref.owner, "gpu-image");
                 return result;
             }
