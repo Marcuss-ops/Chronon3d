@@ -114,6 +114,82 @@ Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::page_for_glyph(
     return m_pages.size() - 1;
 }
 
+Result<GpuGlyphAtlas::PendingRegion, GpuGlyphAtlasError>
+GpuGlyphAtlas::reserve_region_locked(
+    const GpuGlyphKey& key, std::uint32_t width, std::uint32_t height,
+    const GpuGlyphMetrics& metrics, const DistanceFieldProfile& profile) {
+    auto page_result = page_for_glyph(key.representation, profile, width, height);
+    if (!page_result.has_value()) {
+        return page_result.error();
+    }
+    const std::size_t page_index = page_result.value();
+    auto& page = m_pages[page_index];
+    if (page.cursor_x + width > kPageSize && page.cursor_x != 0) {
+        page.cursor_x = 0;
+        page.cursor_y += page.row_height;
+        page.row_height = 0;
+    }
+    const std::uint32_t px = page.cursor_x;
+    const std::uint32_t py = page.cursor_y;
+    // AUDIT-2026-09-09 N-02 — RESERVE the region under the lock (cursor
+    // advances here, not after the upload) so concurrent misses can never
+    // claim the same page area. On upload failure the reserved region is
+    // leaked inside the page: bounded by one glyph per failure, and the
+    // glyph is simply not cached (fail-loud to the caller) — the same
+    // observable behaviour as before.
+    page.cursor_x += width;
+    page.row_height = std::max(page.row_height, height);
+
+    const PixelFormat page_format = glyph_representation_is_rgba(key.representation)
+        ? PixelFormat::Rgba8Unorm
+        : PixelFormat::R8Unorm;
+    PendingRegion pending;
+    pending.key = key;
+    pending.page_index = static_cast<std::uint16_t>(page_index);
+    pending.page_handle = page.handle;
+    pending.metrics = metrics;
+    pending.page_desc = SurfaceDesc{
+        kPageSize, kPageSize, page_format, ResourceUsage::Storage,
+        LifetimeClass::JobPersistent,
+        tight_surface_bytes(page_format, kPageSize, kPageSize)};
+    pending.page_desc.text_atlas_encoding =
+        key.representation == GlyphRepresentation::Mtsdf
+            ? TextAtlasEncoding::MTSDF
+            : key.representation == GlyphRepresentation::Coverage
+                ? TextAtlasEncoding::Coverage
+                : TextAtlasEncoding::PremultipliedRGBA;
+
+    GlyphLocation& loc = pending.location;
+    loc.atlas_page = pending.page_index;
+    loc.uv_index = static_cast<std::uint16_t>(px | (py << 16));
+    loc.atlas_x = static_cast<std::uint16_t>(px);
+    loc.atlas_y = static_cast<std::uint16_t>(py);
+    loc.local_x = static_cast<std::int16_t>(metrics.x_offset);
+    loc.local_y = static_cast<std::int16_t>(metrics.y_offset);
+    loc.width = static_cast<std::uint16_t>(width);
+    loc.height = static_cast<std::uint16_t>(height);
+    loc.plane_left = metrics.x_offset;
+    loc.plane_top = metrics.y_offset;
+    loc.plane_right = metrics.x_offset + static_cast<float>(width);
+    loc.plane_bottom = metrics.y_offset + static_cast<float>(height);
+    loc.advance_x = metrics.advance_x;
+    return pending;
+}
+
+void GpuGlyphAtlas::publish_region_locked(PendingRegion&& pending) {
+    if (m_locations.find(pending.key) != m_locations.end()) {
+        ++m_stats.hits;
+        return;
+    }
+    m_locations.emplace(pending.key, pending.location);
+    m_metrics.emplace(pending.key, pending.metrics);
+    ++m_stats.entries;
+    m_stats.total_glyph_bytes +=
+        static_cast<std::size_t>(pending.location.width) *
+        pending.location.height *
+        (glyph_representation_is_rgba(pending.key.representation) ? 4 : 1);
+}
+
 GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
     GpuGlyphKey key,
     std::uint32_t width, std::uint32_t height,
@@ -231,55 +307,14 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
         return loc;
     }
 
-    auto page_result = page_for_glyph(key.representation, profile, width, height);
-    if (!page_result.has_value()) {
-        return page_result.error();
+    auto reserved = reserve_region_locked(key, width, height, metrics, profile);
+    if (!reserved.has_value()) {
+        return reserved.error();
     }
-    const std::size_t page_index = page_result.value();
-    auto& page = m_pages[page_index];
-    if (page.cursor_x + width > kPageSize && page.cursor_x != 0) {
-        page.cursor_x = 0;
-        page.cursor_y += page.row_height;
-        page.row_height = 0;
-    }
-    const std::uint32_t px = page.cursor_x;
-    const std::uint32_t py = page.cursor_y;
-    // AUDIT-2026-09-09 N-02 — RESERVE the region under the lock (cursor
-    // advances here, not after the upload) so concurrent misses can never
-    // claim the same page area. On upload failure the reserved region is
-    // leaked inside the page: bounded by one glyph per failure, and the
-    // glyph is simply not cached (fail-loud to the caller) — the same
-    // observable behaviour as before.
-    page.cursor_x += width;
-    page.row_height = std::max(page.row_height, height);
-
-    const PixelFormat page_format = glyph_representation_is_rgba(key.representation)
-        ? PixelFormat::Rgba8Unorm
-        : PixelFormat::R8Unorm;
-    SurfaceDesc page_desc{kPageSize, kPageSize, page_format,
-                          ResourceUsage::Storage,
-                          LifetimeClass::JobPersistent,
-                          tight_surface_bytes(page_format, kPageSize, kPageSize)};
-    page_desc.text_atlas_encoding = page.profile.representation == GlyphRepresentation::Mtsdf
-        ? TextAtlasEncoding::MTSDF
-        : page.profile.representation == GlyphRepresentation::Coverage
-            ? TextAtlasEncoding::Coverage
-            : TextAtlasEncoding::PremultipliedRGBA;
-
-    GlyphLocation loc;
-    loc.atlas_page = static_cast<std::uint16_t>(page_index);
-    loc.uv_index = static_cast<std::uint16_t>(px | (py << 16));
-    loc.atlas_x = static_cast<std::uint16_t>(px);
-    loc.atlas_y = static_cast<std::uint16_t>(py);
-    loc.local_x = static_cast<std::int16_t>(metrics.x_offset);
-    loc.local_y = static_cast<std::int16_t>(metrics.y_offset);
-    loc.width = static_cast<std::uint16_t>(width);
-    loc.height = static_cast<std::uint16_t>(height);
-    loc.plane_left = metrics.x_offset;
-    loc.plane_top = metrics.y_offset;
-    loc.plane_right = metrics.x_offset + static_cast<float>(width);
-    loc.plane_bottom = metrics.y_offset + static_cast<float>(height);
-    loc.advance_x = metrics.advance_x;
+    PendingRegion pending = std::move(reserved.value());
+    const std::size_t page_index = pending.page_index;
+    const std::uint32_t px = static_cast<std::uint32_t>(pending.location.atlas_x);
+    const std::uint32_t py = static_cast<std::uint32_t>(pending.location.atlas_y);
 
     // AUDIT-2026-09-09 N-02 — the per-glyph driver upload runs OUTSIDE the
     // atlas mutex: the only state touched while unlocked is the backend
@@ -287,7 +322,8 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
     // operating on a copied handle + desc + the caller-owned coverage span.
     // The rare page-creation device call inside page_for_glyph stays under
     // the lock (once per ~2048px page, not once per glyph).
-    const RenderSurfaceHandle page_handle = page.handle;
+    const RenderSurfaceHandle page_handle = pending.page_handle;
+    const SurfaceDesc page_desc = pending.page_desc;
     lock.unlock();
     auto uploaded = m_cache.backend()->upload_surface_region(
         page_handle, page_desc,
@@ -310,12 +346,8 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
         ++m_stats.hits;
         return it->second;
     }
-    m_locations.emplace(key, loc);
-    m_metrics.emplace(key, metrics);
-    ++m_stats.entries;
-    m_stats.total_glyph_bytes += static_cast<std::size_t>(width) * height *
-        (format == PixelFormat::Rgba8Unorm ? 4 : 1);
-    return loc;
+    publish_region_locked(std::move(pending));
+    return m_locations.find(key)->second;
 }
 
 Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::prepare_batch(
@@ -331,30 +363,133 @@ Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::prepare_batch(
             GpuGlyphAtlasError::Code::InvalidDimensions,
             "glyph batch metadata spans have different lengths");
     }
-    std::size_t coverage_offset = 0;
-    for (std::size_t i = 0; i < keys.size(); ++i) {
-        const auto w = widths[i];
-        const auto h = heights[i];
-        if (h != 0 && w > std::numeric_limits<std::size_t>::max() / h) {
+
+    std::vector<PendingRegion> pending;
+    pending.reserve(keys.size());
+    std::unordered_map<GpuGlyphKey, std::size_t, GpuGlyphKeyHash> pending_index;
+    pending_index.reserve(keys.size());
+    std::vector<std::pair<std::size_t, std::span<const float>>> large;
+
+    {
+        std::unique_lock lock(m_mutex);
+        if (!m_cache.backend()) {
+            ++m_stats.failures;
             return atlas_error(
-                GpuGlyphAtlasError::Code::InvalidDimensions,
-                "glyph batch dimensions overflow");
+                GpuGlyphAtlasError::Code::NotAttached,
+                "GPU glyph atlas is not attached to a backend");
         }
-        const auto count = static_cast<std::size_t>(w) * h;
-        if (coverage_offset > coverage_data.size() ||
-            count > coverage_data.size() - coverage_offset) {
-            return atlas_error(
-                GpuGlyphAtlasError::Code::InvalidCoverage,
-                "glyph batch coverage span is truncated");
+        std::size_t coverage_offset = 0;
+        for (std::size_t i = 0; i < keys.size(); ++i) {
+            const auto w = widths[i];
+            const auto h = heights[i];
+            if (h != 0 && w > std::numeric_limits<std::size_t>::max() / h) {
+                return atlas_error(
+                    GpuGlyphAtlasError::Code::InvalidDimensions,
+                    "glyph batch dimensions overflow");
+            }
+            const auto count = static_cast<std::size_t>(w) * h;
+            if (coverage_offset > coverage_data.size() ||
+                count > coverage_data.size() - coverage_offset) {
+                return atlas_error(
+                    GpuGlyphAtlasError::Code::InvalidCoverage,
+                    "glyph batch coverage span is truncated");
+            }
+            const auto coverage = coverage_data.subspan(coverage_offset, count);
+            coverage_offset += count;
+
+            const auto& key = keys[i];
+            // A resident glyph, or one already reserved earlier in this same
+            // batch, is a hit: the old per-glyph path published before the
+            // next acquire, so duplicates never uploaded twice.
+            if (m_locations.find(key) != m_locations.end() ||
+                pending_index.find(key) != pending_index.end()) {
+                ++m_stats.hits;
+                continue;
+            }
+            if (w == 0 || h == 0 ||
+                w > std::numeric_limits<std::uint16_t>::max() ||
+                h > std::numeric_limits<std::uint16_t>::max()) {
+                ++m_stats.failures;
+                return atlas_error(
+                    GpuGlyphAtlasError::Code::InvalidDimensions,
+                    "glyph dimensions must be non-zero and fit GlyphLocation");
+            }
+            if (w > kPageSize || h > kPageSize) {
+                large.emplace_back(i, coverage);
+                continue;
+            }
+            auto reserved = reserve_region_locked(
+                key, w, h, metrics[i], profile);
+            if (!reserved.has_value()) {
+                return reserved.error();
+            }
+            ++m_stats.misses;
+            pending_index.emplace(key, pending.size());
+            pending.push_back(std::move(reserved.value()));
+            pending.back().coverage = coverage;
         }
-        auto result = acquire(
-            keys[i], w, h,
-            coverage_data.subspan(coverage_offset, count),
-            metrics[i], profile);
-        if (!result.has_value()) {
-            return result.error();
+    }
+
+    // Large glyphs get their own dedicated surface through acquire(); they
+    // are rare and cannot share a page-sized upload batch.
+    for (const auto& [index, coverage] : large) {
+        auto acquired = acquire(
+            keys[index], widths[index], heights[index], coverage,
+            metrics[index], profile);
+        if (!acquired.has_value()) {
+            return acquired.error();
         }
-        coverage_offset += count;
+    }
+
+    if (!pending.empty()) {
+        struct UploadGroup {
+            RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
+            SurfaceDesc desc{};
+            std::vector<graph::SurfaceRegionUpload> regions;
+        };
+        std::vector<UploadGroup> groups;
+        groups.reserve(1);
+        for (const auto& region : pending) {
+            std::size_t group_index = groups.size();
+            for (std::size_t g = 0; g < groups.size(); ++g) {
+                if (groups[g].handle == region.page_handle) {
+                    group_index = g;
+                    break;
+                }
+            }
+            if (group_index == groups.size()) {
+                UploadGroup group;
+                group.handle = region.page_handle;
+                group.desc = region.page_desc;
+                groups.push_back(std::move(group));
+            }
+            groups[group_index].regions.push_back(graph::SurfaceRegionUpload{
+                static_cast<std::int32_t>(region.location.atlas_x),
+                static_cast<std::int32_t>(region.location.atlas_y),
+                region.location.width,
+                region.location.height,
+                region.coverage});
+        }
+
+        for (const auto& group : groups) {
+            auto uploaded = m_cache.backend()->upload_surface_regions(
+                group.handle, group.desc, group.regions);
+            if (!uploaded.ok()) {
+                std::unique_lock lock(m_mutex);
+                ++m_stats.failures;
+                return atlas_error(
+                    GpuGlyphAtlasError::Code::UploadFailed,
+                    "glyph atlas batch upload failed: " +
+                        uploaded.error().message);
+            }
+        }
+    }
+
+    {
+        std::unique_lock lock(m_mutex);
+        for (auto& region : pending) {
+            publish_region_locked(std::move(region));
+        }
     }
     return keys.size();
 }

@@ -323,6 +323,23 @@ u64 hash_text_run_shape(const TextRunShape& s, Frame frame) {
 
     seed = hash_combine(seed, hash_value(static_cast<u8>(state.transition)));
 
+    // Fold only the keyframe style ranges.  The rest of TextDocument is
+    // already represented by the text/font fields below; hashing the whole
+    // document here would make otherwise identical transition setups depend
+    // on default-paragraph metadata and break the PR10 determinism contract.
+    const auto fold_ranges = [&](const TextDocument& doc) {
+        seed = hash_combine(seed, hash_value(static_cast<u64>(doc.spans.size())));
+        for (const auto& span : doc.spans)
+            seed = hash_combine(seed, hash_text_style_span(span));
+        seed = hash_combine(
+            seed, hash_value(static_cast<u64>(doc.glyph_paint_ranges.size())));
+        for (const auto& range : doc.glyph_paint_ranges) {
+            seed = hash_combine(seed, hash_value(static_cast<u64>(range.byte_start)));
+            seed = hash_combine(seed, hash_value(static_cast<u64>(range.byte_end)));
+            seed = hash_combine(seed, chronon3d::graph::hash_color(range.color));
+        }
+    };
+
     if (state.active != nullptr) {
         const auto& d = state.active->defaults;
         seed = hash_combine(seed, hash_string(state.active->utf8));
@@ -331,6 +348,9 @@ u64 hash_text_run_shape(const TextRunShape& s, Frame frame) {
         seed = hash_combine(seed, hash_value(d.font.font_weight));
         seed = hash_combine(seed, hash_string(d.font.font_style));
         seed = hash_combine(seed, hash_value(d.font.font_size));
+        // Spans and paint ranges are part of the visible keyframe style even
+        // when the UTF-8 string is unchanged.
+        fold_ranges(*state.active);
     }
 
     if (state.dissolve_from != nullptr) {
@@ -341,6 +361,7 @@ u64 hash_text_run_shape(const TextRunShape& s, Frame frame) {
         seed = hash_combine(seed, hash_value(d.font.font_weight));
         seed = hash_combine(seed, hash_string(d.font.font_style));
         seed = hash_combine(seed, hash_value(d.font.font_size));
+        fold_ranges(*state.dissolve_from);
     }
 
     if (!state.transition_text.empty()) {

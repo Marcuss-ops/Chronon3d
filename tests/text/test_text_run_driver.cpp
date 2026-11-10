@@ -45,6 +45,18 @@ TextDocument make_doc(const std::string& utf8) {
     return doc;
 }
 
+TextDocument make_styled_doc(
+    const std::string& utf8, std::size_t byte_start, std::size_t byte_end,
+    const Color& color) {
+    auto doc = make_doc(utf8);
+    TextSpanOverride over;
+    over.byte_start = byte_start;
+    over.byte_end = byte_end;
+    over.color = color;
+    append_span_override(doc, over, doc.defaults.font);
+    return doc;
+}
+
 /// Build a TextRunShape holding a real-but-minimal TextRunLayout.  Glyph
 /// count is non-zero when the system has DejaVu Sans installed; otherwise
 /// zero and tests on per-glyph index 0 are skipped.
@@ -395,6 +407,127 @@ TEST_CASE("TextRunDriver: Typewriter frame 0 rebuilds an empty layout") {
     CHECK(shape->layout->source_text.empty());
     CHECK(shape->layout->placed.glyphs.empty());
     CHECK(shape->glyphs.empty());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5b. T2-01 — per-keyframe spans / paint ranges on transitions
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("TextRunDriver: Typewriter applies the destination span to the revealed prefix") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    TextLayoutSpec layout;
+    layout.box = {800.0f, 200.0f};
+    auto shape = make_shape("Hello World", engine, layout);
+
+    AnimatedTextDocument doc;
+    SourceTextKeyframe kf0;
+    kf0.frame = Frame{0};
+    kf0.document = make_doc("");
+    kf0.transition = SourceTextTransition::Typewriter;
+    kf0.typewriter_params.easing = EasingCurve{Easing::Linear};
+    doc.add_keyframe(kf0);
+    SourceTextKeyframe kf20;
+    kf20.frame = Frame{20};
+    kf20.document = make_styled_doc(
+        "Hello World", 0, 5, Color{1.0f, 0.0f, 0.0f, 1.0f});
+    doc.add_keyframe(kf20);
+
+    const auto state = doc.sample_at(Frame{16});
+    REQUIRE(state.transition == SourceTextTransition::Typewriter);
+    REQUIRE(state.transition_text.rfind("Hello", 0) == 0);
+
+    REQUIRE(apply_active_state_to_text_run_shape(
+        *shape, state, engine, layout));
+    REQUIRE(shape->layout);
+    REQUIRE_FALSE(shape->layout->placed.glyphs.empty());
+
+    bool saw_styled = false;
+    for (const auto& glyph : shape->layout->placed.glyphs) {
+        if (glyph.byte_offset >= 5) continue;
+        REQUIRE(glyph.fill_color_override.has_value());
+        CHECK(glyph.fill_color_override->r == doctest::Approx(1.0f));
+        CHECK(glyph.fill_color_override->g == doctest::Approx(0.0f));
+        saw_styled = true;
+    }
+    CHECK(saw_styled);
+}
+
+TEST_CASE("TextRunDriver: Scramble applies the destination paint range") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    TextLayoutSpec layout;
+    layout.box = {800.0f, 200.0f};
+    auto shape = make_shape("AAAA", engine, layout);
+
+    AnimatedTextDocument doc;
+    SourceTextKeyframe kf0;
+    kf0.frame = Frame{0};
+    kf0.document = make_doc("AAAA");
+    kf0.transition = SourceTextTransition::Scramble;
+    doc.add_keyframe(kf0);
+    SourceTextKeyframe kf60;
+    kf60.frame = Frame{60};
+    kf60.document = make_doc("BBBB");
+    kf60.document.glyph_paint_ranges.push_back(
+        TextGlyphPaintRange{0, 4, Color{0.0f, 1.0f, 0.0f, 1.0f}});
+    doc.add_keyframe(kf60);
+
+    const auto state = doc.sample_at(Frame{30});
+    REQUIRE(state.transition == SourceTextTransition::Scramble);
+    REQUIRE_FALSE(state.transition_text.empty());
+    REQUIRE(apply_active_state_to_text_run_shape(
+        *shape, state, engine, layout));
+    REQUIRE(shape->layout);
+    REQUIRE_FALSE(shape->layout->placed.glyphs.empty());
+    for (const auto& glyph : shape->layout->placed.glyphs) {
+        if (glyph.byte_offset >= state.transition_text.size()) continue;
+        REQUIRE(glyph.fill_color_override.has_value());
+        CHECK(glyph.fill_color_override->g == doctest::Approx(1.0f));
+        CHECK(glyph.fill_color_override->r == doctest::Approx(0.0f));
+    }
+}
+
+TEST_CASE("TextRunDriver: Morph applies the destination span") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    TextLayoutSpec layout;
+    layout.box = {800.0f, 200.0f};
+    auto shape = make_shape("AB", engine, layout);
+
+    AnimatedTextDocument doc;
+    SourceTextKeyframe kf0;
+    kf0.frame = Frame{0};
+    kf0.document = make_doc("AB");
+    kf0.transition = SourceTextTransition::Morph;
+    doc.add_keyframe(kf0);
+    SourceTextKeyframe kf60;
+    kf60.frame = Frame{60};
+    kf60.document = make_styled_doc(
+        "CD", 0, 2, Color{0.0f, 0.0f, 1.0f, 1.0f});
+    doc.add_keyframe(kf60);
+
+    const auto state = doc.sample_at(Frame{30});
+    REQUIRE(state.transition == SourceTextTransition::Morph);
+    REQUIRE(state.transition_text_authoritative);
+    REQUIRE(apply_active_state_to_text_run_shape(
+        *shape, state, engine, layout));
+    REQUIRE(shape->layout);
+    REQUIRE_FALSE(shape->layout->placed.glyphs.empty());
+    bool saw_styled = false;
+    for (const auto& glyph : shape->layout->placed.glyphs) {
+        if (glyph.byte_offset >= 2) continue;
+        REQUIRE(glyph.fill_color_override.has_value());
+        CHECK(glyph.fill_color_override->b == doctest::Approx(1.0f));
+        saw_styled = true;
+    }
+    CHECK(saw_styled);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

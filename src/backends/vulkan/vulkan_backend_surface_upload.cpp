@@ -63,6 +63,26 @@ graph::RenderOpResult VulkanBackend::upload_surface_region(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::upload_surface_regions(
+    runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc,
+    std::span<const graph::SurfaceRegionUpload> regions) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    try {
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
+        (void)m_impl->upload_regions(handle, desc, regions, true);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
+    }
+#else
+    (void)handle; (void)desc; (void)regions;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::upload_surface_regions: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::upload_surface_async(
     runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc,
     std::span<const float> rgba, runtime::UploadTicket& ticket) {

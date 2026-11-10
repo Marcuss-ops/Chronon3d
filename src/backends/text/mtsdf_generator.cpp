@@ -17,6 +17,8 @@
 #include <cstdint>
 #include <limits>
 #include <mutex>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 
 namespace chronon3d {
 namespace {
@@ -406,35 +408,45 @@ std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
     result.advance_x = static_cast<float>(advance_x);
     result.rgba8.resize(static_cast<std::size_t>(width) * height);
 
-    for (std::uint32_t y = 0; y < height; ++y) {
-        for (std::uint32_t x = 0; x < width; ++x) {
-            const Point p{origin_x + static_cast<double>(x) + 0.5,
-                          origin_y + static_cast<double>(y) + 0.5};
-            std::array<double, 3> channel_distance{
-                std::numeric_limits<double>::infinity(),
-                std::numeric_limits<double>::infinity(),
-                std::numeric_limits<double>::infinity()};
-            double true_distance = std::numeric_limits<double>::infinity();
-            for (const auto& edge : boundary_edges) {
-                const double distance = point_segment_distance(p, edge);
-                channel_distance[edge.channel] =
-                    std::min(channel_distance[edge.channel], distance);
-                true_distance = std::min(true_distance, distance);
+    // Rows are independent and each pixel owns exactly one output slot, so
+    // distributing the scan cannot change the result: same arithmetic, same
+    // order per pixel, no reduction. This loop is O(width * height * edges)
+    // and was the dominant cost of a cold glyph atlas (a 31-glyph preflight
+    // spent ~0.5 s here); the FreeType-owned section above is already
+    // finished, so no face guard is held while workers run.
+    tbb::parallel_for(
+        tbb::blocked_range<std::uint32_t>(0, height),
+        [&](const tbb::blocked_range<std::uint32_t>& rows) {
+            for (std::uint32_t y = rows.begin(); y < rows.end(); ++y) {
+                for (std::uint32_t x = 0; x < width; ++x) {
+                    const Point p{origin_x + static_cast<double>(x) + 0.5,
+                                  origin_y + static_cast<double>(y) + 0.5};
+                    std::array<double, 3> channel_distance{
+                        std::numeric_limits<double>::infinity(),
+                        std::numeric_limits<double>::infinity(),
+                        std::numeric_limits<double>::infinity()};
+                    double true_distance = std::numeric_limits<double>::infinity();
+                    for (const auto& edge : boundary_edges) {
+                        const double distance = point_segment_distance(p, edge);
+                        channel_distance[edge.channel] =
+                            std::min(channel_distance[edge.channel], distance);
+                        true_distance = std::min(true_distance, distance);
+                    }
+                    const int winding = compute_winding(p, edges);
+                    const double sign = winding != 0 ? 1.0 : -1.0;
+                    for (auto& distance : channel_distance) {
+                        if (!std::isfinite(distance)) distance = true_distance;
+                        distance *= sign;
+                    }
+                    true_distance *= sign;
+                    result.rgba8[static_cast<std::size_t>(y) * width + x] =
+                        packed_rgba8(encode_distance(channel_distance[0], range),
+                                     encode_distance(channel_distance[1], range),
+                                     encode_distance(channel_distance[2], range),
+                                     encode_distance(true_distance, range));
+                }
             }
-            const int winding = compute_winding(p, edges);
-            const double sign = winding != 0 ? 1.0 : -1.0;
-            for (auto& distance : channel_distance) {
-                if (!std::isfinite(distance)) distance = true_distance;
-                distance *= sign;
-            }
-            true_distance *= sign;
-            result.rgba8[static_cast<std::size_t>(y) * width + x] =
-                packed_rgba8(encode_distance(channel_distance[0], range),
-                             encode_distance(channel_distance[1], range),
-                             encode_distance(channel_distance[2], range),
-                             encode_distance(true_distance, range));
-        }
-    }
+        });
     if (profiling::g_current_counters) {
         profiling::g_current_counters->mtsdf_glyphs_generated.fetch_add(
             1, std::memory_order_relaxed);

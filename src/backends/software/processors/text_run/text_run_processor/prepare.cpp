@@ -286,12 +286,21 @@ namespace chronon3d::renderer::text_run_stages {
     // raster_space.scale and layer_scale were computed earlier (before
     // font resolve) so that BLFont could be created at the supersampled
     // size.  Only the image dimensions and offset remain to be computed.
+    // Keep the scratch-surface origin on an integer pixel boundary. The
+    // compositor's simple-translation fast path blits at round(offset); a
+    // fractional origin would therefore shift the whole run by up to half a
+    // pixel instead of preserving the layout's subpixel position. Glyphs are
+    // still rasterized at their fractional position *inside* the surface.
+    const float surface_left =
+        std::floor(static_cast<float>(s.min_x) - kMargin);
+    const float surface_top =
+        std::floor(static_cast<float>(s.min_y) - kMargin);
     const double raw_w = std::ceil(
-        static_cast<double>(s.max_x) - static_cast<double>(s.min_x) +
-        static_cast<double>(kMargin) * 2.0);
+        static_cast<double>(s.max_x) + static_cast<double>(kMargin) -
+        static_cast<double>(surface_left));
     const double raw_h = std::ceil(
-        static_cast<double>(s.max_y) - static_cast<double>(s.min_y) +
-        static_cast<double>(kMargin) * 2.0);
+        static_cast<double>(s.max_y) + static_cast<double>(kMargin) -
+        static_cast<double>(surface_top));
     constexpr double kMaxTextSurface = 16384.0;
     if (!std::isfinite(raw_w) || !std::isfinite(raw_h) ||
         raw_w < 1.0 || raw_h < 1.0 ||
@@ -312,8 +321,8 @@ namespace chronon3d::renderer::text_run_stages {
     }
     s.img_w = static_cast<int>(raw_w);
     s.img_h = static_cast<int>(raw_h);
-    s.offset_x = s.min_x - kMargin;
-    s.offset_y = s.min_y - kMargin;
+    s.offset_x = surface_left;
+    s.offset_y = surface_top;
 
     s.ss_img_w = s.img_w * scale;
     s.ss_img_h = s.img_h * scale;

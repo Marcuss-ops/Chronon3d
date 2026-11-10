@@ -421,6 +421,9 @@ public:
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&,
         std::int32_t, std::int32_t, std::uint32_t, std::uint32_t,
         std::span<const float>) override;
+    graph::RenderOpResult upload_surface_regions(
+        runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&,
+        std::span<const graph::SurfaceRegionUpload>) override;
     graph::RenderOpResult upload_surface_async(
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&,
         std::span<const float>, runtime::UploadTicket&) override;

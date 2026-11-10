@@ -83,10 +83,15 @@ void setup_render_job(const CompositionRegistry& registry,
 
     // The plan preparation snapshot and the renderer runtime are separate
     // ownership boundaries.  Re-assert the job's explicit mount here so the
-    // runtime-owned FontEngine and every frame-evaluation path observe the
-    // same AssetResolver root, including renderers created through a warm
-    // or alternate CLI setup path.
+    // runtime-owned AssetResolver, FontEngine and every frame-evaluation path
+    // observe the same root, including renderers created through a warm or
+    // alternate CLI setup path. The daemon's warm renderer starts with its
+    // fixture mount; without remounting RuntimeContext::resolver() here,
+    // video layers resolve against that stale directory while text assets use
+    // the per-job workspace mount.
     if (job.execution.assets_root) {
+        out.renderer->execution_context().runtime->resolver().mount(
+            *job.execution.assets_root);
         out.renderer->execution_context().text.assets->mount(*job.execution.assets_root);
     }
 

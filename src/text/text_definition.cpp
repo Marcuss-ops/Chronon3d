@@ -62,6 +62,7 @@ TextDocument to_text_document(const TextDefinition& def) {
     for (const auto& over : def.spans) {
         append_span_override(doc, over, doc.defaults.font);
     }
+    doc.glyph_paint_ranges = def.glyph_paint_ranges;
 
     if (!doc.utf8.empty()) {
         doc.split_paragraphs();

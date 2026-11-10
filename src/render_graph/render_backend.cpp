@@ -149,6 +149,19 @@ RenderOpResult RenderBackendSurfaceApi::upload_surface_region(
             "RenderBackend::upload_surface_region: native surfaces are not supported"));
     }
 
+RenderOpResult RenderBackendSurfaceApi::upload_surface_regions(
+        runtime::RenderSurfaceHandle handle,
+        const runtime::SurfaceDesc& desc,
+        std::span<const SurfaceRegionUpload> regions) {
+        for (const auto& region : regions) {
+            const auto result = upload_surface_region(
+                handle, desc, region.x, region.y, region.width, region.height,
+                region.rgba);
+            if (!result.ok()) return result;
+        }
+        return RenderOpResult(RenderOpOutcome{});
+    }
+
 RenderOpResult RenderBackendSurfaceApi::upload_surface_async(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/,

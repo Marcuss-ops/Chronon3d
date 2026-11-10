@@ -297,6 +297,13 @@ TEST_CASE("render plan lowers text_transitions into an AnimatedTextDocument") {
     last.frame = Frame{12};
     last.text = "FINAL";
     last.transition = "cut";
+    TextSpanOverride final_span;
+    final_span.byte_start = 0;
+    final_span.byte_end = 5;
+    final_span.color = Color{1.0f, 0.0f, 0.0f, 1.0f};
+    last.spans.push_back(final_span);
+    last.glyph_paint_ranges.push_back(
+        TextGlyphPaintRange{0, 5, Color{0.0f, 1.0f, 0.0f, 1.0f}});
     transitions.keyframes.push_back(last);
     text.text_transitions = std::move(transitions);
     plan.layers.push_back(std::move(text));
@@ -354,6 +361,13 @@ TEST_CASE("render plan lowers text_transitions into an AnimatedTextDocument") {
     const auto end = shape_at(Frame{12});
     REQUIRE(end->layout);
     CHECK(end->layout->source_text == "FINAL");
+    REQUIRE(end->animated_doc->size() == 2);
+    const auto& keyframes = end->animated_doc->keyframes();
+    REQUIRE(keyframes[1].document.spans.size() == 1);
+    CHECK(keyframes[1].document.spans[0].byte_start == 0);
+    CHECK(keyframes[1].document.spans[0].byte_end == 5);
+    REQUIRE(keyframes[1].document.glyph_paint_ranges.size() == 1);
+    CHECK(keyframes[1].document.glyph_paint_ranges[0].byte_end == 5);
 }
 
 TEST_CASE("render plan evaluates animated solid fills and typed transitions per frame") {

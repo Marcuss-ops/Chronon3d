@@ -311,12 +311,26 @@ bool apply_active_state_to_text_run_shape(
         state, shape.layout.get());
 
     // ── Stage 3: EffectiveTextState projection (current vs target) ──
+    TextDocument target_document = text::driver::project_document_for_frame(
+        *state.active, target_text, effective_font);
+    const u64 target_document_hash = hash_text_document(target_document);
     const EffectiveTextState target_state = target_effective_state(
         target_text, effective_font, layout_spec);
 
+    const bool target_has_style =
+        !target_document.spans.empty() ||
+        !target_document.glyph_paint_ranges.empty();
+    // A fresh unstyled shape carries hash 0.  That must not defeat the Hold
+    // no-op fast path, but a styled target must force the first rebuild so
+    // its spans/ranges are actually compiled into the layout.
+    const bool style_matches = target_has_style
+        ? (shape.animated_document_style &&
+           shape.animated_document_hash == target_document_hash)
+        : !shape.animated_document_style;
+
     if (shape.layout) {
         const EffectiveTextState current_state = current_effective_state(*shape.layout);
-        if (fast_path_hit(current_state, target_state)) {
+        if (fast_path_hit(current_state, target_state) && style_matches) {
             // M1.5#2 closure: cache would hit → no rebuild.  Crucially
             // we still update dissolve_mix inside rebuild_dissolve_slot
             // below so the compositor sees the latest mix, then return
@@ -336,7 +350,7 @@ bool apply_active_state_to_text_run_shape(
 
     // ── Stage 4: cache-miss → rebuild active + crossfade slots ──────
     const bool active_rebuilt = rebuild_active_side(
-        shape, target_text, effective_font, layout_spec, engine, cache);
+        shape, target_document, effective_font, layout_spec, engine, cache);
     // Always run crossfade slot lifecycle regardless of active rebuild
     // outcome: an ActiveTextState transition out-of-gap clears the
     // outgoing slots even when the active side stays cached.

@@ -215,6 +215,109 @@ std::uint64_t VulkanBackend::Impl::upload_region(runtime::RenderSurfaceHandle ha
         image.initialized = true;
         return submit_upload(slot, wait_for_completion);
     }
+std::uint64_t VulkanBackend::Impl::upload_regions(
+        runtime::RenderSurfaceHandle handle,
+        const runtime::SurfaceDesc& desc,
+        std::span<const graph::SurfaceRegionUpload> regions,
+        bool wait_for_completion) {
+        if (regions.empty()) return 0;
+        auto& image = ensure_surface(handle, desc);
+        const auto px_bytes = pixel_format_bytes(desc.format);
+        constexpr VkDeviceSize kRegionAlignment = 16;
+        const auto align_up = [](VkDeviceSize value) noexcept {
+            return (value + kRegionAlignment - 1) & ~(kRegionAlignment - 1);
+        };
+
+        struct PreparedRegion {
+            VkDeviceSize offset{0};
+            VkDeviceSize bytes{0};
+            const graph::SurfaceRegionUpload* region{nullptr};
+        };
+        std::vector<PreparedRegion> prepared;
+        prepared.reserve(regions.size());
+        VkDeviceSize total_bytes = 0;
+        for (const auto& region : regions) {
+            if (region.x < 0 || region.y < 0 ||
+                region.width == 0 || region.height == 0 ||
+                static_cast<std::uint32_t>(region.x) + region.width > desc.width ||
+                static_cast<std::uint32_t>(region.y) + region.height > desc.height) {
+                throw std::invalid_argument(
+                    "Vulkan region upload is outside surface bounds");
+            }
+            const VkDeviceSize byte_count =
+                static_cast<VkDeviceSize>(region.width) * region.height * px_bytes;
+            if (desc.format == runtime::PixelFormat::R8Unorm) {
+                const auto expected_floats =
+                    static_cast<VkDeviceSize>(region.width) * region.height;
+                if (static_cast<VkDeviceSize>(region.rgba.size()) != expected_floats) {
+                    throw std::invalid_argument(
+                        "Vulkan region upload size does not match rectangle for R8Unorm");
+                }
+            } else if (region.rgba.size_bytes() != byte_count) {
+                throw std::invalid_argument(
+                    "Vulkan region upload size does not match rectangle");
+            }
+            const VkDeviceSize offset = align_up(total_bytes);
+            prepared.push_back(PreparedRegion{offset, byte_count, &region});
+            total_bytes = offset + byte_count;
+            ++stats.upload_calls;
+            stats.upload_bytes += byte_count;
+            stats.upload_region_bytes += byte_count;
+            const auto producer = static_cast<std::size_t>(profiling::g_gpu_upload_producer);
+            if (producer < stats.upload_producer_bytes.size()) {
+                stats.upload_producer_bytes[producer] += byte_count;
+                stats.upload_producer_region_count[producer] += 1;
+            }
+        }
+
+        auto& slot = acquire_upload_slot(wait_for_completion);
+        ensure_upload_slot(slot, total_bytes);
+        auto* dst = static_cast<std::uint8_t*>(slot.buffer_allocation.mapped);
+        for (const auto& entry : prepared) {
+            auto* target = dst + entry.offset;
+            if (desc.format == runtime::PixelFormat::R8Unorm) {
+                const auto& rgba = entry.region->rgba;
+                for (std::size_t i = 0; i < rgba.size(); ++i) {
+                    target[i] = static_cast<std::uint8_t>(
+                        std::clamp(rgba[i], 0.0f, 1.0f) * 255.0f + 0.5f);
+                }
+            } else {
+                std::memcpy(target, entry.region->rgba.data(),
+                            static_cast<std::size_t>(entry.bytes));
+            }
+        }
+
+        const VkCommandBufferBeginInfo begin{
+            VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
+            VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr};
+        check(vkResetCommandBuffer(slot.command_buffer, 0),
+              "vkResetCommandBuffer(region batch upload slot)");
+        check(vkBeginCommandBuffer(slot.command_buffer, &begin),
+              "vkBeginCommandBuffer(region batch upload slot)");
+        clear_uninitialized_upload_target(slot.command_buffer, image);
+        if (image.initialized) {
+            transition(slot.command_buffer, image.image,
+                       VK_IMAGE_LAYOUT_GENERAL,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        }
+        for (const auto& entry : prepared) {
+            const auto& region = *entry.region;
+            const VkBufferImageCopy copy{
+                entry.offset, 0, 0,
+                {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                {region.x, region.y, 0},
+                {region.width, region.height, 1}};
+            vkCmdCopyBufferToImage(slot.command_buffer,
+                                   slot.buffer_allocation.buffer, image.image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                                   &copy);
+        }
+        transition(slot.command_buffer, image.image,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        image.initialized = true;
+        return submit_upload(slot, wait_for_completion);
+    }
 std::uint64_t VulkanBackend::Impl::upload_rows(
         runtime::RenderSurfaceHandle handle,
         const runtime::SurfaceDesc& desc,
