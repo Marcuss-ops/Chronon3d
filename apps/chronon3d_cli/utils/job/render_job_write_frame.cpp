@@ -237,6 +237,22 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
         ok = false;
         return -1.0;
     }
+    // A GPU-authoritative native surface has no pixel storage for the image
+    // writer. Refuse it explicitly instead of dereferencing a null pixel
+    // pointer; stills need a CPU-readable surface or a video sink.
+    if (fb->data() == nullptr || fb->is_gpu_authoritative()) {
+        print_render_error(
+            graph::NodeExecutionError{
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "render",
+                "image output requires a CPU-readable framebuffer; use video output "
+                "or --video-sink raw for a GPU-native frame"
+            },
+            composition_id,
+            frame);
+        ok = false;
+        return -1.0;
+    }
 
     const bool is_range = (range.start != range.end);
     const std::string path = format_path(output_pattern, frame.as_i64(), is_range);

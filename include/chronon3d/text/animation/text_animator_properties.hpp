@@ -35,13 +35,14 @@ enum class PropertyPhase {
 
 
 /// Return the phase for each property type at compile time.
-/// CharacterOffsetProperty is the only PreShaping property today;
-/// CharacterValue and text substitutions (future) will also be PreShaping.
+/// CharacterOffsetProperty and CharacterValueProperty are the PreShaping
+/// properties; text substitutions beyond these remain future work.
 
 // Forward-declared here so the template body can reference them;
 // definitions follow below in the property structs section.
 struct TrackingProperty;
 struct CharacterOffsetProperty;
+struct CharacterValueProperty;
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -202,6 +203,51 @@ struct CharacterOffsetProperty {
     AnimatedValue<f32> offset{0.0f};   // sampled and rounded codepoint shift
 };
 
+/// P1-01 — After Effects-style Character Value.  Every non-whitespace source
+/// code point is replaced by the sampled Unicode scalar before shaping, so
+/// metrics, clusters, ligatures and bidi reordering all see the substituted
+/// text.  The animated value is rounded per frame; 0 and any value that is not
+/// a Unicode scalar mean "leave the source unchanged".
+///
+/// Like CharacterOffsetProperty this is run-level: selectors are resolved
+/// after shaping, so they cannot scope a PreShaping substitution yet.  ASCII
+/// whitespace (space, tab, CR, LF, FF, VT) is preserved so paragraph and line
+/// structure survive the effect.
+struct CharacterValueProperty {
+    AnimatedValue<f32> codepoint{0.0f};  // sampled and rounded Unicode scalar
+};
+
+// ── P1-03 — per-character alignment ─────────────────────────────────────
+// Aligns each selected glyph cell to the left, centre or right edge of the
+// layout line that contains it.  PostLayout: the line extents come from the
+// authored PlacedGlyphRun and no reshaping or reflow happens.
+enum class CharacterAlignmentMode : u8 {
+    Left = 0,
+    Center = 1,
+    Right = 2,
+};
+
+struct CharacterAlignmentProperty {
+    CharacterAlignmentMode mode{CharacterAlignmentMode::Left};
+};
+
+// ── P1-05 — anchor point grouping ───────────────────────────────────────
+// Selects the pivot that scale/rotation use for every glyph of the animator:
+// the glyph itself, its word box, its line box or the whole run.  The
+// evaluator resolves the pivot once per animator and writes it into
+// GlyphInstanceState::anchor, which is the pivot both the software matrix and
+// the native glyph placement already honour.
+enum class AnchorPointGrouping : u8 {
+    Character = 0,
+    Word = 1,
+    Line = 2,
+    All = 3,
+};
+
+struct AnchorPointGroupingProperty {
+    AnchorPointGrouping mode{AnchorPointGrouping::Character};
+};
+
 // ── P1-06 / P1-07 — per-glyph paint animators ───────────────────────────
 // These properties write GlyphInstanceState::shadow / glow / fill_gradient.
 // They are PostLayout (visual-only); no re-shaping or reflow is involved.
@@ -296,7 +342,10 @@ using TextAnimatorProperty = std::variant<
     GlyphGradientAngleProperty,
     ReflowWordSpacingProperty,
     ReflowLineSpacingProperty,
-    LineAnchorProperty
+    LineAnchorProperty,
+    CharacterValueProperty,
+    CharacterAlignmentProperty,
+    AnchorPointGroupingProperty
 >;
 
 } // namespace chronon3d

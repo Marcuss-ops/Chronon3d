@@ -132,6 +132,15 @@ public:
         runtime::RenderSurfaceHandle scratch_horizontal,
         runtime::RenderSurfaceHandle scratch_vertical, float threshold, float radius,
         float intensity);
+    /// Native multi-resolution bloom: `mips` must contain a half-resolution
+    /// chain (one surface at 1/2, 1/4, ... of the full frame). The backend
+    /// downsamples with a 13-tap HDR prefilter, upsamples with a 9-tap tent
+    /// filter, then composites the full-resolution result additively.
+    virtual RenderOpResult bloom_pyramid_surfaces(
+        runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle scratch_full,
+        std::span<const runtime::RenderSurfaceHandle> mips,
+        float threshold, float radius, float intensity);
     virtual RenderOpResult yuv_overlay_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         runtime::PixelFormat format, const std::optional<raster::BBox>& dirty_region,

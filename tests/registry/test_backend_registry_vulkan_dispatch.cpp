@@ -257,11 +257,12 @@ TEST_CASE("Vulkan inline mesh rasterizes indexed UV triangles with alpha cutoff 
     REQUIRE(backend.upload_surface(texture, texture_desc, texel).ok());
 
     // Right triangle covering the upper-left region. Vertex records are
-    // screen x/y, inverse camera depth, UV x/y, then per-vertex linear light.
-    const std::array<float, 24> vertices{
-        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f,
-        4.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.2f, 0.2f, 0.2f,
-        0.0f, 4.0f, 1.0f, 0.0f, 1.0f, 0.2f, 0.2f, 0.2f};
+    // screen x/y, inverse camera depth, UV x/y, per-vertex linear light, then
+    // the world-space normal consumed only by the per-pixel material path.
+    const std::array<float, 33> vertices{
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.0f, 1.0f,
+        4.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.0f, 1.0f,
+        0.0f, 4.0f, 1.0f, 0.0f, 1.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.0f, 1.0f};
     const std::array<std::uint32_t, 3> indices{0, 1, 2};
     auto result = backend.draw_inline_mesh_surface(
         destination, texture, vertices, indices, 0, 0, 4, 4,
@@ -292,6 +293,78 @@ TEST_CASE("Vulkan inline mesh rasterizes indexed UV triangles with alpha cutoff 
     REQUIRE(backend.release_surface(texture).ok());
     CHECK(surfaces.release(destination));
     CHECK(surfaces.release(texture));
+}
+
+TEST_CASE("Vulkan inline mesh samples metallic-roughness per pixel") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry surfaces;
+    const auto format = make_frame_format(
+        PixelFormat::Rgba32Float, {}, runtime::AlphaMode::Premultiplied);
+    const auto desc = SurfaceDesc::make(
+        8, 4, format, ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto destination = surfaces.create(desc);
+    const auto texture_desc = SurfaceDesc::make(
+        1, 1, format, ResourceUsage::Storage, LifetimeClass::JobPersistent);
+    const auto base_texture = surfaces.create(texture_desc);
+    const auto mr_desc = SurfaceDesc::make(
+        2, 1, format, ResourceUsage::Storage, LifetimeClass::JobPersistent);
+    const auto mr_texture = surfaces.create(mr_desc);
+    REQUIRE(backend.create_surface(destination, desc).ok());
+    REQUIRE(backend.create_surface(base_texture, texture_desc).ok());
+    REQUIRE(backend.create_surface(mr_texture, mr_desc).ok());
+
+    std::vector<float> clear(8U * 4U * 4U, 0.f);
+    REQUIRE(backend.upload_surface(destination, desc, clear).ok());
+    const std::array<float, 4> white{1.f, 1.f, 1.f, 1.f};
+    REQUIRE(backend.upload_surface(base_texture, texture_desc, white).ok());
+    // G = roughness (left rough, right smooth), B = metallic (dielectric).
+    const std::array<float, 8> mr{1.f, 1.f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f};
+    REQUIRE(backend.upload_surface(mr_texture, mr_desc, mr).ok());
+
+    // Full-frame quad: screen x/y, inverse depth, UV, light RGB, normal.
+    const std::array<float, 44> vertices{
+        0.f, 0.f, 1.f, 0.f, 0.f, 1.f, 1.f, 1.f, 0.f, 0.f, 1.f,
+        8.f, 0.f, 1.f, 1.f, 0.f, 1.f, 1.f, 1.f, 0.f, 0.f, 1.f,
+        8.f, 4.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 0.f, 0.f, 1.f,
+        0.f, 4.f, 1.f, 0.f, 1.f, 1.f, 1.f, 1.f, 0.f, 0.f, 1.f};
+    const std::array<std::uint32_t, 6> indices{0, 1, 2, 0, 2, 3};
+    graph::InlineMeshShadingParams shading;
+    shading.per_pixel_pbr = true;
+    shading.double_sided = true;
+    shading.metallic_roughness_texture = mr_texture;
+    shading.roughness = 0.5f;
+    shading.metallic = 0.0f;
+    shading.diffuse = 0.0f;
+    shading.directional_enabled = true;
+    shading.light_diffuse = 0.8f;
+    shading.light_direction = {0.5f, 0.0f, 0.8660254f};
+    const auto result = backend.draw_inline_mesh_surface(
+        destination, base_texture, vertices, indices, 0, 0, 8, 4,
+        Color::white(), std::nullopt, kInvalidRenderSurfaceHandle, 1.0f, shading);
+    REQUIRE(result.ok());
+
+    std::vector<float> actual(clear.size(), 0.f);
+    REQUIRE(backend.download_surface(destination, actual).ok());
+    const auto pixel = [&](int x, int y) {
+        const auto index = static_cast<std::size_t>((y * 8 + x) * 4);
+        return std::array<float, 4>{actual[index], actual[index + 1],
+                                    actual[index + 2], actual[index + 3]};
+    };
+    const auto rough = pixel(1, 2);
+    const auto smooth = pixel(6, 2);
+    INFO("rough " << rough[0] << " smooth " << smooth[0]);
+    CHECK(rough[0] > smooth[0] + 0.005f);
+    CHECK(rough[3] > 0.9f);
+
+    REQUIRE(backend.release_surface(mr_texture).ok());
+    REQUIRE(backend.release_surface(base_texture).ok());
+    REQUIRE(backend.release_surface(destination).ok());
+    CHECK(surfaces.release(mr_texture));
+    CHECK(surfaces.release(base_texture));
+    CHECK(surfaces.release(destination));
 }
 
 TEST_CASE("Vulkan fill_rect_surface matches the CPU oracle pixel-for-pixel") {

@@ -823,7 +823,7 @@ TEST_CASE("Strict Vulkan EffectStackNode composes Glow and Bloom stacks") {
     }
 }
 
-TEST_CASE("Strict Vulkan Bloom matches software across full-resolution radii") {
+TEST_CASE("Strict Vulkan Bloom matches software at full resolution and accepts the pyramid path") {
     auto bloom = renderer::create_bloom_effect_processor();
     for (const float radius : {0.0f, 0.5f, 1.5f, 3.0f, 10.0f}) {
         INFO("radius=" << radius);
@@ -837,10 +837,77 @@ TEST_CASE("Strict Vulkan Bloom matches software across full-resolution radii") {
         for (std::size_t i = 0; i < expected.size(); ++i)
             CHECK(actual.pixels[i] == doctest::Approx(expected[i]).epsilon(kTolerance));
     }
-    const auto downsampled = vulkan_strict(
-        BloomParams{.threshold = 0.32f, .radius = 10.1f, .intensity = 0.7f},
-        std::nullopt);
-    CHECK_FALSE(downsampled.ok);
+    for (const float radius : {10.1f, 24.0f, 64.0f}) {
+        INFO("pyramid radius=" << radius);
+        const auto pyramid = vulkan_strict(
+            BloomParams{.threshold = 0.32f, .radius = radius, .intensity = 0.7f},
+            std::nullopt);
+        INFO("strict Vulkan error: " << pyramid.error);
+        REQUIRE(pyramid.ok);
+        REQUIRE(pyramid.pixels.size() == static_cast<std::size_t>(kW * kH * 4));
+        bool any_energy = false;
+        for (const float value : pyramid.pixels) {
+            REQUIRE(std::isfinite(value));
+            any_energy = any_energy || std::abs(value) > 1.0e-6f;
+        }
+        CHECK(any_energy);
+    }
+
+    // A dark frame with one very bright emitter must keep scene-referred values
+    // above 1.0 after six mip levels: the dense core stays HDR and the halo
+    // reaches neighbouring pixels instead of being saturated to white.
+    auto hdr_source = std::make_shared<Framebuffer>(kW, kH);
+    for (int y = 0; y < kH; ++y)
+        for (int x = 0; x < kW; ++x)
+            hdr_source->set_pixel(x, y, Color{0.0f, 0.0f, 0.0f, 1.0f});
+    hdr_source->set_pixel(3, 1, Color{64.0f, 64.0f, 64.0f, 1.0f});
+    const auto halo = vulkan_strict(
+        BloomParams{.threshold = 0.5f, .radius = 24.0f, .intensity = 1.0f},
+        std::nullopt, 0, 0, Frame{}, hdr_source.get());
+    INFO("strict Vulkan HDR error: " << halo.error);
+    REQUIRE(halo.ok);
+    REQUIRE(halo.pixels.size() == static_cast<std::size_t>(kW * kH * 4));
+    float max_channel = 0.0f;
+    bool neighbour_energy = false;
+    const auto emitter = static_cast<std::size_t>((1 * kW + 3) * 4);
+    for (std::size_t i = 0; i < halo.pixels.size(); i += 4) {
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+            REQUIRE(std::isfinite(halo.pixels[i + channel]));
+            max_channel = std::max(max_channel, halo.pixels[i + channel]);
+            if (i != emitter)
+                neighbour_energy = neighbour_energy || halo.pixels[i + channel] > 1.0f;
+        }
+    }
+    CHECK(max_channel > 1.0f);
+    CHECK(neighbour_energy);
+
+    // Lowering the threshold admits more of the scene into the pyramid: a
+    // mid-gray field plus one bright texel carries strictly more energy with
+    // threshold 0.0 than with 0.9, which is the soft-knee threshold contract.
+    auto mid_gray = std::make_shared<Framebuffer>(kW, kH);
+    for (int y = 0; y < kH; ++y)
+        for (int x = 0; x < kW; ++x)
+            mid_gray->set_pixel(x, y, Color{0.5f, 0.5f, 0.5f, 1.0f});
+    mid_gray->set_pixel(7, 0, Color{8.0f, 8.0f, 8.0f, 1.0f});
+    const auto low_threshold = vulkan_strict(
+        BloomParams{.threshold = 0.0f, .radius = 24.0f, .intensity = 1.0f},
+        std::nullopt, 0, 0, Frame{}, mid_gray.get());
+    const auto high_threshold = vulkan_strict(
+        BloomParams{.threshold = 0.9f, .radius = 24.0f, .intensity = 1.0f},
+        std::nullopt, 0, 0, Frame{}, mid_gray.get());
+    INFO("strict Vulkan threshold error: " << low_threshold.error
+         << " / " << high_threshold.error);
+    REQUIRE(low_threshold.ok);
+    REQUIRE(high_threshold.ok);
+    double low_energy = 0.0;
+    double high_energy = 0.0;
+    for (std::size_t i = 0; i < low_threshold.pixels.size(); i += 4) {
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+            low_energy += low_threshold.pixels[i + channel];
+            high_energy += high_threshold.pixels[i + channel];
+        }
+    }
+    CHECK(low_energy > high_energy + 1.0e-3);
 }
 
 TEST_CASE("Strict Vulkan Glow matches the software alpha-halo oracle") {

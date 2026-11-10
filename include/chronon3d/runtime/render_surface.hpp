@@ -367,6 +367,34 @@ struct alignas(16) GlyphStatic {
 static_assert(sizeof(GlyphStatic) == 48,
               "GlyphStatic must be 48 bytes matching std430 layout");
 
+// Per-glyph native paint that is resolved from GlyphInstanceState after the
+// animator stack has run.  It is kept outside GlyphStatic because the prepared
+// MTSDF batch is layout-cache-owned while these values change every frame.
+struct alignas(16) GlyphPaint {
+    std::uint32_t background_color{0};
+    float background_padding_px{0.0f};
+    float background_radius_px{0.0f};
+    float skew_tan{0.0f};
+    float skew_axis_cos{1.0f};
+    float skew_axis_sin{0.0f};
+    std::uint32_t flags{0};
+    std::uint32_t reserved{0};
+    std::uint32_t gradient_start_color{0};
+    std::uint32_t gradient_end_color{0};
+    float gradient_angle_degrees{0.0f};
+    std::uint32_t reserved2{0};
+    std::uint32_t shadow_color{0};
+    float shadow_dx{0.0f};
+    float shadow_dy{0.0f};
+    float shadow_blur{0.0f};
+    float shadow_opacity{1.0f};
+    std::uint32_t glow_color{0};
+    float glow_radius{0.0f};
+    float glow_intensity{1.0f};
+};
+static_assert(sizeof(GlyphPaint) == 80,
+              "GlyphPaint must stay 80 bytes matching the shader std430 block");
+
 struct alignas(16) TextRunDynamic {
     float tx{0.0f};
     float ty{0.0f};
@@ -414,11 +442,34 @@ struct alignas(16) TextRunDynamic {
     float animator_shear_x{0.0f};
     float animator_shear_y{0.0f};
     std::uint32_t animator_reserved5{0};
+    // Native caret layer. The rectangle is in layout space; the raster
+    // shader applies the run translation/scale after the text fill so the
+    // caret is never hidden by a glyph. Bit 0 enables it.
+    std::uint32_t caret_color{0};
+    float caret_x{0.0f};
+    float caret_y{0.0f};
+    float caret_width{0.0f};
+    float caret_height{0.0f};
+    std::uint32_t caret_flags{0};
+    // P2-01 exact orthographic 3D rotation for per-glyph animators. The
+    // shader reads these only when effect_flags bit 11 is set; the fields
+    // replace two former caret padding words without growing the 160-byte
+    // std430 record.
+    float animator_rotation_x{0.0f};
+    float animator_rotation_y{0.0f};
 };
-static_assert(sizeof(TextRunDynamic) == 128,
-              "TextRunDynamic must be 128 bytes matching std430");
+static_assert(sizeof(TextRunDynamic) == 160,
+              "TextRunDynamic must be 160 bytes matching std430");
 static_assert(alignof(TextRunDynamic) == 16,
               "TextRunDynamic must be 16-byte aligned for std430 arrays");
+
+/// Layer-shadow multi-pass contract.  Bit 12 tells the tile raster pass to
+/// composite only the shadow layer, so the host can draw every authored
+/// TextShadow in order before the single fill pass.  The layer limit is
+/// declared and fail-closed: silently dropping an authored shadow is a visual
+/// regression, not a fallback.
+inline constexpr std::uint32_t kTextRunEffectShadowOnly = 1u << 12;
+inline constexpr std::size_t kTextRunMaxGpuShadowLayers = 4;
 
 struct GlyphInstance {
     std::int32_t dst_x{0};

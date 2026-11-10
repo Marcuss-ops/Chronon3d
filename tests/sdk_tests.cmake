@@ -70,7 +70,7 @@ if(CHRONON3D_ENABLE_SVG)
 endif()
 
 # Temporary diagnostic probe (remove after c_abi crash is resolved).
-add_executable(probe_decode c_abi/probe_decode.cpp)
+add_executable(probe_decode EXCLUDE_FROM_ALL c_abi/probe_decode.cpp)
 target_link_libraries(probe_decode PRIVATE
     chronon3d_render_plan
     chronon3d_compiler

@@ -228,7 +228,8 @@ void execute_fused_batch_impl(
                         break;
                     }
                     const auto prepared = ctx.gpu_text_prepared_cache->find(
-                        *shape->layout);
+                        *shape->layout,
+                        static_cast<std::uint8_t>(shape->paint.quality));
                     if (!prepared || !prepared->ready ||
                         prepared->batches.size() != 1 ||
                         prepared->batches.front().page !=
@@ -340,12 +341,17 @@ void execute_fused_batch_impl(
             // Steady-state frames only append already-compiled metadata and
             // update the small dynamic run record.
             if (ctx.gpu_text_prepared_cache && ctx.gpu_glyph_atlas) {
-                auto prepared = ctx.gpu_text_prepared_cache->find(layout);
+                auto prepared = ctx.gpu_text_prepared_cache->find(
+                    layout,
+                    static_cast<std::uint8_t>(render_shape->paint.quality));
                 if (!prepared) {
                     prepared = text_run::prepare_mtsdf_text_run(
                         *ctx.gpu_glyph_atlas, ctx.asset_resolver, *render_shape);
                     if (prepared && prepared->ready) {
-                        ctx.gpu_text_prepared_cache->store(layout, prepared);
+                        ctx.gpu_text_prepared_cache->store(
+                            layout,
+                            static_cast<std::uint8_t>(render_shape->paint.quality),
+                            prepared);
                     }
                 }
                 if (prepared && prepared->ready && prepared->batches.size() == 1) {
@@ -470,7 +476,9 @@ void execute_fused_batch_impl(
             // compatibility callers retain the explicitly non-native route.
             if (ctx.policy.is_gpu_native_required()) {
                 const auto prepared_diag = ctx.gpu_text_prepared_cache
-                    ? ctx.gpu_text_prepared_cache->find(layout)
+                    ? ctx.gpu_text_prepared_cache->find(
+                          layout,
+                          static_cast<std::uint8_t>(render_shape->paint.quality))
                     : nullptr;
                 std::string detail =
                     " layout_glyphs=" + std::to_string(layout.placed.glyphs.size()) +
@@ -585,7 +593,8 @@ void execute_fused_batch_impl(
         }
         dest_fb->set_opaque(false);
         const auto dispatch = ctx.execution_backend()->draw_text_batch(
-            dest_fb->surface_handle(), dispatch_glyphs, all_runs, dispatch_pages);
+            dest_fb->surface_handle(), dispatch_glyphs, all_runs, dispatch_pages,
+            std::span<const runtime::GlyphPaint>{});
         if (!dispatch.ok()) {
             report_fused_batch_error(
                 ctx, dispatch.error().code,

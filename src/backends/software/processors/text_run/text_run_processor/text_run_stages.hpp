@@ -211,6 +211,12 @@ void release_surface(
 void apply_separable_box_blur(
     BLImage& image, int radius, TextRunStageState& s);
 
+/// Canonical separable Gaussian over premultiplied RGBA. `radius` is the
+/// output-pixel support radius; sigma is radius/3 (same convention as the
+/// software DoF kernel). Used only by TextShadowQuality::Canonical.
+void apply_separable_gaussian_blur(
+    BLImage& image, int radius, TextRunStageState& s);
+
 void downsample_supersampled(
     BLImage& dst, const BLImage& src, int ss,
     TextRunStageState& s);

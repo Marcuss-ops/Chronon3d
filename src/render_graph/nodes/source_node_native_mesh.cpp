@@ -2,6 +2,7 @@
 
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/backends/image/image_decode_options.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/rendering/lighting_eval.hpp>
 #include "detail/native_promotion.hpp"
@@ -99,6 +100,32 @@ bool try_native_inline_mesh(
         texture_handle = acquired.handle;
     }
 
+    runtime::RenderSurfaceHandle mr_texture_handle =
+        runtime::kInvalidRenderSurfaceHandle;
+    if (!draw_node->inline_mesh_metallic_roughness_texture_asset.empty()) {
+        ImageDecodeOptions mr_options;
+        mr_options.color_space = ColorSpace::LinearSRGB;
+        auto mr_cached = ctx.image_cache->find(
+            draw_node->inline_mesh_metallic_roughness_texture_asset, mr_options);
+        if (!mr_cached)
+            mr_cached = ctx.image_cache->get_or_load(
+                draw_node->inline_mesh_metallic_roughness_texture_asset, mr_options);
+        if (!mr_cached || !mr_cached->valid() || mr_cached->gpu_rgba.empty())
+            throw std::runtime_error(
+                "inline mesh native metallic-roughness texture could not be prepared: " +
+                draw_node->inline_mesh_metallic_roughness_texture_asset);
+        const auto& key = mr_cached->gpu_key;
+        const runtime::SurfaceDesc desc{
+            key.width, key.height, key.format, runtime::ResourceUsage::Storage,
+            runtime::LifetimeClass::JobPersistent,
+            mr_cached->gpu_rgba.size() * sizeof(float)};
+        const auto acquired = ctx.gpu_asset_cache->acquire(key, desc, mr_cached->gpu_rgba);
+        if (!acquired.ok())
+            throw std::runtime_error(
+                "inline mesh native metallic-roughness residency failed: " + acquired.error);
+        mr_texture_handle = acquired.handle;
+    }
+
     if (!ensure_empty_native_surface(ctx, fb)) return false;
 
     // Per-pixel camera depth for native compositing. A GPU-only layer has no
@@ -191,6 +218,47 @@ bool try_native_inline_mesh(
         tint.a *= base.a;
     }
 
+    // Per-pixel material path. It mirrors render_mesh_filled_lit exactly for
+    // the directional+ambient+rim model; feature combinations the bounded
+    // Vibranium push-constant block cannot represent fail closed rather than
+    // silently rendering a different image.
+    graph::InlineMeshShadingParams shading;
+    if (draw_node->inline_mesh_material) {
+        const auto& source = *draw_node->inline_mesh_material;
+        shading.double_sided = source.double_sided;
+        if (source.emissive) {
+            const Color emissive = source.emissive->to_linear();
+            shading.emissive_enabled = true;
+            shading.emissive = {emissive.r, emissive.g, emissive.b};
+        }
+        if (source.roughness && state.light_context.enabled) {
+            if (state.light_context.environment_enabled ||
+                state.light_context.environment_probe)
+                throw std::runtime_error(
+                    "Vulkan inline mesh per-pixel PBR does not support HDRI environment lighting");
+            if (state.rim_light.enabled)
+                throw std::runtime_error(
+                    "Vulkan inline mesh per-pixel PBR does not support an explicit rim light");
+            shading.per_pixel_pbr = mr_texture_handle !=
+                runtime::kInvalidRenderSurfaceHandle;
+            shading.metallic_roughness_texture = mr_texture_handle;
+            shading.metallic = source.metallic.value_or(0.0f);
+            shading.roughness = *source.roughness;
+            shading.diffuse = source.diffuse;
+            shading.directional_enabled = state.light_context.directional_enabled;
+            shading.ambient_enabled = state.light_context.ambient_enabled;
+            shading.light_direction = state.light_context.direction;
+            shading.light_color = {state.light_context.directional_color.r,
+                                   state.light_context.directional_color.g,
+                                   state.light_context.directional_color.b};
+            shading.ambient_color = {state.light_context.ambient_color.r,
+                                     state.light_context.ambient_color.g,
+                                     state.light_context.ambient_color.b};
+            shading.light_diffuse = state.light_context.diffuse;
+            shading.ambient = state.light_context.ambient;
+        }
+    }
+
     Vec3 fallback_normal{0.0f, 0.0f, 1.0f};
     if (source_indices.size() >= 3 && source_indices[0] < source_vertices.size() &&
         source_indices[1] < source_vertices.size() && source_indices[2] < source_vertices.size()) {
@@ -208,6 +276,7 @@ bool try_native_inline_mesh(
         Vec4 view_position;
         Vec2 uv;
         Vec3 light;
+        Vec3 normal;
     };
     std::vector<ClipVertex> vertices;
     vertices.reserve(source_vertices.size());
@@ -221,9 +290,9 @@ bool try_native_inline_mesh(
                                            &state.rim_light)
             : Color{1.0f, 1.0f, 1.0f, 1.0f};
         vertices.push_back({view_model * Vec4(vertex.position, 1.0f), vertex.uv,
-                            Vec3{lighting.r, lighting.g, lighting.b}});
+                            Vec3{lighting.r, lighting.g, lighting.b}, normal});
     }
-    std::vector<float> projected(source_vertices.size() * 8, 0.0f);
+    std::vector<float> projected(source_vertices.size() * 11, 0.0f);
     std::vector<bool> valid(source_vertices.size(), false);
     float min_x = static_cast<float>(fb.width());
     float min_y = static_cast<float>(fb.height());
@@ -236,7 +305,7 @@ bool try_native_inline_mesh(
         const float x = (clip.x / clip.w + 1.0f) * 0.5f * static_cast<float>(fb.width());
         const float y = (1.0f - (clip.y / clip.w + 1.0f) * 0.5f) * static_cast<float>(fb.height());
         if (!std::isfinite(x) || !std::isfinite(y)) return false;
-        const auto offset = index * 8;
+        const auto offset = index * 11;
         projected[offset] = x;
         projected[offset + 1] = y;
         projected[offset + 2] = 1.0f / depth;
@@ -245,6 +314,9 @@ bool try_native_inline_mesh(
         projected[offset + 5] = vertex.light.x;
         projected[offset + 6] = vertex.light.y;
         projected[offset + 7] = vertex.light.z;
+        projected[offset + 8] = vertex.normal.x;
+        projected[offset + 9] = vertex.normal.y;
+        projected[offset + 10] = vertex.normal.z;
         min_x = std::min(min_x, x); min_y = std::min(min_y, y);
         max_x = std::max(max_x, x); max_y = std::max(max_y, y);
         return true;
@@ -278,7 +350,8 @@ bool try_native_inline_mesh(
                     const float t = (plane - d0) / (d1 - d0);
                     clipped.push_back({glm::mix(v0.view_position, v1.view_position, t),
                                        glm::mix(v0.uv, v1.uv, t),
-                                       glm::mix(v0.light, v1.light, t)});
+                                       glm::mix(v0.light, v1.light, t),
+                                       glm::mix(v0.normal, v1.normal, t)});
                 }
                 if (in1) clipped.push_back(v1);
             }
@@ -287,10 +360,10 @@ bool try_native_inline_mesh(
         polygon = clip_depth(near_plane, true);
         polygon = clip_depth(far_plane, false);
         if (polygon.size() < 3) continue;
-        if (projected.size() / 8 > std::numeric_limits<std::uint32_t>::max() - polygon.size())
+        if (projected.size() / 11 > std::numeric_limits<std::uint32_t>::max() - polygon.size())
             throw std::length_error("clipped inline mesh exceeds index limits");
-        const auto first = static_cast<std::uint32_t>(projected.size() / 8);
-        projected.resize(projected.size() + polygon.size() * 8);
+        const auto first = static_cast<std::uint32_t>(projected.size() / 11);
+        projected.resize(projected.size() + polygon.size() * 11);
         bool all_projected = true;
         for (std::size_t j = 0; j < polygon.size(); ++j)
             all_projected = project(polygon[j], first + j) && all_projected;
@@ -322,7 +395,7 @@ bool try_native_inline_mesh(
         x0, y0, x1, y1, tint,
         draw_node->inline_mesh_material ? draw_node->inline_mesh_material->alpha_cutoff
                                  : std::optional<float>{},
-        depth_stamp, 1.0f);
+        depth_stamp, 1.0f, shading);
     if (!result.ok())
         throw std::runtime_error("native inline mesh raster failed: " + result.error().message);
     if (depth_stamp != runtime::kInvalidRenderSurfaceHandle)

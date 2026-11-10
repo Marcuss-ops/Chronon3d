@@ -97,9 +97,6 @@ bool rebuild_active_side(
     FontEngine& engine,
     TextLayoutCache* cache
 ) {
-    if (target_text.empty()) {
-        return false;
-    }
     TextDocument td;
     td.utf8         = target_text;
     td.defaults.font = effective_font;  // P0-2: project pre-computed effective font
@@ -202,11 +199,8 @@ bool prewarm_for_frame(
         return false;
     }
     const std::string target_text = select_target_text(state);
-    if (target_text.empty()) {
-        return false;
-    }
 
-    // Active-side prewarm
+    // Active-side prewarm (empty is valid for typewriter frame 0)
     FontSpec effective_font = compute_effective_font_for_prewarm(state, shape.layout.get());
     TextDocument td;
     td.utf8         = target_text;

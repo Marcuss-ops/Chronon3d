@@ -1,10 +1,12 @@
 #include "source.hpp"
 #include "layer_item.hpp"
+#include "particle_sample.hpp"
 
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include "../../builder/graph_builder_coordinates.hpp"
 #include "../../builder/evaluated_layer_placement.hpp"
@@ -73,11 +75,39 @@ void refresh_source_node(
         layer.kind == LayerKind::Normal ||
         layer.kind == LayerKind::Shape ||
         layer.kind == LayerKind::Text;
-    if (!source_layer_kind || layer.nodes.size() != 1) {
+    const bool particle_layer = sampled_layer &&
+        sampled_layer->kind == compiler::NodeKind::Particles;
+    const RenderNode* authored_node = nullptr;
+    if (particle_layer && ctx.policy.require_native_gpu) {
+        const auto marker = std::find_if(
+            layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& candidate) {
+                return !candidate.gpu_particle_instances.empty();
+            });
+        if (marker != layer.nodes.end()) authored_node = &*marker;
+    } else if (source_layer_kind && layer.nodes.size() == 1) {
+        authored_node = &layer.nodes.front();
+    }
+    if (!authored_node) {
         return;
     }
 
-    auto src_node = materialize_mesh_node(layer.nodes[0], ctx);
+    auto src_node = materialize_mesh_node(*authored_node, ctx);
+    if (particle_layer && sampled_layer) {
+        if (!ctx.policy.require_native_gpu && !sampled_layer->elements.empty()) {
+            apply_particle_sample(src_node, sampled_layer->elements.front());
+        }
+        if (ctx.policy.require_native_gpu &&
+            !src_node.gpu_particle_instances.empty()) {
+            src_node.gpu_particle_instances.clear();
+            src_node.gpu_particle_instances.reserve(sampled_layer->elements.size());
+            for (const auto& sample : sampled_layer->elements) {
+                src_node.gpu_particle_instances.push_back({
+                    Vec2{sample.position.x, sample.position.y}, sample.color,
+                    sample.size, sample.rotation.z, sample.sprite_scale,
+                    sample.position.z});
+            }
+        }
+    }
     const bool has_mesh_sample = sampled_mesh && sampled_mesh->inline_mesh &&
         sampled_mesh->animation_before && sampled_mesh->animation_after;
     // One implementation of the interpolation, shared with the fresh

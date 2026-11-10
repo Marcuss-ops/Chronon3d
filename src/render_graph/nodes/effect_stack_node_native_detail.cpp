@@ -13,6 +13,7 @@
 #include <bit>
 #include <cmath>
 #include <initializer_list>
+#include <span>
 #include <vector>
 
 namespace chronon3d::graph {
@@ -56,8 +57,7 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
     const bool valid_params = std::isfinite(radius) && std::isfinite(intensity) &&
         radius >= 0.0f && radius <= 96.0f && intensity >= 0.0f && intensity <= 4.0f &&
         (!bloom_params || (std::isfinite(bloom_params->threshold) &&
-                           bloom_params->threshold >= 0.0f && bloom_params->threshold <= 1.0f &&
-                           radius <= 10.0f)) &&
+                           bloom_params->threshold >= 0.0f && bloom_params->threshold <= 1.0f)) &&
         (!glow_params || (std::isfinite(glow_params->color.r) &&
                           std::isfinite(glow_params->color.g) &&
                           std::isfinite(glow_params->color.b) &&
@@ -67,10 +67,22 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
     }
 
     const auto desc = native_surface_desc(ctx, result.width(), result.height());
+    constexpr std::size_t kBloomPyramidMipCount = 6;
+    const bool use_bloom_pyramid = bloom_params && radius > 10.0f;
+    std::array<runtime::RenderSurfaceHandle, kBloomPyramidMipCount> bloom_mips{};
+    bloom_mips.fill(runtime::kInvalidRenderSurfaceHandle);
+    std::array<runtime::SurfaceDesc, kBloomPyramidMipCount> bloom_mip_descs{};
     // Preserve the software halo oracle at every authored radius. The device
     // loss was premature surface retirement, not full-resolution filtering;
     // downsampling here changed the approved effect rather than fixing it.
-    const auto scratch_desc = desc;
+    // The pyramid chain (including its full-resolution bloom scratch) is
+    // RGBA16F: half the bandwidth of the layer surfaces while retaining the
+    // scene-referred values above 1.0 that the output transform will map.
+    auto scratch_desc = desc;
+    if (use_bloom_pyramid) {
+        scratch_desc.format = runtime::PixelFormat::Rgba16Float;
+        scratch_desc.bytes = scratch_desc.tight_bytes();
+    }
     // AUDIT F10 — zero-copy when the framebuffer storage is tightly packed (the
     // common case for graph-owned "result" buffers): only a stride-padded
     // framebuffer now pays a full-frame pack. The uploader copies into its
@@ -108,7 +120,15 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
         if (vertical != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(vertical);
         return false;
     }
+    const auto release_bloom_mips = [&] {
+        for (const auto handle : bloom_mips) {
+            if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
+            (void)ctx.backend_surface_api()->release_surface(handle);
+            ctx.surface_registry->release(handle);
+        }
+    };
     const auto cleanup = [&] {
+        release_bloom_mips();
         if (!source_is_existing || source_needs_expansion)
             (void)ctx.backend_surface_api()->release_surface(source);
         (void)ctx.backend_surface_api()->release_surface(output);
@@ -163,11 +183,53 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
         return false;
     }
 
-    const auto native_effect = glow_params
-        ? ctx.backend_surface_api()->glow_surfaces(output, source, horizontal, vertical,
-                                     radius, intensity, glow_params->color)
-        : ctx.backend_surface_api()->bloom_surfaces(output, source, horizontal, vertical,
-                                      bloom_params->threshold, radius, intensity);
+    if (use_bloom_pyramid) {
+        std::uint32_t mip_width = static_cast<std::uint32_t>(result.width());
+        std::uint32_t mip_height = static_cast<std::uint32_t>(result.height());
+        for (std::size_t i = 0; i < kBloomPyramidMipCount; ++i) {
+            mip_width = std::max(1u, mip_width / 2u);
+            mip_height = std::max(1u, mip_height / 2u);
+            auto mip_desc = desc;
+            mip_desc.format = runtime::PixelFormat::Rgba16Float;
+            mip_desc.width = mip_width;
+            mip_desc.height = mip_height;
+            mip_desc.bytes = mip_desc.tight_bytes();
+            bloom_mip_descs[i] = mip_desc;
+            bloom_mips[i] = ctx.surface_registry->create(mip_desc);
+            if (bloom_mips[i] == runtime::kInvalidRenderSurfaceHandle) {
+                spdlog::error("[native-bloom] mip {}x{} registry create failed",
+                              mip_width, mip_height);
+                cleanup();
+                return false;
+            }
+        }
+        for (std::size_t i = 0; i < kBloomPyramidMipCount; ++i) {
+            const auto created = ctx.backend_surface_api()->create_surface(
+                bloom_mips[i], bloom_mip_descs[i]);
+            if (!created.ok()) {
+                spdlog::error("[native-bloom] mip {}x{} surface create failed: {}",
+                              bloom_mip_descs[i].width, bloom_mip_descs[i].height,
+                              created.error().message);
+                cleanup();
+                return false;
+            }
+        }
+    }
+
+    RenderOpResult native_effect = RenderOpResult(RenderOpOutcome{});
+    if (glow_params) {
+        native_effect = ctx.backend_surface_api()->glow_surfaces(
+            output, source, horizontal, vertical, radius, intensity,
+            glow_params->color);
+    } else if (use_bloom_pyramid) {
+        native_effect = ctx.backend_surface_api()->bloom_pyramid_surfaces(
+            output, source, horizontal, bloom_mips,
+            bloom_params->threshold, radius, intensity);
+    } else {
+        native_effect = ctx.backend_surface_api()->bloom_surfaces(
+            output, source, horizontal, vertical,
+            bloom_params->threshold, radius, intensity);
+    }
     if (!native_effect.ok()) {
         spdlog::error("[native-effect] radius={} failed: {}",
                       radius, native_effect.error().message);
@@ -175,6 +237,7 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
         return false;
     }
 
+    release_bloom_mips();
     if (!source_is_existing || source_needs_expansion)
         (void)ctx.backend_surface_api()->release_surface(source);
     (void)ctx.backend_surface_api()->release_surface(horizontal);

@@ -40,6 +40,11 @@ enum class GpuKernelId : std::uint8_t {
     ShadowCaster,
     ShadowApply,
     SdfBevel,
+    BloomPrefilter,
+    BloomDownsample,
+    BloomUpsample,
+    BloomComposite,
+    ParticleEmitter,
 };
 
 class GpuKernelRegistry {

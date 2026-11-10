@@ -2,6 +2,7 @@
 
 #include <chronon3d/compiler/compiled_node.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/render_plan/inline_mesh.hpp>
 
@@ -78,6 +79,9 @@ struct SampledElementParameters {
     Vec3 scale{1.0f};
     float opacity{1.0f};
     float blur{0.0f};
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+    float size{1.0f};
+    float sprite_scale{1.0f};
     bool active{true};
 };
 

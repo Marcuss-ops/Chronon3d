@@ -114,6 +114,43 @@ TEST_CASE("Evaluate: Reverse order inverts progression") {
     CHECK(w0 > w2);
 }
 
+TEST_CASE("Evaluate: RTL grapheme units follow logical source order") {
+    // HarfBuzz emits RTL glyphs in visual order: cluster byte offsets descend
+    // while the glyph array grows left-to-right.  The unit map must still
+    // number graphemes in source order, otherwise Forward animates the visually
+    // leading glyph instead of the logically first character.
+    auto placed = make_test_placed_run(4);
+    for (size_t i = 0; i < placed.glyphs.size(); ++i) {
+        const u32 logical_cluster = static_cast<u32>(placed.glyphs.size() - 1 - i);
+        placed.glyphs[i].cluster = logical_cluster;
+        placed.glyphs[i].byte_offset = logical_cluster;
+    }
+    const std::string source = "abcd";
+    auto map = build_text_unit_map(placed, source);
+
+    REQUIRE(map.glyph_to_grapheme == std::vector<u32>{3, 2, 1, 0});
+    REQUIRE(map.grapheme_count == 4);
+
+    GlyphSelectorSpec spec;
+    spec.id = "rtl_logical_order";
+    spec.unit = TextSelectorUnit::Grapheme;
+    spec.shape = TextSelectorShape::RampUp;
+    spec.order = TextSelectorOrder::Forward;
+    spec.start.set(0.0f);
+    spec.end.set(100.0f);
+
+    const SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+    // GLYPH 3 is the first source character; GLYPH 0 is the last one.
+    const f32 logical_first = evaluate_selector(spec, map, 3, source, t);
+    const f32 logical_last = evaluate_selector(spec, map, 0, source, t);
+    CHECK(logical_last > logical_first);
+
+    spec.order = TextSelectorOrder::Reverse;
+    const f32 reverse_first = evaluate_selector(spec, map, 3, source, t);
+    const f32 reverse_last = evaluate_selector(spec, map, 0, source, t);
+    CHECK(reverse_first > reverse_last);
+}
+
 TEST_CASE("Evaluate: sub-frame evaluation consistency") {
     GlyphSelectorSpec spec;
     spec.id = "test_subframe";

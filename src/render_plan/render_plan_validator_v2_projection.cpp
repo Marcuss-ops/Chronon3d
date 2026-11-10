@@ -114,8 +114,13 @@ nlohmann::json validation_detail::v2_projection(const nlohmann::json& root) {
         }
         if (layer.contains("style") && layer["style"].is_object()) {
             if (layer["style"].contains("gradient")) layer["style"].erase("gradient");
-            // V3 text direction augments the frozen V2 text style contract.
+            // V3 text direction, rasterization quality, shadow quality and
+            // stroke mode augment the frozen V2 text style contract; the
+            // extension schema is their authority.
             layer["style"].erase("direction");
+            layer["style"].erase("quality");
+            layer["style"].erase("shadow_quality");
+            layer["style"].erase("stroke_mode");
             layer["style"].erase("text_caret");
             // Backdrop blur is a V3 graph-composite extension. The V2
             // projection validates common style fields only; the V3 schema
@@ -201,6 +206,7 @@ nlohmann::json validation_detail::v2_projection(const nlohmann::json& root) {
         // V3 text counters have their own strict extension contract; keep them
         // out of the frozen V2 projection after the extension pass validates.
         layer.erase("text_counter");
+        layer.erase("text_transitions");
         // V3 path masks are validated by the extension schema above. The V2
         // projection exists only to retain validation of fields shared with
         // the legacy schema, which correctly rejects this V3-only field.
@@ -215,7 +221,9 @@ nlohmann::json validation_detail::v2_projection(const nlohmann::json& root) {
             auto& emitter = layer["particle_emitter"];
             for (const auto* key : {"shape", "path_id", "path_points", "sprite_asset",
                                     "sprite_scale", "rotation", "angular_velocity",
-                                    "environment", "depth_range", "bokeh"})
+                                    "environment", "depth_range", "bokeh",
+                                    "flow_strength", "flow_scale", "flow_speed",
+                                    "twinkle", "twinkle_speed"})
                 emitter.erase(key);
         }
         if (layer.contains("style") && layer["style"].is_object()) {

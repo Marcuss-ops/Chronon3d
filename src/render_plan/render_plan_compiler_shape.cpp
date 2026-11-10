@@ -98,6 +98,13 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
         fill->gradient_mesh = *shape.gradient_mesh;
     } else if (shape.fill_color) {
         fill = graphics::FillStyle::solid(base_color);
+    } else {
+        // A shape without an explicit fill must stay stroke-only. Leaving the
+        // optional empty makes RenderNodeFactory fall back to the legacy
+        // solid-color fill, silently turning circles and rectangles into
+        // filled discs.
+        fill = graphics::FillStyle{};
+        fill->enabled = false;
     }
     if (shape.field) {
         fill = graphics::FillStyle::solid(base_color);

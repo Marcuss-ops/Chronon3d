@@ -462,6 +462,145 @@
         }
       }
     },
+    "text_transitions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "keyframes"
+      ],
+      "properties": {
+        "keyframes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "frame",
+              "text"
+            ],
+            "properties": {
+              "frame": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 65536
+              },
+              "transition": {
+                "enum": [
+                  "hold",
+                  "cut",
+                  "dissolve_layouts",
+                  "scramble",
+                  "morph",
+                  "typewriter"
+                ]
+              },
+              "scramble": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "seed": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "char_pool": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "intensity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10
+                  }
+                }
+              },
+              "morph": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "direction": {
+                    "enum": [
+                      "from_right",
+                      "from_left",
+                      "from_center"
+                    ]
+                  },
+                  "easing": {
+                    "enum": [
+                      "linear",
+                      "in_quad",
+                      "out_quad",
+                      "in_out_quad",
+                      "in_cubic",
+                      "out_cubic",
+                      "in_out_cubic",
+                      "in_expo",
+                      "out_expo",
+                      "in_out_expo",
+                      "in_sine",
+                      "out_sine",
+                      "in_out_sine",
+                      "in_back",
+                      "out_back",
+                      "in_out_back",
+                      "in_elastic",
+                      "out_elastic",
+                      "in_out_elastic",
+                      "in_bounce",
+                      "out_bounce",
+                      "in_out_bounce"
+                    ]
+                  }
+                }
+              },
+              "typewriter": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "chars_per_frame": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "easing": {
+                    "enum": [
+                      "linear",
+                      "in_quad",
+                      "out_quad",
+                      "in_out_quad",
+                      "in_cubic",
+                      "out_cubic",
+                      "in_out_cubic",
+                      "in_expo",
+                      "out_expo",
+                      "in_out_expo",
+                      "in_sine",
+                      "out_sine",
+                      "in_out_sine",
+                      "in_back",
+                      "out_back",
+                      "in_out_back",
+                      "in_elastic",
+                      "out_elastic",
+                      "in_out_elastic",
+                      "in_bounce",
+                      "out_bounce",
+                      "in_out_bounce"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "rgba_color": {
       "type": "array",
       "minItems": 4,
@@ -1808,7 +1947,10 @@
             "glyph_gradient_angle",
             "reflow_word_spacing",
             "reflow_line_spacing",
-            "line_anchor"
+            "line_anchor",
+            "character_value",
+            "character_alignment",
+            "anchor_grouping"
           ]
         },
         "easing": {
@@ -2284,6 +2426,97 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 2
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "property": {
+                "const": "character_value"
+              }
+            },
+            "required": [
+              "property"
+            ]
+          },
+          "then": {
+            "properties": {
+              "keyframes": {
+                "items": {
+                  "properties": {
+                    "value": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1114111
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "property": {
+                "const": "character_alignment"
+              }
+            },
+            "required": [
+              "property"
+            ]
+          },
+          "then": {
+            "properties": {
+              "keyframes": {
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "properties": {
+                    "frame": {
+                      "const": 0
+                    },
+                    "value": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 2
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "property": {
+                "const": "anchor_grouping"
+              }
+            },
+            "required": [
+              "property"
+            ]
+          },
+          "then": {
+            "properties": {
+              "keyframes": {
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "properties": {
+                    "frame": {
+                      "const": 0
+                    },
+                    "value": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
                     }
                   }
                 }
@@ -4439,6 +4672,9 @@
           "text_counter": {
             "$ref": "#/$defs/text_counter"
           },
+          "text_transitions": {
+            "$ref": "#/$defs/text_transitions"
+          },
           "type": {
             "enum": [
               "image",
@@ -4939,6 +5175,27 @@
                 "type": "number"
               },
               "turbulence": {
+                "type": "number",
+                "minimum": 0
+              },
+              "flow_strength": {
+                "type": "number",
+                "minimum": 0
+              },
+              "flow_scale": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "flow_speed": {
+                "type": "number",
+                "minimum": 0
+              },
+              "twinkle": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "twinkle_speed": {
                 "type": "number",
                 "minimum": 0
               },
@@ -7733,6 +7990,24 @@
           "style": {
             "type": "object",
             "properties": {
+              "quality": {
+                "type": "string",
+                "enum": ["fast", "high"],
+                "default": "fast",
+                "description": "Glyph generation policy: high uses the 128-em generation-2 MTSDF profile."
+              },
+              "shadow_quality": {
+                "type": "string",
+                "enum": ["fast", "canonical"],
+                "default": "fast",
+                "description": "Run-level shadow policy: fast uses tiered box blur; canonical uses a separable Gaussian over the union mask and is CPU-only."
+              },
+              "stroke_mode": {
+                "type": "string",
+                "enum": ["auto", "distance", "vector"],
+                "default": "auto",
+                "description": "Stroke semantics: auto is the historical backend choice, distance is GPU SDF dilation, vector is the expanded outline and is CPU-only."
+              },
               "text_caret": {
                 "type": "object",
                 "additionalProperties": false,
@@ -7948,6 +8223,24 @@
             "if": {
               "required": [
                 "text_counter"
+              ]
+            },
+            "then": {
+              "properties": {
+                "type": {
+                  "const": "text"
+                }
+              },
+              "required": [
+                "type",
+                "text"
+              ]
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "text_transitions"
               ]
             },
             "then": {

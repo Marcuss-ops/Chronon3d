@@ -9,6 +9,8 @@
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>
 #include "src/compiler/compiler_stages.hpp"
@@ -187,6 +189,62 @@ TEST_CASE("CompiledProgram owns typed timeline, animation and text lowering") {
     CHECK(program.curve_keyframes().size() == 4);
     REQUIRE(program.texts().size() == 1);
     CHECK(program.text_values()[program.texts().front().text_index] == "Chronon");
+}
+
+TEST_CASE("CompiledProgram lowers text_transitions into the materialized scene") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+
+    RenderPlan plan;
+    plan.job_id = "compiler-text-transitions";
+    plan.canvas = {.width = 320, .height = 120, .fps = FrameRate{30, 1},
+                   .duration = Frame{24}};
+    LayerPlan text;
+    text.id = "typed";
+    text.type = LayerType::Text;
+    text.text = "FINAL";
+    text.font = "tests/fixtures/Inter-Bold.ttf";
+    text.style = LayerStylePlan{
+        .font = text.font, .font_size = 32.0f, .fill = "#ffffff"};
+
+    TextTransitionsPlan transitions;
+    TextTransitionKeyframePlan first;
+    first.frame = Frame{0};
+    first.text = "";
+    first.transition = "typewriter";
+    first.typewriter.easing = "linear";
+    transitions.keyframes.push_back(first);
+    TextTransitionKeyframePlan last;
+    last.frame = Frame{12};
+    last.text = "FINAL";
+    last.transition = "cut";
+    transitions.keyframes.push_back(last);
+    text.text_transitions = std::move(transitions);
+    plan.layers.push_back(std::move(text));
+
+    assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::current_path());
+    auto compiled = compiler::compile(plan, resolver);
+    REQUIRE(compiled);
+    const auto program = std::move(compiled).value();
+
+    REQUIRE(program.layers().size() == 1);
+    REQUIRE(program.layers()[0].text_transitions);
+    CHECK(program.layers()[0].text_transitions->keyframes.size() == 2);
+
+    FontEngine font_engine{resolver};
+    const auto scene = compiler::SceneMaterializer{}.materialize_scene(
+        program, std::pmr::get_default_resource(), &font_engine);
+    REQUIRE(scene.layers().size() == 1);
+    REQUIRE(scene.layers()[0].nodes.size() == 1);
+    const auto shape = scene.layers()[0].nodes[0]
+        .shape.text_run_shape_handle().value;
+    REQUIRE(shape);
+    REQUIRE(shape->animated_doc);
+    CHECK(shape->animated_doc->size() == 2);
+    // The builder shapes the document's first keyframe (empty at frame 0),
+    // while the final authored definition remains the static fallback.
+    REQUIRE(shape->layout);
 }
 
 TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge") {

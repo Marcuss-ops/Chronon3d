@@ -50,6 +50,41 @@ struct GpuTextRunDynamic {
     float animator_shear_x;
     float animator_shear_y;
     uint animator_reserved5;
+    uint caret_color;
+    float caret_x;
+    float caret_y;
+    float caret_width;
+    float caret_height;
+    uint caret_flags;
+    float animator_rotation_x;
+    float animator_rotation_y;
+};
+
+struct GpuGlyphDynamic {
+    float tracking_prefix;
+    float selector_weight;
+    uint background_color;
+    float background_padding_px;
+    float background_radius_px;
+    float skew_tan;
+    float skew_axis_cos;
+    float skew_axis_sin;
+    uint style_flags;
+    uint reserved;
+    uint gradient_start_color;
+    uint gradient_end_color;
+    float gradient_angle_degrees;
+    uint reserved2;
+    uint shadow_color;
+    float shadow_dx;
+    float shadow_dy;
+    float shadow_blur;
+    float shadow_opacity;
+    uint glow_color;
+    float glow_radius;
+    float glow_intensity;
+    uint reserved3;
+    uint reserved4;
 };
 
 layout(std430, binding = 0) readonly buffer GlyphBuffer {
@@ -70,6 +105,10 @@ layout(std430, binding = 3) buffer TileGlyphIndices {
     uint tile_glyph_indices[];
 };
 
+layout(std430, binding = 4) readonly buffer GlyphDynamicBuffer {
+    GpuGlyphDynamic glyph_dynamic[];
+};
+
 layout(push_constant) uniform PushConstants {
     uint glyph_count;
     uint tiles_x;
@@ -86,6 +125,7 @@ void main() {
 
     GpuGlyphStatic g = glyphs[gid];
     GpuTextRunDynamic r = runs[g.run_index];
+    GpuGlyphDynamic gd = glyph_dynamic[gid];
     if (r.visible_glyph_count != 0xFFFFFFFFu &&
         g.pad0 >= r.visible_glyph_count) return;
     uint flags = (g.atlas_page_and_flags >> 16u) & 0xFFFFu;
@@ -130,10 +170,43 @@ void main() {
             extent_x += rad;
             extent_y += rad;
         }
-        if (r.animator_shear_x != 0.0 || r.animator_shear_y != 0.0) {
+        if ((r.effect_flags & 0x800u) != 0u) {
+            // Exact 3D rotation can mirror/edge-on the plane; pad by the
+            // largest corner radius, which conservatively covers every
+            // orientation produced by the raster inverse.
+            vec2 pivot = vec2(g.origin_x, g.origin_y);
+            float rad = max(
+                max(length(vec2(g.plane_left,  g.plane_top)    - pivot),
+                    length(vec2(g.plane_right, g.plane_top)    - pivot)),
+                max(length(vec2(g.plane_left,  g.plane_bottom) - pivot),
+                    length(vec2(g.plane_right, g.plane_bottom) - pivot)));
+            extent_x += rad;
+            extent_y += rad;
+        } else if (r.animator_shear_x != 0.0 || r.animator_shear_y != 0.0) {
             float max_sh = max(abs(r.animator_shear_x), abs(r.animator_shear_y));
             extent_x += max_sh * (abs(g.plane_bottom - g.plane_top) + 32.0);
             extent_y += max_sh * (abs(g.plane_right - g.plane_left) + 32.0);
+        }
+        if ((gd.style_flags & 1u) != 0u) {
+            // Rounded per-glyph background extends beyond the ink plane.
+            float pad = max(gd.background_padding_px, 0.0);
+            extent_x += pad * abs(r.sx) + 2.0;
+            extent_y += pad * abs(r.sy) + 2.0;
+        }
+        if ((gd.style_flags & 2u) != 0u) {
+            float max_sh = abs(gd.skew_tan);
+            extent_x += max_sh * (abs(g.plane_bottom - g.plane_top) + 32.0);
+            extent_y += max_sh * (abs(g.plane_right - g.plane_left) + 32.0);
+        }
+        if ((gd.style_flags & 4u) != 0u) {
+            // Drop shadow offset and Gaussian-ish radius are authored in
+            // destination pixels; keep the tile envelope conservative.
+            extent_x += abs(gd.shadow_dx) + max(gd.shadow_blur, 0.0) + 2.0;
+            extent_y += abs(gd.shadow_dy) + max(gd.shadow_blur, 0.0) + 2.0;
+        }
+        if ((gd.style_flags & 8u) != 0u) {
+            extent_x += max(gd.glow_radius, 0.0) + 2.0;
+            extent_y += max(gd.glow_radius, 0.0) + 2.0;
         }
         if ((r.effect_flags & 8u) != 0u) {
             // The composite gel field samples up to two pixels outside the

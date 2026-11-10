@@ -157,7 +157,9 @@ void VulkanBackend::Impl::ensure_layer_instance_buffer(VkDeviceSize bytes,
     }
     const VkBufferCreateInfo info{
         VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
     layer_instance_buffers[index] =
         memory_manager.create_buffer(info, VulkanMemoryClass::DeviceLocal);

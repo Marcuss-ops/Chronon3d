@@ -41,6 +41,28 @@ TEST_CASE("GPU text selector flags preserve ABI fields and pin bit positions") {
               pack_mtsdf_glyph_unit_flags(1u, 0x9000u))) == kMtsdfGlyphWordIndexMask);
 }
 
+TEST_CASE("GPU MTSDF flags carry grapheme and character unit indices") {
+    // The packed index is the source-ordered grapheme index, not the glyph
+    // array position.  For an RTL run these differ; the Vulkan consumer must
+    // unpack this field for Grapheme/Character selectors.
+    constexpr auto glyph_flags = pack_mtsdf_glyph_unit_flags(1u, 2u);
+    CHECK(unpack_mtsdf_glyph_unit_index(glyph_flags) == 2u);
+
+    TextRunDynamic run{};
+    run.selector_start = 0.0f;
+    run.selector_end = 100.0f;
+    run.selector_amount = 100.0f;
+    run.selector_unit_count = 4u;
+    run.flags = pack_text_selector_metadata(
+        2u, static_cast<std::uint32_t>(TextSelectorUnit::Grapheme),
+        static_cast<std::uint32_t>(TextSelectorOrder::Forward),
+        TextSelectorShape::RampUp);
+
+    const auto logical_later = unpack_mtsdf_glyph_unit_index(glyph_flags);
+    CHECK(gpu_text_selector_weight(run, logical_later) >
+          gpu_text_selector_weight(run, 0u));
+}
+
 TEST_CASE("GPU CPU selector weight supports word, line, and center-out order") {
     TextRunDynamic run{};
     run.selector_start = 0.0f;

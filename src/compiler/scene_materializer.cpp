@@ -42,6 +42,7 @@ namespace {
     view.style = layer.text_style;
     view.text_spans = layer.text_spans;
     view.svg_glyph_paint_ranges = layer.svg_glyph_paint_ranges;
+    view.text_transitions = layer.text_transitions;
     view.text_animators = layer.text_animators;
     view.size = layer.size;
     view.size_dimensions = layer.size_dimensions;
@@ -108,7 +109,11 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     params.color = {layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
                     if (layer.position_dimensions < 2) {
                         builder.pin_to(Anchor::Center);
-                        params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
+                        // The typed source route adds the canvas-centre matrix
+                        // itself. Keep the full-canvas rect at local origin;
+                        // the legacy RenderPlan materializer bakes the
+                        // opposite half-canvas offset into its node instead.
+                        params.pos = {0.0f, 0.0f, 0.0f};
                     }
                     builder.rect("color", std::move(params));
                     break;
@@ -167,8 +172,21 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         static_cast<float>(meta.width),
                         static_cast<float>(meta.height));
                     const auto text_plan = compiled_text_plan_view(layer);
-                    const auto definition =
+                    auto definition =
                         render_plan::detail::materialize_text(text_plan, canvas);
+                    // The compiled route keeps the typed V3 transition block
+                    // on StaticLayerProgram. Lower it here, at the same
+                    // topology boundary the RenderPlan route uses, so the
+                    // typed program does not fall back to the last static
+                    // keyframe or require the legacy CompiledComposition lane.
+                    std::shared_ptr<const AnimatedTextDocument> animated_document;
+                    if (text_plan.text_transitions) {
+                        auto transitioned = render_plan::detail::build_text_transitions(
+                            layer.name.empty() ? name : layer.name, definition,
+                            *text_plan.text_transitions, canvas_fps);
+                        definition = std::move(transitioned.final_definition);
+                        animated_document = std::move(transitioned.document);
+                    }
                     // Text paint is authored in screen space, not a lit 3D
                     // material; keep the same boundary contract the RenderPlan
                     // route enforces.
@@ -178,6 +196,10 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     auto& text_builder = builder.text_run(
                         "text", chronon3d::prepare_text(definition))
                         .font_engine(font_engine);
+                    if (animated_document) {
+                        text_builder.from_animated_document(
+                            std::move(animated_document));
+                    }
                     // P1-10: the compiled scene materializer is the path the
                     // V3 plan render uses, so it must lower the caret just
                     // like append_text_layer_for_scene does.
@@ -245,6 +267,101 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     }
                     break;
                 }
+                case NodeKind::Particles: {
+                    if (!layer.particle_emitter)
+                        throw std::runtime_error(
+                            "particle layer '" + layer.name +
+                            "' has no compiled emitter payload");
+                    const auto& emitter = *layer.particle_emitter;
+                    const auto initial = sample_particles(emitter, 0.0);
+                    if (!initial.ok())
+                        throw std::runtime_error(
+                            "compiled particle initialization failed: " + initial.error);
+                    builder.kind(LayerKind::Normal)
+                        .blend(emitter.blend_mode)
+                        .cache_static(false);
+                    for (const auto& particle : initial.particles) {
+                        const float z = emitter.environment
+                            ? (1.0f - particle.depth) * 100.0f : 0.0f;
+                        if (!emitter.sprite_asset.empty()) {
+                            ImageParams sprite;
+                            sprite.asset_path = emitter.sprite_asset;
+                            sprite.size = Vec2{
+                                particle.size * particle.sprite_scale,
+                                particle.size * particle.sprite_scale};
+                            sprite.pos = Vec3{particle.position.x, particle.position.y, z};
+                            sprite.opacity = particle.color.a;
+                            sprite.tint = Color{
+                                particle.color.r, particle.color.g,
+                                particle.color.b, 1.0f};
+                            sprite.rotation_radians = particle.rotation;
+                            builder.image(
+                                "particle_" + std::to_string(particle.index),
+                                std::move(sprite));
+                        } else {
+                            const bool opaque_cpu_batch =
+                                emitter.blend_mode == BlendMode::Normal &&
+                                particle.color.a >= 1.0f && !emitter.bokeh;
+                            if (opaque_cpu_batch) {
+                                PathParams path;
+                                path.fill = Fill::solid_color(particle.color);
+                                path.fill_rule = PathFillRule::NonZero;
+                                path.stroke.enabled = false;
+                                const float radius = particle.size * 0.5f;
+                                const std::size_t segments = radius <= 4.0f ? 16U :
+                                    (radius <= 20.0f ? 32U : 64U);
+                                for (std::size_t segment = 0; segment < segments; ++segment) {
+                                    const float angle = 6.2831853071795864769f *
+                                        static_cast<float>(segment) /
+                                        static_cast<float>(segments);
+                                    const Vec2 point = particle.position + Vec2{
+                                        std::cos(angle) * radius,
+                                        std::sin(angle) * radius};
+                                    if (segment == 0)
+                                        path.commands.push_back(PathCommand::move_to(point));
+                                    else
+                                        path.commands.push_back(PathCommand::line_to(point));
+                                }
+                                path.commands.push_back(PathCommand::close());
+                                builder.path(
+                                    "particle_" + std::to_string(particle.index),
+                                    std::move(path));
+                            } else {
+                                CircleParams circle;
+                                circle.radius = particle.size * 0.5f;
+                                circle.color = particle.color;
+                                circle.fill = graphics::FillStyle::solid(particle.color);
+                                if (emitter.bokeh) {
+                                const Color transparent{
+                                    particle.color.r, particle.color.g,
+                                    particle.color.b, 0.0f};
+                                    circle.fill = graphics::FillStyle::radial(
+                                        {0.5f, 0.5f}, 0.5f,
+                                        {{0.0f, particle.color}, {1.0f, transparent}});
+                                }
+                                circle.pos = Vec3{
+                                    particle.position.x, particle.position.y, z};
+                                builder.circle(
+                                    "particle_" + std::to_string(particle.index),
+                                    std::move(circle));
+                            }
+                        }
+                    }
+                    if (!initial.particles.empty()) {
+                        auto& marker = builder.last_node_handle().node();
+                        marker.gpu_particle_instances.reserve(initial.particles.size());
+                        for (const auto& particle : initial.particles) {
+                            marker.gpu_particle_instances.push_back({
+                                particle.position, particle.color, particle.size,
+                                particle.rotation, particle.sprite_scale,
+                                emitter.environment
+                                    ? (1.0f - particle.depth) * 100.0f : 0.0f});
+                        }
+                        marker.gpu_particle_bokeh = emitter.bokeh;
+                        marker.gpu_particle_sprite_path = emitter.sprite_asset;
+                    }
+                    break;
+                }
                 case NodeKind::Shape: {
                     const auto shape = layer.shape.value_or(render_plan::ShapeContentPlan{});
                     const Vec2 size = layer.size_dimensions == 2
@@ -264,9 +381,15 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             fill = graphics::FillStyle::solid(Color{
                                 (*shape.fill_color)[0], (*shape.fill_color)[1],
                                 (*shape.fill_color)[2], (*shape.fill_color)[3]});
+                        } else if (!shape.field) {
+                            // No fill authored: a stroke-only shape must not
+                            // inherit the legacy solid layer color.
+                            fill = graphics::FillStyle{};
+                            fill->enabled = false;
                         }
                         if (shape.field) {
-                            if (!fill) fill = graphics::FillStyle::solid(layer_color);
+                            if (!fill || !fill->enabled)
+                                fill = graphics::FillStyle::solid(layer_color);
                             fill->field = *shape.field;
                             fill->field_ramp = shape.field_ramp;
                             fill->field_render_scale = shape.field_render_scale;
@@ -281,10 +404,26 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         if (shape.stroke->solid_color) {
                             const auto& rgba = *shape.stroke->solid_color;
                             stroke.color = Color{rgba[0], rgba[1], rgba[2], rgba[3]};
+                        } else if (!shape.stroke->color.empty() && !shape.stroke->gradient) {
+                            const auto parsed = render_plan::parse_hex_color(shape.stroke->color);
+                            if (!parsed)
+                                throw std::runtime_error(
+                                    "shape layer has invalid stroke color");
+                            stroke.color = *parsed;
                         }
-                        if (shape.stroke->gradient) stroke.gradient = shape.stroke->gradient;
+                        stroke.gradient = shape.stroke->gradient;
+                        stroke.brush = shape.stroke->brush;
+                        stroke.cap = shape.stroke->cap == "round" ? LineCap::Round
+                            : shape.stroke->cap == "square" ? LineCap::Square : LineCap::Butt;
+                        stroke.join = shape.stroke->join == "round" ? LineJoin::Round
+                            : shape.stroke->join == "bevel" ? LineJoin::Bevel : LineJoin::Miter;
+                        stroke.miter_limit = shape.stroke->miter_limit;
+                        stroke.taper_start = shape.stroke->taper_start;
+                        stroke.taper_end = shape.stroke->taper_end;
                         stroke.trim_start = shape.stroke->trim_start.value_or(0.0f);
                         stroke.trim_end = shape.stroke->trim_end.value_or(1.0f);
+                        stroke.dash_array = shape.stroke->dash_array;
+                        stroke.dash_offset = shape.stroke->dash_offset;
                     }
                     auto build_path_from_shape_plan = [&](const std::vector<render_plan::ShapePathCommandPlan>& cmds, graphics::FillStyle fill_for_path) -> PathParams {
                         PathParams pp;
@@ -309,7 +448,9 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     auto fill_for_procedural = [&]() -> graphics::FillStyle {
                         if (fill_style) return *fill_style;
                         if (shape.fill_color) return graphics::FillStyle::solid(layer_color);
-                        return graphics::FillStyle::solid(layer_color);
+                        graphics::FillStyle disabled;
+                        disabled.enabled = false;
+                        return disabled;
                     };
                     auto emit_procedural = [&](PathParams pp) {
                         if (shape.operators.empty()) { builder.path("shape", std::move(pp)); return; }
@@ -467,6 +608,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         case render_plan::ShapeContentTypePlan::RingSegment:
                         case render_plan::ShapeContentTypePlan::MonotoneLine: {
                             PathParams params;
+                            params.fill.enabled = false;
                             for (const auto& command : shape.path) {
                                 const Vec2 point{command.point[0], command.point[1]};
                                 const Vec2 control1{command.control1[0], command.control1[1]};
@@ -598,6 +740,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             for (std::size_t index = 0; index < shape.imported_subpaths.size(); ++index) {
                                 const auto& imported = shape.imported_subpaths[index];
                                 PathParams params;
+                                params.fill.enabled = false;
                                 for (const auto& command : imported.path) {
                                     const Vec2 point{command.point[0], command.point[1]};
                                     const Vec2 c1{command.control1[0], command.control1[1]};

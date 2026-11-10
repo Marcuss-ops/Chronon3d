@@ -1,4 +1,5 @@
 #include "render_plan_compiler_detail.hpp"
+#include "render_plan_compiler_animation_internal.hpp"
 
 #include <chronon3d/render_plan/color_utils.hpp>
 #include <chronon3d/effects/effect_params.hpp>
@@ -22,6 +23,53 @@
 #include <utility>
 
 namespace chronon3d::render_plan::detail {
+
+PreparedTextTransitions build_text_transitions(
+    const std::string& layer_id, const chronon3d::TextDefinition& base_definition,
+    const TextTransitionsPlan& transitions, FrameRate fps) {
+    chronon3d::AnimatedTextDocument animated;
+    chronon3d::TextDefinition final_definition = base_definition;
+    for (const auto& keyframe : transitions.keyframes) {
+        auto definition_at_frame = base_definition;
+        definition_at_frame.content.value = keyframe.text;
+        chronon3d::SourceTextKeyframe source_key;
+        source_key.frame = keyframe.frame;
+        source_key.document = chronon3d::to_text_document(definition_at_frame);
+        if (keyframe.transition == "cut") {
+            source_key.transition = chronon3d::SourceTextTransition::Cut;
+        } else if (keyframe.transition == "dissolve_layouts") {
+            source_key.transition = chronon3d::SourceTextTransition::DissolveLayouts;
+        } else if (keyframe.transition == "scramble") {
+            source_key.transition = chronon3d::SourceTextTransition::Scramble;
+            source_key.scramble_params.seed = keyframe.scramble.seed;
+            source_key.scramble_params.char_pool = keyframe.scramble.char_pool;
+            source_key.scramble_params.intensity = keyframe.scramble.intensity;
+        } else if (keyframe.transition == "morph") {
+            source_key.transition = chronon3d::SourceTextTransition::Morph;
+            source_key.morph_params.direction =
+                keyframe.morph.direction == "from_left"
+                    ? chronon3d::MorphParams::EnterDirection::FromLeft
+                    : keyframe.morph.direction == "from_center"
+                        ? chronon3d::MorphParams::EnterDirection::FromCenter
+                        : chronon3d::MorphParams::EnterDirection::FromRight;
+            source_key.morph_params.easing = track_easing(keyframe.morph.easing);
+        } else if (keyframe.transition == "typewriter") {
+            source_key.transition = chronon3d::SourceTextTransition::Typewriter;
+            source_key.typewriter_params.chars_per_frame =
+                keyframe.typewriter.chars_per_frame;
+            source_key.typewriter_params.easing =
+                track_easing(keyframe.typewriter.easing);
+        }
+        final_definition = definition_at_frame;
+        animated.add_keyframe(std::move(source_key));
+    }
+    if (animated.size() == 0)
+        throw std::runtime_error(
+            "text layer '" + layer_id + "' has no text_transitions keyframes");
+    return {std::make_shared<const chronon3d::AnimatedTextDocument>(
+                std::move(animated)),
+            std::move(final_definition)};
+}
 
 PreparedTextLayers prepare_text_layers(
     const RenderPlan& plan, chronon3d::assets::AssetResolver& resolver,
@@ -52,6 +100,14 @@ PreparedTextLayers prepare_text_layers(
             }
             definition.style.font.font_path = resolved->string();
         }
+        if (layer.text_counter && layer.text_transitions)
+            throw std::runtime_error(
+                "text layer '" + layer.id + "' cannot combine text_counter and text_transitions");
+        if (layer.text_transitions &&
+            (!layer.text_spans.empty() || !layer.svg_glyph_paint_ranges.empty()))
+            throw std::runtime_error(
+                "text layer '" + layer.id +
+                "' cannot combine text_transitions with styled text spans");
         if (layer.text_counter) {
             const auto& counter = layer.text_counter->counter;
             AnimationTrackPlan value_track;
@@ -125,6 +181,12 @@ PreparedTextLayers prepare_text_layers(
                 std::make_shared<const chronon3d::AnimatedTextDocument>(std::move(animated));
             definition = to_definition;
         }
+        if (layer.text_transitions) {
+            auto transitioned = build_text_transitions(
+                layer.id, definition, *layer.text_transitions, plan.canvas.fps);
+            prepared_text_counters[index] = std::move(transitioned.document);
+            definition = std::move(transitioned.final_definition);
+        }
         prepared_texts[index] = chronon3d::prepare_text(definition);
         if ((layer.style && layer.style->background) || layer.safe_insets) {
             auto measured = chronon3d::compile_text_layout(
@@ -180,6 +242,15 @@ chronon3d::TextDefinition materialize_text(
     fill->a *= layer.style->fill_opacity.value_or(1.0f);
     definition.style.color = *fill;
     definition.style.paint.fill = *fill;
+    definition.style.paint.quality = layer.style->quality == "high"
+        ? TextQuality::High : TextQuality::Fast;
+    definition.style.paint.shadow_quality =
+        layer.style->shadow_quality == "canonical"
+            ? TextShadowQuality::Canonical : TextShadowQuality::Fast;
+    definition.style.paint.stroke_mode = layer.style->stroke_mode == "distance"
+        ? TextStrokeMode::Distance
+        : layer.style->stroke_mode == "vector"
+            ? TextStrokeMode::Vector : TextStrokeMode::Auto;
     if (layer.style->gel_core) {
         definition.style.material = chronon3d::TextMaterial::gel_core();
     } else if (layer.style->gel_surface) {

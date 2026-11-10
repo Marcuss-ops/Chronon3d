@@ -137,7 +137,27 @@ enum class TextCenteringMode : u8 {
     PixelInk,
 };
 
+// Glyph generation quality. Fast keeps the historical 64-em MTSDF profile;
+// High selects the 128-em generation-2 profile. The policy is explicit in the
+// plan because it changes the atlas payload, not just a backend hint.
+enum class TextQuality : u8 { Fast, High };
+
+// Shadow compositing policy. Fast keeps the historical tiered box blur;
+// Canonical uses a separable Gaussian over the run-level union mask.
+// Canonical is CPU-only: the native MTSDF route fails closed rather than
+// silently substituting the Fast shader path.
+enum class TextShadowQuality : u8 { Fast, Canonical };
+
+// Stroke semantics are explicit because they are not interchangeable.
+// Auto preserves the historical backend choice (software vector, GPU SDF);
+// Distance is the GPU SDF dilation; Vector is an expanded outline and is
+// CPU-only until the native coverage atlas exists.
+enum class TextStrokeMode : u8 { Auto, Distance, Vector };
+
 struct TextPaint {
+    TextQuality quality{TextQuality::Fast};
+    TextShadowQuality shadow_quality{TextShadowQuality::Fast};
+    TextStrokeMode stroke_mode{TextStrokeMode::Auto};
     Color fill{1.0f, 1.0f, 1.0f, 1.0f};
     std::optional<Fill> fill_style{};
     std::shared_ptr<const graphics::PatternTile> fill_pattern{};

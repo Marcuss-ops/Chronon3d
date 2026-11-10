@@ -1,0 +1,60 @@
+#version 450
+
+// ── Bloom pyramid downsample ───────────────────────────────────────────────
+// 13-tap Jimenez downsample over the already-prefiltered rgba16f chain.  The
+// half-float storage keeps the HDR energy and halves the mip bandwidth; the
+// first pass (soft-knee + Karis average) lives in bloom_prefilter.comp because
+// it reads the full-resolution rgba32f scene.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba16f) uniform image2D destination_image;
+layout(binding = 1, rgba16f) uniform readonly image2D source_image;
+
+vec4 sample_bilinear(vec2 uv) {
+    ivec2 size = imageSize(source_image);
+    vec2 coordinate = uv * vec2(size) - vec2(0.5);
+    ivec2 p0 = ivec2(floor(coordinate));
+    ivec2 p1 = p0 + ivec2(1);
+    vec2 fraction = fract(coordinate);
+    p0 = clamp(p0, ivec2(0), size - ivec2(1));
+    p1 = clamp(p1, ivec2(0), size - ivec2(1));
+    vec4 top = mix(imageLoad(source_image, ivec2(p0.x, p0.y)),
+                   imageLoad(source_image, ivec2(p1.x, p0.y)), fraction.x);
+    vec4 bottom = mix(imageLoad(source_image, ivec2(p0.x, p1.y)),
+                      imageLoad(source_image, ivec2(p1.x, p1.y)), fraction.x);
+    return mix(top, bottom, fraction.y);
+}
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(size);
+    vec2 texel = 1.0 / vec2(imageSize(source_image));
+    vec2 x = vec2(texel.x, 0.0);
+    vec2 y = vec2(0.0, texel.y);
+
+    vec4 a = sample_bilinear(uv - 2.0 * x + 2.0 * y);
+    vec4 b = sample_bilinear(uv + 2.0 * y);
+    vec4 c = sample_bilinear(uv + 2.0 * x + 2.0 * y);
+    vec4 d = sample_bilinear(uv - 2.0 * x);
+    vec4 e = sample_bilinear(uv);
+    vec4 f = sample_bilinear(uv + 2.0 * x);
+    vec4 g = sample_bilinear(uv - 2.0 * x - 2.0 * y);
+    vec4 h = sample_bilinear(uv - 2.0 * y);
+    vec4 i = sample_bilinear(uv + 2.0 * x - 2.0 * y);
+    vec4 j = sample_bilinear(uv - x + y);
+    vec4 k = sample_bilinear(uv + x + y);
+    vec4 l = sample_bilinear(uv - x - y);
+    vec4 m = sample_bilinear(uv + x - y);
+
+    // Jimenez weights: centre 0.125, axial 0.0625, corners 0.03125,
+    // inner diagonals 0.125 (sum = 1.0).
+    vec4 result = e * 0.125;
+    result += (a + c + g + i) * 0.03125;
+    result += (b + d + f + h) * 0.0625;
+    result += (j + k + l + m) * 0.125;
+    imageStore(destination_image, pixel,
+               vec4(max(result.rgb, vec3(0.0)), clamp(result.a, 0.0, 1.0)));
+}

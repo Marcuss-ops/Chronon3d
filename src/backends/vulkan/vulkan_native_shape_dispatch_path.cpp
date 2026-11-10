@@ -48,10 +48,12 @@ bool try_native_path_fill(
     if (path.stroke.brush.has_value()) return false;
     if (path.stroke.taper_start != 1.0f || path.stroke.taper_end != 1.0f)
         return false;
+    // A visible stroke is owned by try_native_path_stroke(), which fills and
+    // strokes in one shader pass. Filling here first would double-blend
+    // translucent fills, and could leave a fill behind if the stroke route
+    // later rejected the node. Keep this route strictly fill-only.
+    if (path.stroke.enabled && path.stroke.width > 0.0f) return false;
     if (!path.fill.enabled || path.fill.type != FillType::Solid ||
-        (path.stroke.enabled && (path.stroke.width <= 0.0f ||
-            path.stroke.trim_start != 0.0f || path.stroke.trim_end != 1.0f ||
-            path.stroke.gradient.has_value() || path.stroke.cap != LineCap::Butt)) ||
         path.commands.empty() || graph::native_promotion::has_active_mask(state)) {
         return false;
     }
@@ -97,12 +99,9 @@ bool try_native_path_fill(
     const Color color = graph::native_promotion::premultiply(
         path.fill.solid, state.opacity, &alpha_zero);
     if (alpha_zero)
-        return !path.stroke.enabled ||
-            try_native_path_stroke(backend, framebuffer, node, state);
-    if (!backend.fill_path_surface(framebuffer.surface_handle(), vertices, color).ok())
-        return false;
-    return !path.stroke.enabled ||
-        try_native_path_stroke(backend, framebuffer, node, state);
+        return true;
+    return backend.fill_path_surface(
+        framebuffer.surface_handle(), vertices, color).ok();
 }
 
 bool append_dash_runs(

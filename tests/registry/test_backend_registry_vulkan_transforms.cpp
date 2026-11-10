@@ -858,11 +858,11 @@ TEST_CASE("Vulkan native occlusion holds a mesh half behind a 2.5D plane in both
         blue[i + 2] = 1.0f;
         blue[i + 3] = 1.0f;
     }
-    // Screen x/y, inverse camera depth, UV, per-vertex light.
-    const std::array<float, 24> vertices{
-        12.f, 12.f, 1.0f / 20.0f, 0.f, 0.f, 1.f, 1.f, 1.f,
-        52.f, 12.f, 1.0f / 60.0f, 1.f, 0.f, 1.f, 1.f, 1.f,
-        32.f, 52.f, 1.0f / 40.0f, 0.5f, 1.f, 1.f, 1.f, 1.f};
+    // Screen x/y, inverse camera depth, UV, per-vertex light, world normal.
+    const std::array<float, 33> vertices{
+        12.f, 12.f, 1.0f / 20.0f, 0.f, 0.f, 1.f, 1.f, 1.f, 0.f, 0.f, 1.f,
+        52.f, 12.f, 1.0f / 60.0f, 1.f, 0.f, 1.f, 1.f, 1.f, 0.f, 0.f, 1.f,
+        32.f, 52.f, 1.0f / 40.0f, 0.5f, 1.f, 1.f, 1.f, 1.f, 0.f, 0.f, 1.f};
     const std::array<std::uint32_t, 3> indices{0, 1, 2};
 
     for (const bool plane_first : {true, false}) {

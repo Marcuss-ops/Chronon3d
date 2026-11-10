@@ -1,0 +1,109 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "text-parity-exact-3d",
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 20.4074,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  },
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 120
+  },
+  "output": {
+    "path": "text-parity-exact-3d.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "sweep_y",
+      "type": "text",
+      "enable_3d": true,
+      "text": "BEYOND 89",
+      "start_frame": 0,
+      "duration_frames": 120,
+      "position": [
+        640,
+        330
+      ],
+      "size": [
+        700,
+        160
+      ],
+      "style": {
+        "font": "assets/fonts/SF-Pro-Display-Semibold.otf",
+        "font_size": 96,
+        "fill": "#FFFFFF",
+        "quality": "high"
+      },
+      "effects": [],
+      "animation": {
+        "tracks": [
+          {
+            "property": "rotation_y",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0
+              },
+              {
+                "frame": 60,
+                "value": 120
+              },
+              {
+                "frame": 119,
+                "value": 0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "static_x_100",
+      "type": "text",
+      "enable_3d": true,
+      "text": "X 100",
+      "start_frame": 0,
+      "duration_frames": 120,
+      "position": [
+        640,
+        520
+      ],
+      "rotation": [
+        100,
+        0,
+        0
+      ],
+      "size": [
+        320,
+        120
+      ],
+      "style": {
+        "font": "assets/fonts/SF-Pro-Display-Semibold.otf",
+        "font_size": 64,
+        "fill": "#FF8080",
+        "quality": "high"
+      },
+      "effects": []
+    }
+  ]
+}

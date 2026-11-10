@@ -11,8 +11,11 @@ namespace chronon3d {
 struct MtsdfGlyphBitmap {
     std::uint32_t width{0};
     std::uint32_t height{0};
-    std::int32_t x_offset{0};
-    std::int32_t y_offset{0};
+    // Fractional plane origin in em pixels. The field texel centres sit at
+    // (x_offset + x + 0.5, y_offset + y + 0.5); rounding this to an integer
+    // before runtime scaling shifts every glyph by up to one em pixel.
+    float x_offset{0.0f};
+    float y_offset{0.0f};
     float advance_x{0.0f};
     std::vector<float> rgba8;
 };

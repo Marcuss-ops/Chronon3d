@@ -121,6 +121,11 @@ void decode_particle_fields(LayerPlan& layer, const nlohmann::json& value) {
     params.size_max = size[1].get<float>();
     params.gravity = raw.value("gravity", 0.0f);
     params.turbulence = raw.value("turbulence", 0.0f);
+    params.flow.strength = raw.value("flow_strength", 0.0f);
+    params.flow.scale = raw.value("flow_scale", 0.012f);
+    params.flow.speed = raw.value("flow_speed", 0.35f);
+    params.twinkle.amount = raw.value("twinkle", 0.0f);
+    params.twinkle.speed = raw.value("twinkle_speed", 0.75f);
     params.environment = raw.value("environment", false);
     params.bokeh = raw.value("bokeh", false);
     if (raw.contains("depth_range")) {
@@ -210,6 +215,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     decode_layer_asset_fields(layer, value);
     layer.text = value.value("text", std::string{});
     decode_layer_text_counter(layer, value);
+    decode_layer_text_transitions(layer, value);
     decode_layer_text_spans(layer, value);
     decode_layer_size_color_fields(layer, value);
 

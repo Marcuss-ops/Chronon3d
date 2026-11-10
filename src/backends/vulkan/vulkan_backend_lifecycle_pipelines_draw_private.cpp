@@ -6,6 +6,7 @@
 #include "text_run_comp_spv.hpp"
 #include "fill_rect_comp_spv.hpp"
 #include "layer_batch_comp_spv.hpp"
+#include "particle_emitter_comp_spv.hpp"
 #include "inline_mesh_comp_spv.hpp"
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
@@ -82,6 +83,36 @@ void VulkanBackend::Impl::init_draw_kernel_pipelines() {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::LayerBatch, layer_batch_pipeline, "LayerBatch");
         if (debug_context) debug_context->set_pipeline_name(layer_batch_pipeline, "Chronon3D.Pipeline.LayerBatch");
+
+        const VkShaderModuleCreateInfo particle_emitter_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_particle_emitter_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_particle_emitter_comp_spv)};
+        VkShaderModule particle_emitter_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &particle_emitter_shader_info, nullptr,
+                                   &particle_emitter_shader),
+              "vkCreateShaderModule(particle emitter)");
+        const VkPipelineShaderStageCreateInfo particle_emitter_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+            VK_SHADER_STAGE_COMPUTE_BIT, particle_emitter_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo particle_emitter_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            particle_emitter_stage, kernels.particle_emitter_layout,
+            VK_NULL_HANDLE, -1};
+        VkPipeline particle_emitter_pipeline = VK_NULL_HANDLE;
+        const VkResult particle_emitter_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &particle_emitter_pipeline_info,
+            nullptr, &particle_emitter_pipeline);
+        vkDestroyShaderModule(device, particle_emitter_shader, nullptr);
+        check(particle_emitter_result, "vkCreateComputePipelines(particle emitter)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::ParticleEmitter, particle_emitter_pipeline,
+                "ParticleEmitter");
+        if (debug_context) {
+            debug_context->set_pipeline_name(
+                particle_emitter_pipeline,
+                "Chronon3D.Pipeline.ParticleEmitter");
+        }
 
         const VkShaderModuleCreateInfo inline_mesh_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

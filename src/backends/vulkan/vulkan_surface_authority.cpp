@@ -328,6 +328,7 @@ ImageT& VulkanSurfaceAuthority<ImageT, OwnerT>::ensure(runtime::RenderSurfaceHan
         require_owner();
         if (handle == runtime::kInvalidRenderSurfaceHandle ||
             (desc.format != runtime::PixelFormat::Rgba32Float &&
+             desc.format != runtime::PixelFormat::Rgba16Float &&
              desc.format != runtime::PixelFormat::Rgba8Unorm &&
              desc.format != runtime::PixelFormat::R8Unorm &&
              desc.format != runtime::PixelFormat::Nv12 &&

@@ -193,7 +193,39 @@ TEST_CASE("draw_text_run: null asset_resolver returns InvalidInput (P0-1 regress
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3. E2E render-success with stroke: scratch_state acquisition +
+// 3. Zero-glyph frame → successful no-op without touching scratch.
+//    Typewriter frame 0 is a legal empty layout: prepare returns Outcome{0}
+//    before acquiring scratch, and the orchestrator must stop there.  Before
+//    the fix it fell through to raster and dereferenced a null scratch handle.
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("draw_text_run: zero glyph frame is a successful no-op (T2-02 regression)") {
+    auto shape = make_synthetic_shape();
+    REQUIRE(shape != nullptr);
+    shape->glyphs.clear();
+
+    Framebuffer fb(64, 64);
+    const Mat4 model = Mat4(1.0f);
+
+    // The empty-glyph early-out must happen before any resource validation,
+    // so a default (null) context is sufficient to exercise it.
+    SoftwareProcessorContext ctx;
+    TextRunDrawParams params{fb, *shape, model, 1.0f};
+
+    graph::RenderOpResult result{graph::RenderOpOutcome{0}};
+    REQUIRE_NOTHROW(result = draw_text_run(ctx, params));
+    REQUIRE(static_cast<bool>(result));
+    CHECK(result.value().items_drawn == 0);
+
+    for (int y = 0; y < fb.height(); ++y) {
+        for (int x = 0; x < fb.width(); ++x) {
+            CHECK(fb.get_pixel(x, y).a == 0.0f);
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. E2E render-success with stroke: scratch_state acquisition +
 //    per-span font_handle resolution must produce visible ink.
 //
 //    This is the positive-path regression lock: after the P0-1 fix,

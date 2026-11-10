@@ -340,6 +340,37 @@ TEST_CASE("AnimatedTextDocument: Scramble custom char pool") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 9b. Typewriter transition
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("AnimatedTextDocument: Typewriter reveals whole grapheme clusters") {
+    AnimatedTextDocument anim;
+    auto kf = make_kf(0, "", SourceTextTransition::Typewriter);
+    kf.typewriter_params.easing = EasingCurve{Easing::Linear};
+    anim.add_keyframe(std::move(kf));
+    // Three grapheme clusters: A, e + combining acute, Z.
+    anim.add_keyframe(make_kf(20, "A" "e\xCC\x81" "Z", SourceTextTransition::Hold));
+
+    const auto start = anim.sample_at(Frame{0});
+    CHECK(start.transition == SourceTextTransition::Typewriter);
+    // Frame 0 has zero revealed clusters.  The run is empty by contract and
+    // both backends turn it into a successful no-op; no synthetic space.
+    CHECK(start.transition_text.empty());
+
+    const auto middle = anim.sample_at(Frame{10});
+    CHECK(middle.transition == SourceTextTransition::Typewriter);
+    CHECK(middle.transition_text == "A");
+
+    const auto late = anim.sample_at(Frame{14});
+    CHECK(late.transition == SourceTextTransition::Typewriter);
+    CHECK(late.transition_text == "A" "e\xCC\x81");
+
+    const auto end = anim.sample_at(Frame{20});
+    CHECK(end.active != nullptr);
+    CHECK(end.active->utf8 == "A" "e\xCC\x81" "Z");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 10. Morph transition
 // ═══════════════════════════════════════════════════════════════════════════
 

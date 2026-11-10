@@ -27,6 +27,28 @@ struct GpuGlyphStatic {
 struct GpuGlyphDynamic {
     float tracking_prefix;
     float selector_weight;
+    uint background_color;
+    float background_padding_px;
+    float background_radius_px;
+    float skew_tan;
+    float skew_axis_cos;
+    float skew_axis_sin;
+    uint style_flags;
+    uint reserved;
+    uint gradient_start_color;
+    uint gradient_end_color;
+    float gradient_angle_degrees;
+    uint reserved2;
+    uint shadow_color;
+    float shadow_dx;
+    float shadow_dy;
+    float shadow_blur;
+    float shadow_opacity;
+    uint glow_color;
+    float glow_radius;
+    float glow_intensity;
+    uint reserved3;
+    uint reserved4;
 };
 
 struct GpuTextRunDynamic {
@@ -62,7 +84,36 @@ struct GpuTextRunDynamic {
     float animator_shear_x;
     float animator_shear_y;
     uint animator_reserved5;
+    uint caret_color;
+    float caret_x;
+    float caret_y;
+    float caret_width;
+    float caret_height;
+    uint caret_flags;
+    float animator_rotation_x;
+    float animator_rotation_y;
 };
+
+// P2-01: exact orthographic inverse for |rx| or |ry| >= 89 degrees. The old
+// tan() shear representation cannot pass an edge-on plane; this 2x2 inverse
+// handles the full circle, including mirrored back faces. Keep this in sync
+// with gpu_anchor_pivot_offset() in gpu_text_run.hpp.
+const uint kExact3DRotationBit = 1u << 11;
+bool apply_exact_3d_inverse(vec2 origin, inout vec2 local,
+                            GpuTextRunDynamic run, float reveal_weight) {
+    float rx = radians(run.animator_rotation_x * reveal_weight);
+    float ry = radians(run.animator_rotation_y * reveal_weight);
+    float cx = cos(rx);
+    float sx = sin(rx);
+    float cy = cos(ry);
+    float sy = sin(ry);
+    float det = cx * cy;
+    if (abs(det) < 1e-6) return false;
+    vec2 d = local - origin;
+    local = origin + vec2(cx * d.x,
+                          -sx * sy * d.x + cy * d.y) / det;
+    return true;
+}
 
 layout(std430, set = 0, binding = 2) readonly buffer GlyphBuffer {
     GpuGlyphStatic glyphs[];
@@ -145,6 +196,25 @@ vec4 animated_fill_color(GpuTextRunDynamic run, float weight) {
     vec4 base = unpack_color(run.color);
     if ((run.flags & 0x400u) == 0u) return base;
     return mix(base, unpack_color(run.animator_fill_color), weight);
+}
+
+// Per-glyph linear gradient. The geometry matches the software raster:
+// the gradient runs through the glyph-plane centre along `angle`, with the
+// half-extent equal to half the plane diagonal.
+vec4 glyph_fill_color(GpuTextRunDynamic run, GpuGlyphDynamic gd, float weight,
+                      vec2 local, vec2 plane_min, vec2 plane_max) {
+    vec4 fill = animated_fill_color(run, weight);
+    if ((gd.style_flags & 16u) == 0u) return fill;
+    const vec2 size = max(plane_max - plane_min, vec2(1e-6));
+    const vec2 center = (plane_min + plane_max) * 0.5;
+    const float half_len = 0.5 * length(size);
+    const float angle = radians(gd.gradient_angle_degrees);
+    const vec2 dir = vec2(cos(angle), sin(angle));
+    const float t = clamp(
+        dot(local - center, dir) / max(2.0 * half_len, 1e-6) + 0.5,
+        0.0, 1.0);
+    return mix(unpack_color(gd.gradient_start_color),
+               unpack_color(gd.gradient_end_color), t);
 }
 
 // C2-continuous cubic B-spline filter over the 4x4 atlas texel neighbourhood,
@@ -258,7 +328,11 @@ float evaluate_composite_gel_distance(vec2 sample_pos, uint count,
             local = vec2(glyph.origin_x, glyph.origin_y) +
                     vec2(d.x * ca + d.y * sa, -d.x * sa + d.y * ca);
         }
-        if (run.animator_shear_x != 0.0 || run.animator_shear_y != 0.0) {
+        if ((run.effect_flags & kExact3DRotationBit) != 0u) {
+            if (!apply_exact_3d_inverse(
+                    vec2(glyph.origin_x, glyph.origin_y), local,
+                    run, reveal_weight)) continue;
+        } else if (run.animator_shear_x != 0.0 || run.animator_shear_y != 0.0) {
             float shx = run.animator_shear_x * reveal_weight;
             float shy = run.animator_shear_y * reveal_weight;
             float det = 1.0 - shx * shy;
@@ -630,6 +704,8 @@ void main() {
     // glyph's fill merely because the tile loop visits glyphs one by one.
     vec4 destination_color = imageLoad(dst_image, pixel_coord);
     vec4 shadow_layer = vec4(0.0);
+    vec4 glow_layer = vec4(0.0);
+    vec4 background_layer = vec4(0.0);
     vec4 stroke_layer = vec4(0.0);
     vec4 fill_layer = vec4(0.0);
 
@@ -638,7 +714,8 @@ void main() {
         uint gid = s_glyph_indices[i];
         GpuGlyphStatic glyph = glyphs[gid];
         GpuTextRunDynamic run = runs[glyph.run_index];
-        float reveal_weight = glyph_dynamic[gid].selector_weight;
+        GpuGlyphDynamic gd = glyph_dynamic[gid];
+        float reveal_weight = gd.selector_weight;
         if (run.visible_glyph_count != 0xFFFFFFFFu &&
             glyph.pad0 >= run.visible_glyph_count) continue;
 
@@ -675,16 +752,22 @@ void main() {
         //     not in texels.
         float texel_to_screen = 1.0;
         float local_to_screen = 1.0;
+        // The per-glyph gradient is resolved inside the plane branch, where
+        // the inverse-transformed local position is in scope. The coverage
+        // path keeps the run-level fill.
+        vec4 fill_color = animated_fill_color(run, reveal_weight);
+        // Shadow/glow are evaluated before the fill clip because both extend
+        // outside the glyph plane. These mirrors keep the resolved local
+        // position and plane bounds available after the placement branch.
+        vec2 effect_local = vec2(0.0);
+        vec2 effect_plane_min = vec2(0.0);
+        vec2 effect_plane_max = vec2(1.0);
+        bool effect_ready = false;
 
         if (plane_placement) {
             float plane_w = glyph.plane_right - glyph.plane_left;
             float plane_h = glyph.plane_bottom - glyph.plane_top;
             if (plane_w <= 0.0 || plane_h <= 0.0) continue;
-            local_to_screen = 0.5 * (abs(run.sx) + abs(run.sy));
-            texel_to_screen = 0.5 *
-                (abs(run.sx) * plane_w / float(atlas_w) +
-                 abs(run.sy) * plane_h / float(atlas_h));
-
             vec2 pixel_pos = vec2(pixel_coord) + vec2(0.5);
             float tracking = glyph_dynamic[gid].tracking_prefix;
             vec2 animator_offset = vec2(
@@ -693,6 +776,10 @@ void main() {
             vec2 animator_scale = vec2(
                 1.0 + (run.animator_scale_x - 1.0) * reveal_weight,
                 1.0 + (run.animator_scale_y - 1.0) * reveal_weight);
+            local_to_screen = 0.5 * (abs(run.sx) + abs(run.sy));
+            texel_to_screen = 0.5 *
+                (abs(run.sx) * plane_w / float(atlas_w) +
+                 abs(run.sy) * plane_h / float(atlas_h));
             vec2 scale_origin_compensation = vec2(0.0);
             if ((run.flags & 2u) != 0u) {
                 // Per-glyph scale must preserve the glyph's layout origin.
@@ -718,7 +805,32 @@ void main() {
                 local = vec2(glyph.origin_x, glyph.origin_y) +
                         vec2(d.x * ca + d.y * sa, -d.x * sa + d.y * ca);
             }
-            if (run.animator_shear_x != 0.0 || run.animator_shear_y != 0.0) {
+            if ((gd.style_flags & 2u) != 0u) {
+                // Inverse of R(axis) * SkewX * R(-axis), matching the software
+                // build_glyph_matrix() skew composition. The forward 2x2 is
+                // [[1-c*s*t, -s*s*t], [c*c*t, 1+c*s*t]].
+                float t = gd.skew_tan;
+                float c = gd.skew_axis_cos;
+                float s = gd.skew_axis_sin;
+                float m00 = 1.0 - c * s * t;
+                float m01 = -s * s * t;
+                float m10 = c * c * t;
+                float m11 = 1.0 + c * s * t;
+                float sk_det = m00 * m11 - m01 * m10;
+                if (abs(sk_det) > 1e-6) {
+                    vec2 d = local - vec2(glyph.origin_x, glyph.origin_y);
+                    local = vec2(glyph.origin_x, glyph.origin_y) +
+                        vec2((m11 * d.x - m01 * d.y) / sk_det,
+                             (-m10 * d.x + m00 * d.y) / sk_det);
+                }
+            }
+            if ((run.effect_flags & kExact3DRotationBit) != 0u) {
+                if (!apply_exact_3d_inverse(
+                        vec2(glyph.origin_x, glyph.origin_y), local,
+                        run, reveal_weight)) {
+                    local = vec2(1e9);
+                }
+            } else if (run.animator_shear_x != 0.0 || run.animator_shear_y != 0.0) {
                 float shx = run.animator_shear_x * reveal_weight;
                 float shy = run.animator_shear_y * reveal_weight;
                 float det = 1.0 - shx * shy;
@@ -728,6 +840,38 @@ void main() {
                     local = vec2(glyph.origin_x, glyph.origin_y) +
                             vec2((d.x - shx * d.y) * inv_det,
                                  (-shy * d.x + d.y) * inv_det);
+                }
+            }
+            vec2 eff_scale = vec2(run.sx, run.sy) * animator_scale;
+            vec2 plane_min = vec2(glyph.plane_left, glyph.plane_top);
+            vec2 plane_max = vec2(glyph.plane_right, glyph.plane_bottom);
+            effect_local = local;
+            effect_plane_min = plane_min;
+            effect_plane_max = plane_max;
+            effect_ready = true;
+            if ((gd.style_flags & 16u) != 0u) {
+                fill_color = glyph_fill_color(
+                    run, gd, reveal_weight, local, plane_min, plane_max);
+            }
+            if ((gd.style_flags & 1u) != 0u) {
+                float pad = max(gd.background_padding_px, 0.0);
+                vec2 bg_min = plane_min - vec2(pad);
+                vec2 bg_max = plane_max + vec2(pad);
+                vec2 bg_half = max((bg_max - bg_min) * 0.5, vec2(0.0));
+                vec2 bg_center = (bg_max + bg_min) * 0.5;
+                float radius = clamp(gd.background_radius_px, 0.0,
+                                     min(bg_half.x, bg_half.y));
+                vec2 q = abs(local - bg_center) - (bg_half - vec2(radius));
+                float sd = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
+                float aa = max(abs(eff_scale.x), abs(eff_scale.y));
+                float bg_alpha = clamp(0.5 - sd * aa, 0.0, 1.0);
+                if (bg_alpha > 0.0) {
+                    float glyph_opacity = run.opacity *
+                        (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
+                    vec4 background = unpack_color(gd.background_color);
+                    background *= bg_alpha * glyph_opacity;
+                    background_layer = background +
+                        background_layer * (1.0 - background.a);
                 }
             }
             inside = local.x >= glyph.plane_left && local.x < glyph.plane_right &&
@@ -753,6 +897,55 @@ void main() {
                      local.x < scaled_size.x && local.y < scaled_size.y;
             if (inside) {
                 sample_offset = ivec2(floor(local / vec2(run.sx, run.sy)));
+            }
+        }
+
+        // Per-glyph drop shadow / outer glow. Both use the same SDF transfer
+        // as the fill, so their softness stays expressed in destination pixels
+        // at any layout scale; neither is clipped to the glyph plane.
+        if (effect_ready && (gd.style_flags & 12u) != 0u) {
+            float fx_range = uintBitsToFloat(run.distance_range_bits);
+            if (!(fx_range > 0.0)) fx_range = 8.0;
+            vec2 fx_size = max(effect_plane_max - effect_plane_min, vec2(1e-6));
+            ivec2 fx_origin = ivec2(int(atlas_x), int(atlas_y));
+            float fx_scale_x = (run.sx != 0.0) ? run.sx : 1.0;
+            float fx_scale_y = (run.sy != 0.0) ? run.sy : 1.0;
+            if ((gd.style_flags & 4u) != 0u) {
+                vec2 shadow_local = effect_local - vec2(
+                    gd.shadow_dx / fx_scale_x, gd.shadow_dy / fx_scale_y);
+                vec2 uv = (shadow_local - effect_plane_min) / fx_size;
+                if (all(greaterThanEqual(uv, vec2(0.0))) &&
+                    all(lessThan(uv, vec2(1.0)))) {
+                    vec2 texel = uv * vec2(float(atlas_w), float(atlas_h)) - vec2(0.5);
+                    float msd = atlas_tap_bilinear(
+                        fx_origin, int(atlas_w), int(atlas_h), texel).a;
+                    float dpx = (msd - 0.5) * fx_range * texel_to_screen;
+                    float soft = clamp(gd.shadow_blur, 0.0,
+                        max(fx_range * 0.48 * texel_to_screen, 0.0));
+                    float edge = smoothstep(0.01, 0.08, msd);
+                    float a = (msd <= 1.0 / 255.0) ? 0.0 :
+                        ((soft > 0.0) ? smoothstep(-soft, 0.0, dpx) : step(0.0, dpx));
+                    vec4 sh = unpack_color(gd.shadow_color) *
+                        clamp(a * edge * gd.shadow_opacity, 0.0, 1.0);
+                    if (sh.a > shadow_layer.a) shadow_layer = sh;
+                }
+            }
+            if ((gd.style_flags & 8u) != 0u) {
+                vec2 clamped = clamp(effect_local, effect_plane_min, effect_plane_max);
+                vec2 uv = (clamped - effect_plane_min) / fx_size;
+                vec2 texel = uv * vec2(float(atlas_w), float(atlas_h)) - vec2(0.5);
+                float msd = atlas_tap_bilinear(
+                    fx_origin, int(atlas_w), int(atlas_h), texel).a;
+                float dpx = (msd - 0.5) * fx_range * texel_to_screen;
+                float edge = smoothstep(-1.0, 0.0, dpx);
+                vec2 outside = (effect_local - clamped) *
+                    abs(vec2(fx_scale_x, fx_scale_y));
+                float falloff = 1.0 - smoothstep(0.0, max(gd.glow_radius, 1.0),
+                                                length(outside));
+                float a = clamp(edge * falloff *
+                                max(gd.glow_intensity, 0.0), 0.0, 1.0);
+                vec4 glow = unpack_color(gd.glow_color) * a;
+                glow_layer = glow + glow_layer * (1.0 - glow.a);
             }
         }
 
@@ -785,8 +978,9 @@ void main() {
                                    softness, 0.0, 1.0);
             }
             src = vec4(0.0);
-            if ((run.effect_flags & 2u) != 0u ||
-                (run.effect_flags & 4u) != 0u) {
+            if ((gd.style_flags & 4u) == 0u &&
+                ((run.effect_flags & 2u) != 0u ||
+                 (run.effect_flags & 4u) != 0u)) {
                 vec2 shadow_uv = glyph_uv -
                     vec2(run.shadow_dx / (glyph.plane_right - glyph.plane_left),
                          run.shadow_dy / (glyph.plane_bottom - glyph.plane_top));
@@ -848,7 +1042,7 @@ void main() {
                 stroke *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
                 stroke_layer = stroke + stroke_layer * (1.0 - stroke.a);
             }
-            vec4 fill = animated_fill_color(run, reveal_weight);
+            vec4 fill = fill_color;
             float run_op = run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
             if ((run.effect_flags & 8u) != 0u) {
                 // GEL-01: the composite TextRun silhouette is shaded once,
@@ -959,8 +1153,39 @@ void main() {
         }
     }
 
+    // Host-side ordered multi-shadow: each authored layer is its own pass.
+    // This pass must composite only its shadow; fill/stroke/glow/background
+    // and the caret belong to the final pass.  Without the early-out every
+    // shadow pass would repaint the run and hide the authored layer order.
+    if ((runs[0].effect_flags & 4096u) != 0u) {
+        imageStore(dst_image, pixel_coord,
+                   shadow_layer + destination_color * (1.0 - shadow_layer.a));
+        return;
+    }
+
     vec4 current_color = shadow_layer + destination_color * (1.0 - shadow_layer.a);
+    current_color = glow_layer + current_color * (1.0 - glow_layer.a);
+    current_color = background_layer + current_color * (1.0 - background_layer.a);
     current_color = stroke_layer + current_color * (1.0 - stroke_layer.a);
     current_color = fill_layer + current_color * (1.0 - fill_layer.a);
+    // P1-10: caret last, so it is never covered by a glyph. The caret rect is
+    // authored in layout space; run[0] carries the run transform. The backend
+    // clears the flag on every other run so a per-glyph compatibility batch
+    // cannot draw it more than once.
+    GpuTextRunDynamic caret_run = runs[0];
+    if ((caret_run.caret_flags & 1u) != 0u &&
+        caret_run.caret_width > 0.0 && caret_run.caret_height > 0.0 &&
+        abs(caret_run.sx) > 1e-6 && abs(caret_run.sy) > 1e-6) {
+        vec2 caret_local = (vec2(pixel_coord) + vec2(0.5) -
+                            vec2(caret_run.tx, caret_run.ty)) /
+                           vec2(caret_run.sx, caret_run.sy);
+        if (caret_local.x >= caret_run.caret_x &&
+            caret_local.x < caret_run.caret_x + caret_run.caret_width &&
+            caret_local.y >= caret_run.caret_y &&
+            caret_local.y < caret_run.caret_y + caret_run.caret_height) {
+            vec4 caret = unpack_color(caret_run.caret_color);
+            current_color = caret + current_color * (1.0 - caret.a);
+        }
+    }
     imageStore(dst_image, pixel_coord, current_color);
 }

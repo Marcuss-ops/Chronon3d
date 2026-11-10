@@ -347,7 +347,7 @@ def test_text_tile_dynamic_layout_matches_cpp():
     cpp_body = _struct_body(header, TEXT_RUN_DYNAMIC)
     cpp_fields = _cpp_fields(cpp_body)
     pinned = _cpp_pinned_size(header, TEXT_RUN_DYNAMIC)
-    assert pinned == 128, "TextRunDynamic ABI must remain 128 bytes"
+    assert pinned == 160, "TextRunDynamic ABI must remain 160 bytes"
 
     for shader in TEXT_TILE_SHADERS:
         shader_body = _struct_body(_read(shader), "GpuTextRunDynamic")

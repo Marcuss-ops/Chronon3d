@@ -1,0 +1,29 @@
+#version 450
+
+// ── Bloom composite ────────────────────────────────────────────────────────
+// Adds the full-resolution rgba16f bloom pyramid to the rgba32f source layer
+// in linear light.  The result is intentionally not clamped: values above 1.0
+// stay scene-referred so the output transform (exposure + ACES / Reinhard)
+// performs the only compression, instead of a saturating LDR `screen` blend.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba16f) uniform readonly image2D source_image;
+
+layout(push_constant) uniform BloomCompositeParams {
+    float intensity;
+    float padding[3];
+} params;
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    vec4 bloom = imageLoad(source_image, pixel);
+    vec4 base = imageLoad(destination_image, pixel);
+    vec3 result = base.rgb + bloom.rgb * params.intensity;
+    float alpha = max(base.a, clamp(bloom.a * params.intensity, 0.0, 1.0));
+    imageStore(destination_image, pixel,
+               vec4(max(result, vec3(0.0)), alpha));
+}

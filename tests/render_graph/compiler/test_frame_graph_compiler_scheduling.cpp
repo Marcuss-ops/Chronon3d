@@ -234,6 +234,39 @@ TEST_CASE("FrameGraphCompiler - persistent and non-releasable resources are excl
     CHECK(table.excluded_async_count == 0);
 }
 
+TEST_CASE("FrameGraphCompiler - composite cache policy does not make its output persistent") {
+    RenderGraph graph;
+    const auto source = graph.add_node(std::make_unique<CompilerTestNode>(
+        "source", no_cache("source")));
+    const auto composite = graph.add_node(std::make_unique<CompositeNode>(
+        1, BlendMode::Normal, Frame{-1}, 0.0f,
+        CompositeOperator::SourceOver));
+    const auto output = graph.add_node(std::make_unique<CompilerTestNode>(
+        "output", no_cache("output")));
+    graph.connect(source, composite);
+    graph.connect(composite, output);
+    graph.set_output(output);
+
+    RenderGraphContext ctx;
+    FrameGraphCompiler compiler;
+    FrameGraphCompileOptions options;
+    options.run_optimizer = false;
+    options.compute_lifetimes = true;
+
+    const auto compiled = compiler.compile(std::move(graph), ctx, options);
+    REQUIRE(compiled.valid);
+    const auto& table = compiled.resource_table();
+    REQUIRE(table.resource_for(composite) != nullptr);
+
+    // CompositeNode's default policy is reusable, but evaluate_cache() bypasses
+    // it and its bottom changes every frame. Keeping it persistent here would
+    // skip physical-slot assignment and allocate a full-canvas surface for
+    // every composite on every frame.
+    CHECK(compiled.nodes[composite].cache_policy.reusable_across_frames());
+    CHECK_FALSE(table.resource_for(composite)->persistent);
+    CHECK(table.resource_for(composite)->aliasable());
+}
+
 TEST_CASE("FrameGraphCompiler - structure hash includes edges and output") {
     FrameGraphCompiler compiler;
     RenderGraphContext ctx;

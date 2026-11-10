@@ -98,6 +98,11 @@ struct ShapedFontSpan {
     FontIdentity   font;        // identity of the font for glyphs [glyph_begin, glyph_end)
     std::uint32_t  glyph_begin{0};  // inclusive index into TextRunLayout::placed.glyphs
     std::uint32_t  glyph_end{0};    // EXCLUSIVE index
+    // Resolved bidi direction of the ResolvedTextRun that produced this span.
+    // The caret resolver reads it to select the logical leading/trailing edge;
+    // it must never be inferred from visual glyph order (RTL advances stay
+    // positive after normalization).
+    TextDirection  direction{TextDirection::LTR};
     f32 font_size{0.0f};            // resolved run size; 0 falls back to layout size
     std::optional<Color> fill_color_override;
     std::optional<TextStrokeStyle> stroke;

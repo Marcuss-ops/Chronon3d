@@ -396,8 +396,13 @@ std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
     MtsdfGlyphBitmap result;
     result.width = width;
     result.height = height;
-    result.x_offset = static_cast<std::int32_t>(std::floor(origin_x));
-    result.y_offset = static_cast<std::int32_t>(std::floor(origin_y));
+    // Keep the fractional origin: discarding it here quantises the glyph
+    // plane to em pixels, which becomes a visible sub-pixel/2 px shift once
+    // the canonical em_px atlas is scaled to the runtime font size. The
+    // distance field was generated around this exact origin, so the plane
+    // must describe the same origin.
+    result.x_offset = static_cast<float>(origin_x);
+    result.y_offset = static_cast<float>(origin_y);
     result.advance_x = static_cast<float>(advance_x);
     result.rgba8.resize(static_cast<std::size_t>(width) * height);
 

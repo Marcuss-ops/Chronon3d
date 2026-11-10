@@ -6,15 +6,18 @@
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include "vulkan_backend_impl.hpp"
+#include "vulkan_particle_emitter.hpp"
 #endif
 #include "vulkan_backend_surface_api_detail.hpp"
 
 #include <array>
 #include <cmath>
 #include <memory>
+#include <chronon3d/scene/model/shape/particles.hpp>
 #include <optional>
 #include <span>
 #include <stdexcept>
+#include <vector>
 
 namespace chronon3d::backends::vulkan {
 
@@ -291,6 +294,32 @@ graph::RenderOpResult VulkanBackend::bloom_surfaces(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::bloom_pyramid_surfaces(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle scratch_full,
+    std::span<const runtime::RenderSurfaceHandle> mips,
+    float threshold, float radius, float intensity) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    std::vector<runtime::RenderSurfaceHandle> touched;
+    touched.reserve(3 + mips.size());
+    touched.push_back(destination);
+    touched.push_back(source);
+    touched.push_back(scratch_full);
+    touched.insert(touched.end(), mips.begin(), mips.end());
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->bloom_pyramid(destination, source, scratch_full, mips,
+                              threshold, radius, intensity);
+    });
+#else
+    (void)destination; (void)source; (void)scratch_full; (void)mips;
+    (void)threshold; (void)radius; (void)intensity;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::bloom_pyramid_surfaces: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::color_adjust_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
@@ -456,18 +485,19 @@ graph::RenderOpResult VulkanBackend::draw_text_batch(
     runtime::RenderSurfaceHandle destination,
     std::span<const runtime::GlyphStatic> glyphs,
     std::span<const runtime::TextRunDynamic> runs,
-    std::span<const runtime::RenderSurfaceHandle> atlas_pages) {
+    std::span<const runtime::RenderSurfaceHandle> atlas_pages,
+    std::span<const runtime::GlyphPaint> paints) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     // The atlas pages are resolved through resolve_image() by the op, so they
     // are part of the leased set (read_surfaces = the op's read-only set).
     const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
     const auto res = run_batched_surface_op(touched, atlas_pages, [&] {
-        m_impl->draw_text_batch(destination, glyphs, runs, atlas_pages);
+        m_impl->draw_text_batch(destination, glyphs, runs, atlas_pages, paints);
     });
     if (!res.ok()) return res;
     return graph::RenderOpResult(graph::RenderOpOutcome{glyphs.size()});
 #else
-    (void)destination; (void)glyphs; (void)runs; (void)atlas_pages;
+    (void)destination; (void)glyphs; (void)runs; (void)atlas_pages; (void)paints;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::draw_text_batch: Vulkan support is disabled"));
@@ -506,6 +536,55 @@ graph::RenderOpResult VulkanBackend::execute_layer_batch(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::execute_gpu_particle_batch(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle transparent_source,
+    const ParticleEmitterParams& emitter, double seconds) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (!std::isfinite(seconds) || seconds < 0.0) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::InvalidInput,
+            "VulkanBackend::execute_gpu_particle_batch: invalid time"));
+    }
+    if (emitter.count == 0) {
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    }
+    if (emitter.count > kGpuParticleMaxCount ||
+        emitter.shape == EmitterShape::Path ||
+        !emitter.sprite_asset.empty()) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "VulkanBackend::execute_gpu_particle_batch: bounded procedural "
+            "emitters only (count <= 4096, no path or sprite assets)"));
+    }
+    if (const auto error = validate_particle_emitter(emitter); !error.empty()) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::InvalidInput, error));
+    }
+    if (emitter.blend_mode != BlendMode::Normal &&
+        emitter.blend_mode != BlendMode::Add &&
+        emitter.blend_mode != BlendMode::Multiply &&
+        emitter.blend_mode != BlendMode::Screen &&
+        emitter.blend_mode != BlendMode::Overlay) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "VulkanBackend::execute_gpu_particle_batch: blend mode is unsupported"));
+    }
+
+    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    const std::array<runtime::RenderSurfaceHandle, 1> read{transparent_source};
+    return run_batched_surface_op(touched, read, [&] {
+        m_impl->execute_gpu_particle_batch(
+            destination, transparent_source, emitter, seconds);
+    });
+#else
+    (void)destination; (void)transparent_source; (void)emitter; (void)seconds;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::execute_gpu_particle_batch: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::draw_inline_mesh_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle texture,
@@ -515,21 +594,25 @@ graph::RenderOpResult VulkanBackend::draw_inline_mesh_surface(
     const Color& tint,
     std::optional<float> alpha_cutoff,
     runtime::RenderSurfaceHandle depth_destination,
-    float depth_marker) {
+    float depth_marker,
+    const graph::InlineMeshShadingParams& shading) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::array<runtime::RenderSurfaceHandle, 2> touched{destination, depth_destination};
-    const std::array<runtime::RenderSurfaceHandle, 1> reads{texture};
+    const std::array<runtime::RenderSurfaceHandle, 2> read_storage{
+        texture, shading.metallic_roughness_texture};
+    const std::span<const runtime::RenderSurfaceHandle> reads(
+        read_storage.data(), shading.per_pixel_pbr ? read_storage.size() : 1U);
     return run_batched_surface_op(
         std::span<const runtime::RenderSurfaceHandle>{touched.data(), touched.size()},
         reads, [&] {
         m_impl->draw_inline_mesh(destination, texture, projected_lit_vertices,
                                  indices, x0, y0, x1, y1, tint, alpha_cutoff,
-                                 depth_destination, depth_marker);
+                                 depth_destination, depth_marker, shading);
     });
 #else
     (void)destination; (void)texture; (void)projected_lit_vertices; (void)indices;
     (void)x0; (void)y0; (void)x1; (void)y1; (void)tint; (void)alpha_cutoff;
-    (void)depth_destination; (void)depth_marker;
+    (void)depth_destination; (void)depth_marker; (void)shading;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::draw_inline_mesh_surface: Vulkan support is disabled"));

@@ -1232,6 +1232,151 @@ TEST_CASE("P1-10: caret resolves from the placed glyph run and blinks") {
     CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(30.0f));
 }
 
+TEST_CASE("P1-10: RTL caret uses logical cluster edges, not visual order") {
+    TextRunShape shape;
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->source_text = "AB";
+    layout->font_size = 16.0f;
+    auto& placed = layout->placed;
+    placed.ascent = 12.0f;
+    placed.descent = 4.0f;
+    placed.baseline = 12.0f;
+    placed.font_size = 16.0f;
+
+    // RTL places glyph B (logical second) on the left and A on the right.
+    PlacedGlyph b;
+    b.glyph_id = 2;
+    b.advance_x = 10.0f;
+    b.x = 0.0f;
+    b.byte_offset = 1;
+    b.byte_len = 1;
+    PlacedGlyph a;
+    a.glyph_id = 1;
+    a.advance_x = 10.0f;
+    a.x = 10.0f;
+    a.byte_offset = 0;
+    a.byte_len = 1;
+    placed.glyphs = {b, a};
+    placed.clusters = {
+        PlacedGlyphRun::Cluster{1, 2, 0, 1, 10.0f, 10.0f},
+        PlacedGlyphRun::Cluster{0, 1, 1, 1, 10.0f, 10.0f}};
+
+    ShapedFontSpan span;
+    span.glyph_begin = 0;
+    span.glyph_end = 2;
+    span.direction = TextDirection::RTL;
+    layout->font_spans.push_back(span);
+    shape.layout = layout;
+    shape.caret.enabled = true;
+    shape.caret.width = 2.0f;
+
+    shape.caret.byte_index = 0;   // logical start of A = right edge
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(20.0f));
+    shape.caret.byte_index = 1;   // boundary A/B = left of A = right of B
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(10.0f));
+    shape.caret.byte_index = 2;   // logical end of B = left edge
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(0.0f));
+}
+
+TEST_CASE("P1-10: mixed bidi caret takes the direction of its own cluster") {
+    TextRunShape shape;
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->source_text = "AB";
+    layout->font_size = 16.0f;
+    layout->direction = TextDirection::Auto;
+    auto& placed = layout->placed;
+    placed.ascent = 12.0f;
+    placed.descent = 4.0f;
+    placed.font_size = 16.0f;
+
+    // LTR A at 0..10 followed by RTL B at 10..20.
+    PlacedGlyph a;
+    a.advance_x = 10.0f;
+    a.byte_offset = 0;
+    a.byte_len = 1;
+    PlacedGlyph b;
+    b.advance_x = 10.0f;
+    b.x = 10.0f;
+    b.byte_offset = 1;
+    b.byte_len = 1;
+    placed.glyphs = {a, b};
+    placed.clusters = {
+        PlacedGlyphRun::Cluster{0, 1, 0, 1, 10.0f, 10.0f},
+        PlacedGlyphRun::Cluster{1, 2, 1, 1, 10.0f, 10.0f}};
+
+    ShapedFontSpan ltr;
+    ltr.glyph_begin = 0;
+    ltr.glyph_end = 1;
+    ltr.direction = TextDirection::LTR;
+    ShapedFontSpan rtl;
+    rtl.glyph_begin = 1;
+    rtl.glyph_end = 2;
+    rtl.direction = TextDirection::RTL;
+    layout->font_spans = {ltr, rtl};
+    shape.layout = layout;
+    shape.caret.enabled = true;
+    shape.caret.width = 2.0f;
+
+    shape.caret.byte_index = 0;
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(0.0f));
+    shape.caret.byte_index = 1;   // RTL cluster start = its right edge
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(20.0f));
+    shape.caret.byte_index = 2;   // RTL cluster end = its left edge
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(10.0f));
+}
+
+TEST_CASE("P1-10: caret snaps inside ligature/combining clusters") {
+    TextRunShape shape;
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->source_text = "e\xCC\x81";  // e + U+0301 combining acute
+    layout->font_size = 16.0f;
+    auto& placed = layout->placed;
+    placed.ascent = 12.0f;
+    placed.descent = 4.0f;
+    placed.font_size = 16.0f;
+    PlacedGlyph glyph;
+    glyph.advance_x = 10.0f;
+    glyph.byte_offset = 0;
+    glyph.byte_len = 3;
+    placed.glyphs = {glyph};
+    placed.clusters = {PlacedGlyphRun::Cluster{0, 1, 0, 3, 10.0f, 10.0f}};
+    shape.layout = layout;
+    shape.caret.enabled = true;
+    shape.caret.width = 2.0f;
+
+    shape.caret.byte_index = 0;
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(0.0f));
+    shape.caret.byte_index = 1;   // inside the cluster: snap to trailing edge
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(10.0f));
+    shape.caret.byte_index = 2;
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(10.0f));
+}
+
+TEST_CASE("P1-10: caret byte index normalizes to a UTF-8 boundary") {
+    TextRunShape shape;
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->source_text = "\xC3\xA8";  // U+00E8, two UTF-8 bytes
+    layout->font_size = 16.0f;
+    auto& placed = layout->placed;
+    placed.ascent = 12.0f;
+    placed.descent = 4.0f;
+    placed.font_size = 16.0f;
+    PlacedGlyph glyph;
+    glyph.advance_x = 10.0f;
+    glyph.byte_offset = 0;
+    glyph.byte_len = 2;
+    placed.glyphs = {glyph};
+    placed.clusters = {PlacedGlyphRun::Cluster{0, 1, 0, 2, 10.0f, 10.0f}};
+    shape.layout = layout;
+    shape.caret.enabled = true;
+    shape.caret.width = 2.0f;
+
+    shape.caret.byte_index = 1;  // continuation byte: normalize back to 0
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(0.0f));
+    shape.caret.byte_index = 2;
+    CHECK(resolve_text_caret_rect(shape).x == doctest::Approx(10.0f));
+}
+
 TEST_CASE("P2-05: reflow spacing participates in layout cache identity") {
     TextLayoutCacheKey base;
     auto word = base;
@@ -1241,4 +1386,128 @@ TEST_CASE("P2-05: reflow spacing participates in layout cache identity") {
     CHECK(base.digest() != word.digest());
     CHECK(base.digest() != line.digest());
     CHECK(word.digest() != line.digest());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P1-03 — Character Alignment
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("P1-03: CharacterAlignment aligns selected cells to the line edge") {
+    const auto align_all = [](CharacterAlignmentMode mode) {
+        TextAnimatorSpec spec;
+        spec.id = "character_alignment";
+        spec.selectors.push_back({});
+        spec.selectors.back().shape = TextSelectorShape::Square;
+        spec.selectors.back().amount.set(100.0f);
+        spec.properties.push_back(CharacterAlignmentProperty{mode});
+        return evaluate_animator_stack(
+            {spec}, make_test_placed_run_prop(3), "abc",
+            SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+    };
+
+    // Line box is [0, 30); advance is 10 per glyph.
+    const auto left = align_all(CharacterAlignmentMode::Left);
+    REQUIRE(left.size() == 3);
+    CHECK(left[0].position.x == doctest::Approx(0.0f));
+    CHECK(left[1].position.x == doctest::Approx(-10.0f));
+    CHECK(left[2].position.x == doctest::Approx(-20.0f));
+
+    const auto center = align_all(CharacterAlignmentMode::Center);
+    CHECK(center[0].position.x == doctest::Approx(10.0f));
+    CHECK(center[1].position.x == doctest::Approx(0.0f));
+    CHECK(center[2].position.x == doctest::Approx(-10.0f));
+
+    const auto right = align_all(CharacterAlignmentMode::Right);
+    CHECK(right[0].position.x == doctest::Approx(20.0f));
+    CHECK(right[1].position.x == doctest::Approx(10.0f));
+    CHECK(right[2].position.x == doctest::Approx(0.0f));
+}
+
+TEST_CASE("P1-03: CharacterAlignment honors partial selector weight") {
+    TextAnimatorSpec spec;
+    spec.id = "character_alignment_half";
+    spec.selectors.push_back({});
+    spec.selectors.back().shape = TextSelectorShape::Square;
+    spec.selectors.back().amount.set(50.0f);
+    spec.properties.push_back(CharacterAlignmentProperty{CharacterAlignmentMode::Right});
+
+    const auto states = evaluate_animator_stack(
+        {spec}, make_test_placed_run_prop(2), "ab",
+        SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+
+    REQUIRE(states.size() == 2);
+    // Full right shift is +10 for glyph 0 and 0 for glyph 1; half weight.
+    CHECK(states[0].position.x == doctest::Approx(5.0f));
+    CHECK(states[1].position.x == doctest::Approx(0.0f));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P1-05 — Anchor Point Grouping
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("P1-05: AnchorPointGrouping uses the word box as pivot") {
+    TextAnimatorSpec spec;
+    spec.id = "word_grouping";
+    spec.selectors.push_back({});
+    spec.selectors.back().shape = TextSelectorShape::Square;
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(
+        AnchorPointGroupingProperty{AnchorPointGrouping::Word});
+
+    const auto placed = make_test_placed_run_at_byte_offsets({0, 1, 3, 4});
+    const auto states = evaluate_animator_stack(
+        {spec}, placed, "aa bb",
+        SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+
+    REQUIRE(states.size() == 4);
+    // Word 0 spans x [0, 20) -> pivot x 10; word 1 spans [20, 40) -> 30.
+    // Every line box is [-12, +4) around the baseline -> pivot y -4.
+    CHECK(states[0].anchor.x == doctest::Approx(10.0f));
+    CHECK(states[1].anchor.x == doctest::Approx(0.0f));
+    CHECK(states[2].anchor.x == doctest::Approx(10.0f));
+    CHECK(states[3].anchor.x == doctest::Approx(0.0f));
+    for (const auto& state : states)
+        CHECK(state.anchor.y == doctest::Approx(-4.0f));
+}
+
+TEST_CASE("P1-05: AnchorPointGrouping character mode pivots on each glyph") {
+    TextAnimatorSpec spec;
+    spec.id = "character_grouping";
+    spec.selectors.push_back({});
+    spec.selectors.back().shape = TextSelectorShape::Square;
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(
+        AnchorPointGroupingProperty{AnchorPointGrouping::Character});
+
+    const auto states = evaluate_animator_stack(
+        {spec}, make_test_placed_run_prop(3), "abc",
+        SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+
+    REQUIRE(states.size() == 3);
+    for (const auto& state : states) {
+        CHECK(state.anchor.x == doctest::Approx(5.0f));
+        CHECK(state.anchor.y == doctest::Approx(-4.0f));
+    }
+}
+
+TEST_CASE("P1-05: AnchorPointGrouping scale rotates around the group pivot") {
+    TextAnimatorSpec spec;
+    spec.id = "word_grouping_scale";
+    spec.selectors.push_back({});
+    spec.selectors.back().shape = TextSelectorShape::Square;
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(
+        AnchorPointGroupingProperty{AnchorPointGrouping::Word});
+    spec.properties.push_back(ScaleProperty{Vec3{0.5f, 0.5f, 1.0f}});
+
+    const auto placed = make_test_placed_run_at_byte_offsets({0, 1, 3, 4});
+    const auto states = evaluate_animator_stack(
+        {spec}, placed, "aa bb",
+        SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+
+    REQUIRE(states.size() == 4);
+    // Additive scale composes to 0.5, and the pivot stays on the word centre.
+    CHECK(states[0].scale.x == doctest::Approx(0.5f));
+    CHECK(states[0].anchor.x == doctest::Approx(10.0f));
+    CHECK(states[1].anchor.x == doctest::Approx(0.0f));
 }

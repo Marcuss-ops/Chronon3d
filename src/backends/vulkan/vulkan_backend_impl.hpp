@@ -85,8 +85,30 @@ static_assert(sizeof(VulkanGpuGlyphStatic) == 48,
 struct VulkanGpuGlyphDynamic {
     float tracking_prefix{0.0f};
     float selector_weight{1.0f};
+    std::uint32_t background_color{0};
+    float background_padding_px{0.0f};
+    float background_radius_px{0.0f};
+    float skew_tan{0.0f};
+    float skew_axis_cos{1.0f};
+    float skew_axis_sin{0.0f};
+    std::uint32_t style_flags{0};
+    std::uint32_t reserved{0};
+    std::uint32_t gradient_start_color{0};
+    std::uint32_t gradient_end_color{0};
+    float gradient_angle_degrees{0.0f};
+    std::uint32_t reserved2{0};
+    std::uint32_t shadow_color{0};
+    float shadow_dx{0.0f};
+    float shadow_dy{0.0f};
+    float shadow_blur{0.0f};
+    float shadow_opacity{1.0f};
+    std::uint32_t glow_color{0};
+    float glow_radius{0.0f};
+    float glow_intensity{1.0f};
+    std::uint32_t reserved3{0};
+    std::uint32_t reserved4{0};
 };
-static_assert(sizeof(VulkanGpuGlyphDynamic) == 8,
+static_assert(sizeof(VulkanGpuGlyphDynamic) == 96,
               "VulkanGpuGlyphDynamic must match the tiled text std430 ABI");
 
 struct VulkanBackend::Impl {
@@ -107,6 +129,8 @@ struct VulkanBackend::Impl {
     VulkanDescriptorArena descriptor_arena{};
 
     VkDescriptorSetLayout& descriptor_layout{descriptor_arena.descriptor_layout};
+    VkDescriptorSetLayout& particle_emitter_descriptor_layout{
+        descriptor_arena.particle_emitter_descriptor_layout};
     VkDescriptorSetLayout& text_tile_bin_descriptor_layout{
         descriptor_arena.text_tile_bin_descriptor_layout};
     VkDescriptorSetLayout& text_tile_raster_descriptor_layout{
@@ -393,7 +417,9 @@ struct VulkanBackend::Impl {
     void write_text_run_descriptors(VkDescriptorSet set, const Image& destination,
                                     const Image& atlas, VkBuffer instance_buffer);
     void write_layer_batch_descriptors(VkDescriptorSet set, const Image& destination,
-                                       const Image& source, VkBuffer instance_buffer);
+                                       const Image& source, VkBuffer instance_buffer,
+                                       VkDeviceSize buffer_offset = 0,
+                                       VkDeviceSize buffer_range = VK_WHOLE_SIZE);
     VkDescriptorSet ensure_glow_descriptor_set(std::size_t index);
     [[nodiscard]] VkCommandBuffer active_command_buffer() const noexcept;
     VkDescriptorSet allocate_pass_descriptor_set();
@@ -401,7 +427,7 @@ struct VulkanBackend::Impl {
     VkDescriptorSet allocate_text_tile_raster_descriptor_set();
     void write_text_tile_bin_descriptors(
         VkDescriptorSet set, VkBuffer glyph_buffer, VkBuffer run_buffer,
-        VkBuffer tile_counts, VkBuffer tile_indices);
+        VkBuffer glyph_dynamic_buffer, VkBuffer tile_counts, VkBuffer tile_indices);
     void write_text_tile_raster_descriptors(
         VkDescriptorSet set, const Image& destination, const Image& atlas,
         VkBuffer glyph_buffer, VkBuffer glyph_dynamic_buffer, VkBuffer run_buffer,
@@ -576,6 +602,17 @@ struct VulkanBackend::Impl {
     void record_bloom_threshold(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& destination, const Image& source,
                                 float threshold);
+    void record_bloom_prefilter(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                const Image& destination, const Image& source,
+                                float threshold, float soft_knee);
+    void record_bloom_downsample(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                 const Image& destination, const Image& source);
+    void record_bloom_upsample(VkCommandBuffer command, VkDescriptorSet descriptors,
+                               const Image& destination, const Image& source,
+                               float filter_radius, float intensity, bool additive);
+    void record_bloom_composite(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                const Image& destination, const Image& source,
+                                float intensity);
     void record_glow_prepare(VkCommandBuffer command, VkDescriptorSet descriptors,
                              const Image& destination, const Image& source,
                              float intensity, const Color& tint);
@@ -738,6 +775,11 @@ struct VulkanBackend::Impl {
                runtime::RenderSurfaceHandle scratch_horizontal,
                runtime::RenderSurfaceHandle scratch_vertical,
                float threshold, float radius, float intensity);
+    void bloom_pyramid(runtime::RenderSurfaceHandle destination,
+                       runtime::RenderSurfaceHandle source,
+                       runtime::RenderSurfaceHandle scratch_full,
+                       std::span<const runtime::RenderSurfaceHandle> mips,
+                       float threshold, float radius, float intensity);
     void color_adjust(runtime::RenderSurfaceHandle destination,
                       runtime::RenderSurfaceHandle source,
                       float brightness, float contrast,
@@ -772,12 +814,17 @@ struct VulkanBackend::Impl {
     void draw_text_batch(runtime::RenderSurfaceHandle destination,
                          std::span<const runtime::GlyphStatic> glyphs,
                          std::span<const runtime::TextRunDynamic> runs,
-                         std::span<const runtime::RenderSurfaceHandle> atlas_pages);
+                         std::span<const runtime::RenderSurfaceHandle> atlas_pages,
+                         std::span<const runtime::GlyphPaint> paints);
     void execute_layer_batch(runtime::RenderSurfaceHandle destination,
                              std::span<const runtime::LayerInstance> instances,
                              std::span<const runtime::RenderSurfaceHandle> resources,
                              std::span<const float> transforms,
                              std::span<const float> paints);
+    void execute_gpu_particle_batch(
+        runtime::RenderSurfaceHandle destination,
+        runtime::RenderSurfaceHandle transparent_source,
+        const ParticleEmitterParams& emitter, double seconds);
     void draw_inline_mesh(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle texture,
                               std::span<const float> projected_lit_vertices,
@@ -788,7 +835,8 @@ struct VulkanBackend::Impl {
                           std::optional<float> alpha_cutoff,
                           runtime::RenderSurfaceHandle depth_destination =
                               runtime::kInvalidRenderSurfaceHandle,
-                          float depth_marker = 1.0f);
+                          float depth_marker = 1.0f,
+                          const graph::InlineMeshShadingParams& shading = {});
     void shadow_caster(runtime::RenderSurfaceHandle depth_map,
                        std::span<const float> light_space_vertices,
                        std::span<const std::uint32_t> indices,

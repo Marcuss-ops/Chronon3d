@@ -47,8 +47,10 @@ The current compatibility surface includes:
 - SDK `RenderFileRequest`, which accepts `Composition*` and
   `CompiledComposition*` alongside `CompiledProgram*`.
 - DirectYUV legacy overloads used by non-RenderPlan jobs.
-- `CompiledArtifactCache`, whose serialized artifact and identity are based on
-  `CompiledComposition`.
+- The former `CompiledArtifactCache` `CompiledComposition` FlatBuffer
+  serializer, retired in the 2026-11-10 cache migration below after the source
+  audit found no consumer. The active CUDA NV12 artifact path uses the typed
+  `ProgramArtifactKey` binary-artifact methods.
 
 These are not dead declarations. They need migration, isolation as an optional
 legacy module, or explicit retirement before deletion.
@@ -142,3 +144,112 @@ after the cache identity changes and passes **217/217**. The pinned production
 caller counts remain 15 / 6 / 9. No executor consumers or arbitrary callback
 contract was migrated in this tranche, and pixel-equivalence gates remain
 unrun; the ticket stays ACTIVE.
+
+## Checkout audit — 2026-11-09
+
+The current CLI boundary still has two execution inputs. `RenderRequest` can
+carry either `CompiledProgram` or `CompiledComposition`; otherwise
+`resolve_render_request()` calls the registry's `construct() -> Composition`
+and then `compile_composition()`. The registry has no typed-program factory,
+and the public callback cannot be lowered generically without losing behavior.
+The CLI loop and SDK still dispatch the compatibility view for those callers.
+
+A source search under `include/`, `src/` and `apps/` found 17 references to
+`compile_composition(`, 3 to `render_compatibility(`, 4 to
+`render_compatibility_frames(` and 11 to `render_compiled_composition_frame`.
+These are raw search counts, not a substitute for the architecture gate's
+production caller census. No compatibility consumer was migrated in this
+audit. Pixel equivalence, cache-version rejection, cancellation and
+determinism gates remain **NOT RUN**; status remains **ACTIVE**.
+
+The requested default build completed on this checkout with
+`cmake --preset linux-video-release` followed by
+`cmake --build build/chronon/linux-video-release -j14` (**588/588**, exit 0).
+That is build evidence only and does not satisfy the migration exit conditions.
+
+## Typed cache migration — 2026-11-10
+
+`CompiledArtifactCache` now exposes only the typed program-artifact lane used by
+the CUDA NV12 compositor (`load_program_artifact` /
+`save_program_artifact`), keyed by target, compiler, flags, semantic fingerprint
+and ABI identity. The old `CompiledComposition` save/load API, `LoadedArtifact`,
+FlatBuffers schema/generator, `.cart` reader and name-based contains/remove
+methods were deleted after a full source search found no consumers. The
+`clear()` operation also removes stale `.cart` files without deserializing or
+executing them. The focused cache test covers typed identity and payload
+round-trip. The updated `chronon3d_cache_tests` target was compiled from the
+current sources and passes **206/206 cases, 103,977/103,977 assertions**; its
+new regression confirms `clear()` reclaims both `.pbin` and stale `.cart`
+files. The full `-j14` release build passed after the removal, and the updated
+architecture gate passes **218/218**, including the new
+`compiled_artifact_cache_is_typed_only` anti-resurrection rule. This deliberately
+retires the old public C++ cache methods; in-repository clients now use the
+typed key API. It removes the last active internal cache adapter that could
+hydrate the compatibility executor; it does not migrate the separate SDK,
+registry, RenderEngine, renderer, DirectYUV or daemon consumers.
+
+## Typed-particle migration audit — 2026-11-09 (superseded)
+
+The current working tree contains a RenderPlan video-preparation fallback for
+particle plans. It calls `render_plan::compile_render_plan()` and sends the
+result through `CompiledComposition`; this preserves particle output but
+violates the one-canonical-`CompiledProgram` video invariant. The repository
+architecture gate now reports **216/217**, with its sole failure at
+`render_plan_video_uses_one_canonical_compilation` in
+`apps/chronon3d_cli/commands/render/render_plan_preparation.cpp`.
+
+The underlying compiler gap is concrete: `compiler::NodeKind` and
+`StaticLayerProgram` have no particle kind/payload, `stages::lower_scene()` does
+not lower `LayerType::Particles`, `TypedProgramSampler` does not sample emitter
+instances at frame time, and `scene_materializer.cpp` has no typed particle
+materialization. The legacy RenderPlan materializer samples the emitter at
+`FrameContext::effective_frame()`, creates CPU circle/image nodes and attaches
+GPU particle instances. A safe migration therefore needs an immutable emitter
+payload in the compiled program, deterministic frame-local particle samples,
+and graph refresh/execution that preserves CPU batching, sprite assets, blend
+mode, bokeh/environment depth, camera transforms and cache invalidation.
+
+At the time of this audit, this fallback was an explicit blocker. The update
+below records the follow-up implementation and replaces the stale gap list.
+
+## Typed-particle migration update — 2026-11-09
+
+`NodeKind::Particles`, an immutable emitter payload and deterministic
+frame-local particle samples are now carried by `CompiledProgram`. The typed
+scene materializer creates CPU particle nodes and GPU instance batches; graph
+refresh updates animated samples. The CLI particle-specific
+`compile_render_plan() -> CompiledComposition` fallback and its context field
+have been removed, so RenderPlan video preparation supplies the typed program.
+
+Evidence on the C2 1,000-particle plan:
+
+- Release build: `cmake --build build/chronon/linux-video-release -j14` —
+  exit 0, no work pending.
+- Architecture gate: `python3.11 tools/check_architecture.py` — **217/217**.
+  Its first pass exposed the new refresh helper's use of the old `FillType`
+  alias; the helper now uses `graphics::GradientType` and the rerun is clean.
+- Software decoded raw: old legacy baseline and typed output are byte-identical
+  (both SHA-256
+  `87e9ac05c05a3152c0634f810e51cee5f8822d4b8c724c680fc99dedfcf01607`).
+- Durable raw artifacts, exact plan hash and strict-native telemetry are
+  recorded in [`typed-particle-parity-20261109`](../evidence/typed-particle-parity-20261109/REPORT.md).
+- Vulkan `require_gpu_native` completed and wrote a 1-frame RGBA raw artifact
+  (SHA-256 `ab409c9ecef064c1e2fc1377c9f030ef40f4ac9dc0b59674496a1b7ddcb7ed93`).
+  This is route/execution evidence, not a CPU/Vulkan pixel-parity claim.
+
+The particle-specific fallback gap is closed. The parent Composition executor
+demolition remains **ACTIVE**: SDK/registry/cache consumers, arbitrary callback
+contract, multi-frame and mixed particle parity, cancellation/reverse-order
+determinism, and DirectYUV/GOP equivalence are still open. Do not close this
+ticket on the strength of the particle tranche alone.
+
+## Current checkout verification — 2026-11-10
+
+`cmake --build build/chronon/linux-video-release -j14` completed successfully
+with `ninja: no work to do`. `python3.11 tools/check_architecture.py` passes
+**217/217**; in particular, the pinned production caller counts remain
+`compile_composition` 15, compatibility render 6 and legacy frame executor 9.
+This confirms that the typed-particle route remains canonical and that the
+anti-resurrection caps hold. It does not reduce the legacy executor inventory
+or satisfy any still/sequence/video equivalence gate. The executor migration
+ticket remains **ACTIVE**.

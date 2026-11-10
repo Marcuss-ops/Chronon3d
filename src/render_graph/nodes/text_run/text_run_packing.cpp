@@ -50,12 +50,21 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         shape.paint.stroke_join != LineJoin::Miter ||
         !shape.paint.stroke_dash_array.empty() ||
         shape.paint.stroke_dash_offset != 0.0f ||
-        shape.shadows.size() > 1 ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
         return nullptr;
     }
     if (shape.paint.stroke_enabled &&
         (shape.paint.stroke_width < 0.0f || shape.paint.stroke_width > 16.0f)) {
+        return nullptr;
+    }
+    // Non-native quality modes are explicit failures, never silent aliases.
+    if (shape.paint.stroke_enabled &&
+        shape.paint.stroke_mode == TextStrokeMode::Vector) {
+        return nullptr;
+    }
+    if (shape.paint.shadow_quality == TextShadowQuality::Canonical &&
+        std::any_of(shape.shadows.begin(), shape.shadows.end(),
+                    [](const TextShadow& shadow) { return shadow.enabled; })) {
         return nullptr;
     }
     for (const auto& shadow : shape.shadows) {
@@ -67,11 +76,12 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         }
     }
 
-    constexpr auto profile_spec = text::kCanonicalMtsdfProfile;
-    constexpr std::uint16_t kEmPx = profile_spec.em_px;
-    constexpr std::uint16_t kRangePx = profile_spec.distance_range_px;
-    constexpr std::uint16_t kPaddingPx = profile_spec.padding_px;
-    constexpr std::uint16_t kProfileId = profile_spec.generation_id;
+    const auto profile_spec = shape.paint.quality == TextQuality::High
+        ? text::kHighQualityMtsdfProfile : text::kCanonicalMtsdfProfile;
+    const std::uint16_t kEmPx = profile_spec.em_px;
+    const std::uint16_t kRangePx = profile_spec.distance_range_px;
+    const std::uint16_t kPaddingPx = profile_spec.padding_px;
+    const std::uint16_t kProfileId = profile_spec.generation_id;
     const runtime::DistanceFieldProfile profile{
         runtime::GlyphRepresentation::Mtsdf, kEmPx, kRangePx, kPaddingPx};
     const auto& layout = *shape.layout;
@@ -240,6 +250,12 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
             } else if (selector_unit == TextSelectorUnit::Line &&
                        layout_index < layout.units.glyph_to_line.size()) {
                 unit_index = layout.units.glyph_to_line[layout_index];
+            } else if ((selector_unit == TextSelectorUnit::Grapheme ||
+                        selector_unit == TextSelectorUnit::Character) &&
+                       layout_index < layout.units.glyph_to_grapheme.size()) {
+                // Grapheme/Character selectors use the source-ordered map, not
+                // the glyph-array position: HarfBuzz RTL glyphs are visual.
+                unit_index = layout.units.glyph_to_grapheme[layout_index];
             }
         }
         glyph.flags = static_cast<std::uint16_t>(

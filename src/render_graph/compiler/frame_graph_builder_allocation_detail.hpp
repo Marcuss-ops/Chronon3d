@@ -85,8 +85,18 @@ void GraphCompilePipeline::build_compiled_resource_table(
 
         ++table.logical_resource_count;
         table.logical_bytes += resource->desc.allocation_bytes();
+        // CompositeNode declares a reusable cache policy for API symmetry, but
+        // evaluate_cache() always bypasses it: a composite is frame-dependent
+        // because its bottom input changes every frame. Treating that policy as
+        // persistent kept every composite out of the physical-slot planner, so a
+        // 30-layer chain allocated a fresh full-canvas native surface per
+        // composite per frame (and exhausted VMA). Only a genuinely cacheable
+        // node, or the graph output, may be persistent.
+        const bool frame_dependent_composite =
+            compiled.nodes[node_id].kind == RenderGraphNodeKind::Composite;
         resource->persistent =
-            compiled.nodes[node_id].cache_policy.reusable_across_frames() ||
+            (!frame_dependent_composite &&
+             compiled.nodes[node_id].cache_policy.reusable_across_frames()) ||
             node_id == compiled.output;
         resource->async_use = !resource->can_release_after_last_consumer;
 

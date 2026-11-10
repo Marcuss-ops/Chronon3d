@@ -1,5 +1,6 @@
 #include "multi_source.hpp"
 #include "layer_item.hpp"
+#include "particle_sample.hpp"
 
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
@@ -52,8 +53,14 @@ void refresh_multi_source_node(
     u64 aggregated_params_hash = 0;
     std::vector<RenderNode> materialized_nodes;
     materialized_nodes.reserve(layer.nodes.size());
-    for (const auto& authored_node : layer.nodes) {
+    for (std::size_t node_index = 0; node_index < layer.nodes.size(); ++node_index) {
+        const auto& authored_node = layer.nodes[node_index];
         materialized_nodes.push_back(materialize_mesh_node(authored_node, ctx));
+        if (sampled_layer && sampled_layer->kind == compiler::NodeKind::Particles &&
+            node_index < sampled_layer->elements.size()) {
+            apply_particle_sample(
+                materialized_nodes.back(), sampled_layer->elements[node_index]);
+        }
     }
     for (const auto& src_node : materialized_nodes) {
         const auto source_placement = evaluate_source_placement(item, src_node, ctx);

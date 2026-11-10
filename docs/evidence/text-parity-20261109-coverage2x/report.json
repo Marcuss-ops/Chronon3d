@@ -1,0 +1,157 @@
+{
+  "corpus": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/manifest.json",
+  "cli": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli",
+  "cli_sha256": "2001a38c3d28db925154046a5ae6598881b85a46522bb0f14dfc1be0fda9bc8c",
+  "vulkan_identity": "==========\nVULKANINFO\n==========\nVulkan Instance Version: 1.3.204\nInstance Extensions: count = 20\n-------------------------------\nVK_EXT_acquire_drm_display             : extension revision 1\nVK_EXT_acquire_xlib_display            : extension revision 1\nVK_EXT_debug_report                    : extension revision 10\nVK_EXT_debug_utils                     : extension revision 2\nVK_EXT_direct_mode_display             : extension revision 1\nVK_EXT_display_surface_counter         : extension revision 1\nVK_EXT_swapchain_colorspace            : extension revision 5\nVK_KHR_device_group_creation           : extension revision 1\nVK_KHR_display                         : extension revision 23\nVK_KHR_external_fence_capabilities     : extension revision 1\nVK_KHR_external_memory_capabilities    : extension revision 1\nVK_KHR_external_semaphore_capabilities : extension revision 1\nVK_KHR_get_display_properties2         : extension revision 1\nVK_KHR_get_physical_device_properties2 : extension revision 2\nVK_KHR_get_surface_capabilities2       : extension revision 1\nVK_KHR_surface                         : extension revision 25\nVK_KHR_surface_protected_capabilities  : extension revision 1\nVK_KHR_wayland_surface                 : extension revision 6",
+  "thresholds": {
+    "alpha_iou_min": 0.995,
+    "coverage_ratio_min": 0.99,
+    "coverage_ratio_max": 1.01,
+    "rgb_mae_max": 0.00784313725490196,
+    "rgb_p99_max": 0.03137254901960784,
+    "ssim_luma_min": 0.98,
+    "psnr_luma_min_db": 35.0,
+    "flat_max": 0.00784313725490196,
+    "bbox_slack_px": 1,
+    "edge_band_px": 2
+  },
+  "cases": {
+    "latin_basic": {
+      "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/latin_basic.plan.json",
+      "plan_sha256": "4ff5bf3a6334f95cfb4b4566c3110d4b3e9aaa4731b8dd6a4eb4d3de6c05637c",
+      "frames": {
+        "0": {
+          "bbox_software": [
+            334,
+            365,
+            946,
+            435
+          ],
+          "bbox_vulkan": [
+            333,
+            364,
+            946,
+            435
+          ],
+          "mask_pixels_software": 19565,
+          "mask_pixels_vulkan": 20348,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.946881 < 0.995",
+            "coverage_ratio 1.040020 outside threshold",
+            "rgb_mae 0.021519 > 0.00784313725490196",
+            "rgb_p99 0.427451 > 0.03137254901960784",
+            "psnr_luma 21.425 dB < 35.0"
+          ],
+          "alpha_iou": 0.946880639968782,
+          "coverage_ratio": 1.0400204446716075,
+          "roi": [
+            329,
+            360,
+            951,
+            440
+          ],
+          "rgb_mae": 0.021519135683774948,
+          "rgb_p95": 0.19627451226110662,
+          "rgb_p99": 0.4274509847164154,
+          "rgb_max": 0.7411764860153198,
+          "psnr_luma_db": 21.425226849831702,
+          "ssim_luma": 0.9837807279283605,
+          "flat_max_outside_edge": 0.0
+        },
+        "15": {
+          "bbox_software": [
+            334,
+            365,
+            946,
+            435
+          ],
+          "bbox_vulkan": [
+            333,
+            364,
+            946,
+            435
+          ],
+          "mask_pixels_software": 19565,
+          "mask_pixels_vulkan": 20348,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.946881 < 0.995",
+            "coverage_ratio 1.040020 outside threshold",
+            "rgb_mae 0.021519 > 0.00784313725490196",
+            "rgb_p99 0.427451 > 0.03137254901960784",
+            "psnr_luma 21.425 dB < 35.0"
+          ],
+          "alpha_iou": 0.946880639968782,
+          "coverage_ratio": 1.0400204446716075,
+          "roi": [
+            329,
+            360,
+            951,
+            440
+          ],
+          "rgb_mae": 0.021519135683774948,
+          "rgb_p95": 0.19627451226110662,
+          "rgb_p99": 0.4274509847164154,
+          "rgb_max": 0.7411764860153198,
+          "psnr_luma_db": 21.425226849831702,
+          "ssim_luma": 0.9837807279283605,
+          "flat_max_outside_edge": 0.0
+        },
+        "30": {
+          "bbox_software": [
+            334,
+            365,
+            946,
+            435
+          ],
+          "bbox_vulkan": [
+            333,
+            364,
+            946,
+            435
+          ],
+          "mask_pixels_software": 19565,
+          "mask_pixels_vulkan": 20348,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.946881 < 0.995",
+            "coverage_ratio 1.040020 outside threshold",
+            "rgb_mae 0.021519 > 0.00784313725490196",
+            "rgb_p99 0.427451 > 0.03137254901960784",
+            "psnr_luma 21.425 dB < 35.0"
+          ],
+          "alpha_iou": 0.946880639968782,
+          "coverage_ratio": 1.0400204446716075,
+          "roi": [
+            329,
+            360,
+            951,
+            440
+          ],
+          "rgb_mae": 0.021519135683774948,
+          "rgb_p95": 0.19627451226110662,
+          "rgb_p99": 0.4274509847164154,
+          "rgb_max": 0.7411764860153198,
+          "psnr_luma_db": 21.425226849831702,
+          "ssim_luma": 0.9837807279283605,
+          "flat_max_outside_edge": 0.0
+        }
+      },
+      "pass": false,
+      "failures": [],
+      "repeat_software_identical": true,
+      "worst": {
+        "alpha_iou": 0.946880639968782,
+        "coverage_ratio": 1.0400204446716075,
+        "rgb_mae": 0.021519135683774948,
+        "rgb_p95": 0.19627451226110662,
+        "rgb_p99": 0.4274509847164154,
+        "rgb_max": 0.7411764860153198,
+        "ssim_luma": 0.9837807279283605,
+        "psnr_luma_db": 21.425226849831702
+      }
+    }
+  },
+  "pass": false
+}

@@ -41,6 +41,10 @@
 #include "layer_batch_comp_spv.hpp"
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
+#include "bloom_prefilter_comp_spv.hpp"
+#include "bloom_downsample_comp_spv.hpp"
+#include "bloom_upsample_comp_spv.hpp"
+#include "bloom_composite_comp_spv.hpp"
 
 // Generated ABI reflection headers (produced by tools/shaders/spirv_abi_gen)
 #include "composite_abi.hpp"
@@ -63,6 +67,10 @@
 #include "layer_batch_abi.hpp"
 #include "text_tile_bin_abi.hpp"
 #include "text_tile_raster_abi.hpp"
+#include "bloom_prefilter_abi.hpp"
+#include "bloom_downsample_abi.hpp"
+#include "bloom_upsample_abi.hpp"
+#include "bloom_composite_abi.hpp"
 
 #include <algorithm>
 #include <string>
@@ -154,6 +162,7 @@ static const BindingInfo* find_binding(const ShaderAbi& abi,
 //   binding 1 = run buffer
 //   binding 2 = tile counts
 //   binding 3 = tile indices
+//   binding 4 = per-glyph dynamic paint
 //
 // text_tile_raster uses a separate layout:
 //   binding 0 = destination image
@@ -361,12 +370,13 @@ TEST_CASE("layer_batch shader ABI") {
 
 TEST_CASE("text_tile_bin shader ABI") {
     auto abi = REFLECT_SHADER(chronon3d_text_tile_bin_comp_spv);
-    // text_tile_bin uses 4 storage buffers (glyph, run, counts, indices)
+    // text_tile_bin uses 5 storage buffers (glyph, run, counts, indices, paint)
     REQUIRE(find_binding(abi, 0, 0) != nullptr);
     CHECK(find_binding(abi, 0, 0)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER);
     REQUIRE(find_binding(abi, 0, 1) != nullptr);
     REQUIRE(find_binding(abi, 0, 2) != nullptr);
     REQUIRE(find_binding(abi, 0, 3) != nullptr);
+    REQUIRE(find_binding(abi, 0, 4) != nullptr);
     // Must have no storage-image bindings
     for (const auto& b : abi.bindings) {
         CHECK_NE(b.descriptor_type, SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
@@ -386,6 +396,59 @@ TEST_CASE("text_tile_raster shader ABI") {
     REQUIRE(find_binding(abi, 0, 4) != nullptr);
     REQUIRE(find_binding(abi, 0, 5) != nullptr);
     REQUIRE(find_binding(abi, 0, 6) != nullptr);
+}
+
+TEST_CASE("bloom prefilter shader ABI") {
+    auto abi = REFLECT_SHADER(chronon3d_bloom_prefilter_comp_spv);
+    REQUIRE(find_binding(abi, 0, 0) != nullptr);
+    CHECK(find_binding(abi, 0, 0)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    REQUIRE(find_binding(abi, 0, 1) != nullptr);
+    CHECK(find_binding(abi, 0, 1)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    CHECK(abi.push_constant_size == BloomPrefilterShaderAbi::kPushConstantSize);
+    CHECK(BloomPrefilterShaderAbi::kPushConstantSize == 16);
+    CHECK(abi.local_size_x == 16);
+    CHECK(abi.local_size_y == 16);
+    CHECK(abi.local_size_z == 1);
+}
+
+TEST_CASE("bloom downsample shader ABI") {
+    auto abi = REFLECT_SHADER(chronon3d_bloom_downsample_comp_spv);
+    REQUIRE(find_binding(abi, 0, 0) != nullptr);
+    CHECK(find_binding(abi, 0, 0)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    REQUIRE(find_binding(abi, 0, 1) != nullptr);
+    CHECK(find_binding(abi, 0, 1)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    // The plain 13-tap downsample has no push constants: the prefilter owns
+    // threshold/knee, and the upsample owns radius/intensity/additive.
+    CHECK(abi.push_constant_size == 0);
+    CHECK(abi.local_size_x == 16);
+    CHECK(abi.local_size_y == 16);
+    CHECK(abi.local_size_z == 1);
+}
+
+TEST_CASE("bloom upsample shader ABI") {
+    auto abi = REFLECT_SHADER(chronon3d_bloom_upsample_comp_spv);
+    REQUIRE(find_binding(abi, 0, 0) != nullptr);
+    CHECK(find_binding(abi, 0, 0)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    REQUIRE(find_binding(abi, 0, 1) != nullptr);
+    CHECK(find_binding(abi, 0, 1)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    CHECK(abi.push_constant_size == BloomUpsampleShaderAbi::kPushConstantSize);
+    CHECK(BloomUpsampleShaderAbi::kPushConstantSize == 16);
+    CHECK(abi.local_size_x == 16);
+    CHECK(abi.local_size_y == 16);
+    CHECK(abi.local_size_z == 1);
+}
+
+TEST_CASE("bloom composite shader ABI") {
+    auto abi = REFLECT_SHADER(chronon3d_bloom_composite_comp_spv);
+    REQUIRE(find_binding(abi, 0, 0) != nullptr);
+    CHECK(find_binding(abi, 0, 0)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    REQUIRE(find_binding(abi, 0, 1) != nullptr);
+    CHECK(find_binding(abi, 0, 1)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    CHECK(abi.push_constant_size == BloomCompositeShaderAbi::kPushConstantSize);
+    CHECK(BloomCompositeShaderAbi::kPushConstantSize == 16);
+    CHECK(abi.local_size_x == 16);
+    CHECK(abi.local_size_y == 16);
+    CHECK(abi.local_size_z == 1);
 }
 
 // ── Generated ABI headers vs runtime reflection ─────────────────────────

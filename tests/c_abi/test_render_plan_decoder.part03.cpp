@@ -366,6 +366,76 @@ TEST_CASE("render plan V3 accepts the static line_anchor mode") {
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(multi).has_value());
 }
 
+TEST_CASE("render plan V3 accepts character_value integer scalars") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"id":"value","selectors":[{"unit":"glyph"}],"properties":[
+          {"property":"character_value","keyframes":[
+            {"frame":0,"value":0},{"frame":12,"value":65},{"frame":24,"value":0}
+          ]}
+        ]}
+    ])JSON");
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
+    REQUIRE(decoded.has_value());
+    const auto& track = decoded->layers[0].text_animators[0].properties[0];
+    CHECK(track.property == "character_value");
+    REQUIRE(track.keyframes.size() == 3);
+    CHECK(track.keyframes[1].value == std::vector<float>{65.0f});
+
+    source["layers"][0]["text_animators"][0]["properties"][0]["keyframes"][1]["value"] = 65.5;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+
+    source["layers"][0]["text_animators"][0]["properties"][0]["keyframes"][1]["value"] = 1114112;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan V3 accepts the static character_alignment mode") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"id":"alignment","selectors":[{"unit":"glyph"}],"properties":[
+          {"property":"character_alignment","keyframes":[{"frame":0,"value":2}]}
+        ]}
+    ])JSON");
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
+    REQUIRE(decoded.has_value());
+    const auto& track = decoded->layers[0].text_animators[0].properties[0];
+    CHECK(track.property == "character_alignment");
+    REQUIRE(track.keyframes.size() == 1);
+    CHECK(track.keyframes.front().value == std::vector<float>{2.0f});
+
+    source["layers"][0]["text_animators"][0]["properties"][0]["keyframes"][0]["value"] = 3;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+
+    source["layers"][0]["text_animators"][0]["properties"][0]["keyframes"][0]["value"] = 1.5;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan V3 accepts the static anchor_grouping mode") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"id":"grouping","selectors":[{"unit":"word"}],"properties":[
+          {"property":"anchor_grouping","keyframes":[{"frame":0,"value":1}]}
+        ]}
+    ])JSON");
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
+    REQUIRE(decoded.has_value());
+    const auto& track = decoded->layers[0].text_animators[0].properties[0];
+    CHECK(track.property == "anchor_grouping");
+    CHECK(track.keyframes.front().value == std::vector<float>{1.0f});
+
+    source["layers"][0]["text_animators"][0]["properties"][0]["keyframes"][0]["value"] = 4;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+
+    source["layers"][0]["text_animators"][0]["properties"][0]["keyframes"][0]["value"] = 1.5;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
 TEST_CASE("render plan V2 keeps the frozen animator property enum") {
     auto source = v3_text_plan();
     source["schema"] = "chronon.render-plan.v2";
@@ -842,6 +912,71 @@ TEST_CASE("render plan V3 rejects unsupported world maps, charts, and shape coun
     check_rejected({{"type", "rect"}, {"counter", {{"from", 0}, {"to", 100}}}});
     check_rejected({{"type", "rect"}, {"world_map", {{"route", {{0, 0}, {1, 1}}}}}});
     check_rejected({{"type", "rect"}, {"chart", {{"type", "bar"}, {"data", {1, 2}}}}});
+}
+
+TEST_CASE("render plan V3 decodes explicit text_transitions with bounded transition parameters") {
+    nlohmann::json transition_layer = nlohmann::json::parse(R"JSON({
+      "id":"transitions","type":"text","text":"FINAL",
+      "style":{"font":"fonts/roboto.ttf","font_size":24,"fill":"#FFFFFF"},
+      "text_transitions":{"keyframes":[
+        {"frame":0,"text":"","transition":"typewriter",
+         "typewriter":{"chars_per_frame":0,"easing":"linear"}},
+        {"frame":12,"text":"HELLO","transition":"scramble",
+         "scramble":{"seed":42,"char_pool":"AB","intensity":2.0}},
+        {"frame":24,"text":"WORLD","transition":"morph",
+         "morph":{"direction":"from_center","easing":"out_cubic"}},
+        {"frame":36,"text":"FINAL","transition":"cut"}
+      ]}
+    })JSON");
+    auto source = render_plan_test::base_plan({std::move(transition_layer)});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = decoded.has_value() ? std::string{} :
+        decoded.error().path + ": " + decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), decode_error);
+    REQUIRE(decoded->layers[0].text_transitions);
+    const auto& keyframes = decoded->layers[0].text_transitions->keyframes;
+    REQUIRE(keyframes.size() == 4);
+    CHECK(keyframes[0].frame == chronon3d::Frame{0});
+    CHECK(keyframes[0].transition == "typewriter");
+    CHECK(keyframes[1].text == "HELLO");
+    CHECK(keyframes[1].scramble.seed == 42);
+    CHECK(keyframes[2].morph.direction == "from_center");
+    CHECK(keyframes[3].transition == "cut");
+
+    auto unknown = source;
+    unknown["layers"][0]["text_transitions"]["keyframes"][1]["transition"] = "bogus";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(unknown));
+
+    auto duplicate = source;
+    duplicate["layers"][0]["text_transitions"]["keyframes"][2]["frame"] = 12;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(duplicate));
+
+    auto parameter_mismatch = source;
+    parameter_mismatch["layers"][0]["text_transitions"]["keyframes"][3]["scramble"] =
+        nlohmann::json{{"seed", 1}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(parameter_mismatch));
+
+    auto both_sources = source;
+    both_sources["layers"][0]["text_counter"] = nlohmann::json{
+        {"token", "FINAL"}, {"counter", {{"from", 0}, {"to", 1}}}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(both_sources));
+
+    auto bad_direction = source;
+    bad_direction["layers"][0]["text_transitions"]["keyframes"][2]["morph"]["direction"] = "up";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_direction));
+
+    // Span byte offsets belong to the base text, not to each transition
+    // keyframe text.  Mixing them would paint unrelated byte ranges once the
+    // text length changes, so the decoder fails closed.
+    auto with_spans = source;
+    with_spans["layers"][0]["spans"] = nlohmann::json::array({
+        {
+            {"start", 0},
+            {"end", 1},
+            {"style", {{"color", "#FF0000"}}},
+        },
+    });
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(with_spans));
 }
 
 TEST_CASE("render plan V3 retains the implemented text_counter contract") {

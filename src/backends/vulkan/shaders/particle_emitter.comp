@@ -1,0 +1,273 @@
+#version 450
+
+// Stateless particle emitter: one invocation per particle, derived only from
+// (seed, particle index, absolute time).  The output is the exact billboard
+// record consumed by layer_batch.comp, so the CPU sampler remains the oracle
+// and the existing procedural-disc rasterizer is reused unchanged.
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+struct GpuLayerInstance {
+    vec4 dst_rect;
+    vec4 src_rect;
+    vec4 affine_row0;
+    vec4 affine_row1;
+    vec4 limits;
+    uint has_affine;
+    uint blend_mode;
+    uint resource_idx;
+    uint primitive_kind;
+    vec4 particle_color;
+};
+
+layout(binding = 0, std430) writeonly buffer ParticleInstances {
+    GpuLayerInstance instances[];
+};
+
+// 128 bytes of scalar fields followed by a 256-entry linear-colour LUT.
+// std140 gives every vec4 a 16-byte stride, matching the C++ struct.
+layout(binding = 1, std140) uniform ParticleEmitter {
+    uvec4 header;          // count, seed, shape, flags
+    vec4 emitter;          // size.xy, lifetime_min, lifetime_max
+    vec4 velocity_size;    // velocity_min.xy, size_min, size_max
+    vec4 velocity_gravity; // velocity_max.xy, gravity, turbulence
+    vec4 flow_twinkle;     // flow.strength, flow.scale, flow.speed, twinkle.amount
+    vec4 motion;           // twinkle.speed, depth_min, depth_max, seconds
+    vec4 sprite;           // sprite_scale_min, sprite_scale_max, rotation_min, rotation_max
+    vec4 angular;          // angular_velocity_min, angular_velocity_max, blend_mode, reserved
+    vec4 color_lut[256];
+} u;
+
+const float kTau = 6.2831853071795864769;
+
+// ── Portable uint64 arithmetic (uvec2 = low, high) ──────────────────────
+// The sampler hashes 64-bit particle/cycle keys.  The backend does not enable
+// shaderInt64, so the same operations are expressed with 32-bit words.
+const uvec2 kGolden = uvec2(0x7f4a7c15u, 0x9e3779b9u);
+const uvec2 kFinalize1 = uvec2(0x1ce4e5b9u, 0xbf58476du);
+const uvec2 kFinalize2 = uvec2(0x133111ebu, 0x94d049bbu);
+
+uvec2 u64_add(uvec2 a, uvec2 b) {
+    uint lo = a.x + b.x;
+    return uvec2(lo, a.y + b.y + (lo < a.x ? 1u : 0u));
+}
+
+uvec2 u64_xor(uvec2 a, uvec2 b) {
+    return uvec2(a.x ^ b.x, a.y ^ b.y);
+}
+
+uvec2 u64_shl(uvec2 value, uint shift) {
+    if (shift == 0u) return value;
+    if (shift >= 64u) return uvec2(0u);
+    if (shift >= 32u) return uvec2(0u, value.x << (shift - 32u));
+    return uvec2(value.x << shift,
+                 (value.y << shift) | (value.x >> (32u - shift)));
+}
+
+uvec2 u64_shr(uvec2 value, uint shift) {
+    if (shift == 0u) return value;
+    if (shift >= 64u) return uvec2(0u);
+    if (shift >= 32u) return uvec2(value.y >> (shift - 32u), 0u);
+    return uvec2((value.x >> shift) | (value.y << (32u - shift)),
+                 value.y >> shift);
+}
+
+uvec2 u64_mul(uvec2 a, uvec2 b) {
+    uint lo;
+    uint hi;
+    umulExtended(a.x, b.x, hi, lo);
+    uint cross_a_hi;
+    uint cross_a_lo;
+    uint cross_b_hi;
+    uint cross_b_lo;
+    umulExtended(a.x, b.y, cross_a_hi, cross_a_lo);
+    umulExtended(a.y, b.x, cross_b_hi, cross_b_lo);
+    // Carry from the cross terms enters bit 32, so the low words are the
+    // contribution to the high 32 bits of the result.  The high words belong
+    // to the overflow beyond 64 bits and are intentionally discarded.
+    return uvec2(lo, hi + cross_a_lo + cross_b_lo);
+}
+
+uvec2 hash_combine(uvec2 seed, uvec2 value) {
+    uvec2 mixed = u64_add(value, kGolden);
+    mixed = u64_add(mixed, u64_shl(seed, 6u));
+    mixed = u64_add(mixed, u64_shr(seed, 2u));
+    return u64_xor(seed, mixed);
+}
+
+uvec2 splitmix64_finalize(uvec2 value) {
+    value = u64_mul(u64_xor(value, u64_shr(value, 30u)), kFinalize1);
+    value = u64_mul(u64_xor(value, u64_shr(value, 27u)), kFinalize2);
+    return u64_xor(value, u64_shr(value, 31u));
+}
+
+uvec2 particle_random_index(uint particle, uint cycle, uint slot) {
+    // (u64(particle) << 32) ^ (u64(cycle) * kGolden) ^ slot
+    const uvec2 particle_word = uvec2(0u, particle);
+    const uvec2 cycle_word = u64_mul(uvec2(cycle, 0u), kGolden);
+    return uvec2(particle_word.x ^ cycle_word.x ^ slot,
+                 particle_word.y ^ cycle_word.y);
+}
+
+bool finite(float value) {
+    return !isnan(value) && !isinf(value);
+}
+
+float random_unit(uvec2 seed, uvec2 index) {
+    const uvec2 value = splitmix64_finalize(hash_combine(seed, index));
+    return float(value.y >> 8u) * (1.0 / 16777216.0);
+}
+
+float random_at(uint particle, uint cycle, uint slot) {
+    return random_unit(uvec2(u.header.y, 0u),
+                       particle_random_index(particle, cycle, slot));
+}
+
+float random_range(uint particle, uint cycle, uint slot, float lo, float hi) {
+    return lo + (hi - lo) * random_at(particle, cycle, slot);
+}
+
+vec4 sample_ramp(float t) {
+    const float x = clamp(t, 0.0, 1.0) * 255.0;
+    const uint i = uint(min(floor(x), 255.0));
+    const uint j = min(i + 1u, 255u);
+    return mix(u.color_lut[i], u.color_lut[j], x - floor(x));
+}
+
+vec2 flow_displacement(vec2 origin, float age, float phase) {
+    const float strength = u.flow_twinkle.x;
+    if (strength == 0.0) return vec2(0.0);
+    const float k = u.flow_twinkle.y;
+    const float t = age * u.flow_twinkle.z + phase;
+    const float ax = k * origin.x + t;
+    const float ay = k * 0.83 * origin.y - t * 0.7 + phase * 1.7;
+    const float az = k * 0.6 * (origin.x + origin.y) + t * 1.3 + phase * 0.61;
+    return vec2(strength * (0.83 * cos(ay) + 0.3 * cos(az)),
+                -strength * (cos(ax) + 0.3 * cos(az)));
+}
+
+void emit_empty(uint index) {
+    GpuLayerInstance instance;
+    instance.dst_rect = vec4(0.0);
+    instance.src_rect = vec4(0.0, 0.0, 1.0, 1.0);
+    instance.affine_row0 = vec4(0.0);
+    instance.affine_row1 = vec4(0.0);
+    instance.limits = vec4(0.0, 0.0, 1.0, 0.0);
+    instance.has_affine = 0u;
+    instance.blend_mode = 0u;
+    instance.resource_idx = 0u;
+    instance.primitive_kind = 1u;
+    instance.particle_color = vec4(0.0);
+    instances[index] = instance;
+}
+
+void main() {
+    const uint index = gl_GlobalInvocationID.x;
+    const uint count = u.header.x;
+    if (index >= count) return;
+
+    const uint shape = u.header.z;
+    const uint flags = u.header.w;
+    const bool bokeh = (flags & 1u) != 0u;
+    const bool environment = (flags & 2u) != 0u;
+    const uvec2 seed = uvec2(u.header.y, 0u);
+
+    const uint stable_base = index * 8u;
+    const float lifetime = u.emitter.z +
+        (u.emitter.w - u.emitter.z) *
+            random_unit(seed, uvec2(stable_base, 0u));
+    const float phase = random_unit(seed, uvec2(stable_base + 1u, 0u)) * lifetime;
+    const float cycles_f = floor((u.motion.w + phase) / lifetime);
+    if (!(lifetime > 0.0) || cycles_f < 0.0 || cycles_f > 4294967295.0) {
+        emit_empty(index);
+        return;
+    }
+    const uint cycle = uint(cycles_f);
+    const float elapsed = u.motion.w + phase - cycles_f * lifetime;
+    const float age = clamp(elapsed, 0.0, lifetime);
+    const float life_fraction = age / lifetime;
+
+    const float u01 = random_at(index, cycle, 2u);
+    const float v01 = random_at(index, cycle, 3u);
+    vec2 spawn = (vec2(u01, v01) - vec2(0.5)) * u.emitter.xy;
+    if (shape == 1u) {
+        const float angle = u01 * kTau;
+        const float radius = sqrt(v01);
+        spawn = vec2(cos(angle) * radius * u.emitter.x * 0.5,
+                     sin(angle) * radius * u.emitter.y * 0.5);
+    } else if (shape == 2u) {
+        const float perimeter = 2.0 * (u.emitter.x + u.emitter.y);
+        const float distance = u01 * perimeter;
+        if (distance < u.emitter.x) {
+            spawn = vec2(-u.emitter.x * 0.5 + distance, -u.emitter.y * 0.5);
+        } else if (distance < u.emitter.x + u.emitter.y) {
+            spawn = vec2(u.emitter.x * 0.5,
+                         -u.emitter.y * 0.5 + (distance - u.emitter.x));
+        } else if (distance < 2.0 * u.emitter.x + u.emitter.y) {
+            spawn = vec2(u.emitter.x * 0.5 -
+                             (distance - u.emitter.x - u.emitter.y),
+                         u.emitter.y * 0.5);
+        } else {
+            spawn = vec2(-u.emitter.x * 0.5,
+                         u.emitter.y * 0.5 -
+                             (distance - 2.0 * u.emitter.x - u.emitter.y));
+        }
+    }
+
+    const vec2 velocity = vec2(
+        random_range(index, cycle, 4u, u.velocity_size.x, u.velocity_gravity.x),
+        random_range(index, cycle, 5u, u.velocity_size.y, u.velocity_gravity.y));
+    const float turbulence_phase_x = random_at(index, cycle, 6u) * kTau;
+    const float turbulence_phase_y = random_at(index, cycle, 7u) * kTau;
+    const float turbulence_time = age * kTau;
+    const vec2 turbulence = vec2(
+        u.velocity_gravity.w * sin(turbulence_time + turbulence_phase_x),
+        u.velocity_gravity.w *
+            sin(turbulence_time * 0.73 + turbulence_phase_y));
+    const float depth = random_range(index, cycle, 12u,
+                                     u.motion.y, u.motion.z);
+    vec2 position = spawn + velocity * age +
+        vec2(0.0, 0.5 * u.velocity_gravity.z * age * age) + turbulence;
+    if (u.flow_twinkle.x > 0.0) {
+        const float flow_phase = random_at(index, cycle, 13u) * kTau;
+        const float parallax = environment ? 1.0 - 0.25 * depth : 1.0;
+        position += flow_displacement(spawn, age, flow_phase) * parallax;
+    }
+
+    float size = random_range(index, cycle, 8u,
+                              u.velocity_size.z, u.velocity_size.w);
+    vec4 color = sample_ramp(life_fraction);
+    if (u.flow_twinkle.w > 0.0) {
+        const float twinkle_phase = random_at(index, cycle, 14u) * kTau;
+        const float shimmer = 0.5 + 0.5 * sin(kTau * u.motion.x * age +
+                                              twinkle_phase);
+        color.a *= 1.0 - u.flow_twinkle.w * shimmer;
+    }
+    if (bokeh) {
+        size *= 1.35 - depth * 0.7;
+        color.a *= 1.0 - depth * 0.35;
+    }
+
+    if (!(size > 0.0) || !(lifetime > 0.0) || !finite(size) ||
+        !finite(position.x) || !finite(position.y) ||
+        !finite(color.r) || !finite(color.g) || !finite(color.b) ||
+        !finite(color.a)) {
+        emit_empty(index);
+        return;
+    }
+
+    const float alpha = clamp(color.a, 0.0, 1.0);
+    GpuLayerInstance instance;
+    instance.dst_rect = vec4(position - vec2(size * 0.5),
+                             position + vec2(size * 0.5));
+    instance.src_rect = vec4(0.0, 0.0, 1.0, 1.0);
+    instance.affine_row0 = vec4(0.0);
+    instance.affine_row1 = vec4(0.0);
+    instance.limits = vec4(0.0, 0.0, 1.0, bokeh ? 1.0 : 0.0);
+    instance.has_affine = 0u;
+    instance.blend_mode = uint(u.angular.z);
+    instance.resource_idx = 0u;
+    instance.primitive_kind = 1u;
+    instance.particle_color = vec4(color.rgb * alpha, alpha);
+    instances[index] = instance;
+}

@@ -58,6 +58,7 @@
 namespace chronon3d {
 class AnimatedTextDocument;
 class TextLayoutCache;
+struct PreShapingUnitMap;
 } // namespace chronon3d
 
 namespace chronon3d {
@@ -160,6 +161,15 @@ struct TextRunShape {
     std::string pre_shaping_source{};
     bool has_pre_shaping_source{false};
 
+    // ADR-037 — cacheable canonical source map used to resolve selectors for
+    // selector-scoped Character Offset / Character Value.  Keyed by the
+    // authored source plus the layout identity so a font or layout change
+    // cannot reuse stale units.  Null means no selector-scoped PreShaping
+    // animator is active (the run-level path applies).
+    std::shared_ptr<const PreShapingUnitMap> pre_shaping_unit_map{};
+    std::string pre_shaping_unit_map_source{};
+    std::string pre_shaping_unit_map_key{};
+
     // P2-05 — authored spacing baseline for PreLayout animators.  The driver
     // evaluates reflow_word_spacing/reflow_line_spacing on top of these values;
     // keeping them separate prevents repeated frames from accumulating the
@@ -217,34 +227,125 @@ struct TextRunShape {
     float dissolve_mix{0.0f};                                   // current blend factor
 };
 
+namespace caret_detail {
+
+[[nodiscard]] inline bool is_utf8_continuation(char c) noexcept {
+    return (static_cast<unsigned char>(c) & 0xC0u) == 0x80u;
+}
+
+/// Snap an authored byte insertion point to a UTF-8 code-point boundary.  A
+/// caret inside a multibyte code point has no valid insertion position, so it
+/// moves back to the leading byte instead of splitting the code point.
+[[nodiscard]] inline std::size_t normalize_utf8_caret_index(
+    std::size_t index, const std::string& source) noexcept {
+    if (source.empty()) return index;
+    if (index > source.size()) index = source.size();
+    while (index > 0 && index < source.size() && is_utf8_continuation(source[index])) {
+        --index;
+    }
+    return index;
+}
+
+/// Direction of the resolver run that shaped this glyph.  It is carried by
+/// ShapedFontSpan after shaping; visual glyph order must never decide it.
+[[nodiscard]] inline TextDirection span_direction_for_glyph(
+    const TextRunLayout& layout, std::size_t glyph_index) noexcept {
+    for (const auto& span : layout.font_spans) {
+        if (glyph_index >= span.glyph_begin && glyph_index < span.glyph_end)
+            return span.direction;
+    }
+    return layout.direction == TextDirection::RTL ? TextDirection::RTL
+                                                  : TextDirection::LTR;
+}
+
+} // namespace caret_detail
+
 /// Resolve the authored insertion point against the placed glyph run.  The
-/// caret sits at the leading edge of the cluster containing byte_index; for
-/// an index at the run end it sits after the last glyph.  Coordinates are
-/// run-local and use the same origin as PlacedGlyph::x/y.
+/// caret sits on the logical leading edge of the cluster containing byte_index
+/// (left for LTR, right for RTL); an index at the run end sits on the final
+/// logical edge.  Interior positions of a ligature or combining-mark cluster
+/// snap to an edge instead of splitting it.  Coordinates are run-local and use
+/// the same origin as PlacedGlyph::x/y.
 [[nodiscard]] inline TextCaretRect resolve_text_caret_rect(const TextRunShape& shape) {
     TextCaretRect rect;
     if (!shape.caret.enabled || !shape.layout || shape.layout->placed.glyphs.empty())
         return rect;
     const auto& placed = shape.layout->placed;
     const auto& glyphs = placed.glyphs;
-    const std::size_t index = shape.caret.byte_index;
+    const std::size_t index = caret_detail::normalize_utf8_caret_index(
+        shape.caret.byte_index, shape.layout->source_text);
 
     const PlacedGlyph* anchor = &glyphs.back();
-    for (const auto& glyph : glyphs) {
-        if (index >= glyph.byte_offset && index <= glyph.byte_offset + glyph.byte_len) {
-            anchor = &glyph;
-            break;
+    f32 x = anchor->x;
+    bool resolved = false;
+
+    if (!placed.clusters.empty()) {
+        const PlacedGlyphRun::Cluster* cluster = nullptr;
+        for (const auto& candidate : placed.clusters) {
+            if (index >= candidate.byte_offset &&
+                index < candidate.byte_offset + candidate.byte_len) {
+                cluster = &candidate;
+                break;
+            }
         }
-        if (index > glyph.byte_offset) anchor = &glyph;
+        // A boundary exactly at a cluster end belongs to the next logical
+        // cluster; past the run it is the final boundary of the last cluster.
+        if (cluster == nullptr) {
+            for (const auto& candidate : placed.clusters) {
+                if (index < candidate.byte_offset) {
+                    cluster = &candidate;
+                    break;
+                }
+            }
+        }
+        if (cluster == nullptr) cluster = &placed.clusters.back();
+
+        const std::size_t begin = std::min(cluster->start_glyph, glyphs.size());
+        const std::size_t end = std::min(cluster->end_glyph, glyphs.size());
+        if (begin < end) {
+            f32 left = glyphs[begin].x;
+            f32 right = glyphs[begin].x + glyphs[begin].advance_x;
+            for (std::size_t g = begin + 1; g < end; ++g) {
+                left = std::min(left, glyphs[g].x);
+                right = std::max(right, glyphs[g].x + glyphs[g].advance_x);
+            }
+            anchor = &glyphs[begin];
+            const bool rtl = caret_detail::span_direction_for_glyph(
+                *shape.layout, begin) == TextDirection::RTL;
+            const bool at_logical_start = index <= cluster->byte_offset;
+            x = at_logical_start ? (rtl ? right : left) : (rtl ? left : right);
+            resolved = true;
+        }
     }
 
-    f32 x = anchor->x;
-    if (index > anchor->byte_offset && anchor->byte_len > 0) {
-        const f32 fraction = std::min(
-            1.0f, static_cast<f32>(index - anchor->byte_offset) /
-                      static_cast<f32>(anchor->byte_len));
-        x += anchor->advance_x * fraction;
+    if (!resolved) {
+        // Legacy layouts without a cluster map: keep the glyph scan, but the
+        // run direction still selects the edge.
+        std::size_t anchor_index = glyphs.size() - 1;
+        for (std::size_t g = 0; g < glyphs.size(); ++g) {
+            if (index >= glyphs[g].byte_offset &&
+                index <= glyphs[g].byte_offset + glyphs[g].byte_len) {
+                anchor_index = g;
+                break;
+            }
+            if (index > glyphs[g].byte_offset) anchor_index = g;
+        }
+        anchor = &glyphs[anchor_index];
+        const bool rtl = caret_detail::span_direction_for_glyph(
+            *shape.layout, anchor_index) == TextDirection::RTL;
+        const bool at_logical_start = index <= anchor->byte_offset;
+        f32 left = anchor->x;
+        f32 right = anchor->x + anchor->advance_x;
+        if (!rtl && index > anchor->byte_offset && anchor->byte_len > 0) {
+            const f32 fraction = std::min(
+                1.0f, static_cast<f32>(index - anchor->byte_offset) /
+                          static_cast<f32>(anchor->byte_len));
+            left += anchor->advance_x * fraction;
+            right = left;
+        }
+        x = at_logical_start ? (rtl ? right : left) : (rtl ? left : right);
     }
+
     f32 height = shape.caret.height > 0.0f
         ? shape.caret.height : placed.ascent + placed.descent;
     if (!(height > 0.0f)) height = shape.layout->font_size;

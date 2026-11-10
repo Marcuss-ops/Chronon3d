@@ -63,10 +63,10 @@ struct WigglySelectorParams {
 // ── TextSelectorOrder — traversal direction ──────────────────────────────
 
 enum class TextSelectorOrder {
-    Forward,    // left → right (or first → last in RTL)
-    Reverse,    // right → left
-    FromCenter, // centre outward (0 → ends)
-    ToCenter,   // edges inward (ends → 0)
+    Forward,    // logical first → last (LTR left→right, RTL right→left)
+    Reverse,    // logical last → first
+    FromCenter, // logical centre outward (0 → ends)
+    ToCenter,   // logical edges inward (ends → 0)
     Random,     // deterministic shuffle with seed
     Index       // ordered index bands; each step selects the next unit
 };

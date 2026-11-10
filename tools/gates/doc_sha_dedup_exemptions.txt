@@ -33,3 +33,8 @@ exempt_file_sha ADR-020-shared-static-fontengine-singleton.md:7eb5c2b
 
 # INDEX is a pure cross-reference index, not a dedup target.
 skip_file INDEX.md
+
+# ADR-039: the sha7 scan matches the shared date prefix "2026110" of two ticket
+# IDs (TICKET-TEXT-CLOSURE-20261109, TICKET-TEXT-ANIMATOR-PARITY-20261107), not
+# a commit SHA. One legitimate pair, exempted instead of dropping a ticket cite.
+exempt_file_sha ADR-039-text-transition-residuals.md:2026110

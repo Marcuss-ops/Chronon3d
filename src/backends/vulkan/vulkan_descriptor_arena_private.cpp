@@ -113,12 +113,14 @@ void VulkanBackend::Impl::write_text_run_descriptors(
 
 void VulkanBackend::Impl::write_layer_batch_descriptors(
     VkDescriptorSet set, const Image& destination,
-    const Image& source, VkBuffer instance_buffer) {
+    const Image& source, VkBuffer instance_buffer,
+    VkDeviceSize buffer_offset, VkDeviceSize buffer_range) {
     const VkDescriptorImageInfo dst_info{
         VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
     const VkDescriptorImageInfo src_info{
         VK_NULL_HANDLE, source.view, VK_IMAGE_LAYOUT_GENERAL};
-    const VkDescriptorBufferInfo buffer_info{instance_buffer, 0, VK_WHOLE_SIZE};
+    const VkDescriptorBufferInfo buffer_info{
+        instance_buffer, buffer_offset, buffer_range};
     const VkWriteDescriptorSet writes[] = {
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr},
@@ -188,9 +190,10 @@ VkDescriptorSet VulkanBackend::Impl::allocate_text_tile_raster_descriptor_set() 
 
 void VulkanBackend::Impl::write_text_tile_bin_descriptors(
     VkDescriptorSet set, VkBuffer glyph_buffer, VkBuffer run_buffer,
-    VkBuffer tile_counts, VkBuffer tile_indices) {
+    VkBuffer glyph_dynamic_buffer, VkBuffer tile_counts, VkBuffer tile_indices) {
     const VkDescriptorBufferInfo glyph{glyph_buffer, 0, VK_WHOLE_SIZE};
     const VkDescriptorBufferInfo runs{run_buffer, 0, VK_WHOLE_SIZE};
+    const VkDescriptorBufferInfo glyph_dynamic{glyph_dynamic_buffer, 0, VK_WHOLE_SIZE};
     const VkDescriptorBufferInfo counts{tile_counts, 0, VK_WHOLE_SIZE};
     const VkDescriptorBufferInfo indices{tile_indices, 0, VK_WHOLE_SIZE};
     const VkWriteDescriptorSet writes[] = {
@@ -201,8 +204,10 @@ void VulkanBackend::Impl::write_text_tile_bin_descriptors(
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 2, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &counts, nullptr},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 3, 0, 1,
-         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &indices, nullptr}};
-    vkUpdateDescriptorSets(device, 4, writes, 0, nullptr);
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &indices, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 4, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &glyph_dynamic, nullptr}};
+    vkUpdateDescriptorSets(device, 5, writes, 0, nullptr);
 }
 
 void VulkanBackend::Impl::write_text_tile_raster_descriptors(

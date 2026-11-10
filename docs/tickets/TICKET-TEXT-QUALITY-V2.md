@@ -1,6 +1,6 @@
 # TICKET-TEXT-QUALITY-V2 — resa del testo: dove nasce davvero la perdita
 
-Stato: **OPEN — P1-1 e P1-2 già implementati nel codice corrente; P1-3 e P2 aperti**. Canary text-tile CHIUSO (78/78, 2026-09-16: era un binario
+Stato: **PARTIAL — P1-1/P1-2 implementati; P1-3 shadow canonica CPU presente ma la parità GPU run-level e P2 GPU Vector restano fail-closed. Riaperto per la richiesta di parità completa; pixel gate e profilo High misurato in `TICKET-TEXT-CLOSURE-20261109.md`.** Canary text-tile CHIUSO (78/78, 2026-09-16: era un binario
 stantio, vedi §3; il gate GPU è ora `tools/verify_text_tile_gpu_canary.sh`).
 Verifiche di codice: PASS; diagnostico di attribuzione P0-0: **ESEGUITO**, esito
 in §4.1. **P0-0b (verità pre-encode): PASS 2026-10-21** — il PNG fedele è
@@ -32,8 +32,10 @@ correzioni non sono intercambiabili e vanno separate.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] **P1-3 — shadow canonica sul run** — logica: union mask del TextRun → spread opzionale → gaussiana separabile → source-over lineare (niente passi shadow separati per glifo). Dove: pipeline testo (run raster → mask → blur → composite), golden esistenti in `docs/evidence/`. Gate: golden shadow + delta frame time misurato e registrato.
-- [ ] **P2 — roadmap della scheda** — logica: gli interventi P2 elencati nella roadmap, solo dopo P1-3. Gate: per ogni voce, il rispettivo gate della scheda.
+> Piano di chiusura integrato e gate di certificazione pixel: [`TICKET-TEXT-CLOSURE-20261109.md`](TICKET-TEXT-CLOSURE-20261109.md).
+
+- [ ] **P1-3 — shadow canonica sul run** — CPU: union mask del TextRun → gaussiana separabile (sigma = raggio/3) → colore/opacita' → source-over. `Fast` resta il default; GPU `Canonical` e' ancora fail-closed e il golden/benchmark GPU sono ora exit gates.
+- [ ] **P2 — roadmap della scheda** — P2-1: 256-em non migliora il corpus; High usa 128 em, range 40, padding 60, `generation_id=4`; il rerun full-corpus resta rosso (0/8 casi chiusi). P2-2: modalità `Auto`/`Distance`/`Vector` esplicite, GPU `Vector` ancora fail-closed. Il T0-01 completo resta aperto nel ticket di chiusura testo.
 - [ ] **Estendere il corpus editoriale** — logica: il frame 75 T16 ha chiuso solo il requisito dell'artifact reale; il corpus deve coprire i casi editoriali del ticket. Dove: corpus di test + fixture. Gate: casi editoriali coperti e verificati.
 
 ## 1. Fatti verificati (file:riga, non teoria)
@@ -144,7 +146,7 @@ Conseguenze sul piano, in ordine:
 | ~~P1-1~~ | **IMPLEMENTATO** — DirectYUV usa `field_px + 0.5` come rampa di coverage (`src/media/video/compositor/cuda/cuda_nv12_kernels.hpp:439`); la matrice CUDA/Vulkan include il contratto fill e la parità per stroke (`tests/media/nv12/nv12_equivalence_test.cpp:709,730`) | Test e gate esistenti; non rieseguiti in questo audit |
 | ~~P1-2~~ | **IMPLEMENTATO** — Vulkan usa `atlas_tap_bilinear()` con clamp al rect del glifo (`src/backends/vulkan/shaders/text_tile_raster.comp:101,319`) e coverage texel→screen (`:232-253,335`); DirectYUV interpola quattro tap nel rect sorgente (`src/media/video/compositor/cuda/cuda_nv12_kernels.hpp:277-303`) | Canary include campionamento frazionario e confine del rect (`tests/backends/test_text_tile_raster_canary.cpp:780-820`); non rieseguito in questo audit |
 | P1-3 | Shadow canonica **sul run**, non sul singolo glifo: silhouettes dei glifi → **union mask del TextRun** → spread opzionale → gaussiana separabile → colore/opacità → source-over **lineare**. Risolve insieme clipping per-glifo, `alpha-max` sugli overlap e blur non fisicamente coerente. Il 3×3 attuale resta come modalità **`Fast`** (non va eliminato: è il percorso a throughput massimo) | delta frame time misurato + golden |
-| P2-1 | Generatore: `msdfgen` come **leaf**, mantenendo `MtsdfProfile`/cache/preparation authority; `generation_id` 1→2 | byte-parity della preparation + re-pin del payload |
+| P2-1 | Generatore HQ: MTSDF custom High 128 em/range 40/padding 60 (`generation_id=4`); valutare `msdfgen` solo se un corpus mirato prova un limite del generatore | T0-01 full corpus PASS e byte-parity della preparation |
 | P2-2 | Due semantiche di stroke **dichiarate**, non un SDF "aggiustato": `DistanceStroke` (veloce, join round/offset — l'attuale dilatazione del campo distanza) e `VectorStroke` (miter/bevel/round + miter limit + representation HQ). Non si cerca di far sembrare un miter un SDF: non lo diventerà (**ADR** obbligatorio) | ADR + parity gate |
 | P2-3 | Policy Fast/High/Ultra come **estensione** della tassonomia `GlyphRepresentation` esistente (`include/chronon3d/runtime/gpu_glyph_atlas.hpp`), che è il posto giusto per la decisione — **nessun secondo text renderer** (**ADR** + scheda Demolition Debt sul path compatibilità) | ADR approvato, nessun secondo resolver |
 

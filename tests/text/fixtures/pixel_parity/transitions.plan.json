@@ -1,0 +1,55 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "text-parity-transitions",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 61
+  },
+  "output": {
+    "path": "text-parity-transitions.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "transition_text",
+      "type": "text",
+      "text": "CANONICAL",
+      "start_frame": 0,
+      "duration_frames": 61,
+      "position": [
+        640,
+        400
+      ],
+      "size": [
+        1280,
+        720
+      ],
+      "style": {
+        "font": "assets/fonts/SF-Pro-Display-Semibold.otf",
+        "font_size": 96,
+        "fill": "#FFFFFF",
+        "quality": "high"
+      },
+      "text_transitions": {
+        "keyframes": [
+          {
+            "frame": 0,
+            "text": "TEXT READY",
+            "transition": "dissolve_layouts"
+          },
+          {
+            "frame": 30,
+            "text": "CANONICAL",
+            "transition": "cut"
+          }
+        ]
+      },
+      "effects": []
+    }
+  ]
+}

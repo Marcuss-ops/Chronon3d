@@ -138,6 +138,127 @@ void decode_layer_text_counter(LayerPlan& layer, const nlohmann::json& value) {
 
 }
 
+void decode_layer_text_transitions(LayerPlan& layer, const nlohmann::json& value) {
+    if (!value.contains("text_transitions")) return;
+    if (layer.type != LayerType::Text)
+        throw std::runtime_error("text_transitions is only valid for text layers");
+    if (layer.text_counter)
+        throw std::runtime_error("text_counter and text_transitions are mutually exclusive");
+
+    const auto& raw = value.at("text_transitions");
+    if (!raw.is_object())
+        throw std::runtime_error("text_transitions must be an object");
+    const auto reject_unknown = [](const nlohmann::json& object,
+                                   std::initializer_list<std::string_view> allowed,
+                                   std::string_view field) {
+        if (!object.is_object())
+            throw std::runtime_error(std::string(field) + " must be an object");
+        for (auto it = object.begin(); it != object.end(); ++it) {
+            if (std::find(allowed.begin(), allowed.end(), it.key()) == allowed.end())
+                throw std::runtime_error(std::string(field) + " has unsupported field '" +
+                                         it.key() + "'");
+        }
+    };
+    reject_unknown(raw, {"keyframes"}, "text_transitions");
+    if (!raw.contains("keyframes") || !raw.at("keyframes").is_array() ||
+        raw.at("keyframes").empty() || raw.at("keyframes").size() > 256)
+        throw std::runtime_error("text_transitions.keyframes must contain 1..256 entries");
+
+    TextTransitionsPlan plan;
+    std::int64_t previous_frame = -1;
+    for (const auto& entry : raw.at("keyframes")) {
+        reject_unknown(entry, {"frame", "text", "transition", "scramble",
+                               "morph", "typewriter"},
+                       "text_transitions keyframe");
+        if (!entry.contains("frame") || !entry.contains("text"))
+            throw std::runtime_error("text_transitions keyframe requires frame and text");
+        const auto frame = entry.at("frame").get<std::int64_t>();
+        if (frame < 0 || frame > 1000000 || frame <= previous_frame)
+            throw std::runtime_error("text_transitions frames must be strictly increasing in [0, 1000000]");
+        previous_frame = frame;
+        const auto text = entry.at("text").get<std::string>();
+        if (text.size() > 65536)
+            throw std::runtime_error("text_transitions text exceeds 65536 bytes");
+
+        TextTransitionKeyframePlan keyframe;
+        keyframe.frame = Frame{frame};
+        keyframe.text = text;
+        keyframe.transition = entry.value("transition", keyframe.transition);
+        if (keyframe.transition != "hold" && keyframe.transition != "cut" &&
+            keyframe.transition != "dissolve_layouts" &&
+            keyframe.transition != "scramble" && keyframe.transition != "morph" &&
+            keyframe.transition != "typewriter")
+            throw std::runtime_error("text_transitions has an unsupported transition");
+
+        if (entry.contains("scramble")) {
+            if (keyframe.transition != "scramble")
+                throw std::runtime_error("text_transitions.scramble requires transition='scramble'");
+            const auto& params = entry.at("scramble");
+            reject_unknown(params, {"seed", "char_pool", "intensity"},
+                           "text_transitions.scramble");
+            if (params.contains("seed")) {
+                if (!params.at("seed").is_number_unsigned())
+                    throw std::runtime_error("text_transitions.scramble.seed must be an unsigned integer");
+                keyframe.scramble.seed = params.at("seed").get<std::uint64_t>();
+            }
+            if (params.contains("char_pool")) {
+                keyframe.scramble.char_pool = params.at("char_pool").get<std::string>();
+                if (keyframe.scramble.char_pool.empty() ||
+                    keyframe.scramble.char_pool.size() > 64)
+                    throw std::runtime_error("text_transitions.scramble.char_pool must contain 1..64 bytes");
+            }
+            if (params.contains("intensity")) {
+                keyframe.scramble.intensity = params.at("intensity").get<float>();
+                if (!std::isfinite(keyframe.scramble.intensity) ||
+                    keyframe.scramble.intensity < 0.0f || keyframe.scramble.intensity > 10.0f)
+                    throw std::runtime_error("text_transitions.scramble.intensity must be finite and in [0, 10]");
+            }
+        }
+
+        if (entry.contains("morph")) {
+            if (keyframe.transition != "morph")
+                throw std::runtime_error("text_transitions.morph requires transition='morph'");
+            const auto& params = entry.at("morph");
+            reject_unknown(params, {"direction", "easing"}, "text_transitions.morph");
+            if (params.contains("direction")) {
+                keyframe.morph.direction = params.at("direction").get<std::string>();
+                if (keyframe.morph.direction != "from_right" &&
+                    keyframe.morph.direction != "from_left" &&
+                    keyframe.morph.direction != "from_center")
+                    throw std::runtime_error("text_transitions.morph.direction is unsupported");
+            }
+            if (params.contains("easing")) {
+                keyframe.morph.easing = params.at("easing").get<std::string>();
+                if (!is_standard_easing(keyframe.morph.easing))
+                    throw std::runtime_error("text_transitions.morph.easing is unsupported");
+            }
+        }
+
+        if (entry.contains("typewriter")) {
+            if (keyframe.transition != "typewriter")
+                throw std::runtime_error("text_transitions.typewriter requires transition='typewriter'");
+            const auto& params = entry.at("typewriter");
+            reject_unknown(params, {"chars_per_frame", "easing"},
+                           "text_transitions.typewriter");
+            if (params.contains("chars_per_frame")) {
+                keyframe.typewriter.chars_per_frame = params.at("chars_per_frame").get<float>();
+                if (!std::isfinite(keyframe.typewriter.chars_per_frame) ||
+                    keyframe.typewriter.chars_per_frame < 0.0f ||
+                    keyframe.typewriter.chars_per_frame > 1000.0f)
+                    throw std::runtime_error("text_transitions.typewriter.chars_per_frame must be finite and in [0, 1000]");
+            }
+            if (params.contains("easing")) {
+                keyframe.typewriter.easing = params.at("easing").get<std::string>();
+                if (!is_standard_easing(keyframe.typewriter.easing))
+                    throw std::runtime_error("text_transitions.typewriter.easing is unsupported");
+            }
+        }
+
+        plan.keyframes.push_back(std::move(keyframe));
+    }
+    layer.text_transitions = std::move(plan);
+}
+
 void decode_layer_transform_fields(LayerPlan& layer, const nlohmann::json& value) {
     if (value.contains("position")) {
         const auto& position = value.at("position");

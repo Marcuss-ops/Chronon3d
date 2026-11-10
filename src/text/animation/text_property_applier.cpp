@@ -272,6 +272,19 @@ void apply_property_to_glyph(
             (void)p;
             (void)gs;
         }
+        else if constexpr (std::is_same_v<T, CharacterValueProperty>) {
+            // P1-01: PreShaping.  `evaluate_pre_shaping_source()` rewrites the
+            // source before shaping, so there is no glyph state to mutate.
+            (void)p;
+            (void)gs;
+        }
+        else if constexpr (std::is_same_v<T, CharacterAlignmentProperty> ||
+                           std::is_same_v<T, AnchorPointGroupingProperty>) {
+            // P1-03 / P1-05: run-level pre-passes in evaluate_animator, which
+            // own the line extents and group boxes this dispatcher lacks.
+            (void)p;
+            (void)gs;
+        }
         else if constexpr (std::is_same_v<T, CharacterOffsetProperty>) {
             // FASE 2a: CharacterOffsetProperty is now a PreShaping
             // property evaluated in `apply_character_offset_to_source()`

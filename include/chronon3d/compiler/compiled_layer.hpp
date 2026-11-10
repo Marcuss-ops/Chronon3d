@@ -3,6 +3,7 @@
 #include <chronon3d/compiler/compiled_node.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/scene/model/shape/particles.hpp>
 
 #include <array>
 #include <cstdint>
@@ -50,6 +51,9 @@ struct StaticLayerProgram {
     float radius{0.0f};
     std::optional<render_plan::ShapeContentPlan> shape;
     std::optional<render_plan::InlineMeshPlan> inline_mesh;
+    // Immutable emitter definition. Instances are sampled into frame-local
+    // parameters; the compiled program never stores a callback or Scene.
+    std::optional<ParticleEmitterParams> particle_emitter;
     // Text is not a bitmap: a text layer only becomes drawable when the
     // authored paint/typography payload reaches the materializer, which builds
     // the same prepared text run a RenderPlan backend builds.  Carrying only
@@ -57,6 +61,9 @@ struct StaticLayerProgram {
     // silently turned it into a ClearNode (an empty frame in a green job).
     std::optional<render_plan::LayerStylePlan> text_style;
     std::vector<render_plan::TextAnimatorPlan> text_animators;
+    // V3 keyframe transitions remain typed authoring data; the scene
+    // materializer lowers them to one AnimatedTextDocument at topology build.
+    std::optional<render_plan::TextTransitionsPlan> text_transitions;
     std::vector<::chronon3d::TextSpanOverride> text_spans;
     std::vector<::chronon3d::TextGlyphPaintRange> svg_glyph_paint_ranges;
     bool loop{false};

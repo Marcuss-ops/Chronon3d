@@ -334,3 +334,255 @@ TEST_CASE("PreShaping E2E: combined characters pass through") {
     std::string expected = "f\xcc\x81";
     CHECK(result == expected);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P1-01 — Character Value: replace every non-whitespace code point
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("CharacterValue: replaces letters with the sampled scalar") {
+    CHECK(apply_character_value_to_source("abc", U'A') == "AAA");
+    CHECK(apply_character_value_to_source("Hello", U'x') == "xxxxx");
+}
+
+TEST_CASE("CharacterValue: preserves ASCII whitespace and line structure") {
+    CHECK(apply_character_value_to_source("a b\tc\nd", U'#') == "# #\t#\n#");
+}
+
+TEST_CASE("CharacterValue: replaces multi-byte letters with one scalar") {
+    CHECK(apply_character_value_to_source("caf\xc3\xa9", U'Z') == "ZZZZ");
+}
+
+TEST_CASE("CharacterValue: invalid scalars leave the source unchanged") {
+    CHECK(apply_character_value_to_source("abc", 0) == "abc");
+    CHECK(apply_character_value_to_source("abc", 0xD800) == "abc");
+    CHECK(apply_character_value_to_source("abc", 0x110000) == "abc");
+}
+
+TEST_CASE("CharacterValue: evaluate_pre_shaping_source substitutes source") {
+    TextAnimatorSpec spec;
+    spec.properties.push_back(CharacterValueProperty{65.0f});  // 'A'
+    std::vector<TextAnimatorSpec> animators{spec};
+
+    CHECK(has_pre_shaping_properties(animators));
+    CHECK(evaluate_pre_shaping_source(animators, "abc") == "AAA");
+}
+
+TEST_CASE("CharacterValue: offset applies first, value replaces the result") {
+    TextAnimatorSpec offset_spec;
+    offset_spec.properties.push_back(CharacterOffsetProperty{1});
+    TextAnimatorSpec value_spec;
+    value_spec.properties.push_back(CharacterValueProperty{88.0f});  // 'X'
+    std::vector<TextAnimatorSpec> animators{offset_spec, value_spec};
+
+    CHECK(evaluate_pre_shaping_source(animators, "ab") == "XX");
+}
+
+TEST_CASE("CharacterValue: zero sampled value is a no-op") {
+    TextAnimatorSpec spec;
+    spec.properties.push_back(CharacterValueProperty{0.0f});
+    std::vector<TextAnimatorSpec> animators{spec};
+
+    CHECK(evaluate_pre_shaping_source(animators, "ab") == "ab");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADR-037 — selector-scoped PreShaping through the canonical unit map
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+
+PlacedGlyphRun make_adr_placed_run(std::initializer_list<std::size_t> byte_lengths) {
+    PlacedGlyphRun run;
+    std::size_t byte_offset = 0;
+    std::size_t index = 0;
+    for (const std::size_t byte_len : byte_lengths) {
+        PlacedGlyph glyph;
+        glyph.glyph_id = static_cast<u32>(index + 1);
+        glyph.cluster = static_cast<u32>(index);
+        glyph.is_cluster_start = true;
+        glyph.advance_x = 10.0f;
+        glyph.x = static_cast<f32>(index) * 10.0f;
+        glyph.y = 0.0f;
+        glyph.byte_offset = byte_offset;
+        glyph.byte_len = byte_len;
+        run.glyphs.push_back(glyph);
+
+        PlacedGlyphRun::Cluster cluster;
+        cluster.start_glyph = index;
+        cluster.end_glyph = index + 1;
+        cluster.byte_offset = byte_offset;
+        cluster.byte_len = byte_len;
+        cluster.advance = 10.0f;
+        cluster.raw_advance = 10.0f;
+        run.clusters.push_back(cluster);
+
+        byte_offset += byte_len;
+        ++index;
+    }
+    run.total_width = static_cast<f32>(index) * 10.0f;
+    run.total_height = 16.0f;
+    run.ascent = 12.0f;
+    run.descent = 4.0f;
+    run.baseline = 12.0f;
+    run.font_size = 16.0f;
+    return run;
+}
+
+GlyphSelectorSpec make_adr_selector(
+    TextSelectorUnit unit,
+    f32 start,
+    f32 end,
+    TextSelectorOrder order = TextSelectorOrder::Forward,
+    f32 amount = 100.0f
+) {
+    GlyphSelectorSpec selector;
+    selector.unit = unit;
+    selector.shape = TextSelectorShape::Square;
+    selector.order = order;
+    selector.start.set(start);
+    selector.end.set(end);
+    selector.amount.set(amount);
+    selector.exclude_spaces = true;
+    return selector;
+}
+
+} // namespace
+
+TEST_CASE("ADR-037: word selector scopes CharacterOffset to selected codepoints") {
+    const std::string source = "AB CD";
+    const auto run = make_adr_placed_run({1, 1, 1, 1});
+    const auto map = build_pre_shaping_unit_map(run, source);
+    REQUIRE(map != nullptr);
+
+    TextAnimatorSpec spec;
+    spec.selectors.push_back(
+        make_adr_selector(TextSelectorUnit::Word, 0.0f, 50.0f));
+    spec.properties.push_back(CharacterOffsetProperty{1});
+
+    CHECK(evaluate_pre_shaping_source(
+              {spec}, source, sample_at(0), map.get()) == "BC CD");
+}
+
+TEST_CASE("ADR-037: word selector scopes CharacterValue to selected codepoints") {
+    const std::string source = "AB CD";
+    const auto run = make_adr_placed_run({1, 1, 1, 1});
+    const auto map = build_pre_shaping_unit_map(run, source);
+    REQUIRE(map != nullptr);
+
+    TextAnimatorSpec spec;
+    spec.selectors.push_back(
+        make_adr_selector(TextSelectorUnit::Word, 0.0f, 50.0f));
+    spec.properties.push_back(CharacterValueProperty{88.0f});  // 'X'
+
+    CHECK(evaluate_pre_shaping_source(
+              {spec}, source, sample_at(0), map.get()) == "XX CD");
+}
+
+TEST_CASE("ADR-037: partial weight rounds each selected codepoint") {
+    const std::string source = "AB CD";
+    const auto run = make_adr_placed_run({1, 1, 1, 1});
+    const auto map = build_pre_shaping_unit_map(run, source);
+    REQUIRE(map != nullptr);
+
+    TextAnimatorSpec spec;
+    spec.selectors.push_back(
+        make_adr_selector(TextSelectorUnit::Word, 0.0f, 50.0f,
+                          TextSelectorOrder::Forward, 50.0f));
+    spec.properties.push_back(CharacterOffsetProperty{3});
+
+    // 3 * 0.5 = 1.5, rounded per codepoint -> 2 (not 1.5 on the run total).
+    CHECK(evaluate_pre_shaping_source(
+              {spec}, source, sample_at(0), map.get()) == "CD CD");
+}
+
+TEST_CASE("ADR-037: CharacterValue replaces a ligature as one grapheme") {
+    const std::string source = "fi";
+    const auto run = make_adr_placed_run({2});
+    const auto map = build_pre_shaping_unit_map(run, source);
+    REQUIRE(map != nullptr);
+
+    TextAnimatorSpec spec;
+    spec.selectors.push_back(
+        make_adr_selector(TextSelectorUnit::Grapheme, 0.0f, 100.0f));
+    spec.properties.push_back(CharacterValueProperty{88.0f});  // 'X'
+
+    CHECK(evaluate_pre_shaping_source(
+              {spec}, source, sample_at(0), map.get()) == "X");
+}
+
+TEST_CASE("ADR-037: combining marks stay with their base grapheme") {
+    const std::string source = "e\xCC\x81x";  // e + U+0301 COMBINING ACUTE + x
+    const auto run = make_adr_placed_run({3, 1});
+    const auto map = build_pre_shaping_unit_map(run, source);
+    REQUIRE(map != nullptr);
+
+    TextAnimatorSpec spec;
+    spec.selectors.push_back(
+        make_adr_selector(TextSelectorUnit::Grapheme, 0.0f, 50.0f));
+    spec.properties.push_back(CharacterValueProperty{65.0f});  // 'A'
+
+    // The selected grapheme is replaced whole: no dangling combining mark.
+    CHECK(evaluate_pre_shaping_source(
+              {spec}, source, sample_at(0), map.get()) == "Ax");
+}
+
+TEST_CASE("ADR-037: CharacterValue threshold is inclusive at 50 percent") {
+    const std::string source = "AB";
+    const auto run = make_adr_placed_run({1, 1});
+    const auto map = build_pre_shaping_unit_map(run, source);
+    REQUIRE(map != nullptr);
+
+    const auto value_at = [&](f32 amount) {
+        TextAnimatorSpec spec;
+        spec.selectors.push_back(
+            make_adr_selector(TextSelectorUnit::Grapheme, 0.0f, 100.0f,
+                              TextSelectorOrder::Forward, amount));
+        spec.properties.push_back(CharacterValueProperty{88.0f});  // 'X'
+        return evaluate_pre_shaping_source(
+            {spec}, source, sample_at(0), map.get());
+    };
+
+    CHECK(value_at(50.0f) == "XX");
+    CHECK(value_at(49.0f) == "AB");
+}
+
+TEST_CASE("ADR-037: selector-scoped evaluation is stateless across frames") {
+    const std::string source = "ABCD";
+    const auto run = make_adr_placed_run({1, 1, 1, 1});
+    const auto map = build_pre_shaping_unit_map(run, source);
+    REQUIRE(map != nullptr);
+
+    TextAnimatorSpec spec;
+    spec.selectors.push_back(
+        make_adr_selector(TextSelectorUnit::Grapheme, 0.0f, 100.0f));
+    spec.properties.push_back(CharacterOffsetProperty{});
+    auto* offset = std::get_if<CharacterOffsetProperty>(&spec.properties.back());
+    REQUIRE(offset != nullptr);
+    offset->offset.add_keyframe(Frame{0}, 0.0f);
+    offset->offset.add_keyframe(Frame{10}, 4.0f);
+
+    CHECK(evaluate_pre_shaping_source(
+              {spec}, source, sample_at(10), map.get()) == "EFGH");
+    CHECK(evaluate_pre_shaping_source(
+              {spec}, source, sample_at(0), map.get()) == "ABCD");
+    CHECK(evaluate_pre_shaping_source(
+              {spec}, source, sample_at(10), map.get()) == "EFGH");
+}
+
+TEST_CASE("ADR-037: Reverse order operates on logical source order for RTL") {
+    const std::string source = "\xD8\xA8\xD8\xAA";  // Arabic beh + teh
+    const auto run = make_adr_placed_run({2, 2});
+    const auto map = build_pre_shaping_unit_map(run, source);
+    REQUIRE(map != nullptr);
+
+    TextAnimatorSpec spec;
+    spec.selectors.push_back(
+        make_adr_selector(TextSelectorUnit::Grapheme, 0.0f, 50.0f,
+                          TextSelectorOrder::Reverse));
+    spec.properties.push_back(CharacterValueProperty{88.0f});  // 'X'
+
+    // Reverse selects the second logical codepoint (teh), not the visually
+    // leading one; PreShaping happens before bidi reordering.
+    CHECK(evaluate_pre_shaping_source(
+              {spec}, source, sample_at(0), map.get()) == "\xD8\xA8X");
+}

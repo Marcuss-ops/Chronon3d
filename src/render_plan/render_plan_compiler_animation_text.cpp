@@ -352,6 +352,27 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
                 animated_text_value(track, 0.0f, "character_offset", fps)});
             break;
         }
+        case AnimationPropertyKind::CharacterValue: {
+            animator.properties.push_back(chronon3d::CharacterValueProperty{
+                animated_text_value(track, 0.0f, "character_value", fps)});
+            break;
+        }
+        case AnimationPropertyKind::CharacterAlignment: {
+            const int mode = track.keyframes.empty() ? 0 :
+                static_cast<int>(scalar_value(
+                    track.keyframes.front(), "character_alignment"));
+            animator.properties.push_back(chronon3d::CharacterAlignmentProperty{
+                static_cast<chronon3d::CharacterAlignmentMode>(mode)});
+            break;
+        }
+        case AnimationPropertyKind::AnchorGrouping: {
+            const int mode = track.keyframes.empty() ? 0 :
+                static_cast<int>(scalar_value(
+                    track.keyframes.front(), "anchor_grouping"));
+            animator.properties.push_back(chronon3d::AnchorPointGroupingProperty{
+                static_cast<chronon3d::AnchorPointGrouping>(mode)});
+            break;
+        }
         default:
             throw std::runtime_error("unsupported text animator property: " + track.property);
         }

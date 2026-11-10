@@ -33,6 +33,16 @@ void add_layer_effects_and_masks(CanonicalPlanWriter& out, const LayerPlan& laye
             out.add_float(particles.depth_max);
             out.add_bool(particles.bokeh);
         }
+        if (particles.flow.strength != 0.0f || particles.flow.scale != 0.012f ||
+            particles.flow.speed != 0.35f || particles.twinkle.amount != 0.0f ||
+            particles.twinkle.speed != 0.75f) {
+            out.add_bool(true);
+            out.add_float(particles.flow.strength);
+            out.add_float(particles.flow.scale);
+            out.add_float(particles.flow.speed);
+            out.add_float(particles.twinkle.amount);
+            out.add_float(particles.twinkle.speed);
+        }
         out.add_size(particles.path_points.size());
         for (const auto point : particles.path_points) { out.add_float(point.x); out.add_float(point.y); }
         add_gradient(out, particles.color_ramp);

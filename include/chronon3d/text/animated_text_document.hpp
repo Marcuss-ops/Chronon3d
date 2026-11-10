@@ -2,7 +2,7 @@
 
 // ═══════════════════════════════════════════════════════════════════════════
 // animated_text_document.hpp — Animated text document with keyframe
-// transitions (Hold, Cut, DissolveLayouts)
+// transitions (Hold, Cut, DissolveLayouts, Scramble, Morph, Typewriter)
 //
 // PR 6 of the text pipeline.  Enables animating text content by switching
 // between TextDocument snapshots at keyframe boundaries, with optional
@@ -82,12 +82,21 @@ namespace chronon3d {
 ///                      ActiveTextState contains the per-frame interpolated
 ///                      text, and `morph_map` maps positions from the
 ///                      previous layout to the next.
+///
+/// Typewriter:         During the gap, the incoming document is revealed from
+///                      its logical start.  Reveal boundaries are grapheme
+///                      clusters, never UTF-8 code points or bytes.  At
+///                      mix=0 the visible text is a single space (it keeps
+///                      the run layout alive); at mix=1 it is the complete
+///                      incoming document.
 enum class SourceTextTransition : u8 {
     Hold,
     Cut,
     DissolveLayouts,
     Scramble,
     Morph,
+    // Appended to preserve the numeric values of the existing transitions.
+    Typewriter,
 };
 
 // ── SourceTextKeyframe — a TextDocument snapshot at a specific frame ────
@@ -124,6 +133,18 @@ struct MorphParams {
     EasingCurve easing{EasingCurve{Easing::OutCubic}};
 };
 
+/// Parameters for Typewriter transition.
+struct TypewriterParams {
+    /// Reveal rate.  0 = spread the complete incoming text over the
+    /// keyframe gap; > 0 = reveal at most this many grapheme clusters per
+    /// frame.  The transition still holds the complete text at the next
+    /// keyframe boundary.
+    f32 chars_per_frame{0.0f};
+
+    /// Easing applied to the reveal progress.
+    EasingCurve easing{EasingCurve{Easing::OutCubic}};
+};
+
 struct SourceTextKeyframe {
     /// Frame index when this document becomes active.
     Frame frame{0};
@@ -143,6 +164,10 @@ struct SourceTextKeyframe {
     /// Parameters for Morph transition (only meaningful when
     /// transition == Morph).
     MorphParams morph_params{};
+
+    /// Parameters for Typewriter transition (only meaningful when
+    /// transition == Typewriter).
+    TypewriterParams typewriter_params{};
 
     /// For std::sort / std::lower_bound.
     bool operator<(const SourceTextKeyframe& other) const {
@@ -164,8 +189,8 @@ struct ActiveTextState {
     const TextDocument* dissolve_from{nullptr};
 
     /// 0.0 = fully dissolve_from, 1.0 = fully active.
-    /// Only meaningful when transition == DissolveLayouts, Scramble, or Morph;
-    /// zero otherwise.
+    /// Only meaningful when transition == DissolveLayouts, Scramble, Morph,
+    /// or Typewriter; zero otherwise.
     float mix{0.0f};
 
     /// The transition type in effect at this frame.
@@ -181,6 +206,13 @@ struct ActiveTextState {
     /// Empty when not in Morph mode.
     std::string transition_text;
 
+    /// True when `transition_text` is the authoritative target for this frame,
+    /// even when it is empty.  Scramble/Morph/Typewriter set this; a
+    /// legitimately empty typewriter frame 0 must not fall back to the full
+    /// `active` text.  Hold/Cut/DissolveLayouts leave it false because their
+    /// visible text lives in `active`.
+    bool transition_text_authoritative{false};
+
     /// ── Morph: character position map ─────────────────────────────────
     /// Maps character positions from the previous layout to the next.
     /// Each entry is (prev_index, next_index) where the character at
@@ -188,6 +220,9 @@ struct ActiveTextState {
     /// -1 means the position has no counterpart (new or removed char).
     /// Only populated when transition == Morph.
     std::vector<std::pair<int, int>> morph_map;
+
+    // Scramble/Morph/Typewriter share `transition_text`; it is empty for
+    // Hold, Cut, and DissolveLayouts.
 };
 
 // ── AnimatedTextDocument — keyframe-driven text document animation ─────

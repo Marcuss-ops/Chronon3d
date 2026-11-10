@@ -1,0 +1,114 @@
+#version 450
+
+// ── Bloom HDR prefilter + first downsample ─────────────────────────────────
+// Reads the full-resolution scene in rgba32f and writes mip 0 of the
+// half-resolution rgba16f pyramid.  The soft-knee threshold removes values
+// below the bloom threshold while preserving the radiometric magnitude of
+// values above it: nothing is clamped to 1.0, so the output boundary remains
+// the only place where HDR energy is compressed.
+//
+// The spatial kernel is Jimenez's 13-tap downsample.  The first pass also
+// applies a Karis average over the five 2x2 groups, which suppresses single
+// ultra-bright texels (fireflies) without clipping the HDR range.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba16f) uniform writeonly image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+
+layout(push_constant) uniform BloomPrefilterParams {
+    float threshold;
+    float soft_knee;
+    int first_pass;  // always 1; kept so the pass shares the bloom ABI shape
+    int padding;
+} params;
+
+vec4 sample_bilinear(vec2 uv) {
+    ivec2 size = imageSize(source_image);
+    vec2 coordinate = uv * vec2(size) - vec2(0.5);
+    ivec2 p0 = ivec2(floor(coordinate));
+    ivec2 p1 = p0 + ivec2(1);
+    vec2 fraction = fract(coordinate);
+    p0 = clamp(p0, ivec2(0), size - ivec2(1));
+    p1 = clamp(p1, ivec2(0), size - ivec2(1));
+    vec4 top = mix(imageLoad(source_image, ivec2(p0.x, p0.y)),
+                   imageLoad(source_image, ivec2(p1.x, p0.y)), fraction.x);
+    vec4 bottom = mix(imageLoad(source_image, ivec2(p0.x, p1.y)),
+                      imageLoad(source_image, ivec2(p1.x, p1.y)), fraction.x);
+    return mix(top, bottom, fraction.y);
+}
+
+float luminance(vec3 color) {
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+vec3 prefilter_hdr(vec3 color) {
+    float brightness = max(color.r, max(color.g, color.b));
+    float knee = max(params.soft_knee, 1.0e-4);
+    float soft = clamp(brightness - params.threshold + knee, 0.0, 2.0 * knee);
+    soft = (soft * soft) / (4.0 * knee + 1.0e-4);
+    float factor = max(soft, brightness - params.threshold) /
+                   max(brightness, 1.0e-4);
+    return max(color * max(factor, 0.0), vec3(0.0));
+}
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(size);
+    vec2 texel = 1.0 / vec2(imageSize(source_image));
+    vec2 x = vec2(texel.x, 0.0);
+    vec2 y = vec2(0.0, texel.y);
+
+    vec4 a = sample_bilinear(uv - 2.0 * x + 2.0 * y);
+    vec4 b = sample_bilinear(uv + 2.0 * y);
+    vec4 c = sample_bilinear(uv + 2.0 * x + 2.0 * y);
+    vec4 d = sample_bilinear(uv - 2.0 * x);
+    vec4 e = sample_bilinear(uv);
+    vec4 f = sample_bilinear(uv + 2.0 * x);
+    vec4 g = sample_bilinear(uv - 2.0 * x - 2.0 * y);
+    vec4 h = sample_bilinear(uv - 2.0 * y);
+    vec4 i = sample_bilinear(uv + 2.0 * x - 2.0 * y);
+    vec4 j = sample_bilinear(uv - x + y);
+    vec4 k = sample_bilinear(uv + x + y);
+    vec4 l = sample_bilinear(uv - x - y);
+    vec4 m = sample_bilinear(uv + x - y);
+
+    a.rgb = prefilter_hdr(a.rgb);
+    b.rgb = prefilter_hdr(b.rgb);
+    c.rgb = prefilter_hdr(c.rgb);
+    d.rgb = prefilter_hdr(d.rgb);
+    e.rgb = prefilter_hdr(e.rgb);
+    f.rgb = prefilter_hdr(f.rgb);
+    g.rgb = prefilter_hdr(g.rgb);
+    h.rgb = prefilter_hdr(h.rgb);
+    i.rgb = prefilter_hdr(i.rgb);
+    j.rgb = prefilter_hdr(j.rgb);
+    k.rgb = prefilter_hdr(k.rgb);
+    l.rgb = prefilter_hdr(l.rgb);
+    m.rgb = prefilter_hdr(m.rgb);
+
+    vec3 g1 = (a.rgb + b.rgb + d.rgb + e.rgb) * 0.25;
+    vec3 g2 = (b.rgb + c.rgb + e.rgb + f.rgb) * 0.25;
+    vec3 g3 = (d.rgb + e.rgb + g.rgb + h.rgb) * 0.25;
+    vec3 g4 = (e.rgb + f.rgb + h.rgb + i.rgb) * 0.25;
+    vec3 g5 = (j.rgb + k.rgb + l.rgb + m.rgb) * 0.25;
+
+    // Karis average: weight every group by 1/(1+luminance) so one firefly
+    // cannot dominate the kernel, then renormalize by the accumulated weight
+    // so the spatial energy of groups 1..4 (0.125 each) and group 5 (0.5)
+    // stays intact.
+    float w1 = 0.125 / (1.0 + luminance(g1));
+    float w2 = 0.125 / (1.0 + luminance(g2));
+    float w3 = 0.125 / (1.0 + luminance(g3));
+    float w4 = 0.125 / (1.0 + luminance(g4));
+    float w5 = 0.5 / (1.0 + luminance(g5));
+    float total = max(w1 + w2 + w3 + w4 + w5, 1.0e-6);
+    vec3 result = (g1 * w1 + g2 * w2 + g3 * w3 + g4 * w4 + g5 * w5) / total;
+
+    float alpha = (a.a + b.a + c.a + d.a + e.a + f.a + g.a + h.a +
+                   i.a + j.a + k.a + l.a + m.a) / 13.0;
+    imageStore(destination_image, pixel,
+               vec4(max(result, vec3(0.0)), clamp(alpha, 0.0, 1.0)));
+}

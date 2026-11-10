@@ -168,6 +168,31 @@ TEST_CASE("the particle seed participates in the content fingerprint") {
     CHECK(decoded_first->content_fingerprint != decoded_second->content_fingerprint);
 }
 
+TEST_CASE("V3 particle flow and twinkle fields decode and fail closed") {
+    auto emitter = box_emitter();
+    emitter["flow_strength"] = 24.0;
+    emitter["flow_scale"] = 0.02;
+    emitter["flow_speed"] = 0.4;
+    emitter["twinkle"] = 0.5;
+    emitter["twinkle_speed"] = 1.1;
+    const auto plan = render_plan_test::base_plan(nlohmann::json::array({particles_layer(emitter)}));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    if (!decoded) MESSAGE("flow decode failed: " << decoded.error().message);
+    REQUIRE(decoded);
+    const auto& parsed = *decoded->layers[0].particle_emitter;
+    CHECK(parsed.flow.strength == doctest::Approx(24.0f));
+    CHECK(parsed.flow.scale == doctest::Approx(0.02f));
+    CHECK(parsed.flow.speed == doctest::Approx(0.4f));
+    CHECK(parsed.twinkle.amount == doctest::Approx(0.5f));
+    CHECK(parsed.twinkle.speed == doctest::Approx(1.1f));
+
+    auto out_of_range = emitter;
+    out_of_range["twinkle"] = 1.5;
+    const auto rejected = render_plan_test::base_plan(
+        nlohmann::json::array({particles_layer(out_of_range)}));
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(rejected));
+}
+
 TEST_CASE("environment bokeh emitters decode and stay inside the particle budget") {
     auto emitter = box_emitter();
     emitter["environment"] = true;

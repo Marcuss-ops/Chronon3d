@@ -21,13 +21,13 @@ std::string select_target_text(const ActiveTextState& state) {
 
         case SourceTextTransition::Scramble:
         case SourceTextTransition::Morph:
-            // transition_text holds the per-frame generated string
-            // produced by AnimatedTextDocument::sample_at.  Empty only
-            // when pre/post-conditions clip the transition (e.g. mix=1
-            // already); falls through to active->utf8.
-            return state.transition_text.empty()
-                ? state.active->utf8
-                : state.transition_text;
+        case SourceTextTransition::Typewriter:
+            // These modes own the per-frame target text.  Empty is a real
+            // target (typewriter frame 0 / zero revealed clusters), so do
+            // not fall back to the full active document.
+            return state.transition_text_authoritative
+                ? state.transition_text
+                : state.active->utf8;
     }
     return {};  // unreachable in well-formed enum usage
 }

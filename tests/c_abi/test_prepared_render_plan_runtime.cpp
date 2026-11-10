@@ -268,6 +268,94 @@ TEST_CASE("render plan compiles semantic word fill-color animator") {
     CHECK(evaluated_color.b == doctest::Approx(0.0f));
 }
 
+TEST_CASE("render plan lowers text_transitions into an AnimatedTextDocument") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "text-transitions";
+    plan.canvas = {.width = 320, .height = 120,
+                   .fps = FrameRate{30, 1}, .duration = Frame{24}};
+    LayerPlan text;
+    text.id = "typed";
+    text.type = LayerType::Text;
+    text.text = "FINAL";
+    text.font = "tests/fixtures/Inter-Bold.ttf";
+    LayerStylePlan style;
+    style.font = text.font;
+    style.font_size = 32.0f;
+    style.fill = "#FFFFFF";
+    text.style = style;
+
+    TextTransitionsPlan transitions;
+    TextTransitionKeyframePlan first;
+    first.frame = Frame{0};
+    first.text = "";
+    first.transition = "typewriter";
+    first.typewriter.easing = "linear";
+    transitions.keyframes.push_back(first);
+    TextTransitionKeyframePlan last;
+    last.frame = Frame{12};
+    last.text = "FINAL";
+    last.transition = "cut";
+    transitions.keyframes.push_back(last);
+    text.text_transitions = std::move(transitions);
+    plan.layers.push_back(std::move(text));
+
+    const auto source_root = std::filesystem::path(__FILE__)
+        .parent_path().parent_path().parent_path();
+    assets::AssetResolver resolver;
+    resolver.mount(source_root);
+    const auto prepared = compile_render_plan(plan, resolver);
+    const std::string compile_error = prepared ? std::string{} : prepared.error().message;
+    REQUIRE_MESSAGE(prepared, compile_error);
+
+    // The V3 block is part of job identity: an identical plan must compile to
+    // the same fingerprint, and changing one transition parameter must change
+    // it.  This catches a silently ignored text_transitions block.
+    assets::AssetResolver repeat_resolver;
+    repeat_resolver.mount(source_root);
+    const auto repeated = compile_render_plan(plan, repeat_resolver);
+    REQUIRE(repeated);
+    CHECK(repeated->compiled_composition.fingerprint ==
+          prepared->compiled_composition.fingerprint);
+
+    auto changed_plan = plan;
+    changed_plan.layers[0].text_transitions->keyframes[0]
+        .typewriter.chars_per_frame = 2.0f;
+    assets::AssetResolver changed_resolver;
+    changed_resolver.mount(source_root);
+    const auto changed = compile_render_plan(changed_plan, changed_resolver);
+    REQUIRE(changed);
+    CHECK(changed->compiled_composition.fingerprint !=
+          prepared->compiled_composition.fingerprint);
+
+    const auto shape_at = [&](Frame frame) {
+        const auto evaluated = evaluate(
+            prepared->compiled_composition, CompositionEvaluateContext{}, frame);
+        REQUIRE(evaluated);
+        REQUIRE(evaluated->scene.layers().size() == 1);
+        REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
+        const auto shape = evaluated->scene.layers()[0].nodes[0]
+            .shape.text_run_shape_handle().value;
+        REQUIRE(shape);
+        REQUIRE(shape->animated_doc);
+        return shape;
+    };
+
+    const auto start = shape_at(Frame{0});
+    REQUIRE(start->layout);
+    CHECK(start->layout->source_text.empty());
+    CHECK(start->layout->placed.glyphs.empty());
+
+    const auto middle = shape_at(Frame{6});
+    REQUIRE(middle->layout);
+    CHECK(middle->layout->source_text == "FI");
+
+    const auto end = shape_at(Frame{12});
+    REQUIRE(end->layout);
+    CHECK(end->layout->source_text == "FINAL");
+}
+
 TEST_CASE("render plan evaluates animated solid fills and typed transitions per frame") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
@@ -1342,6 +1430,44 @@ TEST_CASE("render plan materializes deterministic particle shapes per frame") {
         [](const auto& command) { return command.type == PathCommandType::Close; }) ==
         emitter.count);
     CHECK(batch_path.commands.size() <= emitter.count * 65);
+}
+
+TEST_CASE("render plan keeps a stroke-only ellipse unfilled") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "stroke-only-ellipse";
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{30, 1}, .duration = Frame{1}};
+    LayerPlan layer;
+    layer.id = "ring";
+    layer.type = LayerType::Shape;
+    layer.size = {32.0f, 32.0f};
+    layer.size_dimensions = 2;
+    layer.position = {32.0f, 32.0f, 0.0f};
+    layer.position_dimensions = 2;
+    ShapeContentPlan ellipse;
+    ellipse.type = ShapeContentTypePlan::Ellipse;
+    render_plan::StrokeStyle stroke;
+    stroke.color = "#FFFFFF";
+    stroke.width = 2.0f;
+    ellipse.stroke = std::move(stroke);
+    layer.shape = std::move(ellipse);
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
+    const auto& node = evaluated->scene.layers()[0].nodes[0];
+    CHECK(node.shape.type() == ShapeType::Circle);
+    CHECK_FALSE(node.fill.enabled);
+    CHECK(node.shape.circle().stroke.enabled);
+    CHECK(node.shape.circle().stroke.width == doctest::Approx(2.0f));
 }
 
 TEST_CASE("render plan compiles radial light into a screen-space gradient circle") {

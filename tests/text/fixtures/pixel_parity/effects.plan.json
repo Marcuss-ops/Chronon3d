@@ -1,0 +1,131 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "text-parity-effects",
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 20.4074,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  },
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 61
+  },
+  "output": {
+    "path": "text-parity-effects.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "effects",
+      "type": "text",
+      "enable_3d": true,
+      "text": "EFFECTS",
+      "start_frame": 0,
+      "duration_frames": 61,
+      "position": [
+        640,
+        400
+      ],
+      "rotation": [
+        0,
+        0,
+        12
+      ],
+      "size": [
+        640,
+        260
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 88,
+        "fill": "#FFFFFF",
+        "gradient": {
+          "type": "linear",
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            1,
+            0
+          ],
+          "color_stops": [
+            {
+              "position": 0,
+              "color": [
+                1.0,
+                0.2,
+                0.1,
+                1.0
+              ]
+            },
+            {
+              "position": 1,
+              "color": [
+                0.1,
+                0.4,
+                1.0,
+                1.0
+              ]
+            }
+          ]
+        },
+        "stroke": {
+          "color": "#FFD166",
+          "width": 6
+        },
+        "shadows": [
+          {
+            "color": "#000000",
+            "opacity": 0.7,
+            "blur": 12,
+            "offset": [
+              6,
+              8
+            ]
+          }
+        ],
+        "background": {
+          "color": "#102030",
+          "opacity": 0.8,
+          "radius": 12,
+          "padding": [
+            12,
+            12
+          ]
+        },
+        "quality": "high"
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "color": [
+            0.0,
+            0.8,
+            1.0,
+            0.8
+          ],
+          "radius": 18,
+          "intensity": 1.0
+        }
+      ]
+    }
+  ]
+}

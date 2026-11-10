@@ -26,11 +26,13 @@ public:
 
     void create(VkDevice device, VkDescriptorSetLayout layout,
                 std::size_t storage_images = kStorageImagesPerSet,
-                std::size_t storage_buffers = kStorageBuffersPerSet) {
+                std::size_t storage_buffers = kStorageBuffersPerSet,
+                std::size_t uniform_buffers = 0) {
         device_ = device;
         layout_ = layout;
         storage_images_ = storage_images;
         storage_buffers_ = storage_buffers;
+        uniform_buffers_ = uniform_buffers;
     }
 
     void destroy() noexcept {
@@ -77,6 +79,10 @@ private:
             pool_sizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                   static_cast<std::uint32_t>(sets * storage_buffers_)});
         }
+        if (uniform_buffers_ != 0) {
+            pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                  static_cast<std::uint32_t>(sets * uniform_buffers_)});
+        }
         const VkDescriptorPoolCreateInfo pool_info{
             VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0,
             static_cast<std::uint32_t>(sets),
@@ -91,6 +97,7 @@ private:
     VkDescriptorSetLayout layout_{VK_NULL_HANDLE};
     std::size_t storage_images_{kStorageImagesPerSet};
     std::size_t storage_buffers_{kStorageBuffersPerSet};
+    std::size_t uniform_buffers_{0};
     std::vector<VkDescriptorPool> pools_{};
     std::size_t active_pool_{0};
 };
@@ -101,10 +108,12 @@ private:
 struct VulkanDescriptorAuthority {
     // Depth matches VulkanSubmissionAuthority::kSlotCount (B2 wave: 6).
     std::array<FrameDescriptorAllocator, 6> pass{};
+    std::array<FrameDescriptorAllocator, 6> particle_emitter{};
     std::array<FrameDescriptorAllocator, 6> text_tile_bin{};
     std::array<FrameDescriptorAllocator, 6> text_tile_raster{};
 
     VkDescriptorSetLayout descriptor_layout{VK_NULL_HANDLE};
+    VkDescriptorSetLayout particle_emitter_descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorSetLayout text_tile_bin_descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorSetLayout text_tile_raster_descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorPool descriptor_pool{VK_NULL_HANDLE};
@@ -113,12 +122,14 @@ struct VulkanDescriptorAuthority {
 
     void destroy() noexcept {
         for (auto& allocator : pass) allocator.destroy();
+        for (auto& allocator : particle_emitter) allocator.destroy();
         for (auto& allocator : text_tile_bin) allocator.destroy();
         for (auto& allocator : text_tile_raster) allocator.destroy();
     }
 
     void reset(std::size_t slot) {
         pass[slot].reset();
+        particle_emitter[slot].reset();
         text_tile_bin[slot].reset();
         text_tile_raster[slot].reset();
     }

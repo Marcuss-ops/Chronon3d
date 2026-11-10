@@ -19,6 +19,10 @@
 #include "lut_bulk_comp_spv.hpp"
 #include "sharpen_comp_spv.hpp"
 #include "bloom_threshold_comp_spv.hpp"
+#include "bloom_prefilter_comp_spv.hpp"
+#include "bloom_downsample_comp_spv.hpp"
+#include "bloom_upsample_comp_spv.hpp"
+#include "bloom_composite_comp_spv.hpp"
 #include "glow_prepare_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
 #include "color_matrix_comp_spv.hpp"
@@ -374,6 +378,114 @@ void VulkanBackend::Impl::init_core_kernel_pipelines() {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::BloomThreshold, bloom_pipeline, "BloomThreshold");
         if (debug_context) debug_context->set_pipeline_name(bloom_pipeline, "Chronon3D.Pipeline.BloomThreshold");
+
+        const VkShaderModuleCreateInfo bloom_downsample_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_bloom_downsample_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_bloom_downsample_comp_spv)};
+        VkShaderModule bloom_downsample_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &bloom_downsample_shader_info, nullptr,
+                                   &bloom_downsample_shader),
+              "vkCreateShaderModule(bloom downsample)");
+        const VkPipelineShaderStageCreateInfo bloom_downsample_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT, bloom_downsample_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo bloom_downsample_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            bloom_downsample_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline bloom_downsample_pipeline = VK_NULL_HANDLE;
+        const VkResult bloom_downsample_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &bloom_downsample_pipeline_info,
+            nullptr, &bloom_downsample_pipeline);
+        vkDestroyShaderModule(device, bloom_downsample_shader, nullptr);
+        check(bloom_downsample_result, "vkCreateComputePipelines(bloom downsample)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::BloomDownsample, bloom_downsample_pipeline,
+                "BloomDownsample");
+        if (debug_context)
+            debug_context->set_pipeline_name(bloom_downsample_pipeline,
+                                             "Chronon3D.Pipeline.BloomDownsample");
+
+        const VkShaderModuleCreateInfo bloom_upsample_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_bloom_upsample_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_bloom_upsample_comp_spv)};
+        VkShaderModule bloom_upsample_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &bloom_upsample_shader_info, nullptr,
+                                   &bloom_upsample_shader),
+              "vkCreateShaderModule(bloom upsample)");
+        const VkPipelineShaderStageCreateInfo bloom_upsample_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT, bloom_upsample_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo bloom_upsample_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            bloom_upsample_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline bloom_upsample_pipeline = VK_NULL_HANDLE;
+        const VkResult bloom_upsample_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &bloom_upsample_pipeline_info,
+            nullptr, &bloom_upsample_pipeline);
+        vkDestroyShaderModule(device, bloom_upsample_shader, nullptr);
+        check(bloom_upsample_result, "vkCreateComputePipelines(bloom upsample)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::BloomUpsample, bloom_upsample_pipeline,
+                "BloomUpsample");
+        if (debug_context)
+            debug_context->set_pipeline_name(bloom_upsample_pipeline,
+                                             "Chronon3D.Pipeline.BloomUpsample");
+
+        const VkShaderModuleCreateInfo bloom_prefilter_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_bloom_prefilter_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_bloom_prefilter_comp_spv)};
+        VkShaderModule bloom_prefilter_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &bloom_prefilter_shader_info, nullptr,
+                                   &bloom_prefilter_shader),
+              "vkCreateShaderModule(bloom prefilter)");
+        const VkPipelineShaderStageCreateInfo bloom_prefilter_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT, bloom_prefilter_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo bloom_prefilter_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            bloom_prefilter_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline bloom_prefilter_pipeline = VK_NULL_HANDLE;
+        const VkResult bloom_prefilter_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &bloom_prefilter_pipeline_info,
+            nullptr, &bloom_prefilter_pipeline);
+        vkDestroyShaderModule(device, bloom_prefilter_shader, nullptr);
+        check(bloom_prefilter_result, "vkCreateComputePipelines(bloom prefilter)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::BloomPrefilter, bloom_prefilter_pipeline,
+                "BloomPrefilter");
+        if (debug_context)
+            debug_context->set_pipeline_name(bloom_prefilter_pipeline,
+                                             "Chronon3D.Pipeline.BloomPrefilter");
+
+        const VkShaderModuleCreateInfo bloom_composite_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_bloom_composite_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_bloom_composite_comp_spv)};
+        VkShaderModule bloom_composite_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &bloom_composite_shader_info, nullptr,
+                                   &bloom_composite_shader),
+              "vkCreateShaderModule(bloom composite)");
+        const VkPipelineShaderStageCreateInfo bloom_composite_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT, bloom_composite_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo bloom_composite_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            bloom_composite_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline bloom_composite_pipeline = VK_NULL_HANDLE;
+        const VkResult bloom_composite_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &bloom_composite_pipeline_info,
+            nullptr, &bloom_composite_pipeline);
+        vkDestroyShaderModule(device, bloom_composite_shader, nullptr);
+        check(bloom_composite_result, "vkCreateComputePipelines(bloom composite)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::BloomComposite, bloom_composite_pipeline,
+                "BloomComposite");
+        if (debug_context)
+            debug_context->set_pipeline_name(bloom_composite_pipeline,
+                                             "Chronon3D.Pipeline.BloomComposite");
 
         const VkShaderModuleCreateInfo glow_prepare_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

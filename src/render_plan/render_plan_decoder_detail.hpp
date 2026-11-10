@@ -79,6 +79,7 @@ void decode_layer_layout(LayerPlan&, const nlohmann::json&);
 void decode_layer_timing(LayerPlan&, const nlohmann::json&);
 void validate_layer_animation_fields(LayerPlan&, const nlohmann::json&);
 void decode_layer_text_counter(LayerPlan&, const nlohmann::json&);
+void decode_layer_text_transitions(LayerPlan&, const nlohmann::json&);
 void decode_layer_transform_fields(LayerPlan&, const nlohmann::json&);
 void decode_layer_asset_fields(LayerPlan&, const nlohmann::json&);
 void decode_layer_size_color_fields(LayerPlan&, const nlohmann::json&);

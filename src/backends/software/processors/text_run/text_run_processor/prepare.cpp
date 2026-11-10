@@ -72,10 +72,22 @@ namespace chronon3d::renderer::text_run_stages {
     const auto& shape = params.shape;
 
     // ── Stage 0 input validation ─────────────────────────────────────────
-    if (!shape.layout || shape.glyphs.empty()) {
+    // A zero-glyph frame is legal (typewriter frame 0).  Both backends must
+    // draw a successful no-op instead of injecting a synthetic space.
+    if (shape.glyphs.empty()) {
+        return graph::RenderOpResult(graph::RenderOpOutcome{0});
+    }
+    if (!shape.layout) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::InvalidInput,
-            "prepare_text_run: empty layout or empty glyph set"
+            "prepare_text_run: empty layout"
+        ));
+    }
+    if (shape.paint.stroke_enabled &&
+        shape.paint.stroke_mode == TextStrokeMode::Distance) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "prepare_text_run: DistanceStroke requires the GPU SDF route"
         ));
     }
 

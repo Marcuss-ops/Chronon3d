@@ -22,6 +22,8 @@
 #include "lut_bulk_comp_spv.hpp"
 #include "sharpen_comp_spv.hpp"
 #include "bloom_threshold_comp_spv.hpp"
+#include "bloom_downsample_comp_spv.hpp"
+#include "bloom_upsample_comp_spv.hpp"
 #include "glow_prepare_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
 #include "color_matrix_comp_spv.hpp"
@@ -31,6 +33,7 @@
 #include "text_run_comp_spv.hpp"
 #include "fill_rect_comp_spv.hpp"
 #include "layer_batch_comp_spv.hpp"
+#include "particle_emitter_comp_spv.hpp"
 #include "inline_mesh_comp_spv.hpp"
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
@@ -92,6 +95,8 @@ namespace chronon3d::backends::vulkan {
         CHRONON_HASH_SHADER(sdf_bevel);
         CHRONON_HASH_SHADER(sharpen);
         CHRONON_HASH_SHADER(bloom_threshold);
+        CHRONON_HASH_SHADER(bloom_downsample);
+        CHRONON_HASH_SHADER(bloom_upsample);
         CHRONON_HASH_SHADER(color_adjust);
         CHRONON_HASH_SHADER(color_matrix);
         CHRONON_HASH_SHADER(chromatic_aberration);
@@ -100,6 +105,7 @@ namespace chronon3d::backends::vulkan {
         CHRONON_HASH_SHADER(text_run);
         CHRONON_HASH_SHADER(fill_rect);
         CHRONON_HASH_SHADER(layer_batch);
+        CHRONON_HASH_SHADER(particle_emitter);
         CHRONON_HASH_SHADER(inline_mesh);
         CHRONON_HASH_SHADER(text_tile_bin);
         CHRONON_HASH_SHADER(text_tile_raster);
@@ -178,8 +184,11 @@ namespace chronon3d::backends::vulkan {
         for (auto& allocator : descriptor_arena.pass) {
             allocator.create(device, descriptor_layout);
         }
+        for (auto& allocator : descriptor_arena.particle_emitter) {
+            allocator.create(device, particle_emitter_descriptor_layout, 0, 1, 1);
+        }
         for (auto& allocator : descriptor_arena.text_tile_bin) {
-            allocator.create(device, text_tile_bin_descriptor_layout, 0, 4);
+            allocator.create(device, text_tile_bin_descriptor_layout, 0, 5);
         }
         for (auto& allocator : descriptor_arena.text_tile_raster) {
             allocator.create(device, text_tile_raster_descriptor_layout, 2, 5);
@@ -297,6 +306,9 @@ VulkanBackend::Impl::~Impl() {
         // Descriptor pools are destroyed by descriptor_arena.destroy().
         if (descriptor_pool != VK_NULL_HANDLE) vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
         if (descriptor_layout != VK_NULL_HANDLE) vkDestroyDescriptorSetLayout(device, descriptor_layout, nullptr);
+        if (particle_emitter_descriptor_layout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, particle_emitter_descriptor_layout, nullptr);
+        }
         if (text_tile_bin_descriptor_layout != VK_NULL_HANDLE) {
             vkDestroyDescriptorSetLayout(device, text_tile_bin_descriptor_layout, nullptr);
         }

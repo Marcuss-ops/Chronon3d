@@ -41,29 +41,25 @@ GlyphSelectorUnitMap build_text_unit_map(
     map.glyph_to_word.resize(glyph_count);
     map.glyph_to_line.resize(glyph_count);
 
-    // ── Grapheme mapping: use cluster info ───────────────────────────
+    // ── Grapheme mapping: source order, not glyph order ──────────────
+    // HarfBuzz emits RTL glyphs in visual order (the first glyph is the
+    // rightmost character), so numbering graphemes by first appearance would
+    // make Forward select the visually leading character instead of the
+    // logically first source character.  Number the unique cluster byte
+    // offsets in ascending source order; this is the same order the unit map
+    // uses for words and lines and keeps RTL selectors logical.
     {
-        u32 grapheme_idx = 0;
-        u32 prev_cluster = UINT32_MAX;
-
-        for (size_t g = 0; g < glyph_count; ++g) {
-            u32 cluster = placed.glyphs[g].cluster;
-            if (cluster != prev_cluster) {
-                grapheme_idx++;
-                prev_cluster = cluster;
-            }
-            map.glyph_to_grapheme[g] = grapheme_idx - 1;
+        std::vector<size_t> grapheme_offsets;
+        grapheme_offsets.reserve(glyph_count + 1);
+        for (const auto& glyph : placed.glyphs) {
+            grapheme_offsets.push_back(static_cast<size_t>(glyph.cluster));
         }
-        map.grapheme_count = grapheme_idx;
-    }
 
-    // Some shaping backends omit whitespace from the placed glyph stream,
-    // even though After Effects character selectors count those source
-    // characters when positioning later glyphs. Restore only those missing
-    // whitespace units; spaces that do have a placed glyph are already
-    // represented by the cluster mapping above.
-    {
-        std::vector<size_t> missing_whitespace_offsets;
+        // Some shaping backends omit whitespace from the placed glyph stream,
+        // even though After Effects character selectors count those source
+        // characters when positioning later glyphs.  Restore only missing
+        // whitespace units; spaces that have a placed glyph are already in the
+        // cluster list above.
         for (size_t byte = 0; byte < source.size();) {
             size_t cp_len = 1;
             const char32_t cp = detail::decode_utf8_codepoint_from(source, byte, cp_len);
@@ -72,18 +68,24 @@ GlyphSelectorUnitMap build_text_unit_map(
                 const bool represented = std::any_of(
                     placed.glyphs.begin(), placed.glyphs.end(),
                     [byte](const PlacedGlyph& glyph) { return glyph.byte_offset == byte; });
-                if (!represented) missing_whitespace_offsets.push_back(byte);
+                if (!represented) grapheme_offsets.push_back(byte);
             }
             byte += cp_len;
         }
+
+        std::sort(grapheme_offsets.begin(), grapheme_offsets.end());
+        grapheme_offsets.erase(
+            std::unique(grapheme_offsets.begin(), grapheme_offsets.end()),
+            grapheme_offsets.end());
+
+        map.grapheme_count = static_cast<u32>(grapheme_offsets.size());
         for (size_t glyph = 0; glyph < glyph_count; ++glyph) {
-            const auto before = std::lower_bound(
-                missing_whitespace_offsets.begin(), missing_whitespace_offsets.end(),
-                static_cast<size_t>(placed.glyphs[glyph].byte_offset));
-            map.glyph_to_grapheme[glyph] += static_cast<u32>(
-                std::distance(missing_whitespace_offsets.begin(), before));
+            const auto it = std::lower_bound(
+                grapheme_offsets.begin(), grapheme_offsets.end(),
+                static_cast<size_t>(placed.glyphs[glyph].cluster));
+            map.glyph_to_grapheme[glyph] = static_cast<u32>(
+                std::distance(grapheme_offsets.begin(), it));
         }
-        map.grapheme_count += static_cast<u32>(missing_whitespace_offsets.size());
     }
 
     // ── Word and line mapping: walk source text byte-by-byte ─────────

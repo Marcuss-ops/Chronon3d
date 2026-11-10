@@ -180,6 +180,9 @@ u64 hash_text_run_shape(const TextRunShape& s) {
     }
 
     // Paint
+    seed = hash_combine(seed, hash_value(s.paint.quality));
+    seed = hash_combine(seed, hash_value(s.paint.shadow_quality));
+    seed = hash_combine(seed, hash_value(s.paint.stroke_mode));
     seed = hash_combine(seed, hash_color(s.paint.fill));
     seed = hash_combine(seed, hash_value(s.paint.stroke_enabled));
     seed = hash_combine(seed, hash_color(s.paint.stroke_color));
@@ -261,6 +264,9 @@ u64 hash_text_run_shape_v2(const TextRunShape& s) {
     color(s.material.inner_shadow_color); f(s.material.emissive);
 
     color(s.paint.fill);
+    builder.add_enum(s.paint.quality);
+    builder.add_enum(s.paint.shadow_quality);
+    builder.add_enum(s.paint.stroke_mode);
     builder.add(s.paint.fill_style.has_value());
     if (s.paint.fill_style) builder.add(graph::hash_fill_v2(*s.paint.fill_style));
     pattern(s.paint.fill_pattern);

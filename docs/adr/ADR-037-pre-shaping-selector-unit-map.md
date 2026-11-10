@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Proposed (design only; no production code in this ADR) |
+| **Status** | Accepted — implemented 2026-11-09 (canonical map, selector-scoped fold, driver cache) |
 | **Date** | 2026-11-08 |
 | **Deciders** | Chronon3D text/runtime |
 | **Tags** | `text`, `pre-shaping`, `selectors`, `character-offset`, `character-value`, `bidi`, `layout-cache` |
@@ -217,6 +217,29 @@ governed by the existing `can_lower_gpu_text_animation()` fail-closed predicate.
 
 P1-02's run-level contract stays valid until Phase B lands; the ticket records
 the run-level choice explicitly so it is not mistaken for selector support.
+
+## Implementation record (2026-11-09)
+
+- `PreShapingUnitMap` is built from the authored source and cached on
+  `TextRunShape`, keyed by the complete `TextLayoutCacheKey` digest (source +
+  font + paragraph + layout options).
+- The map provides a `PlacedGlyphRun` proxy with one glyph per source
+  codepoint and the canonical grapheme/word/line unit indices. The existing
+  `compile_selectors` / `evaluate_compiled_selectors` path evaluates it, so no
+  second selector implementation exists.
+- Character Offset applies `lround(sampled_offset * weight)` per selected
+  codepoint. Character Value replaces a selected grapheme when `weight >= 0.5`
+  and keeps the source codepoint slot for later animators. Whitespace is only
+  transformed when the selector includes it. The authored
+  `TextRunShape::pre_shaping_source` remains immutable.
+- The driver reuses the active layout for the canonical map when its source is
+  the authored source; otherwise it shapes the authored source once and caches
+  the map. Animators without selectors keep the run-level fast path.
+- Verified by `test_character_offset_pre_shaping` (49/49 cases, 76/76
+  assertions; ADR-037 filter 8/8, 20/20), the `test_text_run_driver` integration
+  (1/1 case, 5/5 assertions), and GPU-native demo 01 (`AAAAAAA` → `CHRONON`).
+- Still open: the dedicated full RTL/bidi selector-ordering audit is tracked as
+  P2-04; it does not block the logical-order contract tested here.
 
 ## Consequences
 
