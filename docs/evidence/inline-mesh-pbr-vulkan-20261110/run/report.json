@@ -1,0 +1,82 @@
+{
+  "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/docs/evidence/inline-mesh-pbr-vulkan-20261110/pbr-two-materials.plan.json",
+  "plan_sha256": "b8ab8d9424161b279fc47283a1063aa8fc81529c45a1931604c4c3358fd1fb39",
+  "cli": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli",
+  "cli_sha256": "69a5e6e8f94fd326d7dfef3320bac296216a64327a8dd5461b1c02ac8cf7a8c9",
+  "thresholds": {
+    "alpha_iou_min": 0.99,
+    "rgb_mae_max": 0.00784313725490196,
+    "rgb_p99_max": 0.03137254901960784,
+    "material_luma_delta_min": 0.00392156862745098,
+    "min_band_pixels": 200
+  },
+  "bands": {
+    "rough": [
+      100,
+      180
+    ],
+    "smooth": [
+      220,
+      300
+    ],
+    "metal": [
+      340,
+      420
+    ],
+    "dielectric": [
+      460,
+      540
+    ]
+  },
+  "pass": true,
+  "failures": [],
+  "raw_sha256": {
+    "software": "0d824f9dd5bbe302f5d30d9ba54b64605675dcff936b2e9c4e52d6ff2957df3a",
+    "vulkan": "e4d7df340cf597dc0f213244b1cdd6cb55d9ca6a961c7b1650c9f9eee4daa3b4"
+  },
+  "band_stats": {
+    "software": {
+      "rough": {
+        "pixels": 6400,
+        "mean_luma": 0.6509803921568624
+      },
+      "smooth": {
+        "pixels": 6400,
+        "mean_luma": 0.6392156862745095
+      },
+      "metal": {
+        "pixels": 6320,
+        "mean_luma": 0.4039215686274511
+      },
+      "dielectric": {
+        "pixels": 6320,
+        "mean_luma": 0.6392156862745095
+      }
+    },
+    "vulkan": {
+      "rough": {
+        "pixels": 6400,
+        "mean_luma": 0.6509803921568624
+      },
+      "smooth": {
+        "pixels": 6400,
+        "mean_luma": 0.6392156862745095
+      },
+      "metal": {
+        "pixels": 6400,
+        "mean_luma": 0.40392156862745104
+      },
+      "dielectric": {
+        "pixels": 6400,
+        "mean_luma": 0.6392156862745095
+      }
+    }
+  },
+  "software_roughness_luma_delta": 0.0117647058823529,
+  "software_metallic_luma_delta": 0.23529411764705843,
+  "vulkan_roughness_luma_delta": 0.0117647058823529,
+  "vulkan_metallic_luma_delta": 0.2352941176470585,
+  "alpha_iou": 0.99375,
+  "rgb_interior_mae": 0.0,
+  "rgb_interior_p99": 0.0
+}
