@@ -187,6 +187,26 @@ TEST_CASE("inline mesh lighting is an opt-in V3 contract and changes plan identi
     CHECK_FALSE(validate_render_plan(v2).ok());
 }
 
+TEST_CASE("primitive inline mesh keeps its metallic-roughness texture path") {
+    auto json = base_mesh_plan();
+    json["layers"][0]["inline_mesh"] = {
+        {"primitive", {{"kind", "plane"}, {"width", 2.0}, {"height", 2.0}}},
+        {"metallic_roughness_texture", "textures/orm.png"},
+        {"material", {{"roughness", 1.0}, {"metallic", 1.0}}}
+    };
+    const auto decoded = decode_render_plan(json);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].inline_mesh);
+    // Primitive expansion replaces the plan; the texture path must survive it.
+    CHECK(decoded->layers[0].inline_mesh->metallic_roughness_texture_asset ==
+          "textures/orm.png");
+    REQUIRE(decoded->layers[0].inline_mesh->material);
+    CHECK(decoded->layers[0].inline_mesh->material->roughness == doctest::Approx(1.0f));
+    CHECK(decoded->layers[0].inline_mesh->material->metallic == doctest::Approx(1.0f));
+    CHECK(decoded->layers[0].inline_mesh->vertices.size() == 4);
+    CHECK(decoded->layers[0].inline_mesh->indices.size() == 6);
+}
+
 TEST_CASE("inline mesh lighting defaults remain unlit and typed materials validate") {
     auto decoded = decode_render_plan(base_mesh_plan());
     REQUIRE(decoded);
