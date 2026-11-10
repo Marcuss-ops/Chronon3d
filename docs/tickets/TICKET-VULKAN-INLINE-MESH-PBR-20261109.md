@@ -1,6 +1,6 @@
 # TICKET-VULKAN-INLINE-MESH-PBR-20261109 — La lane Vulkan ignora la texture metallic-roughness della mesh inline
 
-- **Stato:** OPEN (2026-11-09)
+- **Stato:** CLOSED locally (2026-11-10) — pixel gate e parità raw PASS; certificazione same-SHA sotto E10
 - **Priorità:** P1
 - **Data:** 2026-11-09
 - **Ambito:** Chronon3d Vulkan strict-native; inline mesh V3; consumatore del bridge ChrononMotion3D
@@ -121,6 +121,33 @@ oggi non possono rivendicare lo stesso materiale del software.
 
 ---
 
+## 13. Chiusura locale — 2026-11-10
+
+**Esito: PASS locale del gate E1.** Un piano V3 con quattro mesh a **stessa
+base color** e MR diversa produce pixel diversi su software e Vulkan; la
+parità raw sull'interno delle mesh è MAE 0 / p99 0 con alpha IoU 0.99375.
+
+Difetto trovato durante il gate: `decode_layer_inline_mesh()` leggeva
+`metallic_roughness_texture` prima di espandere `inline_mesh.primitive`, e
+`mesh = expand_inline_mesh_primitive(primitive)` cancellava il percorso. Sui
+piani con `primitive` la MR era quindi ignorata in silenzio da **entrambe** le
+lane, non solo da Vulkan. Il parsing ora avviene dopo la costruzione della
+geometria; una regressione C ABI fissa il contratto.
+
+| Controllo | Esito |
+|---|---|
+| `chronon3d_c_abi_tests --test-case="*inline*"` | 10/10 casi, 132/132 assert |
+| gate raw `verify_inline_mesh_pbr_parity.py` | PASS (`docs/evidence/inline-mesh-pbr-vulkan-20261110`) |
+| registry Vulkan MR per-pixel | 1/1 caso, 16/16 assert |
+| compiler boundary | 14/14 casi, 192/192 assert |
+| architecture | 218/218 |
+| validazione Vulkan | 0 errori nel log |
+
+Restano fuori da questa chiusura: certificazione same-SHA (E10), glTF animati
+con normal/occlusion map, e il layer `type: light` che su strict-native fallisce
+con `requires a valid native surface or CPU pixel backing` (la fixture usa
+`lighting_rig`).
+
 ## 3. Criteri di accettazione
 
 - [ ] Un piano V3 con `inline_mesh.material` e
@@ -196,4 +223,4 @@ mesh samples metallic-roughness per pixel"` → **1/1 caso, 16/16 asserzioni,
 exit 0**. Il caso prova che il lato rough (G=1) è più luminoso del lato smooth
 (G=0) e che l'alpha resta opaco.
 Restano: parità numerica Vulkan↔software sullo stesso frame e certificazione
-same-SHA.
+same-SHA. La parità numerica è stata chiusa il 2026-11-10; vedi §13.
