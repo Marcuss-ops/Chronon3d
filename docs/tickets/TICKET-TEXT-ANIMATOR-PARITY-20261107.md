@@ -1,7 +1,7 @@
 # TICKET-TEXT-ANIMATOR-PARITY-20261107 — After Effects text-animator parity
 
-**Status:** PARTIAL — P0/P1 implementation remains as recorded below; the earlier close accepted incomplete CPU/GPU pixel parity and GPU fail-closed policies. Full parity is reopened in [`TICKET-TEXT-CLOSURE-20261109.md`](TICKET-TEXT-CLOSURE-20261109.md); P2-03 GPU shadow/stroke behavior and the T2-01 transition/span combination are still open.
-**Residual closure:** caret RTL functional tests and multi-shadow dispatch are implemented. Production pixel parity remains below the frozen thresholds; the previous AA exception is not a pass for the requested full-parity scope.
+**Status:** CLOSED — product exception (ADR-040, 2026-11-10). P0/P1 implementation remains as recorded below; the earlier close accepted incomplete CPU/GPU pixel parity and GPU fail-closed policies, and the reopened parity gates are now accepted/deferred by explicit product decision, not PASS. See [`TICKET-TEXT-CLOSURE-20261109.md`](TICKET-TEXT-CLOSURE-20261109.md), §17, and [`ADR-040`](../adr/ADR-040-text-parity-product-exception.md); P2-03 GPU shadow/stroke behavior and the T2-01 transition/span combination remain unimplemented/deferred.
+**Residual closure:** caret RTL functional tests and multi-shadow dispatch are implemented. Production pixel parity remains below the frozen thresholds; ADR-040 records the product exception for this closeout. This is not a full-parity PASS.
 **Owner:** Chronon3D text/runtime.
 **Scope:** animated text layers, not full SVG text. SVG-specific gaps remain in
 [`TICKET-SVG-TEXT-PARITY-REMAINING.md`](TICKET-SVG-TEXT-PARITY-REMAINING.md) and

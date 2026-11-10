@@ -90,7 +90,7 @@ certificato.
 | P1-01 | Template/C3D | Sostituire `estimateWidth` dei preset editoriali col layout shaped canonico | Highlight ON/OFF conserva le posizioni di tutti i glifi | **PASS locale (2026-11-04)** — `measuredTextWidth` (HarfBuzz, stesso shaper del renderer) in `WebHeadlineHighlightPack`, `WebPageHighlightPack`, `ChartsPack`, `WordLensPack` e `emit_web_article_fold`; tabella deterministica solo come fallback dichiarato. L'invariante highlight ON/OFF confronta ogni glifo (x, advance, cluster) e ogni riga prima/dopo lo span. Test verdi: `web_headline_highlight_pack`, `web_page_highlight_pack`, `web_text_layout`, `charts_pack`, `word_lens_pack`. Corretto anche il marker Highlight3D che aveva perso l'argomento `duration`: l'array delle track finiva in `durationFrames` e ogni piano H3D falliva con `get<int>` su array. |
 | P1-02 | Template/C3D | Range geometry per span con cluster, line-break, bidi, UTF-8, advance, baseline | Highlight a una banda per riga; nessuna parola incollata, nessun rilayout | **PASS locale** — banda per riga da advance misurati (`marker tracks the HarfBuzz advance width`, `stepped highlight blocks`); `chronontemplate_web_page_highlight_pack_test` exit 0 |
 | P1-03 | Template | Completare ArticleHighlighter, DarkQuote, ArticleSpotlight, EvidenceCard | Quattro golden 1080p fedeli, review visiva | **PARTIAL** — preset presenti; review umana mancante |
-| P1-04 | C3D | Shadow testo come silhouette dell'intero run | Niente clip/glow troncato o ombre moltiplicate | **OPEN** — `TICKET-TEXT-QUALITY-V2` P1-3 |
+| P1-04 | C3D | Shadow testo come silhouette dell'intero run | Niente clip/glow troncato o ombre moltiplicate | **CLOSED — product exception (ADR-040): CPU `Canonical` exists; GPU canonical shadow remains unimplemented/fail-closed. Not a PASS.** |
 | P1-05 | C3D | Testo Fast/HQ con gamma, AA, MTSDF, colore linear | Corpus font/zoom/export raw approvato | **PARTIAL** — P1-1/P1-2 fatti, P1-3/P2 aperti |
 | P1-06 | C3D | Blur e bloom sui layer giusti, testo foreground nitido | Preset neon con background DoF e testo leggibile | **PARTIAL** — DoF per-layer PASS; preset neon da certificare |
 | P1-07 | C3D | Chiudere IBL cubemap specular Vulkan strict-native | HDRI ON/OFF, roughness mip, parità software/GPU | **PARTIAL** — `TICKET-ENVIRONMENT-LIGHT-IBL` |
@@ -125,7 +125,7 @@ certificato.
 | ID | Repo | Azione atomica | Gate / evidenza | Stato |
 |---|---|---|---|---|
 | P3-01 | Template/RenderingGen | Import timeline OpenTimelineIO (clip, cut, range, media refs) | `.otio`→scena→MP4; errore esplicito su effetti non traducibili | **OPEN** |
-| P3-02 | C3D/Template | Censire/migrare `CompiledComposition` legacy | Consumer zero o adapter opzionale, corpus 8/8 | **PARTIAL** |
+| P3-02 | C3D/Template | Censire/migrare `CompiledComposition` legacy | Consumer zero o adapter opzionale, corpus 8/8 | **PARTIAL** — DirectYUV legacy overloads removed 2026-11-10; SDK/registry/RenderEngine/renderer/daemon consumers and corpus 8/8 remain |
 | P3-03 | C3D | Eliminare `Fill` duplicati dopo decisione ABI | Ratchet eccezioni + test visuali | **PARTIAL** |
 | P3-04 | C3D | SDK installabile (`find_package`), CLI release, consumer esterno | Clean install Linux/Windows in CI, example 5 s | **OPEN** |
 | P3-05 | CM3D | Bundle CM3D→RenderPlan senza renderer nel producer | Test ABI e dependency boundaries | **PARTIAL** |

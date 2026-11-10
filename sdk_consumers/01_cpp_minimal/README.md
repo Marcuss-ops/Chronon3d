@@ -2,7 +2,7 @@
 
 Minimal C++ SDK consumer. Links only `Chronon3D::SDK` (via
 `find_package(Chronon3D)`) and renders the canonical RenderPlan JSON through
-the thin facade `compile_plan_json` + `render_compiled`.
+the thin facade `compile_plan_json` + `render_program`.
 
 ```bash
 cmake -S . -B build -DCMAKE_PREFIX_PATH="$SDK_PREFIX"

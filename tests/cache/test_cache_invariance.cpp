@@ -167,7 +167,7 @@ Composition build_comp(const CompSpec& spec) {
 /// Create a renderer with a non-zero NodeCache capacity (the test
 /// factory's `Config{}` defaults capacity to 0 bytes — everything
 /// evicts immediately, so cache_hits stays at 0).
-std::shared_ptr<SoftwareRenderer> make_cached_renderer() {
+std::shared_ptr<test::TestRenderer> make_cached_renderer() {
     auto renderer = test::make_renderer_shared();
     renderer->execution_context().runtime->node_cache().set_capacity(128 * 1024 * 1024);
     return renderer;

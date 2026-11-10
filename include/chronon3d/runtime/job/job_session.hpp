@@ -302,8 +302,9 @@ public:
     [[nodiscard]] FrameQueue& evaluated_queue() noexcept { return *evaluated_queue_; }
     [[nodiscard]] FrameQueue& rendered_queue() noexcept { return *rendered_queue_; }
 
-    // Canonical frame-pipeline ownership. PreparedRenderJob coordinates these
-    // transitions but does not own a second lease/queue implementation.
+    // Canonical frame-pipeline ownership. The typed execution pipeline
+    // coordinates these transitions but does not own a second lease/queue
+    // implementation.
     [[nodiscard]] FrameSlotPayload& payload(const FrameExecutionSlot& slot) noexcept {
         return slots_->payload(slot.slot_id);
     }

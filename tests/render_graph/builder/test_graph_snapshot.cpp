@@ -139,30 +139,21 @@ TEST_CASE("GraphContract: same scene produces identical DOT across renders") {
     auto renderer = test::make_renderer();
     cache::NodeCache node_cache;
 
-    // Compile authoring input before invoking the graph-only API.
-    auto comp1 = Composition(
-        CompositionSpec{.name = "snap1", .width = W, .height = H, .duration = 1},
-        [&](const FrameContext&) { return scene.clone(); });
-    auto compiled1 = chronon3d::compile_composition(
-        comp1, CompositionCompileContext{});
-    REQUIRE(compiled1);
-    auto fb1 = render_compiled_composition_frame(
-        renderer.backend(), node_cache, {}, nullptr, nullptr,
-        compiled1.value(), 0);
+    // Drive the canonical graph entry directly; the legacy Composition
+    // executor was removed.
+    auto fb1 = graph::render_scene_via_graph(
+        renderer.backend(), node_cache, scene, camera, W, H, Frame{0}, 0.0f,
+        {}, nullptr, nullptr, 30.0f, "snap1", nullptr);
+    (void)fb1;
     auto dot1 = debug_scene_graph(renderer.backend(), node_cache, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, 30.0f);
 
     // Reset and render again
     auto renderer2 = test::make_renderer();
     cache::NodeCache node_cache2;
-    auto comp2 = Composition(
-        CompositionSpec{.name = "snap2", .width = W, .height = H, .duration = 1},
-        [&](const FrameContext&) { return scene.clone(); });
-    auto compiled2 = chronon3d::compile_composition(
-        comp2, CompositionCompileContext{});
-    REQUIRE(compiled2);
-    auto fb2 = render_compiled_composition_frame(
-        renderer2.backend(), node_cache2, {}, nullptr, nullptr,
-        compiled2.value(), 0);
+    auto fb2 = graph::render_scene_via_graph(
+        renderer2.backend(), node_cache2, scene, camera, W, H, Frame{0}, 0.0f,
+        {}, nullptr, nullptr, 30.0f, "snap2", nullptr);
+    (void)fb2;
     auto dot2 = debug_scene_graph(renderer2.backend(), node_cache2, scene, camera, W, H, 0, 0.0f, {}, nullptr, nullptr, 30.0f);
 
     CHECK(dot1 == dot2);

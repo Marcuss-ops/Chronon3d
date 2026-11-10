@@ -56,6 +56,11 @@
 
 namespace chronon3d::runtime {
 
+RenderPipeline::RenderPipeline(
+    SoftwareRenderer* renderer,
+    ::chronon3d::SoftwareExecutionContext& context) noexcept
+    : m_renderer(renderer), m_context(context) {}
+
 const char* frame_scheduling_class_name(
     FrameSchedulingClass scheduling_class) noexcept {
     switch (scheduling_class) {
@@ -85,21 +90,6 @@ const char* frame_scheduling_code_name(FrameSchedulingCode code) noexcept {
             return "ExecutorFailed";
     }
     return "Unknown";
-}
-
-std::shared_ptr<Framebuffer> RenderPipeline::render_compiled_composition(
-    const CompiledComposition& compiled, Frame frame, FrameExecution* execution)
-{
-    return chronon3d::graph::render_compiled_composition_frame(
-        *m_context.backend,
-        *m_context.scratch.node_cache,
-        *m_context.settings,
-        m_context.registry.compositions,
-        m_context.video_decoder,
-        compiled,
-        frame,
-        m_renderer /* R3 sidecar */, execution
-    );
 }
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_program(
@@ -557,88 +547,6 @@ FrameRenderResult RenderPipeline::render(
 
     try {
         auto output = render_program(*program, frame, &execution);
-        if (!output) {
-            if (const auto frame_error = session.last_frame_error()) {
-                session.fail_job(frame_error->canonical_error(
-                    frame.integral(), session.job_id()));
-            } else {
-                session.fail_job(chronon::make_error(
-                    chronon::ErrorKind::InvariantViolation, "render_pipeline",
-                    "MissingFrameOutput", "executor returned no framebuffer",
-                    "render_pipeline", {}, {}, frame.integral(), session.job_id()));
-            }
-            return fail_with(FrameSchedulingCode::ExecutorFailed);
-        }
-        if (!session.publish_rendered(*render_slot)) {
-            return fail_with(FrameSchedulingCode::PublishRenderedFailed);
-        }
-        auto* encode_slot = session.acquire_for_encoding();
-        if (!encode_slot || encode_slot != render_slot ||
-            !session.begin_encoding(*encode_slot) ||
-            !session.release_encoded(*encode_slot)) {
-            if (encode_slot && encode_slot->state.load(std::memory_order_acquire) !=
-                    FrameSlotState::Free) {
-                (void)session.abort(*encode_slot);
-            }
-            return fail_with(FrameSchedulingCode::ReleaseEncodedSlotFailed);
-        }
-        session.complete_job();
-        return output;
-    } catch (...) {
-        if (session.state() != JobState::Failed) {
-            session.fail_job(session.cancellation().is_cancelled()
-                ? chronon::make_error(
-                    chronon::ErrorKind::Cancelled, "render_pipeline",
-                    "Cancelled", "render pipeline cancelled by caller",
-                    "render_pipeline", {}, {}, frame.integral(), session.job_id())
-                : chronon::make_error(
-                    chronon::ErrorKind::FrameFailed, "render_pipeline",
-                    "PipelineException", "render pipeline aborted the frame",
-                    "render_pipeline", {}, {}, frame.integral(), session.job_id()));
-        }
-        execution.fail();
-        if (render_slot && render_slot->state.load(std::memory_order_acquire) !=
-                FrameSlotState::Free) {
-            (void)session.abort(*render_slot);
-        }
-        throw;
-    }
-}
-
-FrameRenderResult RenderPipeline::render_compatibility(
-    JobSession& session, const CompiledComposition& compiled, Frame frame) {
-    session.begin_job();
-    auto* slot = session.acquire_for_evaluation();
-    if (!slot) {
-        return FrameSchedulingCode::NoFreeFrameSlot;
-    }
-    slot->frame_index = frame.integral();
-    auto& payload = session.payload(*slot);
-    payload.reset();
-    const auto frame_time = SampleTime::from_frame_int(
-        frame, compiled.composition ? compiled.composition->frame_rate() : FrameRate{});
-    FrameExecution execution(session, frame, frame_time, *slot, payload);
-
-    // Same contract as render(): expected scheduling states are returned.
-    if (!session.publish_evaluated(*slot)) {
-        (void)session.abort(*slot);
-        return FrameSchedulingCode::PublishEvaluatedFailed;
-    }
-    auto* render_slot = session.acquire_for_render();
-    if (!render_slot) {
-        (void)session.abort(*slot);
-        return FrameSchedulingCode::AcquireRenderSlotFailed;
-    }
-    auto fail_with = [&](FrameSchedulingCode code) -> FrameRenderResult {
-        execution.fail();
-        if (render_slot->state.load(std::memory_order_acquire) !=
-                FrameSlotState::Free) {
-            (void)session.abort(*render_slot);
-        }
-        return code;
-    };
-    try {
-        auto output = render_compiled_composition(compiled, frame, &execution);
         if (!output) {
             if (const auto frame_error = session.last_frame_error()) {
                 session.fail_job(frame_error->canonical_error(

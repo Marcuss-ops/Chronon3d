@@ -4,7 +4,6 @@
 #include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/runtime/resource_preparation.hpp>
-#include <chronon3d/timeline/compiled_composition.hpp>
 
 #include <cstdint>
 #include <optional>
@@ -113,23 +112,6 @@ struct RenderPreparationResult {
 
     [[nodiscard]] std::string diagnostic() const;
 };
-
-/// Prepare every resource required by a composition before encoding starts.
-///
-/// This is a synchronous barrier: composition evaluation and asset checks are
-/// completed before optional renderer warmup. It owns no resolver, cache, or
-/// mutable render state; all services remain owned by the renderer runtime.
-[[nodiscard]] RenderPreparationResult prepare_render(
-    SoftwareRenderer* renderer,
-    const Composition& composition,
-    const RenderPreparationOptions& options = {});
-
-/// Prepare an immutable compiled composition without re-entering the
-/// authoring registry or creating a second runtime composition.
-[[nodiscard]] RenderPreparationResult prepare_render(
-    SoftwareRenderer* renderer,
-    const CompiledComposition& compiled,
-    const RenderPreparationOptions& options = {});
 
 /// Prepare the canonical immutable compiler result.  The legacy compiled
 /// composition overload remains as an executor compatibility seam only.

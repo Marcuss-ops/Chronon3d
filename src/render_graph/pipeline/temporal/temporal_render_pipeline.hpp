@@ -25,16 +25,4 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     const chronon3d::compiler::FrameParameterBlock* frame_parameters = nullptr,
     std::uint64_t program_fingerprint = 0);
 
-std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
-    RenderBackend& backend,
-    cache::NodeCache& node_cache,
-    const RenderSettings& settings,
-    const CompositionRegistry* registry,
-    media::MediaFrameProvider* video_decoder,
-    const CompiledComposition& compiled,
-    Frame frame,
-    chronon3d::SoftwareRenderer* sw_sidecar,
-    chronon3d::CancellationToken* cancellation,
-    chronon3d::runtime::FrameExecution* execution = nullptr);
-
 } // namespace chronon3d::graph

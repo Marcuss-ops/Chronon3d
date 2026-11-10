@@ -12,9 +12,7 @@
 // ===========================================================================
 
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/runtime/render_pipeline.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
@@ -72,59 +70,6 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 // ── Render entry points ──────────────────────────────────────────────────────
 
 /// Fase C3 — canonical unified pipeline.  This is the V0.2 SDK path;
-std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
-                                                     Frame frame) {
-    if (!m_session.software.authoring_compiled_composition ||
-        m_session.software.authoring_composition_identity != comp.identity() ||
-        m_session.software.authoring_composition_name != comp.name()) {
-        auto compiled = chronon3d::compile_composition(
-            comp, CompositionCompileContext{});
-        if (!compiled) {
-            throw std::runtime_error(
-                "Composition compilation failed for '" + comp.name() +
-                "': " + compiled.error().message);
-        }
-        m_session.software.authoring_composition_name = comp.name();
-        m_session.software.authoring_composition_identity = comp.identity();
-        m_session.software.authoring_compiled_composition =
-            std::make_shared<const CompiledComposition>(std::move(compiled).value());
-    }
-    return render_compiled(*m_session.software.authoring_compiled_composition, frame);
-}
-
-std::shared_ptr<Framebuffer> SoftwareRenderer::render_compiled(
-    const CompiledComposition& compiled, Frame frame) {
-    m_session.common.clear_last_frame_error();
-    // Node-memory attribution is scoped to one graph-node invocation. A
-    // top-level render is a hard request boundary, so discard any stale
-    // thread-local sink left by a worker that completed an earlier request.
-    profiling::g_node_memory_event_sink = nullptr;
-    if (m_session.software.prepared_composition != &compiled) {
-        const auto preparation = runtime::prepare_render(
-            this, compiled,
-            runtime::RenderPreparationOptions{
-                .warmup_renderer = false,
-                .reference_frame = frame,
-            });
-        if (!preparation.ok()) {
-            throw std::runtime_error(
-                "Render preparation failed for compiled composition: " +
-                preparation.diagnostic());
-        }
-        m_session.software.prepared_composition = &compiled;
-    }
-
-    profiling::ProfilingGuard scope(&m_counters, m_execution_context.scratch.framebuffer_pool.get());
-    return graph::render_compiled_composition_frame(
-        *m_execution_context.backend, node_cache(), m_settings,
-        m_execution_context.registry.compositions,
-        m_execution_context.video_decoder, compiled, frame, this);
-}
-
-void SoftwareRenderer::mark_prepared_composition(const CompiledComposition* compiled) {
-    m_session.software.prepared_composition = compiled;
-}
-
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_program(
     const compiler::CompiledProgram& program, Frame frame) {
     m_session.common.clear_last_frame_error();

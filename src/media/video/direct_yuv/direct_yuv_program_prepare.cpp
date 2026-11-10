@@ -59,33 +59,6 @@ bool is_2d_transform(const Transform& t) {
 } // namespace
 
 std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
-    const CompiledComposition& compiled,
-    ImageCache& image_cache,
-    std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
-    const assets::AssetResolver& asset_resolver,
-    runtime::LaneReason& reason) {
-    if (!compiled.composition) {
-        reason = runtime::LaneReason{runtime::LaneDecision::Failed,
-                                     "error", "compiled_composition_empty"};
-        return nullptr;
-    }
-    const auto composition = compiled.composition;
-    const auto evaluate = [composition](Frame frame) {
-        return composition->evaluate(make_frame_context({
-            .global_time = SampleTime::from_frame(
-                static_cast<double>(frame.integral()), composition->frame_rate()),
-            .duration = composition->duration(),
-            .width = composition->width(),
-            .height = composition->height(),
-        }));
-    };
-    return prepare_impl(&compiled, nullptr, {}, composition->width(),
-                        composition->height(), composition->duration(),
-                        composition->frame_rate(), evaluate, image_cache,
-                        std::move(video_runtime), asset_resolver, reason);
-}
-
-std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     const compiler::CompiledProgram& program,
     ImageCache& image_cache,
     std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
@@ -96,7 +69,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         return detail::sample_program_scene(program, *topology, frame);
     };
     const auto& metadata = program.metadata();
-    return prepare_impl(nullptr, &program, std::move(topology),
+    return prepare_impl(&program, std::move(topology),
                         static_cast<int>(metadata.width),
                         static_cast<int>(metadata.height),
                         Frame{metadata.duration_frames},
@@ -106,7 +79,6 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
 }
 
 std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare_impl(
-    const CompiledComposition* compiled,
     const compiler::CompiledProgram* typed_program,
     std::shared_ptr<const Scene> typed_topology,
     int width,
@@ -119,7 +91,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare_impl(
     const assets::AssetResolver& asset_resolver,
     runtime::LaneReason& reason) {
 #ifndef CHRONON3D_ENABLE_CUDA_INTEROP
-    (void)compiled; (void)typed_program; (void)typed_topology;
+    (void)typed_program; (void)typed_topology;
     (void)width; (void)height; (void)duration; (void)rate;
     (void)scene_evaluator; (void)image_cache; (void)video_runtime;
     (void)asset_resolver;
@@ -452,7 +424,6 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare_impl(
     program->video_layers_ = std::move(video_layers);
     program->width_ = width;
     program->height_ = height;
-    program->composition_ = compiled ? compiled->composition : nullptr;
     program->typed_program_ = typed_program;
     program->typed_topology_ = std::move(typed_topology);
     program->layer_resources_ = std::move(layer_resources);
@@ -476,17 +447,6 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare_impl(
     return program;
 }
 
-std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
-    const CompiledComposition& compiled,
-    ImageCache& image_cache,
-    std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
-    const assets::AssetResolver& asset_resolver,
-    std::string& reason) {
-    runtime::LaneReason lane_reason;
-    auto res = prepare(compiled, image_cache, video_runtime, asset_resolver, lane_reason);
-    reason = lane_reason.to_string();
-    return res;
-}
 #endif
 
 

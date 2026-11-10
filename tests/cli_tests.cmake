@@ -30,7 +30,6 @@ set(_cli_test_sources
     cli/test_cli_mappers.cpp
     cli/test_copy_lane_coverage.cpp
     cli/test_frame_range_parser.cpp
-    cli/test_render_job_planning.cpp
     cli/test_chronon_project_render_dispatch.cpp
     cli/test_render_error_formatter.cpp
     cli/bench_json_tests.cpp
@@ -86,10 +85,8 @@ chronon3d_add_test_suite(
     LINK_TARGETS ${_cli_tests_link_targets}
     SOURCES
         ${_cli_test_sources}
-        cli/test_render_request.cpp
         cli/test_caption_plan_expansion.cpp
     UNITY_EXCLUDE_SOURCES
-        cli/test_render_job_planning.cpp
         cli/test_nvml_sampler_lifecycle.cpp
         cli/test_daemon_ipc_exception_boundary.cpp
 )
@@ -123,40 +120,6 @@ target_include_directories(chronon3d_cli_tests PRIVATE
 if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
     target_include_directories(chronon3d_cli_tests PRIVATE
         "${CHRONON3D_CUDA_INCLUDE_DIR}"
-    )
-endif()
-
-# Canonical RenderJob planner/executor contract remains a focused target so
-# matrix builds can certify it independently from the broad CLI executable.
-set(_render_job_contract_links
-    ${_cli_render_core_link_targets}
-    chronon3d_sdk
-    chronon3d_sdk_impl
-    chronon3d_pipeline
-    chronon3d_scene
-    chronon3d_backend_software
-    chronon3d_backend_image
-    CLI11::CLI11
-    fmt::fmt
-)
-if(TARGET chronon3d_cli_video_export)
-    list(APPEND _render_job_contract_links
-        chronon3d_cli_video_export
-        chronon3d_media_video
-    )
-endif()
-chronon3d_add_test_suite(
-    NAME chronon3d_render_job_contract_tests
-    TIER SDK
-    LINK_TARGETS ${_render_job_contract_links}
-    SOURCES cli/test_render_job_planning.cpp
-)
-target_include_directories(chronon3d_render_job_contract_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli
-)
-if(NOT TARGET chronon3d_cli_video_export)
-    target_compile_definitions(chronon3d_render_job_contract_tests PRIVATE
-        CHRONON3D_TEST_VIDEO_EXPORT_DISABLED=1
     )
 endif()
 

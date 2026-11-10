@@ -70,19 +70,8 @@ public:
     };
 
     [[nodiscard]] static CapabilityReport resolve_support(
-        const CompiledComposition& compiled,
-        DirectYuvPolicy policy);
-
-    [[nodiscard]] static CapabilityReport resolve_support(
         const compiler::CompiledProgram& program,
         DirectYuvPolicy policy);
-
-    static std::shared_ptr<DirectYuvProgram> prepare(
-        const CompiledComposition& compiled,
-        ImageCache& image_cache,
-        std::shared_ptr<::chronon3d::media::VideoDeviceRuntime> video_runtime,
-        const assets::AssetResolver& asset_resolver,
-        ::chronon3d::runtime::LaneReason& reason);
 
     static std::shared_ptr<DirectYuvProgram> prepare(
         const compiler::CompiledProgram& program,
@@ -91,13 +80,6 @@ public:
         const assets::AssetResolver& asset_resolver,
         ::chronon3d::runtime::LaneReason& reason);
 
-
-    static std::shared_ptr<DirectYuvProgram> prepare(
-        const CompiledComposition& compiled,
-        ImageCache& image_cache,
-        std::shared_ptr<::chronon3d::media::VideoDeviceRuntime> video_runtime,
-        const assets::AssetResolver& asset_resolver,
-        std::string& reason);
 
     /// AUDIT-04A: execute() is deliberately NON-const. It mutates the
     /// retained decoder frame and the cue-template cache, so pretending it
@@ -117,7 +99,6 @@ public:
 private:
     DirectYuvProgram() = default;
     static std::shared_ptr<DirectYuvProgram> prepare_impl(
-        const CompiledComposition* compiled,
         const compiler::CompiledProgram* typed_program,
         std::shared_ptr<const Scene> typed_topology,
         int width, int height, Frame duration, FrameRate rate,
@@ -130,7 +111,6 @@ private:
     std::vector<DirectVideoLayer> video_layers_;
     int width_{0};
     int height_{0};
-    std::shared_ptr<const Composition> composition_;
     // Borrowed from the owning render job; its DirectYuvProgram is scoped to
     // the export session and never outlives this reference.
     const compiler::CompiledProgram* typed_program_{nullptr};

@@ -250,10 +250,11 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             RenderJobErrorCode::InvalidJob,
             "RenderJob has no CompositionRegistry");
     }
-    if (!job.program && (!job.compiled || !job.compiled->composition)) {
+    if (!job.program) {
         return make_render_job_error(
             RenderJobErrorCode::InvalidJob,
-            "RenderJob has neither a compiled program nor a compiled composition");
+            "RenderJob has no CompiledProgram; the legacy Composition "
+            "executor has been removed");
     }
 
     // --trace: job-scoped Perfetto session covering every render mode.  The
@@ -300,7 +301,6 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             try {
                 rc = render_and_encode_ffmpeg(
                     *job.registry,
-                    job.compiled.get(),
                     job.comp_id,
                     job.settings,
                     job.first_frame,

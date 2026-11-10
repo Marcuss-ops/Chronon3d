@@ -57,7 +57,6 @@ struct chronon_element_state;
 namespace chronon3d {
 class SoftwareRenderer;
 struct SoftwareExecutionContext;
-struct CompiledComposition;
 namespace compiler { class CompiledProgram; }
 namespace media { class MediaFrameProvider; }
 }
@@ -65,17 +64,6 @@ namespace media { class MediaFrameProvider; }
 namespace chronon3d::runtime {
 class FrameExecution;
 class JobSession;
-
-using FrameEncoder = std::function<bool(Frame, const Framebuffer&)>;
-
-struct RenderBatchResult {
-    bool ok{true};
-    std::size_t frames_rendered{0};
-    std::size_t frames_encoded{0};
-    std::size_t max_queue_depth{0};
-    Frame failed_frame{-1};
-    std::string error{};
-};
 
 /// Expected, non-exceptional outcomes of the single-frame scheduling
 /// lifecycle.  These are backpressure/normal states, not job failures: the
@@ -177,17 +165,6 @@ public:
     RenderPipeline(SoftwareRenderer* renderer,
                    ::chronon3d::SoftwareExecutionContext& context) noexcept;
 
-    /// Out-of-line so the PIMPL stage pool below stays an implementation detail
-    /// (AUDIT F7).
-    ~RenderPipeline();
-
-    // ── Canonical prepared-plan execution entry ────────────────────
-    /// Compatibility adapter for an immutable CompiledComposition. New typed
-    /// production jobs use render(JobSession&, Frame) below.
-    [[nodiscard]] std::shared_ptr<Framebuffer> render_compiled_composition(
-        const CompiledComposition& compiled, Frame frame,
-        FrameExecution* execution = nullptr);
-
     /// `layer_states` is one frame of the ADR-032 motion handshake: after the
     /// sampler fills the frame's parameter block and before graph execution
     /// consumes it, apply_layer_states() overrides the transform, opacity and
@@ -202,7 +179,8 @@ public:
         std::size_t element_state_count = 0,
         const CancellationToken* cancellation = nullptr);
 
-    /// Owns the canonical single-frame lease lifecycle. PreparedRenderJob is
+    /// Owns the canonical single-frame lease lifecycle. The typed execution
+    /// pipeline is
     /// only a handle; it must not duplicate slot, queue, or FrameExecution
     /// transitions here.
     ///
@@ -211,34 +189,7 @@ public:
     [[nodiscard]] FrameRenderResult render(
         JobSession& session, Frame frame);
 
-    /// Compatibility-only lifecycle for an arbitrary Composition callback.
-    /// It is kept outside JobSession until that authoring API has a typed
-    /// lowering into CompiledProgram.  Scheduling states follow `render()`:
-    /// returned, not thrown.
-    [[nodiscard]] FrameRenderResult render_compatibility(
-        JobSession& session, const CompiledComposition& compiled, Frame frame);
-
-    /// Canonical bounded batch lifecycle. PreparedRenderJob supplies only the
-    /// immutable compatibility program and encoder callback; slot acquisition,
-    /// stage queues, FrameExecution, and release remain runtime-owned.
-    [[nodiscard]] RenderBatchResult render_compatibility_frames(
-        JobSession& session, const CompiledComposition& compiled,
-        Frame first, Frame count, const FrameEncoder& encoder);
-
 private:
-    /// AUDIT F7 — persistent executor for the batch pipeline's three stages.
-    ///
-    /// render_compatibility_frames() used to construct and join three
-    /// std::thread objects per call, paying a spawn/join round trip (and losing
-    /// worker affinity) for every batch. The three stage loops, their per-stage
-    /// mutexes/CVs and the terminal join barrier are all unchanged; only the
-    /// thread lifecycle is amortized: the workers are created once per pipeline,
-    /// lazily on first use, and park on a condition variable between batches.
-    /// The class is defined in the .cpp so no threading detail leaks into this
-    /// header.
-    class StagePool;
-    std::unique_ptr<StagePool> m_stage_pool;
-
     SoftwareRenderer* m_renderer;
     ::chronon3d::SoftwareExecutionContext& m_context;
     // Bounded topology cache: Scene is a legacy graph input adapter, never a

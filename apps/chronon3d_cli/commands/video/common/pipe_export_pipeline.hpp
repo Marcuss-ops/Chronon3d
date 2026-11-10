@@ -22,7 +22,6 @@ namespace chronon3d::cli {
 /// and owned by the session.
 [[nodiscard]] std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
-    const CompiledComposition* compiled,
     const RenderSettings& settings,
     const FfmpegExportOptions& opts,
     Frame start,
@@ -47,7 +46,6 @@ void warmup_pipe_slots(PipeExportSession& session);
 [[nodiscard]] RenderLoopOutput run_pipe_export_loop(
     PipeExportSession& session,
     const CompositionRegistry& registry,
-    const CompiledComposition* compiled,
     const RenderSettings& settings,
     Frame start,
     Frame end,
@@ -67,7 +65,6 @@ void warmup_pipe_slots(PipeExportSession& session);
 
 [[nodiscard]] PipeExportResult render_and_encode_native(
     const CompositionRegistry& registry,
-    const CompiledComposition* compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,

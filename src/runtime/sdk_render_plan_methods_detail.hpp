@@ -34,8 +34,6 @@ RenderEngine::compile_plan_json(std::string_view json) {
             settings.motion_blur_shutter_phase_deg = -90.0f;
         }
         m_impl->settings = settings;
-        m_impl->prepared_job.reset();
-        m_impl->prepared_composition = nullptr;
         m_impl->engine.set_settings(convert_settings(settings));
         return std::make_shared<const chronon3d::compiler::CompiledProgram>(
             std::move(compiled).value());
@@ -104,8 +102,6 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
                 settings.motion_blur_shutter_phase_deg = -90.0f;
             }
             m_impl->settings = settings;
-            m_impl->prepared_job.reset();
-            m_impl->prepared_composition = nullptr;
             m_impl->engine.set_settings(convert_settings(settings));
 
             const auto fps_num = meta.fps_numerator > 0 ? meta.fps_numerator : 30;

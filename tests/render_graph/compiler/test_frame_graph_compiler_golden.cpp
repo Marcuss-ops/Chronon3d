@@ -11,7 +11,7 @@
 // the regression guard that a stage refactor must not reorder or drop work.
 namespace {
 
-std::string normalize_compiled_program(const CompiledFrameProgram& program) {
+std::string normalize_compiled_program(const chronon3d::graph::CompiledFrameProgram& program) {
     std::string out;
 
     // Command order + resource IDs. Each standalone/fused operation keeps its

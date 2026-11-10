@@ -1,6 +1,6 @@
 # TICKET-TEXT-QUALITY-V2 — resa del testo: dove nasce davvero la perdita
 
-Stato: **PARTIAL — P1-1/P1-2 implementati; P1-3 shadow canonica CPU presente ma la parità GPU run-level e P2 GPU Vector restano fail-closed. Riaperto per la richiesta di parità completa; pixel gate e profilo High misurato in `TICKET-TEXT-CLOSURE-20261109.md`.** Canary text-tile CHIUSO (78/78, 2026-09-16: era un binario
+Stato: **CLOSED — product exception (ADR-040, 2026-11-10). P1-1/P1-2 implementati; P1-3 shadow canonica CPU presente ma la parità GPU run-level e P2 GPU Vector restano fail-closed e sono accettate/deferite, non PASS; pixel gate 1/8 accettato da ADR-040, non superato. L'estensione del corpus editoriale resta deferita.** Canary text-tile CHIUSO (78/78, 2026-09-16: era un binario
 stantio, vedi §3; il gate GPU è ora `tools/verify_text_tile_gpu_canary.sh`).
 Verifiche di codice: PASS; diagnostico di attribuzione P0-0: **ESEGUITO**, esito
 in §4.1. **P0-0b (verità pre-encode): PASS 2026-10-21** — il PNG fedele è
@@ -32,6 +32,9 @@ correzioni non sono intercambiabili e vanno separate.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
+> ADR-040 closes this ticket by product exception. The unchecked items below
+> remain technically open/deferred and are not PASS claims.
+>
 > Piano di chiusura integrato e gate di certificazione pixel: [`TICKET-TEXT-CLOSURE-20261109.md`](TICKET-TEXT-CLOSURE-20261109.md).
 
 - [ ] **P1-3 — shadow canonica sul run** — CPU: union mask del TextRun → gaussiana separabile (sigma = raggio/3) → colore/opacita' → source-over. `Fast` resta il default; GPU `Canonical` e' ancora fail-closed e il golden/benchmark GPU sono ora exit gates.

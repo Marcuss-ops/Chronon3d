@@ -1,5 +1,4 @@
 #include "pipe_export_session_internal.hpp"
-#include "temporal_render_bridge.hpp"
 
 #include "../../../utils/video/encoder_config_resolution.hpp"
 
@@ -68,12 +67,8 @@ NativeSurfacePrep prepare_frame(
         return prep;
     }
     std::string reason;
-    const auto render_width = ctx.program
-        ? static_cast<int>(ctx.program->metadata().width)
-        : ctx.compiled->composition->width();
-    const auto render_height = ctx.program
-        ? static_cast<int>(ctx.program->metadata().height)
-        : ctx.compiled->composition->height();
+    const auto render_width = static_cast<int>(ctx.program->metadata().width);
+    const auto render_height = static_cast<int>(ctx.program->metadata().height);
     if (!ctx.device_runtime->acquire_slot_surfaces(
             execution_slot, *surface_registry, ctx.backend,
             static_cast<std::uint32_t>(render_width),
@@ -106,19 +101,12 @@ RenderOutcome render_frame(
     const FrameProfileSample before = sample_frame_profile(ctx);
     const auto frame_t0 = profiling::now();
     out.wall_start = frame_t0;
-    if (ctx.program) {
-        if (!program_pipeline) {
-            throw std::logic_error("compiled program render pipeline was not initialized");
-        }
-        out.fb = program_pipeline->render_program(*ctx.program, current_frame, nullptr,
-                                         nullptr, 0, nullptr, 0,
-                                         ctx.opts.cancellation_token);
-    } else {
-        out.fb = graph::render_compiled_composition_frame_temporal(
-            ctx.backend, ctx.node_cache, video_settings, &ctx.registry,
-            ctx.video_decoder, *ctx.compiled, current_frame,
-            ctx.sw_renderer, ctx.opts.cancellation_token, nullptr);
+    if (!program_pipeline) {
+        throw std::logic_error("compiled program render pipeline was not initialized");
     }
+    out.fb = program_pipeline->render_program(*ctx.program, current_frame, nullptr,
+                                     nullptr, 0, nullptr, 0,
+                                     ctx.opts.cancellation_token);
     const auto frame_t1 = profiling::now();
     const FrameProfileSample after = sample_frame_profile(ctx);
     out.frame_ms = profiling::duration_ms(frame_t0, frame_t1);
@@ -149,12 +137,8 @@ RenderOutcome render_frame(
     // instead of publishing a torn frame.
     if (out.dirty_rect_enabled && out.dirty_rect && !out.duplicate_frame) {
         const raster::BBox& r = *out.dirty_rect;
-        const int full_w = ctx.program
-            ? static_cast<int>(ctx.program->metadata().width)
-            : ctx.compiled->composition->width();
-        const int full_h = ctx.program
-            ? static_cast<int>(ctx.program->metadata().height)
-            : ctx.compiled->composition->height();
+        const int full_w = static_cast<int>(ctx.program->metadata().width);
+        const int full_h = static_cast<int>(ctx.program->metadata().height);
         const bool covers_frame =
             r.x0 <= 0 && r.y0 <= 0 && r.x1 >= full_w && r.y1 >= full_h;
         if (!covers_frame && !r.is_empty()) {

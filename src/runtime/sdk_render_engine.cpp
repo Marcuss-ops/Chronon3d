@@ -8,8 +8,6 @@
 
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/api/render_engine.hpp>
-#include <chronon3d/timeline/compiled_composition.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #if CHRONON3D_ENABLE_VIDEO
@@ -164,13 +162,6 @@ struct RenderEngine::Impl {
     // Reused scratch for canvas→RGBA8 conversion on the render() hot path so
     // a resize does not allocate a fresh temporary vector per frame.
     std::vector<std::uint8_t> frame_scratch;
-    // Reuse the prepared barrier for sequential render() calls on the same
-    // composition. The public convenience API must not compile, warm up and
-    // rebuild caches once per frame.
-    std::unique_ptr<chronon3d::PreparedRenderJob> prepared_job;
-    const chronon3d::Composition* prepared_composition{nullptr};
-    int prepared_width{0};
-    int prepared_height{0};
     RenderSettings             settings{};
     RenderOutput              last_output{};
     LogCallback                log_callback{};
@@ -288,43 +279,6 @@ RenderEngine& RenderEngine::operator=(RenderEngine&& other) noexcept {
 }
 
 chronon3d::Result<RenderOutput, RenderError>
-RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
-    return m_impl->render_frame(frame, [&] {
-        // The prepared-job path is the canonical resource barrier: it
-        // resolves and populates the engine-local asset caches before graph
-        // execution. Calling the legacy direct adapter here leaves image
-        // lookup-only rendering with a placeholder and breaks multi-engine
-        // asset-root isolation.
-        if (!m_impl->prepared_job ||
-            m_impl->prepared_composition != &composition ||
-            m_impl->prepared_width != m_impl->settings.width ||
-            m_impl->prepared_height != m_impl->settings.height) {
-            auto prepared = m_impl->engine.prepare(composition);
-            m_impl->prepared_job = std::make_unique<chronon3d::PreparedRenderJob>(
-                std::move(prepared));
-            m_impl->prepared_composition = &composition;
-            m_impl->prepared_width = m_impl->settings.width;
-            m_impl->prepared_height = m_impl->settings.height;
-        }
-        return m_impl->prepared_job->render(chronon3d::Frame{frame.integral()});
-    });
-}
-
-chronon3d::Result<RenderOutput, RenderError>
-RenderEngine::render_compiled(
-    const chronon3d::CompiledComposition& compiled, Frame frame) {
-    return m_impl->render_frame(frame, [&] {
-        auto settings = convert_settings(m_impl->settings);
-        settings.render_budget = compiled.render_budget;
-        m_impl->prepared_job.reset();
-        m_impl->prepared_composition = nullptr;
-        m_impl->engine.set_settings(settings);
-        return m_impl->engine.render_compiled(
-            compiled, chronon3d::Frame{frame.integral()});
-    });
-}
-
-chronon3d::Result<RenderOutput, RenderError>
 RenderEngine::render_program(
     const chronon3d::compiler::CompiledProgram& program, Frame frame) {
     return render_program(program, frame, nullptr, 0);
@@ -355,8 +309,6 @@ RenderEngine::render_program(
         settings.render_budget.max_estimated_output_bytes = meta.render_budget.max_estimated_output_bytes;
         settings.render_budget.max_peak_memory_bytes = meta.render_budget.max_peak_memory_bytes;
         settings.render_budget.max_temporal_pixels = meta.render_budget.max_temporal_pixels;
-        m_impl->prepared_job.reset();
-        m_impl->prepared_composition = nullptr;
         m_impl->engine.set_settings(settings);
         // ADR-032 — the inner engine refuses a malformed record set before it
         // starts rendering; that exception becomes the RenderError below.
@@ -372,8 +324,6 @@ chronon3d::Result<RenderReport, RenderError>
 void RenderEngine::set_settings(const RenderSettings& settings) {
     std::lock_guard lock(m_impl->state_mutex);
     m_impl->settings = settings;
-    m_impl->prepared_job.reset();
-    m_impl->prepared_composition = nullptr;
     m_impl->engine.set_settings(convert_settings(settings));
 }
 
@@ -387,11 +337,6 @@ void RenderEngine::set_assets_root(std::filesystem::path root) {
     }
     m_impl->engine.set_assets_root(root);
     m_impl->resolver.mount(std::move(root));
-    // PreparedRenderJob owns resource-resolution state. Changing the root
-    // invalidates that snapshot even when the Composition pointer and output
-    // dimensions stay unchanged.
-    m_impl->prepared_job.reset();
-    m_impl->prepared_composition = nullptr;
 }
 
 std::string RenderEngine::resolved_lane_name() const {

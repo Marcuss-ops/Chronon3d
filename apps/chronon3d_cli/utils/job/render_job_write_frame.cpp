@@ -168,27 +168,6 @@ bool write_render_frame_impl(const std::string& composition_name,
 
 } // namespace
 
-bool write_render_frame(const CompiledComposition& compiled,
-                        SoftwareRenderer& renderer,
-                        Frame frame,
-                        const FrameRange& range,
-                        const std::string& output_pattern,
-                        float exr_white_luminance_nits,
-                        const VideoSettings& color_settings,
-                        bool& ok,
-                        std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
-                        double& total_render_ms,
-                        double& total_encode_ms,
-                        int& frames_written) {
-    return write_render_frame_impl(
-        compiled.composition->name(),
-        [&] { return renderer.render_compiled(compiled, frame); },
-        renderer, frame, range, output_pattern, exr_white_luminance_nits,
-        color_settings,
-        ok, telemetry_frames,
-        total_render_ms, total_encode_ms, frames_written);
-}
-
 bool write_render_frame(const compiler::CompiledProgram& program,
                         SoftwareRenderer& renderer,
                         Frame frame,

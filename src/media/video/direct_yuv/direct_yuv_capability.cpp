@@ -118,31 +118,6 @@ DirectYuvProgram::CapabilityReport resolve_scene_support(
 } // namespace
 
 DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
-    const CompiledComposition& compiled, DirectYuvPolicy policy) {
-    CapabilityReport report;
-    if (!compiled.composition) {
-        report.reason = "compiled composition is empty";
-        return report;
-    }
-
-    Scene scene;
-    try {
-        const auto composition = compiled.composition;
-        scene = composition->evaluate(make_frame_context({
-            .global_time = SampleTime::from_frame(0.0, composition->frame_rate()),
-            .duration = composition->duration(),
-            .width = composition->width(),
-            .height = composition->height(),
-        }));
-    } catch (const std::exception& error) {
-        report.reason = std::string("scene capability evaluation failed: ") + error.what();
-        return report;
-    }
-
-    return resolve_scene_support(scene, policy);
-}
-
-DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
     const compiler::CompiledProgram& program, DirectYuvPolicy policy) {
     try {
         const auto topology = detail::materialize_program_topology(program);
