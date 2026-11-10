@@ -121,7 +121,7 @@ std::string_view scheduler_mode_env_name(SchedulerMode mode) {
     }
 }
 
-std::shared_ptr<SoftwareRenderer> make_renderer_with_scheduler(SchedulerMode mode) {
+std::shared_ptr<test::TestRenderer> make_renderer_with_scheduler(SchedulerMode mode) {
     std::string value(scheduler_mode_env_name(mode));
     const char* prev = std::getenv("CHRONON3D_SCHEDULER_MODE");
     std::string prev_str = prev ? prev : "";

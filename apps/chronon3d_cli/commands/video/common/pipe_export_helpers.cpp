@@ -289,9 +289,8 @@ void track_pipe_encoder_process(
 chronon3d::runtime::RendererWarmupResult
 warmup_pipe_renderer(
     SoftwareRenderer & renderer,
-    const CompiledComposition* compiled,
-    const FfmpegExportOptions& opts,
-    const compiler::CompiledProgram* program)
+    const compiler::CompiledProgram& program,
+    const FfmpegExportOptions& opts)
 {
     if (!opts.warmup.warmup_renderer) {
         return runtime::RendererWarmupResult{};
@@ -310,10 +309,8 @@ warmup_pipe_renderer(
     // double-accumulated its timings into the sidecar prepare section. The
     // dummy-frame warmup renders from the assets the setup barrier already
     // published on this renderer, so it needs no second preparation.
-    const int width = program ? static_cast<int>(program->metadata().width)
-                              : compiled->composition->width();
-    const int height = program ? static_cast<int>(program->metadata().height)
-                               : compiled->composition->height();
+    const int width = static_cast<int>(program.metadata().width);
+    const int height = static_cast<int>(program.metadata().height);
     const runtime::RendererWarmupOptions warmup_options{
             .width = width,
             .height = height,
@@ -324,10 +321,8 @@ warmup_pipe_renderer(
             .dummy_frame = 0,
             .quiet = false,
         };
-    const auto warmup_result = program
-        ? runtime::warmup_renderer(renderer, *program, warmup_options)
-        : runtime::warmup_renderer(renderer, *compiled,
-            warmup_options);
+    const auto warmup_result = runtime::warmup_renderer(
+        renderer, program, warmup_options);
     const auto warmup_t1 = profiling::now();
 
     if (renderer.counters()) {

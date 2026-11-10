@@ -16,18 +16,15 @@ namespace chronon3d::cli {
 namespace {
 
 /// Retention identity for the runtime node cache (P2): the program content
-/// digest when the job carries a compiled program, the composition id
-/// otherwise.  Two jobs with the same identity render the same content, so
+/// digest. Two jobs with the same identity render the same content, so
 /// evaluated node values retained from the first are exact for the second.
 std::string frame_value_cache_identity(const RenderJob& job) {
-    if (job.program) {
-        const std::string digest =
-            job.program->fingerprint_data().content_digest.hex();
-        if (!digest.empty()) {
-            return "program:" + digest;
-        }
+    const std::string digest =
+        job.program->fingerprint_data().content_digest.hex();
+    if (!digest.empty()) {
+        return "program:" + digest;
     }
-    return "comp:" + job.comp_id;
+    return "job:" + job.comp_id;
 }
 
 }  // anonymous namespace
@@ -110,26 +107,8 @@ void setup_render_job(const CompositionRegistry& registry,
                  job.video_settings.fps_num, job.video_settings.fps_den);
 
     const auto warmup_t0 = profiling::now();
-    const auto preparation = job.program
-        ? runtime::prepare_render(
-              out.renderer.get(), *job.program,
-              runtime::RenderPreparationOptions{
-                  .preflight_mode = PreflightMode::FullComposition,
-                  .resources = {},
-                  .warmup_renderer = job.execution.warmup_renderer,
-                  .warmup = runtime::RendererWarmupOptions{
-                      .width = job.metadata.width,
-                      .height = job.metadata.height,
-                      .framebuffer_count = job.execution.warmup_framebuffers,
-                      .preallocate_framebuffers = true,
-                      .touch_memory = true,
-                      .render_dummy_frame = job.execution.warmup_dummy_frame,
-                      .dummy_frame = 0,
-                      .quiet = (job.execution.log_level != "trace" &&
-                                job.execution.log_level != "debug")},
-                  .reference_frame = 0})
-        : runtime::prepare_render(
-              out.renderer.get(), *job.compiled,
+    const auto preparation = runtime::prepare_render(
+        out.renderer.get(), *job.program,
         runtime::RenderPreparationOptions{
             .preflight_mode = PreflightMode::FullComposition,
             .resources = {},
@@ -143,10 +122,8 @@ void setup_render_job(const CompositionRegistry& registry,
                 .render_dummy_frame = job.execution.warmup_dummy_frame,
                 .dummy_frame = 0,
                 .quiet = (job.execution.log_level != "trace" &&
-                          job.execution.log_level != "debug")
-            },
-            .reference_frame = 0,
-        });
+                          job.execution.log_level != "debug")},
+            .reference_frame = 0});
     out.preparation_ok = preparation.ok();
     out.preparation_diagnostic = preparation.diagnostic();
     if (!out.preparation_ok) {

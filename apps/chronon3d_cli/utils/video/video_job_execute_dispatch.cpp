@@ -94,7 +94,6 @@ media::VideoCapabilities cli_effective_capabilities(
 // classification step that turns that candidate into the final plan. The
 // lower-level pipeline receives the result and must not repeat this decision.
 media::VideoExecutionDecision finalize_composition_execution(
-    const CompiledComposition* compiled,
     const compiler::CompiledProgram* program,
     const FfmpegExportOptions& opts,
     media::VideoExecutionDecision decision) {
@@ -107,12 +106,10 @@ media::VideoExecutionDecision finalize_composition_execution(
         : media::video::DirectYuvPolicy::Auto;
     const auto capability = program
         ? media::video::DirectYuvProgram::resolve_support(*program, policy)
-        : (compiled
-            ? media::video::DirectYuvProgram::resolve_support(*compiled, policy)
-            : media::video::DirectYuvProgram::CapabilityReport{
-                  .eligible = false,
-                  .support = media::video::DirectYuvSupport::Unsupported,
-                  .reason = "compiled composition unavailable for legacy DirectYUV classification"});
+        : media::video::DirectYuvProgram::CapabilityReport{
+              .eligible = false,
+              .support = media::video::DirectYuvSupport::Unsupported,
+              .reason = "DirectYUV requires a typed CompiledProgram"};
     if (capability.eligible) {
         return decision;
     }
@@ -142,7 +139,6 @@ media::VideoExecutionDecision finalize_composition_execution(
 
 int render_and_encode_ffmpeg(
     const CompositionRegistry& registry,
-    const CompiledComposition* compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,
@@ -161,8 +157,9 @@ int render_and_encode_ffmpeg(
         spdlog::error("[video] Empty frame range [{}, {})", start, end);
         return 1;
     }
-    if (!program && (!compiled || !compiled->composition)) {
-        spdlog::error("[video] no executable CompiledProgram or legacy composition was supplied");
+    if (!program) {
+        spdlog::error("[video] no executable CompiledProgram was supplied; "
+                      "the legacy Composition executor has been removed");
         return 1;
     }
     if (opts.sink.ffmpeg_mode != "pipe") {
@@ -202,7 +199,7 @@ int render_and_encode_ffmpeg(
         auto decision = media::resolve_video_execution(
             cli_execution_requirements(opts, program), media::OutputSpec{},
             cli_effective_capabilities(opts));
-        decision = finalize_composition_execution(compiled, program, opts, decision);
+        decision = finalize_composition_execution(program, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
@@ -236,7 +233,7 @@ int render_and_encode_ffmpeg(
             opts.gop_copy_only,
             !opts.gop_copy_only,
             summary);
-        decision = finalize_composition_execution(compiled, program, opts, decision);
+        decision = finalize_composition_execution(program, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
@@ -334,7 +331,7 @@ int render_and_encode_ffmpeg(
     auto* device_scheduler = execution ? execution->device_scheduler : nullptr;
     auto video_runtimes = execution ? execution->video_runtimes : nullptr;
     auto result = render_and_encode_native(
-        registry, compiled, composition_id,
+        registry, composition_id,
         settings, start, end, render_opts, cpu_budget,
         std::move(video_runtimes),
         device_scheduler,

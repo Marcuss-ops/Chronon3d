@@ -48,7 +48,6 @@ add_custom_command(
 
 add_library(chronon3d_ipc OBJECT
     ipc_codec.cpp
-    composition_session.cpp
     contract_validator_registry.cpp
     transport/memfd_shared_memory_transport.cpp
     "${CHRONON3D_IPC_GENERATED_HEADER}"

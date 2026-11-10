@@ -128,7 +128,7 @@ TEST_CASE("AsyncEncoderSink: asynchronous task dispatch and drain") {
 }
 
 TEST_CASE("CompiledFrameProgram: layer batch index is built with compiled program") {
-    CompiledFrameProgram program;
+    chronon3d::graph::CompiledFrameProgram program;
     program.layer_batches.push_back(CompiledLayerBatch{
         .member_nodes = {1, 3}, .root_node = 3, .is_gpu_fused = true});
     program.rebuild_layer_batch_index(4);
@@ -140,7 +140,7 @@ TEST_CASE("CompiledFrameProgram: layer batch index is built with compiled progra
 
 TEST_CASE("CompiledFrameProgram: rejects empty and inconsistent layer batches") {
     SUBCASE("empty batch") {
-        CompiledFrameProgram program;
+        chronon3d::graph::CompiledFrameProgram program;
         program.layer_batches.push_back(CompiledLayerBatch{
             .root_node = 0, .is_gpu_fused = true});
         CHECK_THROWS_WITH(
@@ -148,7 +148,7 @@ TEST_CASE("CompiledFrameProgram: rejects empty and inconsistent layer batches") 
             doctest::Contains("has no members"));
     }
     SUBCASE("root is not a member") {
-        CompiledFrameProgram program;
+        chronon3d::graph::CompiledFrameProgram program;
         program.layer_batches.push_back(CompiledLayerBatch{
             .member_nodes = {1}, .root_node = 0, .is_gpu_fused = true});
         CHECK_THROWS_WITH(
@@ -158,7 +158,7 @@ TEST_CASE("CompiledFrameProgram: rejects empty and inconsistent layer batches") 
 }
 
 TEST_CASE("CompiledFrameProgram: rejects overlapping layer batch ownership") {
-    CompiledFrameProgram program;
+    chronon3d::graph::CompiledFrameProgram program;
     program.layer_batches.push_back(CompiledLayerBatch{
         .member_nodes = {2}, .root_node = 2, .is_gpu_fused = true});
     program.layer_batches.push_back(CompiledLayerBatch{
@@ -198,7 +198,7 @@ TEST_CASE("CompiledFrameProgram: operation capabilities and fusion properties") 
     CHECK(op.capabilities.is_gpu_fusible());
     CHECK(op.is_fused);
 
-    CompiledFrameProgram program{};
+    chronon3d::graph::CompiledFrameProgram program{};
     program.levels = {{5}};
     program.operations.push_back(op);
     program.has_fused_passes = true;

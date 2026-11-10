@@ -1,12 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Canonical graph adapter for legacy Composition diagnostics and the typed
-// CompiledProgram execution path.  The latter is the production route.
+// Canonical graph adapter for the typed CompiledProgram execution path.
 //
 //   CompiledProgram → SceneMaterializer → render_scene_via_graph()
 //
-// `render_compiled_composition_frame` remains a compatibility adapter for
-// arbitrary Composition authoring callers
-// and tests; production prepared-program execution uses RenderPipeline.
+// The legacy Composition executor was removed. This is the canonical graph
+// entry used by CompiledProgram execution and by test fixtures that still
+// author a Scene directly.
 //
 // The Fase C3 deprecated wrappers (`RenderPipeline::render_scene` x2,
 // `RenderPipeline::debug_graph`) have been removed — migrate to `render()`.
@@ -23,7 +22,6 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/media/frame_source_provider.hpp>
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/timeline/compiled_composition.hpp>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -42,7 +40,7 @@ namespace chronon3d::graph {
 /// resolve layers→dirty rect→empty-dirty reuse→ping-pong setup→
 /// build/reuse graph→preallocate→execute tile/fallback→telemetry→commit.
 ///
-/// Called by render_compiled_composition_frame() and directly by test infrastructure.
+/// Called by CompiledProgram execution and directly by test infrastructure.
 std::shared_ptr<Framebuffer> render_scene_via_graph(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
@@ -79,27 +77,6 @@ std::string debug_scene_graph(
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
     float fps
-);
-
-/// Canonical render path — single unified pipeline entry point.
-/// All rendering flows through an immutable CompiledComposition:
-/// evaluate → build_or_reuse_graph → render_scene_via_graph → execute.
-/// Handles SSAA, motion blur (temporal accumulation + velocity), and
-/// telemetry in a single backend-agnostic orchestrator.
-///
-/// Authoring Composition values are compiled by the request/runtime boundary;
-/// this graph API intentionally has no direct Composition overload.
-///
-std::shared_ptr<Framebuffer> render_compiled_composition_frame(
-    RenderBackend& backend,
-    cache::NodeCache& node_cache,
-    const RenderSettings& settings,
-    const CompositionRegistry* registry,
-    media::MediaFrameProvider* video_decoder,
-    const CompiledComposition& compiled,
-    Frame frame,
-    chronon3d::SoftwareRenderer* sw_sidecar = nullptr,
-    chronon3d::runtime::FrameExecution* execution = nullptr
 );
 
 // ── Graph diagnostics ──────────────────────────────────────────────────────

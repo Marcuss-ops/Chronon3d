@@ -11,7 +11,7 @@
 //
 // What lives here:
 //   - constructor / destructor / move-only semantics
-//   - primary render entry point: render(const Composition&, Frame)
+//   - primary render entry point: render_program(const compiler::CompiledProgram&, Frame)
 //   - settings application: set_settings(const RenderSettings&)
 //   - assets resolution: set_assets_root(std::filesystem::path)
 //
@@ -77,22 +77,6 @@ public:
     RenderEngine& operator=(RenderEngine&&) noexcept;
 
     // ── Primary API ───────────────────────────────────────────────
-
-    /// Render one frame from `composition` at `frame`.  Returns the
-    /// produced `RenderOutput` (owned OPP-side buffer) or a structured
-    /// `RenderError`.
-    [[nodiscard]]
-    chronon3d::Result<RenderOutput, RenderError>
-    render(const chronon3d::Composition& composition, Frame frame);
-
-    /// Render an immutable precompiled composition without recompiling its
-    /// scene/camera program at the frame boundary.  This is the execution
-    /// entry for PreparedRenderPlan consumers; the public header keeps the
-    /// compiled type opaque.
-    [[nodiscard]]
-    chronon3d::Result<RenderOutput, RenderError>
-    render_compiled(const chronon3d::CompiledComposition& compiled,
-                    Frame frame);
 
     /// Render one frame from an immutable compiler program.
     [[nodiscard]]

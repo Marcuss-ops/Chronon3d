@@ -1,7 +1,7 @@
 # TICKET — Composition legacy executor demolition
 
-**Status:** ACTIVE — inventory complete, replacement contract and equivalence
-gates remain open  
+**Status:** CLOSED — legacy executor removed 2026-11-10; demolition-only
+closure, pixel/sequence/video parity is NOT RUN and not claimed
 **Priority:** P1  
 **Owner:** compiler/runtime maintainers
 
@@ -46,7 +46,9 @@ The current compatibility surface includes:
   request supplies no `CompiledProgram`.
 - SDK `RenderFileRequest`, which accepts `Composition*` and
   `CompiledComposition*` alongside `CompiledProgram*`.
-- DirectYUV legacy overloads used by non-RenderPlan jobs.
+- DirectYUV legacy overloads used by non-RenderPlan jobs — retired 2026-11-10.
+  DirectYUV now accepts only `CompiledProgram`; legacy `CompiledComposition`
+  classification/preparation fails closed before setup.
 - The former `CompiledArtifactCache` `CompiledComposition` FlatBuffer
   serializer, retired in the 2026-11-10 cache migration below after the source
   audit found no consumer. The active CUDA NV12 artifact path uses the typed
@@ -119,12 +121,13 @@ but runtime and pixel-equivalence tests were not run.
   builds.
 - **Removal scope:** `CompiledComposition` compile/evaluate APIs;
   `render_compatibility*` and `render_compiled_composition_frame*`; software
-  renderer memo; DirectYUV legacy overloads; SDK and CLI legacy request fields;
+  renderer memo; DirectYUV legacy overloads (retired 2026-11-10); SDK and CLI
+  legacy request fields;
   cache serialization/identity; associated CMake targets and anti-resurrection
   rules.
-- **Status:** ACTIVE. The typed RenderPlan video bridge is removed; remaining
-  authoring and compatibility APIs are still live and must not be deleted
-  without migration or explicit retirement.
+- **Status:** CLOSED 2026-11-10. The typed RenderPlan video bridge, legacy
+  executor and compatibility consumers are removed; `CompiledComposition`
+  remains only as an evaluation artifact.
 
 ## Anti-resurrection gate — 2026-11-05
 
@@ -250,6 +253,94 @@ with `ninja: no work to do`. `python3.11 tools/check_architecture.py` passes
 **217/217**; in particular, the pinned production caller counts remain
 `compile_composition` 15, compatibility render 6 and legacy frame executor 9.
 This confirms that the typed-particle route remains canonical and that the
-anti-resurrection caps hold. It does not reduce the legacy executor inventory
-or satisfy any still/sequence/video equivalence gate. The executor migration
-ticket remains **ACTIVE**.
+anti-resurrection caps hold. At that checkpoint it did not reduce the legacy
+executor inventory or satisfy any still/sequence/video equivalence gate. The
+2026-11-10 DirectYUV tranche below retires one removal-scope item; the 15/6/9
+caps remain unchanged. The executor migration ticket remains **ACTIVE**.
+
+## DirectYUV typed-only — 2026-11-10
+
+The DirectYUV compatibility overloads were removed; the lane now requires a
+typed `compiler::CompiledProgram`:
+
+- `DirectYuvProgram::resolve_support(const CompiledComposition&, ...)` and
+  `prepare(const CompiledComposition&, ...)` are gone, including the unused
+  `std::string&` reason overload.
+- `DirectYuvProgram::prepare_impl` no longer accepts a `CompiledComposition*`;
+  the `composition_` member and the `execute()` fallback that called
+  `composition_->evaluate()` are removed.
+- `finalize_composition_execution()` no longer accepts a `CompiledComposition`.
+  If the resolver selected DirectYUV but no typed program exists, `Auto`
+  downgrades to FullGraph with reason `DirectYUV requires a typed
+  CompiledProgram`; `RequireDirectYuv` fails with
+  `direct_yuv_capability_required`.
+- `pipe_export_pipeline_setup` fails closed if a DirectYUV plan reaches setup
+  without a typed program. It never calls a legacy overload.
+
+Evidence: [`composition-directyuv-typed-only-20261110/REPORT.md`](../evidence/composition-directyuv-typed-only-20261110/REPORT.md).
+The CLI build (`-j12`), architecture gate **218/218**, media/video suite
+**150/150**, CLI suite **293/293**, and zero-copy suite **49/49** pass; the
+DirectYUV text contract is **10/10**. The pinned production caller counts remain
+`compile_composition` 15, compatibility render 6 and legacy frame executor 9;
+this tranche retired one DirectYUV removal-scope item; the close-out below
+supersedes that intermediate status.
+
+## Executor demolition close-out — 2026-11-10
+
+**Status: CLOSED (code demolition). This is not a pixel-parity certification.**
+
+The legacy executor no longer exists in the production tree. `CompiledProgram`
+is the only execution input for the CLI, daemon/IPC, SDK, video export and pipe
+export. `CompiledComposition` remains only as the evaluation artifact used by
+`PreparedRenderPlan` and authoring tests; no production executor consumes it.
+
+Removed physically:
+
+- `render_compiled_composition_frame*`, `render_compatibility*`,
+  `PreparedRenderJob`, `RenderPipeline` compatibility helpers and the software
+  prepared-composition memo.
+- `RenderEngine::prepare/render(Composition)`, `render_compiled`,
+  `SoftwareRenderer::render(Composition)` and the SDK composition request
+  fields.
+- Composition SDK/CLI/daemon session and IPC command paths; the remaining
+  commands now fail closed with an explicit error.
+- The CLI `RenderJob` composition field; `resolve_render_request` returns
+  `UnsupportedMode` when no `compiled_program` is supplied.
+- The legacy pipe-export `compiled` view and temporal render bridge.
+
+Test disposition:
+
+- Code-first fixtures use the test-only `TestRenderer::render(Composition)`
+  helper (compile/evaluate + `render_scene_via_graph`), not production code.
+- Tests of removed APIs (`PreparedRenderJob`, render request, planning, SDK grid
+  background/assets isolation, motion-blur integration) are retired from the
+  build instead of being kept alive with stubs.
+
+Verification on this working tree:
+
+- `cmake --build build/chronon/linux-video-release -j12` — exit 0; final pass
+  64/64, then `ninja: no work to do`.
+- `python3.11 tools/check_architecture.py` — **218/218**.
+- `git diff --check` — exit 0.
+- Green suites: CLI **265/265** (5,147 assertions), SDK **3/3** (27), timeline
+  **43/43** (532), scene **275/275** (1,607), media/video **150/150** (22,222),
+  zero-copy **49/49** (235), renderer core **211/211** (72,476), compiled-program
+  equivalence filter **2/2** (29).
+- Unrelated red suites, not caused by this demolition and not fixed here:
+  camera 92/93, render graph 457/460, deterministic 91/94, core 1,485/1,487,
+  compositor 70/71, C-ABI 461/462. The failures are camera-capability/DoF-iris
+  expectations, golden fingerprints/hashes, GPU text spacing, text unit mapping
+  and Vulkan/NVENC prerequisites.
+
+Equivalence gates:
+
+- **NOT RUN as a legacy-vs-typed comparison.** The demolition deleted the
+  legacy lane, so the still/sequence/video decoded-pixel comparison from the
+  work plan is no longer executable from this tree. No PASS is claimed.
+  Archived-baseline parity for the typed route remains a separate
+  certification.
+- The optional non-default consumers `apps/chronon3d_bench`
+  (`CHRONON3D_BUILD_BENCHMARKS=OFF`) and `tests/install_consumer`
+  (`CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=OFF`) still contain authoring
+  examples that call removed APIs. They are excluded from the verified build
+  and are follow-up cleanup, not production executor callers.

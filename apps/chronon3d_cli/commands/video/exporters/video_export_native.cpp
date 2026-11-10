@@ -27,7 +27,6 @@
 namespace chronon3d::cli {
 PipeExportResult render_and_encode_native(
     const CompositionRegistry& registry,
-    const CompiledComposition* compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,
@@ -51,7 +50,7 @@ PipeExportResult render_and_encode_native(
     }
 
     auto session = setup_pipe_export_session(
-        registry, compiled, settings, opts, start, end, cpu_budget,
+        registry, settings, opts, start, end, cpu_budget,
         std::move(video_runtimes), device_scheduler, std::move(execution),
         std::move(warm_renderer), program);
     if (!session || !session->encoder ||
@@ -75,7 +74,7 @@ PipeExportResult render_and_encode_native(
     const auto warmup_t0 = profiling::now();
     RenderSettings render_opts = settings;
     if (!session->direct_yuv_selected()) {
-        (void)warmup_pipe_renderer(*session->renderer_ptr(), compiled, opts, program);
+        (void)warmup_pipe_renderer(*session->renderer_ptr(), *program, opts);
         if (!session->renderer_ptr()->backend().supports_native_surfaces()) {
             warmup_pipe_pool(*session);
         }
@@ -102,7 +101,7 @@ PipeExportResult render_and_encode_native(
     nvml_sampler.start(std::chrono::milliseconds(250));
 
     auto loop_output = run_pipe_export_loop(
-        *session, registry, compiled, render_opts, start, end, opts, program);
+        *session, registry, render_opts, start, end, opts, program);
     auto close_result = close_pipe_encoder(*session);
 
     media::NativeVideoFrameDecoder::DecodeProfilingStats decode_stats{};

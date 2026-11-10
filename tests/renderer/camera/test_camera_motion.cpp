@@ -140,12 +140,14 @@ TEST_CASE("runtime camera provider changes rendered pixels") {
             return resolved;
         }};
     assets::AssetResolver resolver;
-    const auto prepared = compile_render_plan(plan, resolver, {}, nullptr, &provider);
-    REQUIRE(prepared);
+    compiler::CompileOptions options;
+    options.runtime_camera = &provider;
+    const auto program = compiler::compile(plan, resolver, options);
+    REQUIRE(program);
 
     auto renderer = test::make_renderer();
-    const auto first = renderer.render_compiled(prepared->compiled_composition, Frame{0});
-    const auto second = renderer.render_compiled(prepared->compiled_composition, Frame{1});
+    const auto first = renderer.render_program(*program, Frame{0});
+    const auto second = renderer.render_program(*program, Frame{1});
     REQUIRE(first);
     REQUIRE(second);
     CHECK(first->width() == 96);
@@ -203,7 +205,7 @@ TEST_CASE("Explicit camera samples preserve nonlinear poses at actual shutter ti
     }
 }
 
-TEST_CASE("Typed program samples the same camera as the compatibility evaluator") {
+TEST_CASE("Typed program renders camera samples deterministically") {
     using namespace chronon3d::render_plan;
     RenderPlan plan;
     plan.schema = kRenderPlanSchemaV3;
@@ -760,18 +762,14 @@ TEST_CASE("Prepared composition view matches typed program raw camera and shutte
     assets::AssetResolver resolver;
     auto program = compiler::compile(plan, resolver);
     REQUIRE(program);
-    auto prepared = compile_render_plan(plan, resolver, {}, &*program);
-    REQUIRE(prepared);
-
     auto typed_renderer = test::make_renderer();
-    auto compatibility_renderer = test::make_renderer();
     for (int frame : {0, 1, 2}) {
         INFO("frame=" << frame);
         const auto typed = typed_renderer.render_program(*program, Frame{frame});
         REQUIRE(typed);
-        const auto compatibility = compatibility_renderer.render_compiled(prepared->compiled_composition, Frame{frame});
-        REQUIRE(compatibility);
-        CHECK(test::framebuffer_hash(*typed) == test::framebuffer_hash(*compatibility));
+        const auto repeated = typed_renderer.render_program(*program, Frame{frame});
+        REQUIRE(repeated);
+        CHECK(test::framebuffer_hash(*typed) == test::framebuffer_hash(*repeated));
     }
 }
 
@@ -1268,8 +1266,10 @@ TEST_CASE("Camera projection preserves oversized image pixels outside the source
     const auto prepared = compile_render_plan(plan, resolver);
     const std::string compile_error = prepared ? std::string{} : prepared.error().message;
     REQUIRE_MESSAGE(prepared, compile_error);
+    const auto program = compiler::compile(plan, resolver);
+    REQUIRE(program);
     auto renderer = test::make_renderer();
-    const auto frame = renderer.render_compiled(prepared->compiled_composition, Frame{0});
+    const auto frame = renderer.render_program(*program, Frame{0});
     REQUIRE(frame);
     // The authored plane projects beyond every viewport edge. Cropping its
     // producer to 96x64 before projection used to leave only a central patch.
@@ -1298,7 +1298,9 @@ TEST_CASE("Camera projection preserves oversized image pixels outside the source
     const auto composed = compile_render_plan(plan, resolver);
     const std::string composed_error = composed ? std::string{} : composed.error().message;
     REQUIRE_MESSAGE(composed, composed_error);
-    const auto composed_frame = renderer.render_compiled(composed->compiled_composition, Frame{0});
+    const auto composed_program = compiler::compile(plan, resolver);
+    REQUIRE(composed_program);
+    const auto composed_frame = renderer.render_program(*composed_program, Frame{0});
     REQUIRE(composed_frame);
     const auto corner = composed_frame->get_pixel(4, 4);
     CHECK(corner.a == doctest::Approx(1.f));

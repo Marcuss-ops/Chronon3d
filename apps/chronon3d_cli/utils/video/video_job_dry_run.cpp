@@ -40,7 +40,7 @@ int dry_run_video_job(const RenderJob& job) {
             *job.registry, job.settings, job.execution.config, job.execution.assets_root);
 
         const auto preparation = runtime::prepare_render(
-            renderer.get(), *job.compiled,
+            renderer.get(), *job.program,
             runtime::RenderPreparationOptions{
                 .warmup_renderer = false,
                 .reference_frame = job.first_frame,
@@ -52,8 +52,8 @@ int dry_run_video_job(const RenderJob& job) {
         }
 
         spdlog::info("[dry-run]   Backend: SoftwareRenderer");
-        auto fb = renderer->render_compiled(
-            *job.compiled, job.first_frame);
+        auto fb = renderer->render_program(
+            *job.program, job.first_frame);
         if (!fb) {
             spdlog::warn("[dry-run]   First frame render returned null");
         } else {

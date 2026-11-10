@@ -133,7 +133,7 @@ struct ArenaPinnedRenderResult {
     std::uint64_t hash{0};
 };
 
-ArenaPinnedRenderResult render_in_arena(int slots, SoftwareRenderer& r,
+ArenaPinnedRenderResult render_in_arena(int slots, TestRenderer& r,
                                           const Composition& comp, Frame frame) {
     ArenaPinnedRenderResult out;
     auto body = [&] {

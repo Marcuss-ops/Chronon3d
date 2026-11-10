@@ -24,7 +24,6 @@
 
 namespace chronon3d {
     class RenderEngine;
-    class PreparedRenderJob;
     class Config;
     class SoftwareRenderer;
 }
@@ -92,8 +91,6 @@ struct DaemonOptions {
  * engine alive across hundreds of jobs using a length-prefixed binary
  * protocol (see chronon_ipc.hpp):
  *   PREFETCH_ASSET <path>         Warm the asset cache
- *   PREPARE_PLAN   <comp-id>      Compile + plan once (PreparedRenderJob)
- *   RENDER_OVERLAY <frame> [out]  Render a frame from the prepared plan
  *   RENDER_JOB     <json>         Render a chronon.render-plan.v2 file
  *                                 (decoded once by daemon_render_job_payload;
  *                                 normalized once; dispatched as
@@ -169,26 +166,9 @@ private:
     std::unordered_map<runtime::DeviceId,
         std::shared_ptr<media::PersistentVideoRenderState>> m_video_render_states;
     mutable std::mutex m_video_render_states_mutex;
-    // ── Per-domain IPC state (audit N2) ────────────────────────────────
-    // One mutex per fact. A single global mutex made a full compile block
-    // STATUS / PREFETCH / RENDER_OVERLAY, and made a disk write block the
-    // concurrent daemon transport. State strings are gone: STATUS now reads
-    // the prepared handle under m_prepared_mutex and the counters are atomic.
-    //
-    // shared_ptr, not unique_ptr: RENDER_OVERLAY snapshots the handle under
-    // m_prepared_mutex and then renders lock-free, so a concurrent
-    // PREPARE_PLAN cannot invalidate the plan mid-render.
-    std::shared_ptr<PreparedRenderJob> m_prepared_job;    // PREPARE_PLAN result
-    std::string m_prepared_comp_id;                       // comp bound to m_prepared_job
-    mutable std::mutex m_prepared_mutex;                  // guards the two lines above
-    // RenderEngine mutation domain (asset import, plan preparation). Kept
-    // separate from the prepared-slot and overlay domains; RenderEngine
-    // itself still has no documented concurrent-prepare contract.
+    // RenderEngine mutation domain (asset import). The legacy prepared-plan
+    // and overlay state was removed with the Composition executor.
     mutable std::mutex m_engine_mutex;
-    // RENDER_OVERLAY execution domain. A PreparedRenderJob owns exactly one
-    // single-job JobSession, so overlays on the same plan must serialize; no
-    // other handler waits on this mutex.
-    mutable std::mutex m_overlay_mutex;
     // Warm per-device session map. IPC workers run one thread per connection
     // (serve_concurrent), and the RENDER_JOB path does not hold any IPC
     // mutex; the map needs its own lock (audit N1).

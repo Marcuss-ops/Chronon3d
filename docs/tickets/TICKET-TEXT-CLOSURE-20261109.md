@@ -1,27 +1,31 @@
 # TICKET-TEXT-CLOSURE-20261109 — Chiusura del testo: pixel truth, caret RTL e qualità avanzata
 
-**Status:** ACTIVE — reopened 2026-11-09 to satisfy the requested full text parity. The previous close accepted an AA exception and GPU feature fail-closed policies; these are now recorded as unresolved exit gates, not completion.
+**Status:** CLOSED — product exception (ADR-040, 2026-11-10). The frozen pixel gate is not green: 1/8 cases pass; the other 7 and the T1-01/T1-02/T2-01 gates are accepted/deferred by explicit product decision, not passed. See §17 and [ADR-040](../adr/ADR-040-text-parity-product-exception.md).
 **Parent:** [TICKET-TEXT-ANIMATOR-PARITY-20261107](TICKET-TEXT-ANIMATOR-PARITY-20261107.md)
 **Quality authority:** [TICKET-TEXT-QUALITY-V2](TICKET-TEXT-QUALITY-V2.md)
 **Related:** [TICKET-SVG-TEXT-PARITY-REMAINING](TICKET-SVG-TEXT-PARITY-REMAINING.md), [TICKET-CHRONON-2.0-MASTER](TICKET-CHRONON-2.0-MASTER.md), [ADR-037](../adr/ADR-037-pre-shaping-selector-unit-map.md)
+**Closeout evidence:** [text-parity-20261110-product-exception/REPORT.md](../evidence/text-parity-20261110-product-exception/REPORT.md) — CLI SHA `ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e`; 1/8 PASS.
 **Owner:** Chronon3D text/runtime.
 **Scope:** chiusura del testo non-SVG: certificazione pixel CPU/GPU su glifi reali, caret RTL/bidi, shadow canonica sul run, `VectorStroke`, policy di generazione MTSDF/`msdfgen`, e residui di parità oggi documentati.
 **Non-goals:** SVG text (P2-02, ticket separato), DirectYUV/NV12 (lane separata), un secondo text renderer, un nuovo resolver o una nuova cache authority.
 
-**Reopened exit contract:** T0-01 must pass its frozen thresholds on every corpus
-case with strict native Vulkan and same-backend repeat determinism. T1-01 and
-T1-02 must execute their declared canonical-shadow and vector-stroke semantics
-on Vulkan instead of rejecting them. T2-01's transition/span/paint-range
-combination remains open until it has a typed/native execution path or a proven
-AE-compatible contract. The previously documented AA exception is not an exit
-condition; the thresholds may change only through an explicit product ADR.
+**Reopened exit contract (superseded by ADR-040):** T0-01 requires its frozen
+thresholds on every corpus case with strict native Vulkan and same-backend
+repeat determinism. T1-01 and T1-02 require canonical-shadow and vector-stroke
+semantics on Vulkan instead of rejection. T2-01's transition/span/paint-range
+combination requires a typed/native execution path or a proven AE-compatible
+contract. ADR-040 is the explicit product decision that closes this ticket with
+those gates accepted/deferred; the thresholds themselves are unchanged and the
+seven failing cases are not PASS.
 
-**Prior same-SHA evidence:** [`text-parity-20261109-final-sha/REPORT.md`](../evidence/text-parity-20261109-final-sha/REPORT.md) — CLI SHA `fe39acb857280be500fc8c8149f014687e683ccf7c5b7dc8f9c33a4247b9582d`; software repeats match, all eight Vulkan cases use MTSDF, and all eight remain FAIL against unchanged thresholds. The current post-cache-migration evidence is linked below.
-The current-checkout rerun on 2026-11-10 after the typed cache migration uses
-CLI SHA `74d9b861e7509e81ef271dda96294f896c93989c1c7824f77e83611687b2cf22`
-and reproduces the same 0/8 result; see
+**Prior same-SHA evidence:** [`text-parity-20261109-final-sha/REPORT.md`](../evidence/text-parity-20261109-final-sha/REPORT.md) — CLI SHA `fe39acb857280be500fc8c8149f014687e683ccf7c5b7dc8f9c33a4247b9582d`; software repeats match, all eight Vulkan cases use MTSDF, and all eight remain FAIL against unchanged thresholds. The pre-revert post-cache-migration evidence is linked below; the final
+post-revert checkpoint is in §17.
+The pre-revert current-checkout rerun on 2026-11-10 after the typed cache
+migration used CLI SHA
+`74d9b861e7509e81ef271dda96294f896c93989c1c7824f77e83611687b2cf22` and
+reproduced 0/8; see
 [`text-parity-current-cache-20261110/REPORT.md`](../evidence/text-parity-current-cache-20261110/REPORT.md)
-and its per-frame `report.json`. The frozen acceptance criteria remain unmet.
+and its per-frame `report.json`. That historical result is superseded by §17.
 The follow-up MTSDF B-spline reconstruction probe on `latin_basic` was rejected:
 alpha IoU moved 0.947735 → 0.947630 while MAE/PSNR improved only marginally;
 all gates still fail. Its candidate run and rollback are recorded in
@@ -33,6 +37,14 @@ range-40 current baseline IoU 0.947735 and below the earlier range-32 probe
 (IoU 0.95306); all frozen gates still fail. The source profile was restored
 to range 40 / padding 60 / generation 4. Full report:
 [`text-parity-20261110-range24-latin/REPORT.md`](../evidence/text-parity-20261110-range24-latin/REPORT.md).
+**Final 2026-11-10 post-revert checkpoint:** a second 2×2 coverage probe was
+rejected and reverted; the rebuilt CLI is back to SHA
+`ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e`. The full
+corpus is 1/8 PASS (`multipage`); the other seven remain below the frozen gate.
+ADR-040 closes this ticket by product exception, not by a parity PASS. The
+per-frame report is in
+[`text-parity-20261110-product-exception/REPORT.md`](../evidence/text-parity-20261110-product-exception/REPORT.md).
+
 ## Glyph-edge source audit — 2026-11-10
 
 The current `latin_basic` frame has equal non-zero mask counts (19,565) and
@@ -57,8 +69,11 @@ has a 0/8 result; see
 [`text-parity-current-20261110/REPORT.md`](../evidence/text-parity-current-20261110/REPORT.md).
 The targeted generator, animator, driver, selector metadata and tile-raster
 canary binaries pass (7/7, 55/55, 22/22, 3/3 and 1/1 test cases respectively),
-but those functional tests do not satisfy T0-01's pixel gate. This ticket stays
-ACTIVE.
+but those functional tests do not satisfy T0-01's pixel gate. The final
+post-revert corpus on CLI SHA
+`ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e` is 1/8 (see
+§17); ADR-040 closes this ticket by product exception, not by a pixel-gate
+PASS.
 
 ---
 
@@ -92,9 +107,13 @@ Questo ticket è il piano di chiusura. Non duplica l’authority della qualità:
 
 ## 2. Gap matrix
 
+> The statuses below are the technical states observed at the closeout probe.
+> ADR-040 closes the ticket by product exception; it does not turn OPEN/PARTIAL
+> rows into PASS. See §17.
+
 | ID | Gap | Priorità | Stato | Gate di uscita |
 |---|---|---|---|---|
-| T0-01 | Pixel diff CPU/GPU su glifi reali, tutti gli effetti nativi | P0 | OPEN — all 8 corpus cases fail at least one threshold; AA exception no longer accepted | Report per-frame + soglie + evidenza same-SHA |
+| T0-01 | Pixel diff CPU/GPU su glifi reali, tutti gli effetti nativi | P0 | OPEN — 1/8 corpus cases pass; 7/8 accepted by ADR-040, not PASS | Report per-frame + soglie + evidenza same-SHA |
 | T0-02 | Caret RTL/bidi: edge logico, cluster, ligature, run misti | P0 | PARTIAL — functional tests pass; pixel case remains below T0-01 thresholds | Unit + integration + pixel diff RTL |
 | T0-03 | Multi-shadow GPU compositing and CPU/GPU pixel parity | P0 | PARTIAL — ordered multi-pass dispatch is implemented in `text_run_draw.cpp`; `multi_shadow` still misses the frozen pixel gate | Two ordered layers visible and within the frozen pixel gate |
 | T1-01 | Shadow canonica sul run: maschera unione, blur gaussiano, source-over lineare | P1 | OPEN — CPU `Canonical` exists; Vulkan rejects it | GPU union-mask + canonical blur parity |
@@ -647,7 +666,12 @@ reopened full-parity exit criteria are authoritative.
 - [x] `TICKET-TEXT-ANIMATOR-PARITY` chiuso con non-goal GPU espliciti e l'eccezione AA T0-01.
 - [x] Nessun commit creato: resta la regola del repository di non committare senza richiesta esplicita.
 
-### 13.1 Reopened full-parity exit checklist
+### 13.1 Reopened full-parity exit checklist — WAIVED by ADR-040 (not PASS)
+
+> These items remain technically unmet. ADR-040 closes the ticket by product
+> exception; the unchecked boxes below are not a parity pass. Current evidence:
+> [`text-parity-20261110-product-exception/REPORT.md`](../evidence/text-parity-20261110-product-exception/REPORT.md)
+> (1/8 PASS, CLI `ba6e14ad…`).
 
 - [ ] Every frozen T0-01 corpus case passes unchanged thresholds on a strict
   native Vulkan route; same-backend software output repeats byte-identically.
@@ -835,3 +859,66 @@ measurement and raw artifact hashes are recorded in
 
 Gli esiti di build, test mirati e gate pixel sono registrati sotto; nessun
 risultato non eseguito viene dichiarato PASS.
+
+---
+
+## 17. Product-exception closeout — 2026-11-10
+
+**Decision:** [ADR-040](../adr/ADR-040-text-parity-product-exception.md) records
+the product owner's explicit authorization to close this ticket with the AA and
+GPU-gate residual accepted. This is **not** a parity PASS; the frozen
+thresholds are unchanged.
+
+**Build:** `cmake --build build/chronon/linux-video-release --target
+chronon3d_cli -j12` → exit 0. CLI SHA-256
+`ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e`.
+
+**Result:** `1/8` frozen cases pass (`multipage`). The other seven miss at least
+one unchanged threshold.
+
+| Case | alpha IoU | coverage | RGB p99 | PSNR luma | Result |
+|---|---:|---:|---:|---:|---|
+| `multipage` | 0.995177 | 1.000744 | 0.019608 | 35.162 | PASS |
+| `latin_basic` | 0.985900 | 0.998673 | 0.082353 | 35.058 | FAIL IoU/p99 |
+| `transitions` | 0.983597 | 1.003218 | 0.094118 | 34.408 | FAIL IoU/p99/PSNR |
+| `fractional` | 0.963981 | 0.985111 | 0.176471 | 29.418 | FAIL IoU/coverage/p99/PSNR |
+| `exact_3d` | 0.943576 | 0.961831 | 0.227451 | 30.023 | FAIL IoU/coverage/bbox/p99/PSNR |
+| `rtl_caret` | 0.928066 | 0.956654 | 0.039216 | 25.232 | FAIL IoU/coverage/p99/PSNR/SSIM |
+| `multi_shadow` | 0.927669 | 0.933783 | 0.431373 | 21.176 | FAIL IoU/coverage/bbox/RGB/SSIM |
+| `effects` | 0.923020 | 0.923020 | 0.180392 | 28.594 | FAIL IoU/coverage/bbox/RGB/flat |
+
+The per-frame raw metrics and the verifier's `pass: false` are in
+[`report.json`](../evidence/text-parity-20261110-product-exception/report.json);
+the human-readable summary is in
+[`REPORT.md`](../evidence/text-parity-20261110-product-exception/REPORT.md).
+
+**Rejected probe:** a second 2×2 coverage probe on this baseline worsened
+`latin_basic` (IoU 0.985900 → 0.962797, coverage 0.998673 → 1.038640) and
+`transitions` (0.983597 → 0.956730, coverage 1.003218 → 1.045227). It was
+removed and the shader was rebuilt from the original source; the final CLI SHA
+above is the baseline binary, not the probe.
+
+**Accepted/deferred by ADR-040:**
+
+- T0-01 residual on seven cases: AA/coverage (curves and diagonals), effect
+  composition/glow/background, multi-shadow union mask, and 3D projection.
+  These are accepted as documented residual, not PASS.
+- T1-01 GPU canonical union-mask shadow: deferred; CPU `Canonical` exists,
+  Vulkan remains fail-closed.
+- T1-02 GPU `VectorStroke`: deferred; the software vector path exists, Vulkan
+  remains fail-closed.
+- T2-01 `text_transitions` + spans/paint ranges: remains the ADR-039 non-goal;
+  the fail-closed rejection stays.
+- T0-02/T0-03 pixel cases: functional paths pass, frozen pixel gate not met;
+  accepted under T0-01.
+- T1-03 High-profile/cache parity and the editorial-corpus extension: deferred
+  technical debt; no new profile claim.
+
+**Exit conditions:** removing this exception requires GPU canonical shadow,
+GPU vector stroke and a typed T2-01 path, followed by a full frozen-corpus
+rerun on the final SHA. The fail-closed paths must stay until then; no silent
+fallback or threshold change is authorized. Owner: Chronon3D text/runtime.
+
+**Working tree:** this closeout changes documentation and evidence only. The
+2×2 shader probe was reverted; no rendering-code change from this closeout is
+retained.

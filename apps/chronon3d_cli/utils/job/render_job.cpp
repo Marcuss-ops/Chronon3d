@@ -11,7 +11,6 @@
 
 #include <chronon3d/color/output_transform.hpp>
 #include <chronon3d/media/video/video_config.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -213,57 +212,24 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     const CompositionRegistry& registry,
     RenderRequest request) {
     const std::string composition_id = request.comp_id;
-    std::shared_ptr<const CompiledComposition> compiled = std::move(request.compiled_composition);
-    std::optional<ResolvedCompositionSpec> resolved;
-    if (!compiled && !request.compiled_program) {
-        auto registry_result = registry.resolve(composition_id, request.input);
-        if (!registry_result) {
-            return make_render_job_error(RenderJobErrorCode::ValidationFailed,
-                "Failed to resolve composition '" + composition_id + "': " + registry_result.error().message);
-        }
-        resolved = std::move(registry_result.value());
-        if (!resolved->construct) {
-            return make_render_job_error(RenderJobErrorCode::InvalidJob,
-                "Composition '" + composition_id + "' has no prepared constructor");
-        }
+    if (!request.compiled_program) {
+        return make_render_job_error(RenderJobErrorCode::UnsupportedMode,
+            "Composition '" + composition_id + "' requires a CompiledProgram; "
+            "the legacy Composition executor was removed. Use the --plan route.");
     }
 
     try {
-        if (!compiled && !request.compiled_program) {
-            Composition comp = resolved->construct();
-            auto compiled_result = chronon3d::compile_composition(comp, CompositionCompileContext{});
-            if (!compiled_result) {
-                return make_render_job_error(RenderJobErrorCode::SetupFailed,
-                    "Composition compilation failed for '" + composition_id + "': " + compiled_result.error().message);
-            }
-            compiled = std::make_shared<const CompiledComposition>(std::move(compiled_result).value());
-        }
-
-    RenderJob job;
-    job.registry = &registry;
-    job.comp_id = std::move(request.comp_id);
-    job.compiled = std::move(compiled);
-    job.program = std::move(request.compiled_program);
-        if (job.program) {
-            const auto& metadata = job.program->metadata();
-            job.metadata = CompositionMetadata{
-                .width = static_cast<int>(metadata.width),
-                .height = static_cast<int>(metadata.height),
-                .fps = FrameRate{metadata.fps_numerator, metadata.fps_denominator},
-                .duration = Frame{metadata.duration_frames},
-            };
-        } else if (job.compiled && job.compiled->composition) {
-            job.metadata = CompositionMetadata{
-                .width = job.compiled->composition->width(),
-                .height = job.compiled->composition->height(),
-                .fps = job.compiled->composition->frame_rate(),
-                .duration = job.compiled->composition->duration(),
-            };
-        } else {
-            return make_render_job_error(RenderJobErrorCode::InvalidJob,
-                "RenderJob has neither a compiled program nor a compiled composition");
-        }
-        if (resolved && resolved->metadata) job.metadata = *resolved->metadata;
+        RenderJob job;
+        job.registry = &registry;
+        job.comp_id = std::move(request.comp_id);
+        job.program = std::move(request.compiled_program);
+        const auto& metadata = job.program->metadata();
+        job.metadata = CompositionMetadata{
+            .width = static_cast<int>(metadata.width),
+            .height = static_cast<int>(metadata.height),
+            .fps = FrameRate{metadata.fps_numerator, metadata.fps_denominator},
+            .duration = Frame{metadata.duration_frames},
+        };
         job.mode = request.mode;
         job.still_frame = request.still_frame;
         job.first_frame = request.first_frame;

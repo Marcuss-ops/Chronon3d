@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
     auto out =
         engine.render_program(*compiled.value(), chronon3d::sdk::Frame{0});
     if (!out.has_value()) {
-        std::fprintf(stderr, "render_compiled failed: %s\n",
+        std::fprintf(stderr, "render_program failed: %s\n",
                      out.error().message.c_str());
         return 1;
     }

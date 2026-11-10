@@ -41,23 +41,15 @@ RenderLoopResult run_render_job_loop(
         const FrameRange output_range{range_start, range_end, 1};
 
         for (const Frame frame : job.selected_frames) {
-            const bool frame_ok = job.program
-                ? write_render_frame(*job.program, renderer, frame, output_range,
-                                    job.output, job.video_settings.reference_white_nits,
-                                    job.video_settings,
-                                    result.ok,
-                                    result.telemetry_frames,
-                                    result.total_render_ms,
-                                    result.total_encode_ms,
-                                    result.frames_written)
-                : write_render_frame(*job.compiled, renderer, frame, output_range,
-                                    job.output, job.video_settings.reference_white_nits,
-                                    job.video_settings,
-                                    result.ok,
-                                    result.telemetry_frames,
-                                    result.total_render_ms,
-                                    result.total_encode_ms,
-                                    result.frames_written);
+            const bool frame_ok = write_render_frame(
+                *job.program, renderer, frame, output_range,
+                job.output, job.video_settings.reference_white_nits,
+                job.video_settings,
+                result.ok,
+                result.telemetry_frames,
+                result.total_render_ms,
+                result.total_encode_ms,
+                result.frames_written);
             if (!frame_ok) {
                 // Continue to surface all selected-frame failures while
                 // preserving the shared false result.
@@ -75,23 +67,15 @@ RenderLoopResult run_render_job_loop(
 
         const FrameRange range{start, end, step};
         for (std::int64_t f = start; f <= end; f += step) {
-            const bool frame_ok = job.program
-                ? write_render_frame(*job.program, renderer, Frame{f}, range,
-                                    job.output, job.video_settings.reference_white_nits,
-                                    job.video_settings,
-                                    result.ok,
-                                    result.telemetry_frames,
-                                    result.total_render_ms,
-                                    result.total_encode_ms,
-                                    result.frames_written)
-                : write_render_frame(*job.compiled, renderer, Frame{f}, range,
-                                    job.output, job.video_settings.reference_white_nits,
-                                    job.video_settings,
-                                    result.ok,
-                                    result.telemetry_frames,
-                                    result.total_render_ms,
-                                    result.total_encode_ms,
-                                    result.frames_written);
+            const bool frame_ok = write_render_frame(
+                *job.program, renderer, Frame{f}, range,
+                job.output, job.video_settings.reference_white_nits,
+                job.video_settings,
+                result.ok,
+                result.telemetry_frames,
+                result.total_render_ms,
+                result.total_encode_ms,
+                result.frames_written);
             if (!frame_ok) {
                 // Continue to surface all frame failures while preserving false.
             }

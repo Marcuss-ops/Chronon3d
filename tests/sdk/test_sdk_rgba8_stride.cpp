@@ -1,36 +1,24 @@
 #include <doctest/doctest.h>
 
-#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/sdk/render_output.hpp>
 #include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/timeline/composition.hpp>
 
 #include <cstddef>
+#include <string_view>
 
 namespace {
 
-chronon3d::Composition one_pixel_color(float r, float g, float b, float a) {
-    return chronon3d::Composition{
-        chronon3d::CompositionSpec{
-            .name = "sdk_rgba8_stride",
-            .width = 5,
-            .height = 2,
-            .frame_rate = chronon3d::FrameRate{30, 1},
-            .duration = chronon3d::Frame{1},
-        },
-        [=](const chronon3d::FrameContext&) -> chronon3d::Scene {
-            chronon3d::SceneBuilder builder;
-            builder.layer("pixel", [=](chronon3d::LayerBuilder& layer) {
-                layer.screen_dimensions(5.0f, 2.0f)
-                 .fill(chronon3d::Color{r, g, b, a});
-            });
-            return builder.build();
-        },
-    };
-}
+// A 5x2 full-canvas color layer. The 0.25 linear red and 0.5 alpha exercise
+// the straight-sRGB conversion and the padded framebuffer row (width 5 pads
+// to 8 Colors), which is the contract under test.
+constexpr std::string_view kPlan = R"JSON({
+  "schema":"chronon.render-plan.v3","version":3,
+  "canvas":{"width":5,"height":2,"fps_num":30,"fps_den":1,"duration_frames":1},
+  "layers":[{"id":"pixel","type":"color","size":[5,2],"position":[0,0],
+    "color":[0.25,0,0,0.5],"start_frame":0,"duration_frames":1}],
+  "output":{"path":"unused.png"}
+})JSON";
 
 }  // namespace
 
@@ -42,8 +30,11 @@ TEST_CASE("SDK RGBA8 conversion walks logical rows and emits straight sRGB pixel
     settings.deterministic = true;
     chronon3d::sdk::RenderEngine engine{settings};
 
-    const auto result = engine.render(
-        one_pixel_color(0.25f, 0.0f, 0.0f, 0.5f), chronon3d::sdk::Frame{0});
+    const auto compiled = engine.compile_plan_json(kPlan);
+    REQUIRE(compiled.has_value());
+
+    const auto result = engine.render_program(*compiled.value(),
+                                              chronon3d::sdk::Frame{0});
     REQUIRE(result);
     REQUIRE(result->pixels);
     REQUIRE(result->format == chronon3d::sdk::PixelFormat::RGBA8);

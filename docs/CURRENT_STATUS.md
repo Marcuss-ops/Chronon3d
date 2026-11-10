@@ -5,14 +5,19 @@ build passes with `-j14` after removing the unused `CompiledComposition`
 FlatBuffer cache API and schema; the rebuilt cache suite passes 206/206 cases
 (103,977 assertions), and the architecture gate passes 218/218, including an
 anti-resurrection rule for that retired API. The typed CUDA program-artifact
-cache remains. The broader Composition executor still has live SDK, registry,
-RenderEngine, renderer, DirectYUV and daemon entrypoints (pinned counts 15/6/9),
-so its ticket remains open. Current text corpus evidence on CLI SHA
-`74d9b861e7509e81ef271dda96294f896c93989c1c7824f77e83611687b2cf22` is 0/8
-against frozen pixel thresholds; the B-spline fill probe was rejected. See the
-[text closure ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md),
-[Composition demolition ticket](tickets/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md),
-and [same-SHA text report](evidence/text-parity-current-cache-20261110/REPORT.md).
+cache remains. The legacy Composition executor was demolished on 2026-11-10: `CompiledProgram`
+is the only production execution input; the pinned compatibility counts are now
+0 production callers and the ticket is closed for demolition (pixel parity
+remains a separate, NOT RUN certification). Text AE
+parity closed on 2026-11-10 by product exception
+[ADR-040](adr/ADR-040-text-parity-product-exception.md): the final
+post-revert corpus on CLI SHA
+`ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e` is 1/8 PASS;
+the seven residual cases and the GPU canonical
+shadow/VectorStroke/transition+span gates are accepted/deferred, not PASS. See
+the [text closure ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md),
+[exception report](evidence/text-parity-20261110-product-exception/REPORT.md),
+and [Composition demolition ticket](tickets/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md).
 
 Latest benchmark note (2026-11-02): B2 is encoder-bound. The native-surface
 breakdown measures `avcodec_send_frame` at 3.76 ms/frame (`send_frame`
@@ -110,8 +115,9 @@ only); `GraphExecutor` is the sole production execution authority with helper TU
 distinct responsibilities; `VulkanDescriptorAuthority` owns descriptor allocation/handles;
 `FrameSlotPool` + `GpuCompletionTracker` + `FrameQueue` are the runtime build registration
 (no second scheduler, and the retired `FrameSlotPipeline` / `FrameExecutionSlotRing`
-facades must not return); CLI V3 / `PreparedRenderPlan -> CompiledComposition` is the
-canonical typed route; telemetry is events-only with `NullTelemetryStore` as default and no
+facades must not return); `CompiledProgram` is the canonical typed execution route;
+`CompiledComposition` is only an evaluation artifact for
+`PreparedRenderPlan` and has no production executor; telemetry is events-only with `NullTelemetryStore` as default and no
 sqlite3 dependency in `src`/`include`/`apps`.
 
 Focus gate: freeze new product features until the current Chronon3D revision has
@@ -133,15 +139,21 @@ tracked in [`TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`](tickets/TICKET-WAVE-CLOSEOUT
 
 ## Active blockers
 
-| ID | Area | Stato | Scheda |
-|---|---|---|---|
-| TICKET-MAIN-TRUTH-STAGE-1-2 | main/build/docs | PARTIAL | [ticket](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — Actions on `a214fad` allocated runners but the latest batch had failures/cancellations; certify a reviewed same-SHA green run |
-| CERT-SEQUENCE-WBH | testing/cert | PARTIAL | [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — protocol, toolchain manifest and local qualification delivered; clean same-SHA certification remains |
-| FFMPEG-PIPE-SINK-DEMOLITION | video cleanup | BLOCKED | [ticket](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — exits 2/4/5 verified 2026-10-23 (zero pipe callers, anti-resurrection gate 209/209); exit 3 CI-green evidence outstanding |
-| FUSED-STORAGE-IMAGE-DEMOLITION | render graph cleanup | PARTIAL | [ticket](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — compiler/executor image branch demolished; one same-SHA native-image video certificate is PASS, broader overlay corpus parity remains |
-| CACHE-IDENTITY-KEYS | cache invalidation | ACTIVE | [ticket](tickets/TICKET-CACHE-IDENTITY-KEYS.md) — all taxonomy entries now have identity owners/dependency axes; remaining V2 schemas, mutation fixtures and full test execution are open |
+| ID | Pri | Area | Stato | Scheda |
+|---|---:|---|---|---|
+| TICKET-MAIN-TRUTH-STAGE-1-2 | P0 | main/build/docs | PARTIAL | [ticket](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — Actions on `a214fad` allocated runners but the latest batch had failures/cancellations; certify a reviewed same-SHA green run |
+| TICKET-RENDER-STACK-HARDENING-20261106 | P0 | Vulkan/render stack | OPEN | [ticket](tickets/TICKET-RENDER-STACK-HARDENING-20261106.md) — W1 SyncVal audit and W2 same-SHA C3D/CM3D pair are the gates; W3/W4 closure; no new graphics stack |
+| CERT-SEQUENCE-WBH | P1 | testing/cert | PARTIAL | [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — protocol, toolchain manifest and local qualification delivered; clean same-SHA certification remains |
+| FFMPEG-PIPE-SINK-DEMOLITION | P1 | video cleanup | BLOCKED | [ticket](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — exits 2/4/5 verified 2026-10-23 (zero pipe callers, anti-resurrection gate 209/209); exit 3 CI-green evidence outstanding |
+| COMPOSITION-LEGACY-EXECUTOR-DEMOLITION | P1 | compiler | CLOSED | [executor demolition](tickets/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md) — legacy executor and compatibility consumers removed 2026-11-10; closure is demolition-only, pixel/sequence/video parity NOT RUN |
+| MAINTENANCE-HOTSPOTS-BONIFICATION | P1 | engine maintenance | ACTIVE | [ticket](tickets/TICKET-MAINTENANCE-HOTSPOTS-BONIFICATION.md) — GPU lifetime/teardown, text hot-path fixes, certification-truthfulness decisions (B.1/B.2/F.2), effects-lane arch gate |
+| CACHE-IDENTITY-KEYS | P1 | cache invalidation | ACTIVE | [ticket](tickets/TICKET-CACHE-IDENTITY-KEYS.md) — all taxonomy entries have identity owners/dependency axes; remaining V2 schemas, mutation fixtures and full test execution are open |
+| FUSED-STORAGE-IMAGE-DEMOLITION | P1 | render graph cleanup | PARTIAL | [ticket](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — compiler/executor image branch demolished; one same-SHA native-image video certificate is PASS, broader overlay corpus parity remains |
+| GPU-BASELINE-CORPUS | P1 | GPU certification | PARTIAL | [ticket](tickets/TICKET-GPU-BASELINE-CORPUS.md) — manifest and runner ready; the active content pack is absent from this checkout (external) |
+| TEXT-COMPOSITE-GEL-SURFACE | P1 | text/GEL | PARTIAL | [ticket](tickets/TICKET-TEXT-COMPOSITE-GEL-SURFACE.md) — supplied still matches; extreme tracking, depth/DoF, moving-footage and performance gates remain open or NOT RUN |
 
-Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
+This table mirrors the canonical 10-row blocker index in
+[`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md); update both in the same change.
 
 ## Area summary
 
@@ -159,7 +171,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Lights / shadows (T05) | PARTIAL — 2026-10-30 final-binary no-probe acceptance: 5/5 complete caster-off and 5/5 caster-on, gate 30/30 PASS (means 53.1802/53.5169, zero black, opaque 1.0, A/B 8.8485%); shadow-quality review and same-SHA CI remain open. All renders decoded; process exit is not the image gate. Physical image-alias guards did not fire. Descriptor probe showed distinct Lighting sets/views/images/allocations and valid extents; Transform snapshots were populated while two Lighting snapshots read zero. Focused backend Lighting tests pass 3/3 cases, 69/69 assertions, but do not reproduce the graph issue. Lifetime root cause and shadow-quality acceptance remain open; C2 timings are 2.047/2.607/7.998 s for 1k/10k/100k particles (not kernel-only); GPU instancing/parity and same-SHA CI remain open — [ticket and evidence](tickets/TICKET-LIGHTS-SHADOWS-PARTICLES.md) |
 | Render-plan audio mix | PASS (focused) — V3 clips, trim, gain automation, ducking and native mux integration; GPU/CI same-SHA certification remains separate |
 | Text Core V1 | PASS (focused) |
-| Text animator AE parity | PARTIAL — functional selectors/caret and ordered multi-shadow paths are implemented; 0/8 frozen CPU/GPU corpus cases pass the unchanged pixel gate; Vulkan canonical shadow/vector stroke and transition+span combination remain open — [ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md) |
+| Text animator AE parity | CLOSED — product exception (ADR-040): functional selectors/caret and ordered multi-shadow paths are implemented; 1/8 frozen CPU/GPU corpus cases pass, the other 7 are accepted with documented residual; Vulkan canonical shadow/vector stroke and transition+span remain deferred, not PASS — [ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md), [ADR-040](adr/ADR-040-text-parity-product-exception.md) |
 | Text depth focus (text_depth_focus_v1) | PARTIAL — resolver and preset recipes are in `ChrononPlugin/plugins/typography`; text animator primitives remain in Chronon3D |
 | Text Production V1 | PARTIAL — acceptance contract is in [`RELEASE_GATE.md`](RELEASE_GATE.md): 20 general + 8 subtitle presets, timed JSON/SRT input, productive word styling, per-preset 16:9/9:16 short/long multi-time goldens, installed-SDK use, and serial/parallel determinism. The claimed 20+8 catalog count is not backed by a current inventory artifact found in this checkout; the other end-to-end criteria are not certified. |
 | GPU Production V1 | PARTIAL / scope not separately defined — no dedicated ticket or acceptance contract named “GPU Production V1” was found. Related measurable C3D gates are [zero-copy Z-waves](tickets/TICKET-ZERO-COPY-ZWAVES.md), [GPU corpus](tickets/TICKET-GPU-BASELINE-CORPUS.md), and the GPU-native video evidence above; the content corpus and broad release certification remain open. |

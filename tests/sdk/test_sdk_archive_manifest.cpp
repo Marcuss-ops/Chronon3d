@@ -167,29 +167,29 @@ TEST_CASE(
     // These three symbols are the minimum viable SDK consumer surface:
     //   * RenderEngine — the OPP + SDK facade (two namespaces:
     //     chronon3d::RenderEngine and chronon3d::sdk::RenderEngine)
-    //   * render_frame  — the per-frame entry-point (`SoftwareRenderer::render_frame`)
+    //   * render_program — the per-frame entry-point
+    //     (`SoftwareRenderer::render_program`); the Composition executor is gone
     //   * save_png      — the IO helper that completes the render_frame → PNG loop
     CHECK_MESSAGE(nm_out.find("RenderEngine") != std::string::npos,
         "TICKET-SDK-PACKAGING-CONSOLIDATION: lock-bit symbol 'RenderEngine' "
         "is absent from the archive.  Either the SDK facade was deleted "
         "or the static archive failed to include chronon3d_sdk_impl.cpp.");
-    // Per-frame render entry-point lockbit.  The OPP canonical symbol
-    // is `SoftwareRenderer::render(const Composition&, Frame)` (open-paren
-    // disambiguates from `SoftwareRenderer::render_settings` and other
-    // `render_*` setters/accessors that have SURFACE noise value but are
-    // NOT the per-frame entry point).
+    // Per-frame render entry-point lockbit. The canonical symbol is
+    // `SoftwareRenderer::render_program(const compiler::CompiledProgram&,
+    // Frame)` (open-paren disambiguates from `render_settings` and other
+    // `render_*` setters/accessors that are NOT the per-frame entry point).
     //   We deliberately locked the OPEN-PAREN form so a true regression
     // (rename of `render` -> `render_with` etc.) still fails loud.  The
     // earlier multi-substring `render_frame`/`render_scene` alternates
     // were reversed: zero OPP source matches for those literals (grep of
     // src/backends/software returned empty), so they were matching stale
     // build artifacts rather than current OPP semantics.
-    CHECK_MESSAGE(nm_out.find("SoftwareRenderer::render(") != std::string::npos,
+    CHECK_MESSAGE(nm_out.find("SoftwareRenderer::render_program(") != std::string::npos,
         "TICKET-SDK-PACKAGING-CONSOLIDATION: per-frame render entry-point "
-        "'SoftwareRenderer::render(' is absent from the archive.  This "
-        "breaks the SDK consumer round-trip; the OPP renderer surface "
-        "(SoftwareRenderer::render(const Composition&, Frame)) must "
-        "remain in libchronon3d_sdk_impl.a.");
+        "'SoftwareRenderer::render_program(' is absent from the archive. "
+        "This breaks the SDK consumer round-trip; the typed renderer surface "
+        "(SoftwareRenderer::render_program(const CompiledProgram&, Frame)) "
+        "must remain in libchronon3d_sdk_impl.a.");
     CHECK_MESSAGE(nm_out.find("save_png") != std::string::npos,
         "TICKET-SDK-PACKAGING-CONSOLIDATION: lock-bit symbol 'save_png' "
         "is absent.  The IO helper completes the SDK consumer round-trip "

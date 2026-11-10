@@ -10,11 +10,11 @@ namespace {
 
 const char* state_name(DaemonRuntime::State state) noexcept {
     switch (state) {
-    case DaemonRuntime::State::Starting: return "starting";
-    case DaemonRuntime::State::Warming: return "warming";
-    case DaemonRuntime::State::Ready: return "ready";
-    case DaemonRuntime::State::Draining: return "draining";
-    case DaemonRuntime::State::Poisoned: return "poisoned";
+        case DaemonRuntime::State::Starting: return "starting";
+        case DaemonRuntime::State::Warming: return "warming";
+        case DaemonRuntime::State::Ready: return "ready";
+        case DaemonRuntime::State::Draining: return "draining";
+        case DaemonRuntime::State::Poisoned: return "poisoned";
     }
     return "unknown";
 }
@@ -23,78 +23,15 @@ const char* state_name(DaemonRuntime::State state) noexcept {
 
 DaemonRuntime::DaemonRuntime(
     std::unique_ptr<RenderEngine> engine,
-    const ipc::ContractValidatorRegistry& validators)
-    : m_engine(std::move(engine))
-    , m_session(*m_engine, validators) {}
+    const ipc::ContractValidatorRegistry&)
+    : m_engine(std::move(engine)) {}
 
 void DaemonRuntime::warmup() {
     m_state.store(State::Warming, std::memory_order_release);
     // RenderEngine construction owns the persistent backend/device lifetime.
-    // Resource-specific warmup is performed by PreparedRenderJob::prepare;
-    // keeping this explicit state boundary prevents advertising READY before
-    // the daemon has completed its startup phase.
+    // The legacy PreparedRenderJob warmup was retired with the Composition
+    // executor; the typed RENDER_JOB path prepares its program per job.
     m_state.store(State::Ready, std::memory_order_release);
-}
-
-void DaemonRuntime::prepare_composition(
-    std::string_view composition_id, std::string_view descriptor_json) {
-    if (!accepting()) throw std::runtime_error("daemon is not accepting jobs");
-    m_session.create_composition(composition_id, descriptor_json);
-}
-
-void DaemonRuntime::prepare_job(
-    std::string_view job_id, std::string_view descriptor_json) {
-    prepare_composition(job_id, descriptor_json);
-}
-
-std::shared_ptr<Framebuffer> DaemonRuntime::render_frame(
-    std::string_view composition_id, Frame frame) {
-    return render_frame_timed(composition_id, frame).framebuffer;
-}
-
-DaemonRuntime::RenderOutcome DaemonRuntime::render_frame_timed(
-    std::string_view composition_id, Frame frame) {
-    RenderOutcome outcome;
-    if (!accepting()) return {};
-    const auto t0 = profiling::now();
-    outcome.framebuffer = m_session.render_frame(composition_id, frame);
-    outcome.render_ms = profiling::elapsed_ms(t0);
-    if (outcome.framebuffer) {
-        m_frame_count.fetch_add(1, std::memory_order_relaxed);
-        double old = m_total_render_ms.load(std::memory_order_relaxed);
-        while (!m_total_render_ms.compare_exchange_weak(
-            old, old + outcome.render_ms, std::memory_order_relaxed)) {}
-    }
-    return outcome;
-}
-
-DaemonRuntime::RenderOutcome DaemonRuntime::render_job(
-    std::string_view job_id, Frame frame) {
-    auto outcome = render_frame_timed(job_id, frame);
-    m_session.set_job_render_time(job_id, outcome.render_ms);
-    return outcome;
-}
-
-bool DaemonRuntime::contains(std::string_view composition_id) const noexcept {
-    return m_session.contains(composition_id);
-}
-
-void DaemonRuntime::release_composition(std::string_view composition_id) {
-    m_session.remove(composition_id);
-}
-
-bool DaemonRuntime::release_job(std::string_view job_id) {
-    return m_session.release_job(job_id);
-}
-
-void DaemonRuntime::record_job_failure(
-    std::string_view job_id, std::string_view message) {
-    m_session.record_job_failure(job_id, message);
-}
-
-std::optional<ipc::SessionJobStatus> DaemonRuntime::job_status(
-    std::string_view job_id) const {
-    return m_session.job_status(job_id);
 }
 
 std::string DaemonRuntime::health_json() const {

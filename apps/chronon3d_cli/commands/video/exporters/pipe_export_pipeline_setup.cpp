@@ -34,7 +34,6 @@ using detail::VariantFanoutEncoder;
 
 std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
-    const CompiledComposition* compiled,
     const RenderSettings& settings,
     const FfmpegExportOptions& opts,
     Frame start,
@@ -48,16 +47,15 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 {
     constexpr size_t kArenaPoolCount = kCpuVideoPipelineDepth;
     auto session = std::make_unique<PipeExportSession>(kCpuVideoPipelineDepth);
-    if (!program && (!compiled || !compiled->composition)) {
-        spdlog::error("[video] setup requires a typed program or legacy composition");
+    if (!program) {
+        spdlog::error("[video] setup requires a typed CompiledProgram; "
+                      "the legacy Composition executor has been removed");
         return session;
     }
-    const int canvas_width = program ? static_cast<int>(program->metadata().width)
-                                     : compiled->composition->width();
-    const int canvas_height = program ? static_cast<int>(program->metadata().height)
-                                      : compiled->composition->height();
-    const auto program_fingerprint = program ? program->fingerprint() : compiled->fingerprint;
-    session->evaluation_mode = program ? "compiled_program" : "compiled_composition";
+    const int canvas_width = static_cast<int>(program->metadata().width);
+    const int canvas_height = static_cast<int>(program->metadata().height);
+    const auto program_fingerprint = program->fingerprint();
+    session->evaluation_mode = "compiled_program";
     session->execution_plan = opts.resolved_execution_plan;
     session->execution_context = execution;
     bool direct_yuv_requested =
@@ -292,15 +290,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     if (direct_yuv_requested) {
         const auto input_t0 = profiling::now();
         runtime::LaneReason direct_reason;
-        session->direct_yuv_session->program = program
-            ? media::video::DirectYuvProgram::prepare(
-                  *program, session->device_runtime->image_cache(),
-                  session->device_runtime,
-                  *session->direct_yuv_session->asset_resolver, direct_reason)
-            : media::video::DirectYuvProgram::prepare(
-                  *compiled, session->device_runtime->image_cache(),
-                  session->device_runtime,
-                  *session->direct_yuv_session->asset_resolver, direct_reason);
+        session->direct_yuv_session->program =
+            media::video::DirectYuvProgram::prepare(
+                *program, session->device_runtime->image_cache(),
+                session->device_runtime,
+                *session->direct_yuv_session->asset_resolver, direct_reason);
         session->input_open_ms = profiling::duration_ms(input_t0, profiling::now());
         if (!session->direct_yuv_selected()) {
             // Path classification already happened once in the dispatcher.
@@ -500,11 +494,9 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const auto prep_start = profiling::now();
     if (!session->direct_yuv_selected()) {
         const auto font_t0 = profiling::now();
-        const auto preparation = program
-            ? runtime::prepare_render(sw_renderer, *program,
-                runtime::RenderPreparationOptions{.warmup_renderer = false})
-            : runtime::prepare_render(sw_renderer, *compiled,
-                runtime::RenderPreparationOptions{.warmup_renderer = false});
+        const auto preparation = runtime::prepare_render(
+            sw_renderer, *program,
+            runtime::RenderPreparationOptions{.warmup_renderer = false});
         session->prepare_breakdown.prepare_render_ms = profiling::duration_ms(font_t0, profiling::now());
         if (!preparation.ok()) {
             spdlog::error("[video] Render preparation FAILED:\n{}", preparation.diagnostic());

@@ -16,6 +16,9 @@
 #include <chronon3d/backends/software/runtime_adapter.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>   // graph::RenderFrameInfo
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
+#include <chronon3d/scene/model/camera/camera.hpp>
 
 // TICKET-118/119 — internal processor-services bridge is the only path
 // that knows how to turn a public `SoftwareBackendServices` bundle into
@@ -128,6 +131,35 @@ inline void attach_software_backend(SoftwareRenderer* renderer,
 
 // ── TestRenderer wrapper ──────────────────────────────────────────────────
 
+/// Test-only SSAA box downsample. Production no longer carries a Composition
+/// executor; this mirrors the old finalize step for fixtures that request SSAA.
+inline std::shared_ptr<Framebuffer> downsample_box(
+    const Framebuffer& src, int dst_w, int dst_h) {
+    auto dst = std::make_shared<Framebuffer>(dst_w, dst_h);
+    const float sx = static_cast<float>(src.width()) / static_cast<float>(dst_w);
+    const float sy = static_cast<float>(src.height()) / static_cast<float>(dst_h);
+    for (int y = 0; y < dst_h; ++y) {
+        for (int x = 0; x < dst_w; ++x) {
+            const int x0 = static_cast<int>(x * sx);
+            const int y0 = static_cast<int>(y * sy);
+            const int x1 = std::min(static_cast<int>((x + 1) * sx), src.width());
+            const int y1 = std::min(static_cast<int>((y + 1) * sy), src.height());
+            float r = 0, g = 0, b = 0, a = 0;
+            int count = 0;
+            for (int iy = y0; iy < y1; ++iy) {
+                for (int ix = x0; ix < x1; ++ix) {
+                    const Color c = src.get_pixel(ix, iy);
+                    r += c.r; g += c.g; b += c.b; a += c.a;
+                    ++count;
+                }
+            }
+            const float inv = count > 0 ? 1.0f / static_cast<float>(count) : 0.0f;
+            dst->set_pixel(x, y, Color{r * inv, g * inv, b * inv, a * inv});
+        }
+    }
+    return dst;
+}
+
 struct TestRuntimeOwner {
     std::unique_ptr<runtime::RuntimeContext> m_test_runtime;
     explicit TestRuntimeOwner(const Config& cfg = Config{}) {
@@ -158,6 +190,61 @@ public:
         attach_software_backend(this, *m_test_runtime);
     }
 
+    /// Test-only Composition entry point. The legacy executor is gone from
+    /// production; fixtures still author Compositions, so evaluate one frame
+    /// and hand it to the canonical graph entry (`render_scene_via_graph`).
+    std::shared_ptr<Framebuffer> render(const Composition& composition,
+                                        Frame frame) {
+        auto compiled = compile_composition(
+            composition, CompositionCompileContext{});
+        if (!compiled) {
+            throw std::runtime_error(
+                "TestRenderer: composition compile failed: " +
+                compiled.error().message);
+        }
+        const auto& spec = composition.spec();
+        const SampleTime sample = SampleTime::from_frame(
+            static_cast<double>(frame), spec.frame_rate);
+        const auto* runtime = m_test_runtime.get();
+        const FrameContext ctx = make_frame_context(FrameContextParams{
+            .global_time = sample,
+            .local_time = sample,
+            .duration = spec.duration,
+            .width = spec.width,
+            .height = spec.height,
+            .assets_root = runtime->resolver().mount_root().string(),
+            .font_engine = &font_engine(),
+            .runtime = runtime,
+        });
+        auto evaluated = evaluate(
+            *compiled, CompositionEvaluateContext{.frame_context = ctx},
+            ctx.local_time());
+        if (!evaluated) {
+            throw std::runtime_error(
+                "TestRenderer: composition evaluation failed: " +
+                evaluated.error().message);
+        }
+        Scene scene = std::move(evaluated.value().scene);
+        const int layer_count = static_cast<int>(scene.layers().size());
+        float ssaa = render_settings().ssaa_factor;
+        if (!std::isfinite(ssaa) || ssaa < 1.0f) ssaa = 1.0f;
+        const int render_w = static_cast<int>(
+            static_cast<double>(spec.width) * static_cast<double>(ssaa));
+        const int render_h = static_cast<int>(
+            static_cast<double>(spec.height) * static_cast<double>(ssaa));
+        auto fb = graph::render_scene_via_graph(
+            backend(), node_cache(), scene, Camera{},
+            render_w, render_h, frame, 0.0f, render_settings(),
+            composition_registry(), video_decoder(),
+            static_cast<float>(spec.frame_rate.fps()), spec.name, this,
+            nullptr);
+        if (fb && ssaa > 1.0f) {
+            fb = downsample_box(*fb, spec.width, spec.height);
+        }
+        dirty_telemetry().last_layer_count = layer_count;
+        return fb;
+    }
+
     TestRenderer(TestRenderer&& other) noexcept
         : TestRuntimeOwner(std::move(other.m_test_runtime))
         , SoftwareRenderer(std::move(other))
@@ -174,9 +261,10 @@ public:
     TestRenderer& operator=(const TestRenderer&) = delete;
 };
 
-/// Canonical renderer factory — returns shared_ptr<SoftwareRenderer> with
-/// full wiring (settings, image backend, software backend).
-inline std::shared_ptr<SoftwareRenderer> make_renderer_shared() {
+/// Canonical renderer factory — returns shared_ptr<TestRenderer> with full
+/// wiring (settings, image backend, software backend). Returning the concrete
+/// test type preserves the test-only Composition render helper.
+inline std::shared_ptr<TestRenderer> make_renderer_shared() {
     return std::make_shared<TestRenderer>();
 }
 

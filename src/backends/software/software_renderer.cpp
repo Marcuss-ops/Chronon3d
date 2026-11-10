@@ -35,7 +35,7 @@
 //
 // What's NOT here anymore (M1.5#12 split — 3 companion TUs):
 //   * 2 regular ctors              → software_renderer_factory.cpp
-//   * render / render_compiled / render_program → software_renderer_dispatch.cpp
+//   * render_program               → software_renderer_dispatch.cpp
 //   * draw_node                    → software_renderer_dispatch.cpp
 //   * composite_layer / apply_blur → software_renderer_dispatch.cpp
 //   * apply_per_pixel_dof          → software_renderer_dispatch.cpp

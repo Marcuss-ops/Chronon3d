@@ -82,14 +82,10 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     (void)decoder; (void)frame;
     return nullptr;
 #else
-    if (!typed_program_ && !composition_) return nullptr;
-    const FrameRate rate = typed_program_
-        ? FrameRate{typed_program_->metadata().fps_numerator,
-                    typed_program_->metadata().fps_denominator}
-        : composition_->frame_rate();
-    const Frame duration = typed_program_
-        ? Frame{typed_program_->metadata().duration_frames}
-        : composition_->duration();
+    if (!typed_program_) return nullptr;
+    const FrameRate rate{typed_program_->metadata().fps_numerator,
+                         typed_program_->metadata().fps_denominator};
+    const Frame duration{typed_program_->metadata().duration_frames};
     const auto decode_t0 = profiling::now();
     auto decoded = decoder.decode_native_frame_at(
         video_path_, rate.presentation_time(frame), width_, height_);
@@ -131,19 +127,13 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     const auto scene_t0 = profiling::now();
     Scene scene;
     try {
-        if (typed_program_ && typed_topology_) {
-            scene = detail::sample_program_scene(
-                *typed_program_, *typed_topology_, frame);
-        } else {
-            const auto context = make_frame_context({
-                .global_time = SampleTime::from_frame(
-                    static_cast<double>(frame.integral()), rate),
-                .duration = duration,
-                .width = width_,
-                .height = height_,
-            });
-            scene = composition_->evaluate(context);
+        if (!typed_topology_) {
+            spdlog::error("[direct-yuv] typed topology missing at frame={}",
+                          frame.integral());
+            return nullptr;
         }
+        scene = detail::sample_program_scene(
+            *typed_program_, *typed_topology_, frame);
     } catch (const std::exception& error) {
         // FAIL-CLOSED: a failed timeline evaluation must fail the frame — and
         // therefore the render job — never silently fall back to an empty

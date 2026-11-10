@@ -1,7 +1,7 @@
 // File/video rendering adapter. Included by sdk_render_engine.cpp because
 // RenderEngine::Impl is intentionally private to the SDK bridge TU.
 //
-// Locking model: the engine state (settings, prepared job, pixel buffers) is
+// Locking model: the engine state (settings, pixel buffers) is
 // only touched while state_mutex is held.  The *whole job* does NOT hold the
 // mutex: each frame locks, renders and converts, then releases so that
 // host callbacks (progress / cancellation) run with no engine lock held and a
@@ -28,9 +28,10 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
             "render cancelled by callback"));
     }
 
-    if (!request.composition && !request.compiled_composition && !request.program) {
+    if (!request.program) {
         return reject(make_render_error(RenderErrorCode::InvalidComposition,
-            "RenderFileRequest requires a composition, compiled_composition, or program"));
+            "RenderFileRequest requires a compiled program; the legacy "
+            "Composition executor has been removed"));
     }
     if (request.output_path.empty()) {
         return reject(make_render_error(RenderErrorCode::InvalidSettings,
@@ -141,24 +142,6 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
         return error;
     };
 
-    // Compile authoring input once before entering the frame loop. Runtime
-    // execution below is intentionally compiled-only, so a multi-frame file
-    // render cannot rebuild scene/camera state for every frame.
-    std::optional<chronon3d::CompiledComposition> local_compiled;
-    const chronon3d::CompiledComposition* active_compiled =
-        request.compiled_composition;
-    if (active_compiled == nullptr && request.program == nullptr) {
-        auto compiled = chronon3d::compile_composition(
-            *request.composition, chronon3d::CompositionCompileContext{});
-        if (!compiled) {
-            return fail(make_render_error(
-                RenderErrorCode::InvalidComposition,
-                "composition compilation failed: " + compiled.error().message));
-        }
-        local_compiled.emplace(std::move(compiled).value());
-        active_compiled = &*local_compiled;
-    }
-
     // Reused RGBA8 staging buffer: allocated once, resized only when the
     // canvas grows, never re-allocated per frame.
     std::vector<std::uint8_t> pixels;
@@ -180,31 +163,20 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
             // and before the (local, blocking) encoder submit.
             std::lock_guard frame_lock(m_impl->state_mutex);
             auto settings = convert_settings(m_impl->settings);
-            if (request.program != nullptr) {
-                const auto& meta = request.program->metadata();
-                settings.render_budget.max_width = meta.render_budget.max_width;
-                settings.render_budget.max_height = meta.render_budget.max_height;
-                settings.render_budget.max_total_pixels = meta.render_budget.max_total_pixels;
-                settings.render_budget.max_frames = meta.render_budget.max_frames;
-                settings.render_budget.max_layers = meta.render_budget.max_layers;
-                settings.render_budget.max_text_bytes = meta.render_budget.max_text_bytes;
-                settings.render_budget.max_asset_reference_bytes = meta.render_budget.max_asset_reference_bytes;
-                settings.render_budget.max_estimated_output_bytes = meta.render_budget.max_estimated_output_bytes;
-                settings.render_budget.max_peak_memory_bytes = meta.render_budget.max_peak_memory_bytes;
-                settings.render_budget.max_temporal_pixels = meta.render_budget.max_temporal_pixels;
-                m_impl->prepared_job.reset();
-                m_impl->prepared_composition = nullptr;
-                m_impl->engine.set_settings(settings);
-                framebuffer = m_impl->engine.render_program(
-                    *request.program, chronon3d::Frame{frame});
-            } else {
-                settings.render_budget = active_compiled->render_budget;
-                m_impl->prepared_job.reset();
-                m_impl->prepared_composition = nullptr;
-                m_impl->engine.set_settings(settings);
-                framebuffer = m_impl->engine.render_compiled(
-                    *active_compiled, chronon3d::Frame{frame});
-            }
+            const auto& meta = request.program->metadata();
+            settings.render_budget.max_width = meta.render_budget.max_width;
+            settings.render_budget.max_height = meta.render_budget.max_height;
+            settings.render_budget.max_total_pixels = meta.render_budget.max_total_pixels;
+            settings.render_budget.max_frames = meta.render_budget.max_frames;
+            settings.render_budget.max_layers = meta.render_budget.max_layers;
+            settings.render_budget.max_text_bytes = meta.render_budget.max_text_bytes;
+            settings.render_budget.max_asset_reference_bytes = meta.render_budget.max_asset_reference_bytes;
+            settings.render_budget.max_estimated_output_bytes = meta.render_budget.max_estimated_output_bytes;
+            settings.render_budget.max_peak_memory_bytes = meta.render_budget.max_peak_memory_bytes;
+            settings.render_budget.max_temporal_pixels = meta.render_budget.max_temporal_pixels;
+            m_impl->engine.set_settings(settings);
+            framebuffer = m_impl->engine.render_program(
+                *request.program, chronon3d::Frame{frame});
             if (const auto error = m_impl->engine.last_render_error()) {
                 return fail(runtime_error(error->message.empty()
                     ? "internal render graph reported a frame error" : error->message));

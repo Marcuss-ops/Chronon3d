@@ -64,8 +64,6 @@
 
 namespace chronon3d {
 
-struct CompiledComposition;
-
 /// One shared transient workspace for scalar effect processors. Sequential
 /// effects reuse these buffers; no effect-specific pool is introduced.
 struct EffectScratchResources {
@@ -260,11 +258,6 @@ struct SoftwareSessionResources {
     // Authoring adapters are software-renderer compatibility state, not
     // generic JobSession state. The compiled-program path does not consult
     // these fields.
-    const CompiledComposition* prepared_composition{nullptr};
-    std::string authoring_composition_name{};
-    std::uint64_t authoring_composition_identity{0};
-    std::shared_ptr<const CompiledComposition> authoring_compiled_composition;
-
     // M1.5#7 — TextRenderResources aggregated value member.  This is
     // the CANONICAL OWNER of all text-backend caches (font face +
     // FreeType face + glyph atlas + raster cache + scratch pool).  It

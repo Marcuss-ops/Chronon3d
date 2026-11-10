@@ -27,10 +27,6 @@ SoftwareSessionResources::~SoftwareSessionResources() = default;
 
 void SoftwareSessionResources::reset_job() {
     reset_temporal_history();
-    prepared_composition = nullptr;
-    authoring_composition_name.clear();
-    authoring_composition_identity = 0;
-    authoring_compiled_composition.reset();
 }
 
 } // namespace chronon3d

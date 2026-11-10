@@ -17,9 +17,6 @@
 #include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
-#include <chronon3d/timeline/compiled_composition.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
-#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/runtime_adapter.hpp>
@@ -38,49 +35,6 @@
 #include <utility>
 
 namespace chronon3d {
-
-struct PreparedRenderJob::Impl {
-    RenderEngine* engine{nullptr};
-    bool finished{false};
-
-    // JobSession is the sole owner of job-lifetime queues, slots, payloads,
-    // cancellation and counters. RenderPipeline owns stage orchestration;
-    // PreparedRenderJob only retains the API handle state.
-    std::unique_ptr<runtime::JobSession> job_session;
-    runtime::RenderPipeline* pipeline{nullptr};
-    // Compatibility-only owner for arbitrary Composition callbacks. Typed
-    // jobs keep their immutable CompiledProgram in JobSession instead.
-    std::shared_ptr<const CompiledComposition> compatibility_composition;
-};
-
-PreparedRenderJob::PreparedRenderJob(std::unique_ptr<Impl> impl) noexcept
-    : m_impl(std::move(impl)) {}
-
-PreparedRenderJob::~PreparedRenderJob() = default;
-PreparedRenderJob::PreparedRenderJob(PreparedRenderJob&&) noexcept = default;
-PreparedRenderJob& PreparedRenderJob::operator=(PreparedRenderJob&&) noexcept = default;
-
-Frame PreparedRenderJob::frame_count() const noexcept {
-    if (!m_impl || !m_impl->job_session) return Frame{0};
-    if (const auto& program = m_impl->job_session->program_ptr()) {
-        return Frame{program->metadata().duration_frames};
-    }
-    return m_impl->compatibility_composition &&
-        m_impl->compatibility_composition->composition
-        ? m_impl->compatibility_composition->composition->duration() : Frame{0};
-}
-
-const runtime::ResourcePlan& PreparedRenderJob::resource_plan() const noexcept {
-    static const runtime::ResourcePlan empty;
-    return m_impl && m_impl->job_session
-        ? m_impl->job_session->resource_plan() : empty;
-}
-
-void PreparedRenderJob::finish() noexcept {
-    if (!m_impl) return;
-    m_impl->finished = true;
-    if (m_impl->job_session) m_impl->job_session->reset_job();
-}
 
 struct RenderEngine::Impl {
     Config                                    m_config;
@@ -135,7 +89,6 @@ struct RenderEngine::Impl {
     }
 };
 
-#include "render_engine_prepared_job_detail.hpp"
 #include "render_engine_api_detail.hpp"
 
 } // namespace chronon3d

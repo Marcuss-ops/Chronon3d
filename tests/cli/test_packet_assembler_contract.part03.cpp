@@ -1,5 +1,9 @@
 #include "test_packet_assembler_contract_test_support.hpp"
 
+#include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/compiler/compiler.hpp>
+#include <chronon3d/render_plan/render_plan.hpp>
+
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 TEST_CASE("P0-5A: remux lane keeps the source contract, encoder lane fails closed") {
     if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
@@ -434,8 +438,27 @@ TEST_CASE("A1 direct native export route renders a software composition") {
     std::filesystem::remove(sidecar, cleanup_error);
     std::filesystem::remove(receipt, cleanup_error);
 
+    chronon3d::render_plan::RenderPlan plan;
+    plan.job_id = "a1-native-route";
+    plan.canvas.width = 64;
+    plan.canvas.height = 64;
+    plan.canvas.fps = chronon3d::FrameRate{10, 1};
+    plan.canvas.duration = chronon3d::Frame{10};
+    chronon3d::render_plan::LayerPlan background;
+    background.id = "bg";
+    background.type = chronon3d::render_plan::LayerType::Color;
+    background.color = {0.2f, 0.4f, 0.8f, 1.0f};
+    plan.layers.push_back(background);
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::current_path());
+    auto program_result = chronon3d::compiler::compile(plan, resolver);
+    REQUIRE(program_result.has_value());
+    auto program = std::make_shared<const chronon3d::compiler::CompiledProgram>(
+        std::move(program_result).value());
+
     chronon3d::RenderRequest request;
     request.comp_id = "a1-native-route";
+    request.compiled_program = program;
     request.mode = chronon3d::RenderMode::Video;
     request.first_frame = chronon3d::Frame{0};
     request.last_frame = chronon3d::Frame{9};
@@ -452,7 +475,7 @@ TEST_CASE("A1 direct native export route renders a software composition") {
     const auto job = chronon3d::cli::resolve_render_request(
         registry, std::move(request));
     REQUIRE(job.has_value());
-    REQUIRE(job->compiled != nullptr);
+    REQUIRE(job->program != nullptr);
     auto options = chronon3d::cli::make_ffmpeg_export_options(*job);
     options.backend_preference = chronon3d::graph::BackendPreference::Software;
     options.output.output = output.string();
@@ -463,10 +486,11 @@ TEST_CASE("A1 direct native export route renders a software composition") {
     options.encoder.encoder_backend = chronon3d::media::kEncoderTransportNative;
 
     const auto exported = chronon3d::cli::render_and_encode_native(
-        registry, job->compiled.get(), job->comp_id, job->settings,
+        registry, job->comp_id, job->settings,
         chronon3d::Frame{0}, chronon3d::Frame{9}, options,
         job->execution.cpu_budget,
-        std::make_shared<chronon3d::media::VideoRuntimeRegistry>());
+        std::make_shared<chronon3d::media::VideoRuntimeRegistry>(),
+        nullptr, nullptr, nullptr, job->program.get());
     REQUIRE(exported.success);
     REQUIRE(exported.output_published);
     REQUIRE(exported.copy_eligible);
@@ -528,10 +552,10 @@ TEST_CASE("A1 direct native export route renders a software composition") {
         std::make_shared<chronon3d::media::VideoRuntimeRegistry>();
     auto sidecar_written_at = std::chrono::steady_clock::time_point{};
     CHECK(chronon3d::cli::render_and_encode_ffmpeg(
-        registry, job->compiled.get(), job->comp_id, job->settings,
+        registry, job->comp_id, job->settings,
         chronon3d::Frame{0}, chronon3d::Frame{10}, wrapped_options,
         job->execution.cpu_budget,
-        wrapped_execution, &sidecar_written_at) == 0);
+        wrapped_execution, &sidecar_written_at, {}, job->program.get()) == 0);
     CHECK(sidecar_written_at != std::chrono::steady_clock::time_point{});
     CHECK(std::filesystem::exists(wrapped_sidecar));
     std::filesystem::remove(wrapped_output, cleanup_error);

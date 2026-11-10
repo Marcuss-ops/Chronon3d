@@ -16,7 +16,6 @@
 #include <chronon3d/core/error.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/media/video/video_job_execution_context.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <chronon3d/runtime/job/render_job_request.hpp>  // OutputSegmentSpec (P4)
@@ -213,15 +212,9 @@ struct RenderJobOutput {
 /// pointer, renderer, resolver, cache, or runtime state.
 struct RenderRequest {
     std::string comp_id;
-    /// Immutable compiler result carried through the plan route.  The
-    /// compiled composition below remains a compatibility view for the
-    /// current graph executor and is not a second compiler authority.
+    /// Canonical immutable execution input. A request without a compiled
+    /// program is refused: the legacy Composition executor has been removed.
     std::shared_ptr<const compiler::CompiledProgram> compiled_program;
-    /// Legacy executor view. Plan-originated requests carry only
-    /// `compiled_program`; the resolver materializes this view once at the
-    /// compatibility boundary until the executor consumes the numeric
-    /// program directly.
-    std::shared_ptr<const CompiledComposition> compiled_composition;
     CompositionInput input;
     RenderMode mode{RenderMode::Still};
     Frame still_frame{0};
@@ -247,16 +240,11 @@ struct RenderRequest {
 /// Single resolved execution value covering still, sequence, and video.
 ///
 /// `registry` is a non-owning execution dependency pinned by the CLI/host.
-/// Execution owns the immutable compiler program plus one compatibility view
-/// for the current composition-based executor. The latter is never carried by
-/// the request alongside the program.
+/// Execution owns exactly one immutable compiler program; the legacy
+/// CompiledComposition executor is not a second execution authority.
 struct RenderJob {
     const CompositionRegistry* registry{nullptr};
     std::string comp_id;
-    std::shared_ptr<const CompiledComposition> compiled;
-    /// Canonical immutable compiler result when the job originated from a
-    /// render-plan request.  `compiled` is retained only as the executor's
-    /// compatibility view until the numeric program path is complete.
     std::shared_ptr<const compiler::CompiledProgram> program;
     CompositionMetadata metadata{};
 
@@ -277,12 +265,12 @@ struct RenderJob {
     RenderDiagnostics diagnostics{};
 
     static RenderJob still(std::string id,
-                           std::shared_ptr<const CompiledComposition> c,
+                           std::shared_ptr<const compiler::CompiledProgram> p,
                            Frame frame,
                            std::string out) {
         RenderJob job;
         job.comp_id = std::move(id);
-        job.compiled = std::move(c);
+        job.program = std::move(p);
         job.mode = RenderMode::Still;
         job.still_frame = frame;
         job.output = std::move(out);
@@ -290,13 +278,13 @@ struct RenderJob {
     }
 
     static RenderJob sequence(std::string id,
-                              std::shared_ptr<const CompiledComposition> c,
+                              std::shared_ptr<const compiler::CompiledProgram> p,
                               Frame first,
                               Frame last,
                               std::string out) {
         RenderJob job;
         job.comp_id = std::move(id);
-        job.compiled = std::move(c);
+        job.program = std::move(p);
         job.mode = RenderMode::Sequence;
         job.first_frame = first;
         job.last_frame = last;
@@ -305,13 +293,13 @@ struct RenderJob {
     }
 
     static RenderJob video_job(std::string id,
-                               std::shared_ptr<const CompiledComposition> c,
+                               std::shared_ptr<const compiler::CompiledProgram> p,
                                Frame first,
                                Frame last,
                                std::string out) {
         RenderJob job;
         job.comp_id = std::move(id);
-        job.compiled = std::move(c);
+        job.program = std::move(p);
         job.mode = RenderMode::Video;
         job.first_frame = first;
         job.last_frame = last;
@@ -327,11 +315,10 @@ struct RenderJob {
         return last_frame - first_frame + Frame{1};
     }
 
-    /// Composition-bound probe retained for factory-created jobs. The executor
+    /// Program-bound probe retained for factory-created jobs. The executor
     /// separately validates the non-owning registry dependency before running.
     [[nodiscard]] explicit operator bool() const noexcept {
-        return program != nullptr ||
-               (compiled != nullptr && compiled->composition != nullptr);
+        return program != nullptr;
     }
 };
 

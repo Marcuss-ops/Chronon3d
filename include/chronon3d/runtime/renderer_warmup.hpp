@@ -1,8 +1,6 @@
 #pragma once
 
 #include <chronon3d/cache/framebuffer_pool.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/core/types/frame.hpp>
 
@@ -50,16 +48,6 @@ struct RendererWarmupResult {
 /// Pre-warm the renderer by preallocating framebuffers into the pool and
 /// optionally rendering a dummy frame to prime caches and resolve page faults
 /// before the actual render session begins.
-RendererWarmupResult warmup_renderer(
-    ::chronon3d::SoftwareRenderer & renderer,
-    const Composition& composition,
-    const RendererWarmupOptions& options);
-
-RendererWarmupResult warmup_renderer(
-    ::chronon3d::SoftwareRenderer & renderer,
-    const CompiledComposition& compiled,
-    const RendererWarmupOptions& options);
-
 RendererWarmupResult warmup_renderer(
     ::chronon3d::SoftwareRenderer & renderer,
     const compiler::CompiledProgram& program,
