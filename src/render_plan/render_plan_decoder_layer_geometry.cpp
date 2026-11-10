@@ -19,13 +19,6 @@ void decode_layer_inline_mesh(LayerPlan& layer, const nlohmann::json& value) {
             throw std::runtime_error("inline_mesh is only valid for mesh layers");
         const auto& raw_mesh = value.at("inline_mesh");
         InlineMeshPlan mesh;
-        if (raw_mesh.contains("metallic_roughness_texture")) {
-            if (!raw_mesh["metallic_roughness_texture"].is_string())
-                throw std::runtime_error("inline_mesh.metallic_roughness_texture must be a logical path string");
-            mesh.metallic_roughness_texture_asset = raw_mesh["metallic_roughness_texture"].get<std::string>();
-            if (invalid_logical_path(mesh.metallic_roughness_texture_asset))
-                throw std::runtime_error("inline_mesh.metallic_roughness_texture must be a safe logical path");
-        }
         if (raw_mesh.contains("primitive")) {
             if (raw_mesh.contains("vertices") || raw_mesh.contains("indices"))
                 throw std::runtime_error("inline_mesh primitive and raw vertices/indices are mutually exclusive");
@@ -116,6 +109,16 @@ void decode_layer_inline_mesh(LayerPlan& layer, const nlohmann::json& value) {
                     throw std::runtime_error("inline_mesh index is outside the vertex array");
                 mesh.indices.push_back(static_cast<std::uint32_t>(index));
             }
+        }
+        // Primitive expansion replaces the whole plan, so the texture path is
+        // attached after geometry construction instead of being lost by the
+        // assignment above.
+        if (raw_mesh.contains("metallic_roughness_texture")) {
+            if (!raw_mesh["metallic_roughness_texture"].is_string())
+                throw std::runtime_error("inline_mesh.metallic_roughness_texture must be a logical path string");
+            mesh.metallic_roughness_texture_asset = raw_mesh["metallic_roughness_texture"].get<std::string>();
+            if (invalid_logical_path(mesh.metallic_roughness_texture_asset))
+                throw std::runtime_error("inline_mesh.metallic_roughness_texture must be a safe logical path");
         }
         if (raw_mesh.contains("material")) {
             const auto& raw_material = raw_mesh.at("material");
