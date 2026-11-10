@@ -215,6 +215,15 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
     add_optional(out, style.font_size,
                  [](auto& writer, float value) { writer.add_float(value); });
     out.add_string(style.fill);
+    out.add_string(style.quality);
+    if (style.shadow_quality != "fast") {
+        out.add_string("shadow_quality");
+        out.add_string(style.shadow_quality);
+    }
+    if (style.stroke_mode != "auto") {
+        out.add_string("stroke_mode");
+        out.add_string(style.stroke_mode);
+    }
     out.add_bool(style.gel_surface);
     out.add_bool(style.extruded_text);
     if (style.extruded_text) out.add_float(style.extrusion_depth);

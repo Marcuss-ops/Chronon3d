@@ -130,6 +130,41 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                 sampled.payload = mesh;
                 break;
             }
+            case NodeKind::Particles: {
+                if (!layer.particle_emitter)
+                    throw std::invalid_argument(
+                        "compiled particle layer has no emitter payload");
+                const auto fps_numerator = program.metadata().fps_numerator;
+                const auto fps_denominator = program.metadata().fps_denominator;
+                if (fps_numerator <= 0 || fps_denominator <= 0)
+                    throw std::invalid_argument(
+                        "compiled particle layer has an invalid frame rate");
+                const double seconds = frame_number *
+                    static_cast<double>(fps_denominator) /
+                    static_cast<double>(fps_numerator);
+                const auto result = sample_particles(*layer.particle_emitter, seconds);
+                if (!result.ok())
+                    throw std::invalid_argument(
+                        "compiled particle sampling failed: " + result.error);
+                sampled.elements.reserve(result.particles.size());
+                for (const auto& particle : result.particles) {
+                    SampledElementParameters element;
+                    element.id = particle.index;
+                    element.position = Vec3{
+                        particle.position.x, particle.position.y,
+                        layer.particle_emitter->environment
+                            ? (1.0f - particle.depth) * 100.0f : 0.0f};
+                    element.rotation.z = particle.rotation;
+                    element.opacity = particle.color.a;
+                    element.color = particle.color;
+                    element.size = particle.size;
+                    element.sprite_scale = particle.sprite_scale;
+                    sampled.elements.push_back(element);
+                }
+                sampled.time_dependent = true;
+                sampled.dirty = true;
+                break;
+            }
             case NodeKind::Unknown:
                 break;
         }

@@ -91,6 +91,12 @@ NodeExecResult CompositeNode::execute(
             bottom->origin_x() == 0 && bottom->origin_y() == 0 &&
             top->origin_x() == 0 && top->origin_y() == 0) {
             auto result = ctx.acquire_owned_fb(*bottom);
+            if (!result) {
+                return NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    "CompositeNode",
+                    "failed to acquire backdrop destination framebuffer"};
+            }
             auto horizontal = ctx.acquire_owned_fb(bottom->width(), bottom->height(), false);
             auto blurred = ctx.acquire_owned_fb(bottom->width(), bottom->height(), false);
             auto masked = ctx.acquire_owned_fb(bottom->width(), bottom->height(), false);
@@ -148,7 +154,12 @@ NodeExecResult CompositeNode::execute(
         depth_aware_top = build_depth_aware_top(
             ctx, *bottom, *top, m_has_world_position,
             m_world_position, m_world_z, m_unique_id);
-        if (depth_aware_top) top.reset(depth_aware_top.get());
+        if (depth_aware_top) {
+            // depth_aware_top owns the masked copy. FramebufferRef is a
+            // non-owning view: reset(raw) would create a second owner and
+            // double-free the framebuffer at scope exit.
+            top = FramebufferRef(depth_aware_top.get());
+        }
     }
 
 
@@ -240,7 +251,23 @@ NodeExecResult CompositeNode::execute(
             bottom_native_valid = true;
         }
         result = ctx.acquire_owned_fb(*bottom);
-        if (native_backend && result->surface_handle() != bottom->surface_handle()) {
+        if (!result) {
+            return NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "CompositeNode",
+                "failed to acquire composite destination framebuffer"};
+        }
+        // acquire_owned_fb() already copies a native bottom into the new
+        // destination (clone and planned-slot paths) and returns it
+        // GPU-authoritative. Seeding again would clear that surface and
+        // allocate a second full-canvas image for every composite, which is
+        // both wasteful and a source of VMA exhaustion. Seed only when the
+        // destination does not already hold the bottom content.
+        const bool destination_holds_bottom =
+            result->is_gpu_authoritative() &&
+            result->surface_handle() != runtime::kInvalidRenderSurfaceHandle;
+        if (native_backend && !destination_holds_bottom &&
+            result->surface_handle() != bottom->surface_handle()) {
             if (!detail::seed_native_destination(ctx, *result, *bottom)) {
                 return NodeExecutionError{
                     RenderBackendErrorCode::ExecutionFailure,

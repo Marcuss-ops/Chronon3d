@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -135,7 +136,170 @@ TEST_CASE("GPU MTSDF scale plus translation keeps the authored pivot fixed") {
     }
 }
 
-TEST_CASE("GPU text rejects the caret until the native pass draws it") {
+TEST_CASE("GPU MTSDF anchor pivot offset rotates around layout+anchor") {
+    GlyphInstanceState glyph;
+    glyph.anchor = {10.0f, 0.0f, 0.0f};
+
+    const auto offset = gpu_anchor_pivot_offset(
+        glyph, 1.0f, 1.0f, 90.0f, 1.0f, 1.0f);
+
+    // R(90) * (10, 0) = (0, 10), so the pivot compensation is (10, -10).
+    CHECK(offset.x == doctest::Approx(10.0f));
+    CHECK(offset.y == doctest::Approx(-10.0f));
+}
+
+TEST_CASE("GPU MTSDF anchor pivot offset composes scale and rotation") {
+    GlyphInstanceState glyph;
+    glyph.anchor = {8.0f, 2.0f, 0.0f};
+
+    const auto offset = gpu_anchor_pivot_offset(
+        glyph, 0.5f, 0.5f, 90.0f, 1.0f, 1.0f);
+
+    // 0.5 * R(90) * (8, 2) = (-1, 4); offset = (8, 2) - (-1, 4) = (9, -2).
+    CHECK(offset.x == doctest::Approx(9.0f));
+    CHECK(offset.y == doctest::Approx(-2.0f));
+}
+
+TEST_CASE("GPU MTSDF anchor pivot offset composes rotation and shear") {
+    GlyphInstanceState glyph;
+    glyph.anchor = {10.0f, 0.0f, 0.0f};
+    glyph.rotation = {0.0f, 45.0f, 0.0f};
+
+    const auto offset = gpu_anchor_pivot_offset(
+        glyph, 1.0f, 1.0f, 45.0f, 1.0f, 1.0f);
+
+    // rotation * shear * (10, 0) = R(45) * (10, 10) = (7.071, 7.071),
+    // so the pivot compensation is (2.929, -7.071).
+    CHECK(offset.x == doctest::Approx(2.92893f));
+    CHECK(offset.y == doctest::Approx(-7.07107f));
+}
+
+TEST_CASE("GPU MTSDF exact 3D pivot handles angles beyond the shear limit") {
+    GlyphInstanceState glyph;
+    glyph.anchor = {10.0f, 0.0f, 0.0f};
+    glyph.rotation = {0.0f, 120.0f, 0.0f};
+
+    const auto offset = gpu_anchor_pivot_offset(
+        glyph, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f);
+
+    // cos(120) = -0.5: the exact forward projection maps the anchor to -5,
+    // so the compensation is 10 - (-5) = 15. The old clamped tan path could
+    // not produce this value and silently saturated at 89.94 degrees.
+    CHECK(offset.x == doctest::Approx(15.0f));
+    CHECK(offset.y == doctest::Approx(0.0f));
+}
+
+TEST_CASE("GPU text lowers grouped rotation with a non-zero anchor") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run(2);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+    for (auto& glyph : shape.glyphs) {
+        glyph.anchor = {13.5f, -4.0f, 0.0f};  // word-group pivot
+        glyph.rotation = {0.0f, 0.0f, 12.0f};
+        glyph.scale = {0.9f, 0.9f, 1.0f};
+    }
+
+    TextAnimatorSpec animator;
+    animator.selectors.push_back(full_glyph_selector());
+    animator.properties.push_back(
+        RotationProperty{AnimatedValue<Vec3>{Vec3{0.0f, 0.0f, 12.0f}}});
+    shape.animators.push_back(std::move(animator));
+
+    CHECK(can_lower_gpu_text_animation(shape));
+}
+
+TEST_CASE("GPU text lowers per-glyph stroke with the authored width") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run(2);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+    shape.glyphs[0].stroke = {0.8f, 0.1f, 0.2f, 1.0f};
+    shape.glyphs[0].stroke_width = 3.5f;
+    shape.glyphs[1].stroke = {0.8f, 0.1f, 0.2f, 1.0f};
+    shape.glyphs[1].stroke_width = 0.0f;
+
+    CHECK(can_lower_gpu_text_animation(shape));
+
+    shape.glyphs[1].stroke_width = 17.0f;
+    CHECK_FALSE(can_lower_gpu_text_animation(shape));
+}
+
+TEST_CASE("GPU text lowers per-glyph background and skew") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run(2);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+    shape.glyphs[0].background = {0.1f, 0.2f, 0.3f, 0.8f};
+    shape.glyphs[0].background_padding_em = 0.2f;
+    shape.glyphs[0].background_radius_em = 0.1f;
+    shape.glyphs[1].skew = 15.0f;
+    shape.glyphs[1].skew_axis = 30.0f;
+
+    CHECK(can_lower_gpu_text_animation(shape));
+
+    shape.glyphs[1].skew = 90.0f;
+    CHECK_FALSE(can_lower_gpu_text_animation(shape));
+
+    shape.glyphs[1].skew = 15.0f;
+    shape.glyphs[0].background_padding_em = -0.1f;
+    CHECK_FALSE(can_lower_gpu_text_animation(shape));
+}
+
+TEST_CASE("GPU text lowers per-glyph gradient fill") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run(2);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+    shape.glyphs[0].fill_gradient.enabled = true;
+    shape.glyphs[0].fill_gradient.start = {1.0f, 0.0f, 0.0f, 1.0f};
+    shape.glyphs[0].fill_gradient.end = {0.0f, 0.0f, 1.0f, 1.0f};
+    shape.glyphs[0].fill_gradient.angle_degrees = 0.0f;
+
+    CHECK(can_lower_gpu_text_animation(shape));
+
+    shape.glyphs[0].fill_gradient.angle_degrees =
+        std::numeric_limits<float>::infinity();
+    CHECK_FALSE(can_lower_gpu_text_animation(shape));
+}
+
+TEST_CASE("GPU text lowers per-glyph shadow and glow") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run(2);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+
+    shape.glyphs[0].shadow.enabled = true;
+    shape.glyphs[0].shadow.color = {0.0f, 0.0f, 0.0f, 1.0f};
+    shape.glyphs[0].shadow.offset = {3.0f, 4.0f};
+    shape.glyphs[0].shadow.blur = 2.0f;
+    shape.glyphs[0].shadow.opacity = 0.5f;
+    shape.glyphs[0].glow.enabled = true;
+    shape.glyphs[0].glow.color = {1.0f, 0.0f, 0.0f, 1.0f};
+    shape.glyphs[0].glow.radius = 3.0f;
+    shape.glyphs[0].glow.intensity = 0.75f;
+
+    CHECK(can_lower_gpu_text_animation(shape));
+
+    shape.glyphs[0].shadow.blur = 65.0f;
+    CHECK_FALSE(can_lower_gpu_text_animation(shape));
+    shape.glyphs[0].shadow.blur = 2.0f;
+
+    shape.glyphs[0].glow.radius = -1.0f;
+    CHECK_FALSE(can_lower_gpu_text_animation(shape));
+}
+
+TEST_CASE("GPU text lowers the native caret layer") {
     auto layout = std::make_shared<TextRunLayout>();
     layout->placed = make_test_placed_run(1);
 
@@ -146,6 +310,10 @@ TEST_CASE("GPU text rejects the caret until the native pass draws it") {
 
     shape.caret.enabled = true;
     shape.caret.byte_index = 1;
+    shape.caret.width = 3.0f;
+    CHECK(can_lower_gpu_text_animation(shape));
+
+    shape.caret.width = -1.0f;
     CHECK_FALSE(can_lower_gpu_text_animation(shape));
 }
 
@@ -235,7 +403,7 @@ TEST_CASE("GPU text lowers canonical selector shapes with CPU-equivalent per-gly
     }
 }
 
-TEST_CASE("GPU text accepts resolved X/Y rotation and rejects extreme angle") {
+TEST_CASE("GPU text accepts resolved X/Y rotation including edge-on angles") {
     auto layout = std::make_shared<TextRunLayout>();
     layout->placed = make_test_placed_run(1);
 
@@ -246,7 +414,14 @@ TEST_CASE("GPU text accepts resolved X/Y rotation and rejects extreme angle") {
     shape.glyphs[0].rotation.x = 10.0f;
     CHECK(can_lower_gpu_text_animation(shape));
 
+    // P2-01: beyond the old tan() shear limit the native path switches to
+    // the exact orthographic matrix. Edge-on (90) is accepted and collapses
+    // to zero coverage instead of failing closed.
     shape.glyphs[0].rotation.x = 90.0f;
+    CHECK(can_lower_gpu_text_animation(shape));
+    shape.glyphs[0].rotation.x = 120.0f;
+    CHECK(can_lower_gpu_text_animation(shape));
+    shape.glyphs[0].rotation.x = std::numeric_limits<float>::infinity();
     CHECK_FALSE(can_lower_gpu_text_animation(shape));
 }
 

@@ -60,6 +60,9 @@ enum class AnimationPropertyKind : std::uint8_t {
     ReflowWordSpacing,
     ReflowLineSpacing,
     LineAnchor,
+    CharacterValue,
+    CharacterAlignment,
+    AnchorGrouping,
 };
 
 [[nodiscard]] inline AnimationPropertyKind animation_property_kind(std::string_view name) {
@@ -101,6 +104,9 @@ enum class AnimationPropertyKind : std::uint8_t {
         {"reflow_word_spacing", Kind::ReflowWordSpacing},
         {"reflow_line_spacing", Kind::ReflowLineSpacing},
         {"line_anchor", Kind::LineAnchor},
+        {"character_value", Kind::CharacterValue},
+        {"character_alignment", Kind::CharacterAlignment},
+        {"anchor_grouping", Kind::AnchorGrouping},
         {"light_intensity", Kind::LightIntensity},
         {"light_color", Kind::LightColor},
         {"light_direction", Kind::LightDirection},

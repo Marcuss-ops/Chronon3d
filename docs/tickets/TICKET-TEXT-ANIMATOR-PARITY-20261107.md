@@ -1,6 +1,7 @@
 # TICKET-TEXT-ANIMATOR-PARITY-20261107 — After Effects text-animator parity
 
-**Status:** OPEN — P0 `Word Spacing` / `Line Spacing`, P1-02 animated `Character Offset`, P1-04 `Line Anchor`, P1-06/P1-07 software effects, P1-10 caret and P2-05 reflow implemented and verified (2026-11-08); P1/P2 backlog open.
+**Status:** PARTIAL — P0/P1 implementation remains as recorded below; the earlier close accepted incomplete CPU/GPU pixel parity and GPU fail-closed policies. Full parity is reopened in [`TICKET-TEXT-CLOSURE-20261109.md`](TICKET-TEXT-CLOSURE-20261109.md); P2-03 GPU shadow/stroke behavior and the T2-01 transition/span combination are still open.
+**Residual closure:** caret RTL functional tests and multi-shadow dispatch are implemented. Production pixel parity remains below the frozen thresholds; the previous AA exception is not a pass for the requested full-parity scope.
 **Owner:** Chronon3D text/runtime.
 **Scope:** animated text layers, not full SVG text. SVG-specific gaps remain in
 [`TICKET-SVG-TEXT-PARITY-REMAINING.md`](TICKET-SVG-TEXT-PARITY-REMAINING.md) and
@@ -91,7 +92,8 @@ Existing selector support in `glyph_selector.hpp` / `glyph_selector_compile.cpp`
 - The run-level GPU fast path is intentionally narrower: one full-run word
   selector plus position/scale/opacity/fill/tracking/blur/rotation.
 - Typewriter reveal, scramble/morph helpers, text counter, and typography
-  presets exist in C++ but are not all serialized through V3.
+  presets exist in C++. Text transitions and counters are serialized through
+  V3; typography presets remain in their separate ticket.
 
 ### 1.6 Existing tickets to keep separate
 
@@ -115,20 +117,20 @@ missing.
 |---|---|---|---|---|
 | P0-01 | Word spacing as a selector-driven, animated property | Word Spacing | PostLayout | **DONE** |
 | P0-02 | Line spacing as a selector-driven, animated property | Line Spacing | PostLayout | **DONE** |
-| P1-01 | Character Value / arbitrary codepoint substitution per selector | Character Value | PreShaping | OPEN |
-| P1-02 | Fully animated Character Offset (all keyframes, selector-driven) | Character Offset | PreShaping | **DONE (run-level)** |
-| P1-03 | Character Alignment / per-character anchor alignment | Character Alignment | PostLayout | OPEN |
+| P1-01 | Character Value / arbitrary codepoint substitution per selector | Character Value | PreShaping | **DONE (selector-scoped, ADR-037)** |
+| P1-02 | Fully animated Character Offset (all keyframes, selector-driven) | Character Offset | PreShaping | **DONE (selector-scoped, ADR-037)** |
+| P1-03 | Character Alignment / per-character anchor alignment | Character Alignment | PostLayout | **DONE** |
 | P1-04 | Line Anchor (top/center/bottom) | Line Anchor | PostLayout | **DONE** |
-| P1-05 | Anchor Point Grouping (character/word/line/all) | Anchor Point Grouping | PostLayout | OPEN |
-| P1-06 | Per-glyph shadow and per-glyph glow | Per-character shadow/glow | PostRaster/PostLayout | **DONE (software)** |
-| P1-07 | Per-glyph gradient fill | Gradient Fill per character | PostLayout | **DONE (software)** |
-| P1-08 | GPU-native per-glyph stroke/background/skew | — | PostLayout | PARTIAL |
-| P1-09 | V3 serialization of typewriter / scramble / morph | Typewriter / Scramble | PreShaping/PostLayout | PARTIAL |
-| P1-10 | Text cursor / caret model | Cursor | PostLayout | **DONE (software)** |
-| P2-01 | Per-glyph 3D rotation beyond the MTSDF limits | 3D rotation | PostLayout | OPEN |
+| P1-05 | Anchor Point Grouping (character/word/line/all) | Anchor Point Grouping | PostLayout | **DONE** |
+| P1-06 | Per-glyph shadow and per-glyph glow | Per-character shadow/glow | PostRaster/PostLayout | **DONE (software + native MTSDF)** |
+| P1-07 | Per-glyph gradient fill | Gradient Fill per character | PostLayout | **DONE (software + native MTSDF)** |
+| P1-08 | GPU-native per-glyph stroke/background/skew | — | PostLayout | **DONE (GPU-native)** |
+| P1-09 | V3 serialization of typewriter / scramble / morph | Typewriter / Scramble | PreShaping/PostLayout | **DONE** |
+| P1-10 | Text cursor / caret model | Cursor | PostLayout | **DONE (software + native shader)** |
+| P2-01 | Per-glyph 3D rotation beyond the MTSDF limits | 3D rotation | PostLayout | **DONE (native exact orthographic)** |
 | P2-02 | Full SVG text parity | — | — | separate ticket |
 | P2-03 | Advanced text quality (canonical shadow, vector stroke, msdfgen) | — | — | separate ticket |
-| P2-04 | RTL/bidi selector-order audit | — | — | OPEN |
+| P2-04 | RTL/bidi selector-order audit | — | — | **DONE** |
 | P2-05 | Paragraph reflow from spacing (PreLayout evaluator) | — | PreLayout | **DONE** |
 
 ### 2.1 Reflow contract (P2-05)
@@ -210,9 +212,10 @@ For paragraph spacing:
 2. The cache key and V2 digest include `word_spacing` and `line_spacing`.
 3. The native Vulkan path consumes the resulting placed glyphs; no second
    spacing implementation exists, so CPU/GPU cannot drift.
-4. Per-glyph shadow, glow, gradient fill and caret are rejected by
-   `can_lower_gpu_text_animation()` and take the software path until the native
-   MTSDF pass has pixel parity. They are never silently dropped.
+4. Per-glyph shadow, glow, gradient fill and caret are accepted by
+   `can_lower_gpu_text_animation()` and lowered into the native MTSDF pass.
+   Invalid parameters stay fail-closed; the synthetic Vulkan canary pins the
+   native shadow, glow, gradient and caret layers.
 
 ---
 
@@ -280,6 +283,101 @@ The 2026-11-07 note below about the test executables not being run is superseded
 - `chronon3d_core_tests --test-case='*CharacterOffset*'`: **25/25 cases,
   35/35 assertions** (P1-02 regression gate).
 
+### P1-01 / P1-03 / P1-05 evidence (2026-11-09)
+
+- Build `chronon3d_text_animator_property_tests`: **409/409 steps**, exit 0.
+- Build `chronon3d_core_tests` + `chronon3d_c_abi_tests`: **580/580 steps**,
+  exit 0.
+- `chronon3d_text_animator_property_tests`: **51/51 cases, 256/256
+  assertions**; filter `*P1-03*,*P1-05*`: **5/5 cases, 33/33 assertions**
+  (line-edge alignment with full/half weight; character, word and word+scale
+  grouping pivots).
+- ADR-037 selector-scoped follow-up: **49/49 cases, 76/76 assertions** in
+  `test_character_offset_pre_shaping`, plus the driver integration above.
+- `chronon3d_core_tests --test-case='*CharacterValue*'`: **7/7 cases, 11/11
+  assertions** (replacement, whitespace preservation, UTF-8 substitution,
+  invalid scalars, offset-then-value composition, no-op zero).
+- `chronon3d_c_abi_tests --test-case='*character_value*,*character_alignment*,*anchor_grouping*'`:
+  **3/3 cases, 17/17 assertions** (accept + integer/mode/range rejection).
+- V3 extension schema parses as JSON after the three enum and `allOf`
+  additions.
+
+### ADR-037 evidence — selector-scoped Character Value / Offset (2026-11-09)
+
+- Targeted `test_character_offset_pre_shaping` build: **49/49 cases, 76/76
+  assertions**; ADR-037 filter **8/8 cases, 20/20 assertions** (word offset,
+  character value, 50%-weight +3 rounding to 2, ligature, combining marks,
+  50/49 threshold, statelessness, Reverse logical order on RTL).
+- `test_text_run_driver` selector-scoped CharacterOffset integration: **1/1
+  case, 5/5 assertions** (authored-source map, `AB CD` → `BC CD`, cached map
+  source, second frame does not accumulate the transform).
+- Driver cache: `TextRunShape::pre_shaping_unit_map` is keyed by the complete
+  `TextLayoutCacheKey` digest (source + font + paragraph + layout options).
+  When the active layout still holds the authored source the map reuses that
+  layout; otherwise the driver shapes the authored source once and caches it.
+- Demo 01 was re-rendered and verified: `AAAAAAA` at frame 16, `CHROAAA` at
+  frame 68, `CHRONON` at frame 179.
+
+### P2-04 evidence — RTL/bidi selector order (2026-11-09)
+
+- `build_text_unit_map` now numbers grapheme units by sorting the unique
+  cluster byte offsets ascending, instead of numbering them in glyph-array
+  order. HarfBuzz emits RTL glyphs in visual order, so the old map made
+  `Forward` start at the visually leading glyph rather than the logical first
+  source character. Words and lines already used source byte offsets.
+- New test with a visual-order RTL run (`clusters {3,2,1,0}`, source `abcd`)
+  asserts `glyph_to_grapheme == {3,2,1,0}`, `grapheme_count == 4`,
+  `Forward` weights the logical last character higher, and `Reverse` inverts
+  that progression. This locks `Forward`/`Reverse` to logical source order;
+  `FromCenter`/`ToCenter` use the same logical indices.
+- `test_selector_evaluate`: **17/17 cases, 123/123 assertions**; the new RTL
+  case is **1/1 case, 4/4 assertions**. ADR-037 regression rerun after the
+  change: **49/49 cases, 76/76 assertions**.
+- GPU parity: `text_run_packing` now packs
+  `layout.units.glyph_to_grapheme[layout_index]` for Grapheme/Character
+  selectors, and Vulkan unpacks that field instead of using `gg.pad0` (the
+  visual glyph index). `test_gpu_text_selector_metadata`: **3/3 cases, 49/49
+  assertions**; the CLI rebuilt cleanly with the graph/Vulkan changes.
+
+### GPU-native AE parity demo (2026-11-09)
+
+- Generator/driver: `ChrononTemplate/tools/text_animators/build_ae_parity_text_demos.py`
+  (`--generate`, `--render`, `--verify`).
+- Outputs: `RenderingGen/UploadDrive/ae_text_parity_20261109/`:
+  `plans/*.plan.json`, `videos/*.mp4`, `stills/*.png`,
+  `stills/audit/*_contact.png`, `MANIFEST.json`, `logs/*.log`.
+- Three V3 plans, 1920×1080, 30 fps, 180 frames (6 s), rendered with
+  `--backend vulkan --gpu-hot-path-mode require_gpu_native`, so a software
+  fallback would fail the render instead of passing silently.
+- Clip 1 `character_value`: seven per-glyph Character Value animators on the
+  authored `CHRONON`. All glyphs start at 65 (`A`); glyphs 0..6 change to
+  `C/H/R/O/N/O/N` at frames 20/34/48/62/76/90/104. Stills show `AAAAAAA` /
+  `CHROAAA` / `CHRONON`, proving selector scope rather than a run-level
+  substitution. Rendered on Vulkan with `require_gpu_native`, 180 frames in
+  2.97 s; the log has no software fallback.
+- Clip 2 `character_alignment`: three rows labelled LEFT/CENTER/RIGHT, each
+  with two `X` markers; the selected marker travels to `line_left`, the line
+  centre and `line_right` as `amount` ramps 0→100→0. Measured peak bounds:
+  LEFT x≈600–677, CENTER marker x≈900, RIGHT x≈1242–1317.
+- Clip 3 `anchor_grouping` (Word): three disjoint selector windows pulse each
+  word once with scale 1→0.70→1 and rotation 0→8°→0; both word edges move
+  symmetrically around the word box centre, and the rotation+anchor
+  combination now renders on the native path.
+- All three videos probe as 1920×1080, 180 frames, 6.0 s, ≈3–4 s render time
+  each on the Vulkan device.
+- Focused regressions re-run 2026-11-09 from `Chronon3d/` (relative `assets/`
+  must resolve): `chronon3d_text_animator_property_tests` P1-03/P1-05 5/5
+  cases, 33/33 assertions; `chronon3d_core_tests` CharacterValue 7/7 cases,
+  11/11 assertions; `chronon3d_render_graph_tests` `*anchor*` 7/7 cases,
+  94/94 assertions; `chronon3d_c_abi_tests` 3/3 cases, 17/17 assertions.
+- Drive delivery 2026-11-09: folder `AE_Text_Parity_20261109`
+  (https://drive.google.com/drive/folders/1kTGoXmL__daE0rleEPN9TkMEOvy6FmJX)
+  with 26 artifacts (3 MP4s, 9 stills, 3 contact sheets, 3 plans, 3 logs,
+  timing metadata, MANIFEST.json, generator) plus the upload manifest
+  (https://drive.google.com/file/d/1B6n1PKkGdKMmrxdOohFBZrvZ9OnRYKJu/view).
+  Re-uploaded after clip 01 switched to the seven selector-scoped animators;
+  each file was content-addressed and byte-verified by `drive-upload`.
+
 ### Session evidence (2026-11-07)
 
 - `chronon3d_text_core` built cleanly: 6/6 steps.
@@ -300,6 +398,25 @@ The 2026-11-07 note below about the test executables not being run is superseded
 
 ### P1-01 — Character Value
 
+**Implemented (2026-11-09, selector-scoped via ADR-037).**
+
+1. **DONE** — `CharacterValueProperty` holds `AnimatedValue<f32> codepoint`.
+   `evaluate_pre_shaping_source()` samples and rounds it per frame, applies
+   `CharacterOffset` first and then replaces selected source graphemes before
+   shaping. ASCII whitespace (space, tab, CR, LF, FF, VT) is preserved unless
+   the selector sets `exclude_spaces=false`; 0, surrogates and values above
+   U+10FFFF are no-ops.
+2. **DONE** — selector scope uses the ADR-037 canonical source map.  A
+   selector resolves against one proxy glyph per source codepoint with the
+   canonical cluster/word/line units; Character Value replaces the whole
+   selected grapheme, so combining marks and ligature components are never
+   left dangling.  Animators without selectors retain the run-level fast path.
+3. **DONE** — V3 `character_value` accepts integer Unicode scalars in
+   `[0, 1114111]`; schema, decoder, compiler and `AnimationPropertyKind` are
+   wired.
+
+Original execution steps (kept for the selector-scoped follow-up):
+
 1. Add `CharacterValueProperty` with an `AnimatedValue` source-string or
    codepoint mapper; classify it `PreShaping`.
 2. Extend `evaluate_pre_shaping_source()` to apply it per source codepoint.
@@ -307,9 +424,11 @@ The 2026-11-07 note below about the test executables not being run is superseded
    combining marks, and excluded spaces.
 4. Add V3 property name, schema, decoder bounds, compiler mapping.
 5. Add shaping tests for ligatures, bidi, and cluster boundaries.
-6. Verify CPU and GPU see the same post-shaping text (parity by construction).### P1-02 — Animated Character Offset
+6. Verify CPU and GPU see the same post-shaping text (parity by construction).
 
-**Implemented (2026-11-08).**
+### P1-02 — Animated Character Offset
+
+**Implemented (2026-11-08; selector-scoped 2026-11-09 via ADR-037).**
 
 1. **DONE** — `CharacterOffsetProperty::offset` is an `AnimatedValue<f32>`
    sampled with `SampleTime` and rounded per frame. The V3 decoder accepts
@@ -318,9 +437,12 @@ The 2026-11-07 note below about the test executables not being run is superseded
 2. **DONE** — the driver applies the sampled offset to
    `TextRunShape::pre_shaping_source` (the authored source) before shaping, so
    every frame starts from the original text and the shift never accumulates.
-3. **DECIDED** — selectors do not scope PreShaping offsets. The codepoint shift
-   is a run-level transform applied before shaping, when selector glyph maps do
-   not exist yet. This is the documented contract, not an accidental omission.
+3. **DONE** — selectors scope the shift through the ADR-037 canonical source
+   map.  Each animator compiles its selectors once per frame against the
+   authored-source proxy, and applies `round(offset * weight)` per selected
+   codepoint in stack order.  A zero weight leaves the codepoint unchanged;
+   animators without selectors stay run-level.  `Reverse`/`FromCenter` order
+   follows logical source order, because the transform precedes bidi reorder.
 4. **DONE** — V3 bounds and per-keyframe integer validation; tests live in
    `test_character_offset_pre_shaping.cpp` and
    `test_render_plan_decoder.part03.cpp`.
@@ -329,6 +451,21 @@ The 2026-11-07 note below about the test executables not being run is superseded
    already skips the layout rebuild when the sampled source is unchanged.
 
 ### P1-03 — Character Alignment
+
+**Implemented (2026-11-09).**
+
+1. **DONE** — `CharacterAlignmentMode { Left, Center, Right }` and
+   `CharacterAlignmentProperty` are PostLayout and run-level.
+2. **DONE** — `evaluate_animator()` derives one box per layout line from the
+   authored `PlacedGlyphRun` (`min(x)`, `max(x + advance_x)`). Each selected
+   glyph shifts by `target_x - glyph.x`, scaled by selector weight:
+   `Left = line_left`, `Center = (line_left + line_right - advance) / 2`,
+   `Right = line_right - advance`. `Replace` writes `position.x`, `Add`
+   accumulates. No reshapping or reflow happens.
+3. **DONE** — V3 `character_alignment` accepts exactly one integer mode
+   keyframe at frame 0 (0..2); schema, decoder and compiler share the bound.
+
+Original execution steps:
 
 1. Define per-character alignment relative to the line box.
 2. Add the property and a PostLayout applier that mutates `position.x`.
@@ -354,6 +491,29 @@ The 2026-11-07 note below about the test executables not being run is superseded
 
 ### P1-05 — Anchor Point Grouping
 
+**Implemented (2026-11-09).**
+
+1. **DONE** — `AnchorPointGrouping { Character, Word, Line, All }` and
+   `AnchorPointGroupingProperty`.
+2. **DONE** — a pre-pass in `evaluate_animator()` resolves each glyph's group
+   id (glyph / `glyph_to_word` / `glyph_to_line` / run) and the group box from
+   the placed run: `[min(x), max(x + advance_x)]` horizontally and
+   `[min(y - ascent), max(y + descent)]` vertically. The pivot is written into
+   `GlyphInstanceState::anchor` as `pivot - layout_position`, so the software
+   matrix (`T(anchor) × R × S × T(-anchor)`) and the native placement rotate
+   and scale around the group centre.
+3. **DONE** — V3 `anchor_grouping` accepts exactly one integer mode keyframe
+   at frame 0 (0..3); schema, decoder and compiler share the bound.
+4. **DONE (2026-11-09)** — grouped rotation now renders on the native MTSDF
+   path. `gpu_anchor_pivot_offset()` computes
+   `run.s * (I - animator_scale * R * Sh) * anchor` from the forward
+   `scale * rotation * shear` placement, and
+   `can_lower_gpu_text_animation()` no longer rejects `rotation.z` with a
+   non-zero anchor. `anchor.z` is still rejected; grouped scale alone was
+   already native.
+
+Original execution steps:
+
 1. Add grouping enum (character/word/line/all).
 2. Resolve a group pivot before applying scale/rotation.
 3. Feed the pivot into `GlyphInstanceState::anchor`.
@@ -362,54 +522,192 @@ The 2026-11-07 note below about the test executables not being run is superseded
 
 ### P1-06 — Per-glyph shadow and glow
 
-**Implemented (2026-11-08, software).** `GlyphShadowState` and `GlyphGlowState`
-are part of `GlyphInstanceState`. Ten V3 tracks (`glyph.shadow.color`,
-`offset`, `blur`, `opacity`; `glyph.glow.color`, `radius`, `intensity`, plus the
-enable flags) lower through the compiler, decoder and property applier. The
-software raster draws a blurred per-glyph shadow surface and a per-glyph glow
-surface before the fill. `can_lower_gpu_text_animation()` rejects any enabled
-per-glyph shadow/glow, so strict-native mode falls back instead of dropping the
-effect. Pixel parity on the native MTSDF shader remains the next step.
+**Implemented (2026-11-08, software; native MTSDF 2026-11-09).**
+`GlyphShadowState` and `GlyphGlowState` are part of `GlyphInstanceState`. Ten V3
+tracks (`glyph.shadow.color`, `offset`, `blur`, `opacity`; `glyph.glow.color`,
+`radius`, `intensity`, plus the enable flags) lower through the compiler,
+decoder and property applier. The software raster draws a blurred per-glyph
+shadow surface and a per-glyph glow surface before the fill.
+
+The native path extends `GlyphPaint` to 80 bytes and `GpuGlyphDynamic` to 96
+bytes (std430, 24 words). `text_tile_raster.comp` evaluates shadow and glow
+before the glyph-plane clip, so a displaced/blurred shadow can extend outside
+the fill; both use the same alpha-lane SDF transfer as the fill, with authored
+pixel blur/radius clamped to the baked distance range. `text_tile_bin.comp`
+expands the tile envelope by the shadow offset/blur and glow radius. The
+synthetic Vulkan canary pins a red shadow outside its fill plane and a blue
+glow with distance falloff. `can_lower_gpu_text_animation()` accepts finite
+enabled effects and rejects invalid blur/radius/offset values. Production
+glyph CPU/GPU pixel diff remains part of the P2-03 quality audit.
 
 ### P1-07 — Per-glyph gradient fill
 
-**Implemented (2026-11-08, software).** `GlyphGradientState` carries start/end
-colors and angle, serialized as `glyph.fill_gradient.*` V3 tracks. The software
-raster builds a `BLGradient` per glyph and fills the glyph coverage with it.
-Native MTSDF gradient sampling is not implemented; `can_lower_gpu_text_animation()`
-rejects enabled per-glyph gradients and the renderer stays on software. CPU/GPU
-pixel comparison is therefore an explicit open GPU task, not a silent fallback.
+**Implemented (2026-11-08, software; native MTSDF 2026-11-09).**
+`GlyphGradientState` carries start/end colors and angle, serialized as
+`glyph.fill_gradient.*` V3 tracks. The software raster builds a `BLGradient`
+per glyph and fills the glyph coverage with it. The native path now packs the
+same start/end/angle into `GlyphPaint` and evaluates the gradient in
+`text_tile_raster.comp` with the same plane-centre/half-diagonal geometry, so
+`can_lower_gpu_text_animation()` accepts finite per-glyph gradients. The
+synthetic Vulkan canary verifies a red→blue ramp across a flat MTSDF probe.
+A production-glyph CPU/GPU pixel diff remains part of the P2-03 quality audit;
+the native path no longer silently drops the gradient.
 
 ### P1-08 — GPU-native per-glyph stroke/background/skew
 
-1. Extend `can_lower_gpu_text_animation()` and the MTSDF dynamic record.
-2. Implement per-glyph stroke/background/skew in the shader.
-3. Remove the software fallback only after pixel parity is proven.
-4. Keep strict GPU-native fail-closed until then.
+**Implemented and verified (2026-11-09).**
+
+1. **DONE** — `GlyphPaint` is an 80-byte per-frame span parallel to the cached
+   prepared glyph batch (it also carries shadow/glow); `GpuGlyphDynamic` is 96
+   bytes and the tile-bin descriptor set has a fifth binding for it. Stroke
+   still uses the existing run-level dynamic record fields, filled per glyph.
+2. **DONE** — `text_tile_raster.comp` applies per-glyph background padding and
+   rounded corners, and the inverse skew 2×2 matrix around the glyph layout
+   origin. `text_tile_bin.comp` expands the tile envelope by the background
+   padding and skew reach so contributors are not dropped at tile boundaries.
+3. **DONE** — `can_lower_gpu_text_animation()` accepts finite background
+   padding/radius and `|skew| < 89°`; the software fallback is no longer taken
+   for these states.
+4. **DONE (canary)** — The headless Vulkan canary dispatches the embedded
+   `text_tile_bin` + `text_tile_raster` SPIR-V against a real device and now
+   asserts: background visible outside the ink plane, rounded corner cut,
+   outside-padding transparency, and both sides of a 15° skewed plane.
+
+**Evidence (2026-11-09, `-j12`, no full build):**
+
+- `glslangValidator -V text_tile_raster.comp`: exit 0.
+- Standalone Vulkan canary: **1/1 case, 131/131 assertions**, exit 0.
+- Host translation units `text_run_draw.cpp`, `gpu_text_run_animation.cpp`,
+  `vulkan_backend_text_ops_private.cpp` and the focused render-graph test
+  object: exit 0.
+- Focused render-graph filter `*per-glyph*`: **6/6 cases, 57/57 assertions**
+  before the gradient extension; the new gradient lowering case is compiled in
+  the same TU.
+- Production-glyph CPU/GPU pixel parity remains part of the P2-03 quality
+  audit; the native canary is the functional contract proof, not a claim that
+  every font/atlas edge case has been diffed.
 
 ### P1-09 — V3 typewriter/scramble/morph
 
-1. Choose an explicit V3 block rather than overloading opacity tracks.
-2. Add decoder + schema + compiler lowering.
-3. Preserve the existing C++ preset API.
-4. Add round-trip and deterministic-render tests.
+**Implemented (2026-11-09).** V3 text layers accept an explicit
+`text_transitions` block instead of overloading opacity tracks. Each keyframe
+carries `{frame, text, transition, scramble, morph, typewriter}`; frames must be
+strictly increasing in `[0, 1000000]`, text is capped at 65536 bytes, and the
+array is capped at 256 entries. Supported transitions are `hold`, `cut`,
+`dissolve_layouts`, `scramble`, `morph` and `typewriter`.
+
+- Decoder and schema validate every transition and reject parameters attached
+  to the wrong transition, unknown fields, invalid morph directions/easing,
+  NaN/out-of-range scramble intensity and typewriter `chars_per_frame`, and
+  duplicate or decreasing frames.
+- `text_counter` and `text_transitions` are mutually exclusive. The decoder and
+  compiler also fail closed when `text_transitions` is combined with
+  `text_spans`/glyph paint ranges: those byte ranges are authored against the
+  base text and cannot be applied safely to variable keyframe text.
+- The compiler lowers every keyframe to an `AnimatedTextDocument`
+  (`scramble_params`, `morph_params`, `typewriter_params`) and passes the last
+  keyframe as the static fallback definition. Scramble and Morph preserve their
+  existing C++ contracts; Typewriter reveals complete grapheme clusters, uses a
+  single space at `mix=0` to keep the layout alive, and spreads the reveal over
+  the gap when `chars_per_frame=0`.
+- The whole block participates in the plan fingerprint; the V2 projection
+  erases it. The existing `SourceTextTransition` numeric values are preserved
+  and `Typewriter` is appended.
+- The CLI routes plans containing `text_transitions` through the legacy
+  `CompiledComposition` path (the same fallback used for particles) because the
+  canonical `CompiledProgram` compiler does not lower the block yet. A failed
+  legacy compile is a hard `compile_error`, never a silent static fallback.
+
+**Evidence (Linux video release, `-j12`):**
+
+- `chronon3d_c_abi_tests --test-case='*text_transitions*'`: **2/2 cases,
+  41/41 assertions**. Covers decode/bounds/rejections and the full
+  decode-plan → `compile_render_plan` → per-frame `evaluate` lowering
+  (`" "` at frame 0, `"FI"` at frame 6, `"FINAL"` at frame 12). Two
+  independent compiles produce the same fingerprint; changing
+  `typewriter.chars_per_frame` changes it.
+- `chronon3d_core_tests --test-case='AnimatedTextDocument: Typewriter*'`:
+  **1/1 case, 8/8 assertions**. The broader `*typewriter*` filter is **19/19
+  cases, 219/219 assertions**.
+- Build: `126/126` focused test targets and `4/4` after the final guard change,
+  both exit 0. `git diff --check` exit 0; the V3 schema parses as valid JSON.
+- **Demo (2026-11-09):** `04_typewriter`, `05_scramble` and `06_morph` rendered
+  with Vulkan `require_gpu_native`, 1920x1080, 30 fps, 180 frames. OCR reads
+  `CHRONON 3D` on the final frame of all three; the typewriter bbox grows
+  across frames and scramble frames contain deterministic noise. Drive bundle:
+  https://drive.google.com/drive/folders/1kTGoXmL__daE0rleEPN9TkMEOvy6FmJX
+
+No existing C++ preset API was removed or renamed.
 
 ### P1-10 — Cursor / caret
 
-**Implemented (2026-11-08, software).** `TextCaretSpec` is part of the text-run
-shape and `LayerStylePlan`; V3 `style.text_caret` decodes in the layer-style
-path, participates in the fingerprint, and is projected out of the V2 schema.
-`resolve_text_caret_rect()` derives the insertion rectangle from the placed glyph
-run, so alignment and wrapping are inherited from the same layout; blink is
-frame-period/duty based. The software raster draws the caret after downsampling.
-The native GPU pass does not draw it yet, and `can_lower_gpu_text_animation()`
-rejects an enabled caret. RTL pixel certification remains open.
+**Implemented (2026-11-08, software; native shader 2026-11-09).**
+`TextCaretSpec` is part of the text-run shape and `LayerStylePlan`; V3
+`style.text_caret` decodes in the layer-style path, participates in the
+fingerprint, and is projected out of the V2 schema. `resolve_text_caret_rect()`
+derives the insertion rectangle from the placed glyph run, so alignment and
+wrapping are inherited from the same layout; blink is frame-period/duty based.
+The software raster draws the caret after downsampling.
+
+The native path extends `TextRunDynamic` to 160 bytes with the caret color,
+layout rect and flags. `text_run_draw.cpp` resolves the caret once and only the
+first page of a run carries it; `text_tile_raster.comp` draws it after the fill,
+so no glyph can cover it. The synthetic Vulkan canary pins a green caret inside
+its layout rect and background outside it. RTL pixel certification remains open.
+
+### P2-01 — Per-glyph 3D rotation beyond MTSDF limits (2026-11-09)
+
+**DONE (native exact orthographic).** The old MTSDF path converted per-glyph
+`rotation.x/y` to `tan()` shears and rejected `|angle| >= 89`; it saturated at
+the clamp and could not represent an edge-on or back-facing glyph plane.
+
+The native path now uses the exact orthographic 2x2 projection of `Rx * Ry`
+for per-glyph X/Y rotations at or beyond 89 degrees:
+
+- `TextRunDynamic` keeps its 160-byte std430 layout: the two former caret
+  padding words are now `animator_rotation_x/y`, gated by `effect_flags` bit
+  11. The caret contract and all existing offsets are unchanged.
+- `text_tile_raster.comp` undoes `Rz`, per-glyph skew, then the exact matrix;
+  `text_tile_bin.comp` pads the tile envelope by the glyph-plane corner radius
+  when the exact flag is set. `gpu_anchor_pivot_offset()` composes the same
+  `Rz * M` matrix so a non-zero anchor remains fixed.
+- `can_lower_gpu_text_animation()` now accepts every finite X/Y angle and keeps
+  fail-closed rejection for non-finite values. Exactly 90 degrees is edge-on
+  and therefore renders zero coverage; angles beyond 90 degrees are mirrored
+  by the exact projection instead of being clamped.
+
+Canonical `text_transitions` lowering is also complete. `StaticLayerProgram`
+now carries the typed block, `lower_scene()` preserves it, and the shared
+`build_text_transitions()` helper feeds both the RenderPlan and compiled-scene
+routes. `SceneMaterializer` attaches the resulting `AnimatedTextDocument` to
+the `TextRunBuilder` and uses the last keyframe as the static fallback. The CLI
+no longer routes text-transition plans through `CompiledComposition`; particle
+plans retain that legacy fallback.
+
+**Evidence (Linux video release, `-j12`, 2026-11-09):**
+
+- `chronon3d_compiler_boundary_tests`: **14/14 cases, 192/192 assertions**,
+  including the new canonical transition test (program carries the block,
+  materialized `TextRunShape` owns a two-keyframe `AnimatedTextDocument`).
+- `chronon3d_c_abi_tests --test-case='*text_transitions*'`: **2/2 cases,
+  41/41 assertions**.
+- `chronon3d_render_graph_tests --test-case='GPU *text*'`: **12/12 cases,
+  68/68 assertions**, including edge-on acceptance and the exact 120-degree
+  pivot check (`cos(120) = -0.5`).
+- `chronon3d_text_tile_raster_canary_tests`: **1/1 case, 154/154
+  assertions**.
+- Both modified shaders pass `glslangValidator -V`; Python shader-layout
+  contract **6 passed**; `render_plan_preparation.cpp` compiles; `git diff
+  --check` clean.
+
+Production-glyph CPU/GPU pixel comparison remains part of P2-03, not this
+feature closure.
 
 ### P2 — Later
 
-1. **P2-01:** per-glyph 3D rotation beyond MTSDF limits.
+1. **P2-01 — DONE:** per-glyph 3D rotation beyond MTSDF limits.
 2. **P2-02/P2-03:** SVG text and text-quality tickets, not this ticket.
-3. **P2-04:** RTL/bidi selector ordering audit against the source-byte unit map.
+3. **P2-04 — DONE:** RTL/bidi selector ordering audit against the source-byte unit map. Grapheme indices are assigned in source-byte order; `Forward`/`Reverse` operate on logical order for RTL runs, and the MTSDF/Vulkan path consumes the same packed grapheme index instead of the visual glyph index. Covered by the RTL selector-order test.
 4. **P2-05 — DONE:** PreLayout spacing reflow in the text-run driver, with the
    composer consuming `word_spacing` and `line_spacing` and the layout cache
    keyed by both values.
@@ -418,15 +716,26 @@ rejects an enabled caret. RTL pixel certification remains open.
 
 ## 7. Residuals and non-goals
 
-- P1-06, P1-07 and P1-10 are complete on the software raster path only; the
-  native Vulkan/MTSDF pass explicitly rejects them and stays fail-closed.
+- P1-06, P1-07 and P1-10 are now native on the MTSDF path as well as software.
+  Their native behavior is pinned by the synthetic Vulkan canary; a production
+  glyph CPU/GPU pixel diff remains part of the P2-03 quality audit. Invalid
+  effect parameters stay fail-closed.
+- P2-01 beyond-MTSDF per-glyph 3D rotation is implemented with the exact
+  orthographic matrix and fail-closed non-finite validation. The production
+  glyph CPU/GPU pixel diff remains part of the P2-03 quality audit.
+- Canonical `CompiledProgram` now lowers `text_transitions`; only particle
+  plans still use the legacy `CompiledComposition` fallback.
 - The legacy P0 Word/Line Spacing properties remain PostLayout visual offsets;
   only the new `Reflow*` properties perform true paragraph reflow.
-- P1-02 offsets are run-level: selectors are resolved after shaping, so a
-  selector-scoped Character Offset would need a pre-shaping unit map and is not
-  part of this contract. The design for that map is ADR-037.
 - P1-04 Line Anchor is run-level and uses the authored `PlacedGlyphRun` extents
-  (`ascent`, `total_height`); it is not selector-scoped.
+  (`ascent`, `total_height`); it is not selector-scoped. P1-01/P1-02 no longer
+  have this restriction: their selectors resolve on the ADR-037 canonical map.
+- P1-01 Character Value is selector-scoped; whitespace is preserved unless the
+  selector explicitly includes it.  Character Value changes source length, so
+  the authored map stays the stable codepoint index for later animators.
+- P1-05 grouping is resolved per animator and overwrites
+  `GlyphInstanceState::anchor`; an animator without grouping starts from a zero
+  anchor, matching the existing reset-per-animator model.
 - The V2 animator enum stays frozen.
 - The run-level GPU fast path remains narrower than the per-glyph MTSDF route.
 - No unrelated render-plan, SVG, or text-quality files are changed by this
@@ -437,9 +746,10 @@ rejects an enabled caret. RTL pixel certification remains open.
 Implemented and verified in this session:
 
 - **P1-06/P1-07:** per-glyph shadow, glow and gradient fill on the software
-  raster path; V3 compiler/decoder/schema and GPU fail-closed predicate.
-- **P1-10:** caret contract, V3 layer style, fingerprint, software raster and
-  GPU fail-closed predicate.
+  raster path; V3 compiler/decoder/schema. Native MTSDF lowering was added and
+  canary-verified on 2026-11-09 (see the native verification block above).
+- **P1-10:** caret contract, V3 layer style, fingerprint and software raster.
+  The native shader caret was added and canary-verified on 2026-11-09.
 - **P2-05:** true PreLayout spacing reflow, composer integration and cache
   identity.
 - **P1-02:** animated Character Offset (`AnimatedValue<f32>`, V3 multi-keyframe,
@@ -455,15 +765,34 @@ Focused evidence (Linux video release, `-j12`):
 - `chronon3d_single_line_composer_tests --test-case='*spacing*'`: **4/4 cases,
   11/11 assertions** (word spacing width, line-breaking reflow, inter-line
   spacing, cache digest).
-- `chronon3d_render_graph_tests --test-case='*GPU text*'`: **11/11 cases,
-  75/75 assertions**, including the new caret-rejection case.
+- `chronon3d_render_graph_tests --test-case='*GPU text*'`: historical
+  2026-11-08 baseline, **11/11 cases, 75/75 assertions**. The current predicate
+  TU adds native shadow/glow acceptance and caret acceptance; it was compiled
+  but the render-graph binary was not relinked in the 2026-11-09 focused pass.
 - `chronon3d_c_abi_tests --test-case='*animator*'`: **9/9 cases, 49/49
   assertions**.
 - `chronon3d_text_run_driver_tests`: **20/20 cases, 81/81 assertions**.
 - Build: `498/498` steps for the broad focused targets and `408/408` steps
   for the final animator test rebuild, both exit 0.
 
-Still open: native MTSDF pixel parity for per-glyph shadow/glow/gradient and a
-native caret quad; RTL caret pixel certification. These are fail-closed, not
-silently degraded. P1-01/P1-03/P1-05/P1-08/P1-09 and P2-01/P2-04 remain
-outside this completion.
+Native text-effect verification (2026-11-09, Linux video release, `-j12`):
+
+- `test_text_tile_raster_canary` standalone, rebuilt from the embedded
+  `text_tile_bin`/`text_tile_raster` SPIR-V: **1/1 case, 154/154 assertions**,
+  including background, skew, gradient, shadow, glow and caret probes.
+- Both shaders compiled directly with `glslangValidator -V`: exit 0.
+- Host TUs `text_run_draw.cpp`, `gpu_text_run_animation.cpp`,
+  `vulkan_backend_text_ops_private.cpp`, `test_gpu_text_run_placement.cpp` and
+  `test_shader_abi_consistency.cpp`: compiled, exit 0.
+- Python ABI contract: **6 passed** (TextRunDynamic pinned at 160 bytes).
+
+Still open: a production-glyph CPU/GPU pixel diff (P2-03) and RTL caret pixel
+certification. Invalid effect parameters remain fail-closed. P2-04 is covered
+by the logical-order selector test above; P1-09 is covered by the V3 transition
+evidence in its section. Per-keyframe styled spans remain a non-goal:
+`text_transitions` fails closed when combined with `text_spans` or glyph paint
+ranges. The canonical `CompiledProgram` now carries and lowers
+transitions; only particle plans use the legacy `CompiledComposition` fallback. Two demo-side limitations are documented rather
+than hidden: Typewriter starts at frame 6 because the MTSDF route rejects a
+zero-glyph space frame, and Scramble uses target-width outgoing text because
+the tight surface is sized from the first layout.

@@ -77,7 +77,7 @@ namespace {
 // view. The public record is now the sole host/shader layout authority for
 // selector, tracking, rotation, fill-color and effect bindings.
 using GpuTextRunDynamic = runtime::TextRunDynamic;
-static_assert(sizeof(GpuTextRunDynamic) == 128,
+static_assert(sizeof(GpuTextRunDynamic) == 160,
               "GpuTextRunDynamic must match runtime::TextRunDynamic/std430");
 
 } // namespace
@@ -86,7 +86,8 @@ void VulkanBackend::Impl::draw_text_batch(
     runtime::RenderSurfaceHandle destination,
     std::span<const runtime::GlyphStatic> glyphs,
     std::span<const runtime::TextRunDynamic> runs,
-    std::span<const runtime::RenderSurfaceHandle> atlas_pages) {
+    std::span<const runtime::RenderSurfaceHandle> atlas_pages,
+    std::span<const runtime::GlyphPaint> paints) {
     if (glyphs.empty() || runs.empty() || atlas_pages.empty()) return;
     ++stats.text_batch_calls;
     stats.glyphs_processed += glyphs.size();
@@ -156,6 +157,9 @@ void VulkanBackend::Impl::draw_text_batch(
         gr = run;
         gr.sx = (run.sx != 0.0f) ? run.sx : 1.0f;
         gr.sy = (run.sy != 0.0f) ? run.sy : 1.0f;
+        // The caret is a run-level layer. The per-glyph compatibility path
+        // repeats the base run for every state; keep exactly one caret.
+        if (r != 0) gr.caret_flags = 0;
     }
 
     std::array<VulkanGpuGlyphDynamic, 1024> local_glyph_dynamic;
@@ -213,16 +217,40 @@ void VulkanBackend::Impl::draw_text_batch(
 
         const auto& run = gpu_runs[gg.run_index];
         auto& dynamic = gpu_glyph_dynamic[i];
+        dynamic = VulkanGpuGlyphDynamic{};
         const std::uint32_t selector_unit =
             (run.flags >> runtime::kTextRunSelectorUnitShift) &
             runtime::kTextRunSelectorUnitMask;
-        const std::uint32_t selector_index = selector_unit ==
-                static_cast<std::uint32_t>(TextSelectorUnit::Word)
+        const bool packed_selector_unit =
+            selector_unit == static_cast<std::uint32_t>(TextSelectorUnit::Word) ||
+            selector_unit == static_cast<std::uint32_t>(TextSelectorUnit::Line) ||
+            selector_unit == static_cast<std::uint32_t>(TextSelectorUnit::Grapheme) ||
+            selector_unit == static_cast<std::uint32_t>(TextSelectorUnit::Character);
+        const std::uint32_t selector_index = packed_selector_unit
             ? runtime::unpack_mtsdf_glyph_unit_index(gs.flags)
-            : (selector_unit == static_cast<std::uint32_t>(TextSelectorUnit::Line)
-                ? runtime::unpack_mtsdf_glyph_unit_index(gs.flags)
-                : gg.pad0);
+            : gg.pad0;
         dynamic.selector_weight = runtime::gpu_text_selector_weight(run, selector_index);
+        if (paints.size() == glyphs.size()) {
+            const auto& paint = paints[i];
+            dynamic.background_color = paint.background_color;
+            dynamic.background_padding_px = paint.background_padding_px;
+            dynamic.background_radius_px = paint.background_radius_px;
+            dynamic.skew_tan = paint.skew_tan;
+            dynamic.skew_axis_cos = paint.skew_axis_cos;
+            dynamic.skew_axis_sin = paint.skew_axis_sin;
+            dynamic.style_flags = paint.flags;
+            dynamic.gradient_start_color = paint.gradient_start_color;
+            dynamic.gradient_end_color = paint.gradient_end_color;
+            dynamic.gradient_angle_degrees = paint.gradient_angle_degrees;
+            dynamic.shadow_color = paint.shadow_color;
+            dynamic.shadow_dx = paint.shadow_dx;
+            dynamic.shadow_dy = paint.shadow_dy;
+            dynamic.shadow_blur = paint.shadow_blur;
+            dynamic.shadow_opacity = paint.shadow_opacity;
+            dynamic.glow_color = paint.glow_color;
+            dynamic.glow_radius = paint.glow_radius;
+            dynamic.glow_intensity = paint.glow_intensity;
+        }
         const auto& prefix = tracking_prefixes[gg.run_index];
         dynamic.tracking_prefix = prefix[std::min<std::size_t>(gg.pad0,
                                                                 prefix.size() - 1)];
@@ -331,7 +359,8 @@ void VulkanBackend::Impl::draw_text_batch(
         const auto bin_descriptors = allocate_text_tile_bin_descriptor_set();
         const auto raster_descriptors = allocate_text_tile_raster_descriptor_set();
         write_text_tile_bin_descriptors(bin_descriptors, glyph_buffer, run_buffer,
-                                        count_buffer, index_buffer);
+                                        glyph_dynamic_buffer, count_buffer,
+                                        index_buffer);
         write_text_tile_raster_descriptors(raster_descriptors, dst_image, atlas_image,
                                            glyph_buffer, glyph_dynamic_buffer, run_buffer,
                                            count_buffer, index_buffer);

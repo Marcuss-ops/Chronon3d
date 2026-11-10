@@ -102,9 +102,11 @@ desktop.ini
 !golden/lottie_cli_gate/image_rgba.png
 
 # Raw framebuffer readbacks are reproducible verification artifacts, not
-# reviewable evidence. Keep their hashes and compact summaries instead.
+# reviewable evidence. Keep their hashes and compact summaries instead. The
+# float32 .raw dumps are 421 MB each, well past GitHub's 100 MB blob limit.
 docs/evidence/**/*.rgb
 docs/evidence/**/*.rgba
+docs/evidence/**/*.raw
 
 # Incomplete encoder writes (2026-10-30): crash/gdb leftovers such as
 # *.partial.mp4 are not reviewable evidence; keep them local.

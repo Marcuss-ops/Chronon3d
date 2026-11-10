@@ -64,6 +64,21 @@ void add_layer_identity_and_mesh(CanonicalPlanWriter& out, const LayerPlan& laye
         writer.add_string(value.counter.prefix);
         writer.add_string(value.counter.suffix);
     });
+    add_optional(out, layer.text_transitions, [](auto& writer, const TextTransitionsPlan& value) {
+        writer.add_size(value.keyframes.size());
+        for (const auto& keyframe : value.keyframes) {
+            writer.add_frame(keyframe.frame);
+            writer.add_string(keyframe.text);
+            writer.add_string(keyframe.transition);
+            writer.add_uint64(keyframe.scramble.seed);
+            writer.add_string(keyframe.scramble.char_pool);
+            writer.add_float(keyframe.scramble.intensity);
+            writer.add_string(keyframe.morph.direction);
+            writer.add_string(keyframe.morph.easing);
+            writer.add_float(keyframe.typewriter.chars_per_frame);
+            writer.add_string(keyframe.typewriter.easing);
+        }
+    });
     add_optional(out, layer.parent, [](auto& writer, const std::string& value) {
         writer.add_string(value);
     });

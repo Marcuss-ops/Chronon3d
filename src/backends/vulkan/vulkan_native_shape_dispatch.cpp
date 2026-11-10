@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <glm/glm.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <limits>
 #include <stdexcept>
@@ -129,9 +130,20 @@ graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const R
         framebuffer.mark_gpu_authoritative();
         return graph::RenderOpResult(graph::RenderOpOutcome{1});
     };
+    // Invisible and collapsed nodes are valid no-ops. Without this guard a
+    // scale-0 pop/spring frame reaches the native dispatchers, which reject
+    // the non-invertible matrix as an unsupported capability instead of
+    // simply drawing nothing.
+    const float determinant = glm::determinant(state.matrix);
+    if (!(state.opacity > 0.0f) || !std::isfinite(determinant) ||
+        std::abs(determinant) < 1e-6f) {
+        return graph::RenderOpResult(graph::RenderOpOutcome{1});
+    }
     if (native_shape_dispatch_detail::try_native_grid(*this, framebuffer, node, state)) return completed_native_draw();
-    if (native_shape_dispatch_detail::try_native_path_fill(*this, framebuffer, node, state)) return completed_native_draw();
+    // Stroke first: its shader can fill and stroke a closed path in one pass.
+    // try_native_path_fill() is strictly fill-only and must not run before it.
     if (native_shape_dispatch_detail::try_native_path_stroke(*this, framebuffer, node, state)) return completed_native_draw();
+    if (native_shape_dispatch_detail::try_native_path_fill(*this, framebuffer, node, state)) return completed_native_draw();
     if (native_shape_dispatch_detail::try_native_solid_rect(*this, framebuffer, node, state)) return completed_native_draw();
 
     if (path_diag && node.shape.type() == ShapeType::Path)

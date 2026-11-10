@@ -361,6 +361,42 @@ TEST_CASE("TextRunDriver: Morph transition rebuilds layout with transition_text"
     CHECK_FALSE(state.morph_map.empty());  // morph_map populated
 }
 
+TEST_CASE("TextRunDriver: Typewriter frame 0 rebuilds an empty layout") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    TextLayoutSpec layout;
+    layout.box = {800.0f, 200.0f};
+    auto shape = make_shape("Hello", engine, layout);
+    REQUIRE_FALSE(shape->layout->placed.glyphs.empty());
+
+    AnimatedTextDocument doc;
+    SourceTextKeyframe kf0;
+    kf0.frame = Frame{0};
+    kf0.document.utf8 = "";
+    kf0.transition = SourceTextTransition::Typewriter;
+    kf0.typewriter_params.easing = EasingCurve{Easing::Linear};
+    doc.add_keyframe(kf0);
+    SourceTextKeyframe kf20;
+    kf20.frame = Frame{20};
+    kf20.document.utf8 = "ABC";
+    doc.add_keyframe(kf20);
+
+    const auto state = doc.sample_at(Frame{0});
+    REQUIRE(state.transition == SourceTextTransition::Typewriter);
+    REQUIRE(state.transition_text.empty());
+    REQUIRE(state.transition_text_authoritative);
+
+    const bool changed =
+        apply_active_state_to_text_run_shape(*shape, state, engine, layout);
+    CHECK(changed);
+    REQUIRE(shape->layout);
+    CHECK(shape->layout->source_text.empty());
+    CHECK(shape->layout->placed.glyphs.empty());
+    CHECK(shape->glyphs.empty());
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 6. State preservation — paint/animators survive layout swap
 // ═══════════════════════════════════════════════════════════════════════════
@@ -403,6 +439,45 @@ TEST_CASE("TextRunDriver: animators preserved across layout swap") {
     if (!shape->layout->placed.glyphs.empty()) {
         CHECK(shape->glyphs[0].position.x == doctest::Approx(15.0f));
     }
+}
+
+TEST_CASE("TextRunDriver: selector-scoped CharacterOffset uses the canonical map") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    TextLayoutSpec layout;
+    layout.box = {800.0f, 200.0f};
+
+    TextAnimatorSpec spec;
+    spec.id = "word_offset";
+    GlyphSelectorSpec sel;
+    sel.id = "word_offset_sel";
+    sel.unit = TextSelectorUnit::Word;
+    sel.shape = TextSelectorShape::Square;
+    sel.start = {0.0f};
+    sel.end = {50.0f};
+    sel.amount = {100.0f};
+    sel.exclude_spaces = true;
+    spec.selectors = {sel};
+    spec.properties = {CharacterOffsetProperty{1}};
+
+    auto shape = make_shape("AB CD", engine, layout, {spec});
+    if (shape->layout->placed.glyphs.empty()) return;
+    shape->engine = &engine;
+    shape->cache = &s_text_cache;
+    shape->layout_spec = layout;
+
+    const auto time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+    update_text_run_shape_per_frame(*shape, time);
+    CHECK(shape->layout->source_text == "BC CD");
+    REQUIRE(shape->pre_shaping_unit_map != nullptr);
+    CHECK(shape->pre_shaping_unit_map_source == "AB CD");
+
+    // The authored source remains the fold input: a second frame must not
+    // accumulate the previous frame's transformed layout.
+    update_text_run_shape_per_frame(*shape, time);
+    CHECK(shape->layout->source_text == "BC CD");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

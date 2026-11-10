@@ -1,0 +1,112 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "text-parity-rtl-caret",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 25
+  },
+  "output": {
+    "path": "text-parity-rtl-caret.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "arabic",
+      "type": "text",
+      "text": "مرحبا",
+      "start_frame": 0,
+      "duration_frames": 25,
+      "position": [
+        640,
+        180
+      ],
+      "size": [
+        1280,
+        720
+      ],
+      "style": {
+        "font": "assets/fonts/NotoNaskhArabic-Regular.ttf",
+        "font_size": 96,
+        "fill": "#FFFFFF",
+        "text_caret": {
+          "byte_index": 0,
+          "width": 4,
+          "height": 0,
+          "color": "#00FF00",
+          "opacity": 1,
+          "blink_period_frames": 0,
+          "blink_duty": 0.5
+        },
+        "quality": "high"
+      },
+      "effects": []
+    },
+    {
+      "id": "hebrew",
+      "type": "text",
+      "text": "שלום",
+      "start_frame": 0,
+      "duration_frames": 25,
+      "position": [
+        640,
+        360
+      ],
+      "size": [
+        1280,
+        720
+      ],
+      "style": {
+        "font": "assets/fonts/NotoSansHebrew-Regular.ttf",
+        "font_size": 96,
+        "fill": "#FFFFFF",
+        "text_caret": {
+          "byte_index": 0,
+          "width": 4,
+          "height": 0,
+          "color": "#00FF00",
+          "opacity": 1,
+          "blink_period_frames": 0,
+          "blink_duty": 0.5
+        },
+        "quality": "high"
+      },
+      "effects": []
+    },
+    {
+      "id": "mixed_ltr_rtl",
+      "type": "text",
+      "text": "Hello مرحبا World",
+      "start_frame": 0,
+      "duration_frames": 25,
+      "position": [
+        640,
+        540
+      ],
+      "size": [
+        1280,
+        720
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 64,
+        "fill": "#FFFFFF",
+        "text_caret": {
+          "byte_index": 6,
+          "width": 4,
+          "height": 0,
+          "color": "#00FF00",
+          "opacity": 1,
+          "blink_period_frames": 0,
+          "blink_duty": 0.5
+        },
+        "quality": "high"
+      },
+      "effects": []
+    }
+  ]
+}

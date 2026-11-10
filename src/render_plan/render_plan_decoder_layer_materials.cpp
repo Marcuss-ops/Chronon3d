@@ -187,6 +187,10 @@ void decode_layer_text_spans(LayerPlan& layer, const nlohmann::json& value) {
     if (value.contains("spans")) {
         if (layer.type != LayerType::Text)
             throw std::runtime_error("layer.spans is only valid for text layers");
+        if (layer.text_transitions)
+            throw std::runtime_error(
+                "text_transitions cannot be combined with text spans: "
+                "span byte ranges are authored against the base text");
         if (!value.at("spans").is_array() || value.at("spans").size() > 65536)
             throw std::runtime_error("layer.spans must be an array of at most 65536 entries");
         std::size_t previous_end = 0;

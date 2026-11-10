@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -61,7 +62,16 @@ TEST_CASE("CompiledArtifactCache round-trips a GPU program artifact") {
     const auto loaded = cache.load_program_artifact(test_key());
     REQUIRE(loaded.has_value());
     CHECK(*loaded == payload);
-    CHECK(cache.clear() == 1);
+
+    // Artifacts from the retired CompiledComposition cache are never loaded,
+    // but cache cleanup must reclaim them along with typed program payloads.
+    {
+        std::ofstream retired(directory / "retired.cart", std::ios::binary);
+        REQUIRE(retired.good());
+        retired.put('x');
+    }
+    CHECK(cache.clear() == 2);
+    CHECK_FALSE(std::filesystem::exists(directory / "retired.cart"));
     CHECK_FALSE(cache.load_program_artifact(test_key()).has_value());
 
     std::error_code error;

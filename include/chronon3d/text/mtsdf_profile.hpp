@@ -20,4 +20,15 @@ struct MtsdfProfile final {
 
 inline constexpr MtsdfProfile kCanonicalMtsdfProfile{};
 
+/// High-quality generation profile. The higher em grid and expanded distance
+/// extent preserve authored shadow reach instead of clipping it at the field
+/// boundary. generation_id distinguishes this atlas payload and cache key
+/// from earlier profile contracts.
+inline constexpr MtsdfProfile kHighQualityMtsdfProfile{
+    .em_px = 128,
+    .distance_range_px = 40,
+    .padding_px = 60,
+    .generation_id = 4,
+};
+
 } // namespace chronon3d::text

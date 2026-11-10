@@ -34,6 +34,7 @@ namespace chronon3d::cli {
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 void register_script_command(CLI::App& app, CliContext& ctx);
 void register_scope_analysis_command(CLI::App& app, CliContext& ctx);
+void register_check_command(CLI::App& app, CliContext& ctx);
 void register_mask_propagation_command(CLI::App& app, CliContext& ctx);
 void register_ocio_bake_lut_command(CLI::App& app, CliContext& ctx);
 namespace {
@@ -300,6 +301,7 @@ void register_commands(CLI::App& app, CliContext& ctx) {
     register_render_plan_command(app, ctx);
     register_script_command(app, ctx);
     register_scope_analysis_command(app, ctx);
+    register_check_command(app, ctx);
     register_mask_propagation_command(app, ctx);
 #ifdef CHRONON3D_ENABLE_OCIO
     register_ocio_bake_lut_command(app, ctx);

@@ -1,0 +1,41 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "text-parity-multipage",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 3
+  },
+  "output": {
+    "path": "text-parity-multipage.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "multipage",
+      "type": "text",
+      "text": "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef",
+      "start_frame": 0,
+      "duration_frames": 3,
+      "position": [
+        640,
+        400
+      ],
+      "size": [
+        1280,
+        720
+      ],
+      "style": {
+        "font": "assets/fonts/SF-Pro-Display-Semibold.otf",
+        "font_size": 400,
+        "fill": "#FFFFFF",
+        "quality": "high"
+      },
+      "effects": []
+    }
+  ]
+}

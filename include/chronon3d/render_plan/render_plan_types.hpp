@@ -274,6 +274,35 @@ struct TextCounterPlan {
     std::string token{"{{value}}"};
 };
 
+struct TextTransitionScramblePlan {
+    std::uint64_t seed{12345};
+    std::string char_pool{"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"};
+    float intensity{1.5f};
+};
+
+struct TextTransitionMorphPlan {
+    std::string direction{"from_right"};  // from_right | from_left | from_center
+    std::string easing{"out_cubic"};
+};
+
+struct TextTransitionTypewriterPlan {
+    float chars_per_frame{0.0f};  // 0 = spread over the keyframe gap
+    std::string easing{"out_cubic"};
+};
+
+struct TextTransitionKeyframePlan {
+    Frame frame{0};
+    std::string text;
+    std::string transition{"hold"};  // hold | cut | dissolve_layouts | scramble | morph | typewriter
+    TextTransitionScramblePlan scramble{};
+    TextTransitionMorphPlan morph{};
+    TextTransitionTypewriterPlan typewriter{};
+};
+
+struct TextTransitionsPlan {
+    std::vector<TextTransitionKeyframePlan> keyframes;
+};
+
 struct ShapeContentPlan {
     ShapeContentTypePlan type{ShapeContentTypePlan::Rect};
     // Resolver-backed SVG reference. Expanded into path commands before the

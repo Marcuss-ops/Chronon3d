@@ -44,6 +44,14 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     const TextRunShape& shape,
     const glm::mat4& model_matrix,
     float opacity) {
+    // Empty typewriter frames are valid: a zero-glyph run is a successful
+    // no-op, not an unsupported native capability.  This is the GPU half of
+    // the T2-02 frame-0 contract; the software rasterizer mirrors it.
+    if (shape.glyphs.empty()) {
+        spdlog::info("[text-route] frame={} route=mtsdf-empty",
+                     ctx.frame_input.frame.integral());
+        return graph::RenderOpResult(graph::RenderOpOutcome{0});
+    }
     if (!ctx.gpu_glyph_atlas || !ctx.gpu_text_prepared_cache ||
         !ctx.asset_resolver || !ctx.backend ||
         !ctx.surface_registry || !shape.layout) {
@@ -65,7 +73,8 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             "MTSDF text route does not support this animator stack"));
     }
 
-    auto prepared = ctx.gpu_text_prepared_cache->find(*shape.layout);
+    const auto quality_key = static_cast<std::uint8_t>(shape.paint.quality);
+    auto prepared = ctx.gpu_text_prepared_cache->find(*shape.layout, quality_key);
     if (!prepared) {
         if (profiling::g_current_counters) {
             profiling::g_current_counters->text_cache_misses.fetch_add(1, std::memory_order_relaxed);
@@ -84,7 +93,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
                 "MTSDF text route has no resident glyphs"));
         }
-        ctx.gpu_text_prepared_cache->store(*shape.layout, created);
+        ctx.gpu_text_prepared_cache->store(*shape.layout, quality_key, created);
         prepared = created;
     } else {
         if (profiling::g_current_counters) {
@@ -124,12 +133,14 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
                 "MTSDF text route could not rebuild retired GPU atlas pages"));
         }
-        ctx.gpu_text_prepared_cache->store(*shape.layout, rebuilt);
+        ctx.gpu_text_prepared_cache->store(*shape.layout, quality_key, rebuilt);
         prepared = std::move(rebuilt);
     }
 
     const auto& layout = *shape.layout;
-    constexpr std::uint16_t kRangePx = text::kCanonicalMtsdfProfile.distance_range_px;
+    const std::uint16_t kRangePx = (shape.paint.quality == TextQuality::High
+        ? text::kHighQualityMtsdfProfile : text::kCanonicalMtsdfProfile)
+        .distance_range_px;
 
     runtime::TextRunDynamic run{};
     run.tx = model_matrix[3][0];
@@ -198,17 +209,59 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         run.stroke_width = shape.paint.stroke_width;
         run.stroke_color = ::chronon3d::text::pack_text_color(shape.paint.stroke_color);
     }
+    // Layer shadows are ordered: the first authored shadow sits under the
+    // second and the fill sits above all of them.  A single shadow keeps the
+    // one-pass fast path; multiple shadows are emitted as ordered shadow-only
+    // passes followed by one fill pass.  The GPU limit is declared and
+    // fail-closed instead of silently dropping an authored layer.
+    std::vector<const TextShadow*> gpu_shadows;
+    gpu_shadows.reserve(shape.shadows.size());
     for (const auto& shadow : shape.shadows) {
-        if (!shadow.enabled) continue;
+        if (shadow.enabled) gpu_shadows.push_back(&shadow);
+    }
+    if (gpu_shadows.size() > runtime::kTextRunMaxGpuShadowLayers) {
+        spdlog::warn(
+            "[text-route] frame={} route=mtsdf reason=too-many-shadow-layers "
+            "count={} limit={}",
+            ctx.frame_input.frame.integral(), gpu_shadows.size(),
+            runtime::kTextRunMaxGpuShadowLayers);
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "MTSDF text route supports at most 4 ordered shadow layers"));
+    }
+    const auto apply_shadow = [](runtime::TextRunDynamic& target,
+                                 const TextShadow& shadow) {
         Color shadow_color = shadow.color;
         shadow_color.a = std::clamp(shadow_color.a * shadow.opacity, 0.0f, 1.0f);
-        run.shadow_color = ::chronon3d::text::pack_text_color(shadow_color);
-        run.shadow_dx = shadow.offset.x;
-        run.shadow_dy = shadow.offset.y;
-        run.shadow_blur = shadow.blur;
-        run.effect_flags |= (std::abs(shadow.offset.x) < 1e-4f &&
-                             std::abs(shadow.offset.y) < 1e-4f) ? 4u : 2u;
-        break;
+        target.shadow_color = ::chronon3d::text::pack_text_color(shadow_color);
+        target.shadow_dx = shadow.offset.x;
+        target.shadow_dy = shadow.offset.y;
+        target.shadow_blur = shadow.blur;
+        target.effect_flags |= (std::abs(shadow.offset.x) < 1e-4f &&
+                                std::abs(shadow.offset.y) < 1e-4f) ? 4u : 2u;
+    };
+    if (gpu_shadows.size() == 1) apply_shadow(run, *gpu_shadows.front());
+    const auto shadow_only_run = [&](const TextShadow& shadow) {
+        runtime::TextRunDynamic shadow_run = run;
+        shadow_run.effect_flags &= ~(2u | 4u);
+        apply_shadow(shadow_run, shadow);
+        shadow_run.effect_flags |= runtime::kTextRunEffectShadowOnly;
+        shadow_run.caret_flags = 0;
+        return shadow_run;
+    };
+    if (shape.caret.enabled) {
+        const TextCaretRect caret = resolve_text_caret_rect(shape);
+        if (caret.visible && caret.width > 0.0f && caret.height > 0.0f) {
+            Color caret_color = shape.caret.color;
+            caret_color.a = std::clamp(
+                caret_color.a * shape.caret.opacity, 0.0f, 1.0f);
+            run.caret_color = ::chronon3d::text::pack_text_color(caret_color);
+            run.caret_x = caret.x;
+            run.caret_y = caret.y;
+            run.caret_width = caret.width;
+            run.caret_height = caret.height;
+            run.caret_flags = 1u;
+        }
     }
 
     if (!ensure_empty_native_surface(ctx, destination)) {
@@ -218,8 +271,11 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     }
     std::size_t items_drawn = 0;
     const auto draw_t0 = profiling::g_current_counters ? profiling::now() : profiling::Clock::time_point{};
-    for (const auto& batch : prepared->batches) {
-        if (batch.glyphs.empty()) continue;
+    const auto dispatch_batch = [&](
+        const runtime::GpuPreparedTextRun::Batch& batch,
+        const runtime::TextRunDynamic& pass_run) -> graph::RenderOpResult {
+        if (batch.glyphs.empty())
+            return graph::RenderOpResult(graph::RenderOpOutcome{0});
         const bool has_resolved_glyph_motion = rotated_xy || !shape.animators.empty() ||
             std::any_of(shape.glyphs.begin(), shape.glyphs.end(),
                 [](const GlyphInstanceState& glyph) {
@@ -230,6 +286,8 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                            glyph.rotation.x != 0.0f || glyph.rotation.y != 0.0f ||
                            glyph.rotation.z != 0.0f || glyph.skew != 0.0f ||
                            glyph.stroke.a != 0.0f || glyph.background.a != 0.0f ||
+                           glyph.shadow.enabled || glyph.glow.enabled ||
+                           glyph.fill_gradient.enabled ||
                            glyph.scale.x != 1.0f ||
                            glyph.scale.y != 1.0f || glyph.scale.z != 1.0f ||
                            glyph.blur != 0.0f ||
@@ -240,8 +298,9 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
           if (!has_resolved_glyph_motion) {
             return ctx.backend_texture_api()->draw_text_batch(
                 destination.surface_handle(), batch.glyphs,
-                std::span<const runtime::TextRunDynamic>(&run, 1),
-                std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1));
+                std::span<const runtime::TextRunDynamic>(&pass_run, 1),
+                std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1),
+                std::span<const runtime::GlyphPaint>{});
           }
             // Reuse the immutable atlas batch, but bind each glyph to its own
             // resolved dynamic record. This is the GPU compatibility path for
@@ -251,7 +310,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             // coverage, effects and compositing remain GPU rendered.
             std::vector<runtime::GlyphStatic> glyphs(batch.glyphs.begin(), batch.glyphs.end());
             std::vector<runtime::TextRunDynamic> glyph_runs(
-                shape.glyphs.size(), run);
+                shape.glyphs.size(), pass_run);
             const bool has_fill_animator = std::any_of(
                 shape.animators.begin(), shape.animators.end(),
                 [](const TextAnimatorSpec& animator) {
@@ -261,7 +320,9 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                             return std::holds_alternative<FillColorProperty>(property);
                         });
                 });
-            for (auto& glyph : glyphs) {
+            std::vector<runtime::GlyphPaint> glyph_paints(glyphs.size());
+            for (std::size_t glyph_index = 0; glyph_index < glyphs.size(); ++glyph_index) {
+                auto& glyph = glyphs[glyph_index];
                 const std::size_t state_index = glyph.pad0;
                 if (state_index >= shape.glyphs.size()) {
                     return graph::RenderOpResult(graph::make_render_backend_error(
@@ -269,6 +330,53 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                         "MTSDF batch glyph index exceeds resolved glyph state"));
                 }
                 const auto& state = shape.glyphs[state_index];
+                auto& paint = glyph_paints[glyph_index];
+                if (state.background.a > 0.0f) {
+                    paint.flags |= 1u;
+                    paint.background_color =
+                        ::chronon3d::text::pack_text_color(state.background);
+                    const float em = shape.layout->font_size;
+                    paint.background_padding_px = std::max(
+                        0.0f, state.background_padding_em * em);
+                    paint.background_radius_px = std::max(
+                        0.0f, state.background_radius_em * em);
+                }
+                if (std::abs(state.skew) > 1e-6f) {
+                    paint.flags |= 2u;
+                    constexpr double kPi = 3.14159265358979323846;
+                    const double skew_rad = static_cast<double>(state.skew) *
+                        (kPi / 180.0);
+                    const double axis_rad = static_cast<double>(state.skew_axis) *
+                        (kPi / 180.0);
+                    paint.skew_tan = static_cast<float>(std::tan(skew_rad));
+                    paint.skew_axis_cos = static_cast<float>(std::cos(axis_rad));
+                    paint.skew_axis_sin = static_cast<float>(std::sin(axis_rad));
+                }
+                if (state.fill_gradient.enabled) {
+                    paint.flags |= 16u;
+                    paint.gradient_start_color = ::chronon3d::text::pack_text_color(
+                        state.fill_gradient.start);
+                    paint.gradient_end_color = ::chronon3d::text::pack_text_color(
+                        state.fill_gradient.end);
+                    paint.gradient_angle_degrees =
+                        state.fill_gradient.angle_degrees;
+                }
+                if (state.shadow.enabled) {
+                    paint.flags |= 4u;
+                    paint.shadow_color =
+                        ::chronon3d::text::pack_text_color(state.shadow.color);
+                    paint.shadow_dx = state.shadow.offset.x;
+                    paint.shadow_dy = state.shadow.offset.y;
+                    paint.shadow_blur = state.shadow.blur;
+                    paint.shadow_opacity = state.shadow.opacity;
+                }
+                if (state.glow.enabled) {
+                    paint.flags |= 8u;
+                    paint.glow_color =
+                        ::chronon3d::text::pack_text_color(state.glow.color);
+                    paint.glow_radius = state.glow.radius;
+                    paint.glow_intensity = state.glow.intensity;
+                }
                 glyph.run_index = static_cast<std::uint32_t>(state_index);
                 glyph.pad0 = 0; // the record selector addresses one local glyph
 
@@ -289,10 +397,16 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 dynamic.selector_end = 100.0f;
                 dynamic.selector_amount = 100.0f;
                 dynamic.selector_unit_count = 1u;
-                dynamic.animator_position_x = state.position.x +
-                    state.anchor.x * (1.0f - scale_x);
-                dynamic.animator_position_y = state.position.y + state.baseline_shift +
-                    state.anchor.y * (1.0f - scale_y);
+                // Pivot compensation for scale, rotation and shear: bake
+                // run.s * (I - scale * rotation * shear) * anchor so the
+                // shader transform leaves layout_position+anchor fixed.
+                const auto pivot_offset = gpu_anchor_pivot_offset(
+                    state, scale_x, scale_y,
+                    state.rotation.z + layer_rotation_z, run.sx, run.sy);
+                dynamic.animator_position_x =
+                    state.position.x + pivot_offset.x;
+                dynamic.animator_position_y = state.position.y +
+                    state.baseline_shift + pivot_offset.y;
                 if (rotated_xy) {
                     const glm::vec4 mapped_origin = model_matrix * glm::vec4(
                         glyph.origin_x, glyph.origin_y, 0.0f, 1.0f);
@@ -310,6 +424,11 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 dynamic.animator_scale_x = scale_x;
                 dynamic.animator_scale_y = scale_y;
                 dynamic.animator_rotation_z = state.rotation.z + layer_rotation_z;
+                dynamic.animator_rotation_x = state.rotation.x;
+                dynamic.animator_rotation_y = state.rotation.y;
+                if (gpu_uses_exact_3d_rotation(state)) {
+                    dynamic.effect_flags |= kTextRunEffectExact3DRotation;
+                }
                 constexpr double kPi = 3.14159265358979323846;
                 const double ry_rad = static_cast<double>(state.rotation.y) * (kPi / 180.0);
                 const double rx_rad = static_cast<double>(state.rotation.x) * (kPi / 180.0);
@@ -319,6 +438,16 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 dynamic.animator_shear_y = static_cast<float>(std::tan(rx_clamped));
                 dynamic.animator_opacity = state.opacity;
                 dynamic.animator_blur = std::max(0.0f, state.blur);
+                // Per-glyph stroke is expressed by the same dynamic record
+                // the MTSDF shader already consumes for run-level outlines.
+                // Keep the run-level paint as the fallback for glyphs whose
+                // selector did not enable a per-glyph stroke.
+                if (state.stroke.a > 0.0f && state.stroke_width > 0.0f) {
+                    dynamic.effect_flags |= 1u;
+                    dynamic.stroke_color =
+                        ::chronon3d::text::pack_text_color(state.stroke);
+                    dynamic.stroke_width = state.stroke_width;
+                }
                 if (has_fill_animator) {
                     dynamic.flags |= runtime::kTextRunFlagAnimatorFill;
                     dynamic.animator_fill_color =
@@ -327,16 +456,45 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             }
             return ctx.backend_texture_api()->draw_text_batch(
                 destination.surface_handle(), glyphs, glyph_runs,
-                std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1));
+                std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1),
+                std::span<const runtime::GlyphPaint>(glyph_paints));
         }();
-        if (!dispatch.ok()) return dispatch;
-        items_drawn += dispatch.value().items_drawn;
+        return dispatch;
+    };
+
+    // Ordered compositing: every authored shadow first, then a single fill
+    // pass.  A shadow-only pass is forbidden from drawing the caret or fill.
+    runtime::TextRunDynamic fill_run = run;
+    if (gpu_shadows.size() > 1) {
+        fill_run.effect_flags &= ~(2u | 4u);
+        for (const TextShadow* shadow : gpu_shadows) {
+            const runtime::TextRunDynamic shadow_run = shadow_only_run(*shadow);
+            for (const auto& batch : prepared->batches) {
+                if (batch.glyphs.empty()) continue;
+                auto pass = dispatch_batch(batch, shadow_run);
+                if (!pass.ok()) return pass;
+                items_drawn += pass.value().items_drawn;
+            }
+        }
+    }
+    for (const auto& batch : prepared->batches) {
+        if (batch.glyphs.empty()) continue;
+        auto pass = dispatch_batch(batch, fill_run);
+        if (!pass.ok()) return pass;
+        items_drawn += pass.value().items_drawn;
+        // The caret is a single run-level layer: only the first prepared page
+        // may draw it, otherwise a multi-page run would paint it repeatedly.
+        fill_run.caret_flags = 0;
     }
     if (profiling::g_current_counters) {
         profiling::g_current_counters->text_draw_wall_us.fetch_add(
             static_cast<uint64_t>(std::llround(profiling::elapsed_us(draw_t0))),
             std::memory_order_relaxed);
     }
+    // Positive route evidence for the pixel gate: a successful draw must
+    // identify the native path, not merely omit a fallback warning.
+    spdlog::info("[text-route] frame={} route=mtsdf",
+                 ctx.frame_input.frame.integral());
     return graph::RenderOpResult(graph::RenderOpOutcome{items_drawn});
 }
 

@@ -4,6 +4,10 @@
 // the resolved RenderPlan camera on the host; triangle coverage, perspective
 // UV interpolation, texture sampling, alpha cutoff, depth choice and blending
 // are performed by this Vulkan compute kernel.
+//
+// Per-vertex records are eleven floats: screen x/y, inverse camera depth,
+// UV x/y, the host-evaluated light RGB (the no-material path), then the
+// world-space normal xyz used by the per-pixel material path.
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
 layout(binding = 1, rgba32f) uniform readonly image2D texture_image;
@@ -12,6 +16,10 @@ layout(binding = 1, rgba32f) uniform readonly image2D texture_image;
 // publishing depth, so the descriptor is always valid.
 layout(binding = 2, rgba32f) uniform image2D depth_image;
 layout(binding = 3, std430) readonly buffer MeshData { float data[]; } mesh;
+// glTF metallic-roughness: G = roughness, B = metallic. Bound to the base
+// color image when the material has no metallic-roughness map, so the
+// descriptor is always valid; the flag gate decides whether it is read.
+layout(binding = 4, rgba32f) uniform readonly image2D metallic_roughness_image;
 
 layout(push_constant) uniform InlineMeshParams {
     int vertex_count;
@@ -28,29 +36,58 @@ layout(push_constant) uniform InlineMeshParams {
     int has_alpha_cutoff;
     float depth_marker;   // written to g where the mesh covers the pixel (1 = present)
     int write_depth;      // 1 = publish per-pixel depth for native occlusion
+    // Per-pixel material path (bit 0 of shading_flags). The remaining bits
+    // mirror the software lit-mesh contract exactly:
+    //   1 = per-pixel PBR, 2 = double sided, 4 = directional,
+    //   8 = ambient, 16 = emissive.
+    float material_metallic;
+    float material_roughness;
+    float material_diffuse;
+    int shading_flags;
+    float light_dir_x;
+    float light_dir_y;
+    float light_dir_z;
+    float light_color_r;
+    float light_color_g;
+    float light_color_b;
+    float ambient_color_r;
+    float ambient_color_g;
+    float ambient_color_b;
+    float light_diffuse;
+    float ambient;
+    float emissive_r;
+    float emissive_g;
+    float emissive_b;
 } params;
 
+const int kVertexStride = 11;
+
 vec2 vertex_screen(uint index) {
-    uint base = index * 8u;
+    uint base = index * uint(kVertexStride);
     return vec2(mesh.data[base], mesh.data[base + 1u]);
 }
 
 float vertex_inverse_depth(uint index) {
-    return mesh.data[index * 8u + 2u];
+    return mesh.data[index * uint(kVertexStride) + 2u];
 }
 
 vec2 vertex_uv(uint index) {
-    uint base = index * 8u;
+    uint base = index * uint(kVertexStride);
     return vec2(mesh.data[base + 3u], mesh.data[base + 4u]);
 }
 
 vec3 vertex_light(uint index) {
-    uint base = index * 8u;
+    uint base = index * uint(kVertexStride);
     return vec3(mesh.data[base + 5u], mesh.data[base + 6u], mesh.data[base + 7u]);
 }
 
+vec3 vertex_normal(uint index) {
+    uint base = index * uint(kVertexStride);
+    return vec3(mesh.data[base + 8u], mesh.data[base + 9u], mesh.data[base + 10u]);
+}
+
 uint mesh_index(uint index) {
-    uint offset = uint(params.vertex_count) * 8u + index;
+    uint offset = uint(params.vertex_count) * uint(kVertexStride) + index;
     return floatBitsToUint(mesh.data[offset]);
 }
 
@@ -65,8 +102,73 @@ vec4 sample_texture(vec2 uv) {
     ivec2 p0 = ivec2(floor(p));
     ivec2 p1 = min(p0 + ivec2(1), size - ivec2(1));
     vec2 f = fract(p);
-    return mix(mix(imageLoad(texture_image, p0), imageLoad(texture_image, ivec2(p1.x, p0.y)), f.x),
-               mix(imageLoad(texture_image, ivec2(p0.x, p1.y)), imageLoad(texture_image, p1), f.x), f.y);
+    return mix(mix(imageLoad(texture_image, p0),
+                   imageLoad(texture_image, ivec2(p1.x, p0.y)), f.x),
+               mix(imageLoad(texture_image, ivec2(p0.x, p1.y)),
+                   imageLoad(texture_image, p1), f.x), f.y);
+}
+
+// Same texel addressing as the base-color sampler: G roughness, B metallic.
+vec2 sample_metallic_roughness(vec2 uv) {
+    ivec2 size = imageSize(metallic_roughness_image);
+    vec2 p = clamp(vec2(uv.x, 1.0 - uv.y), vec2(0.0), vec2(1.0)) *
+             vec2(max(size - ivec2(1), ivec2(0)));
+    ivec2 p0 = ivec2(floor(p));
+    ivec2 p1 = min(p0 + ivec2(1), size - ivec2(1));
+    vec2 f = fract(p);
+    return vec2(
+        mix(mix(imageLoad(metallic_roughness_image, p0).g,
+                imageLoad(metallic_roughness_image, ivec2(p1.x, p0.y)).g, f.x),
+            mix(imageLoad(metallic_roughness_image, ivec2(p0.x, p1.y)).g,
+                imageLoad(metallic_roughness_image, p1).g, f.x), f.y),
+        mix(mix(imageLoad(metallic_roughness_image, p0).b,
+                imageLoad(metallic_roughness_image, ivec2(p1.x, p0.y)).b, f.x),
+            mix(imageLoad(metallic_roughness_image, ivec2(p0.x, p1.y)).b,
+                imageLoad(metallic_roughness_image, p1).b, f.x), f.y));
+}
+
+// Per-pixel port of rendering::evaluate_lighting for the material path:
+// roughness -> Blinn-Phong shininess, metallic -> specular/diffuse energy
+// split, directional plus ambient contribution, and the legacy specular-derived
+// rim term. Terms match the software renderer so the two lanes agree.
+vec3 evaluate_material_shading(vec2 uv, vec3 interpolated_normal) {
+    vec3 n = normalize(interpolated_normal);
+    if ((params.shading_flags & 2) != 0 && n.z < 0.0) n = -n;
+    vec3 l = normalize(vec3(params.light_dir_x, params.light_dir_y, params.light_dir_z));
+    vec3 v = vec3(0.0, 0.0, 1.0);
+    vec3 h = normalize(l + v);
+
+    const float ndotl = max(dot(n, l), 0.0);
+    const float ndoth = max(dot(n, h), 0.0);
+    const float ndotv = clamp(dot(n, v), 0.0, 1.0);
+
+    const vec2 mr = sample_metallic_roughness(uv);
+    const float roughness = clamp(params.material_roughness * mr.x, 0.04, 1.0);
+    const float shininess = clamp(2.0 / (roughness * roughness) - 2.0, 1.0, 1024.0);
+    const float metallic = clamp(params.material_metallic * mr.y, 0.0, 1.0);
+    const float specular = 0.04 * (1.0 - metallic) + metallic;
+    const float diffuse_energy = params.material_diffuse * (1.0 - metallic);
+
+    const bool directional = (params.shading_flags & 4) != 0;
+    const bool ambient_enabled = (params.shading_flags & 8) != 0;
+
+    const float ambient_term = ambient_enabled ? max(0.0, params.ambient) : 0.0;
+    const float diffuse_term = directional
+        ? max(0.0, params.light_diffuse * diffuse_energy * ndotl) : 0.0;
+    const float specular_term = directional
+        ? max(0.0, params.light_diffuse * specular * pow(ndoth, max(1.0, shininess))) : 0.0;
+    const float rim_term = directional
+        ? pow(1.0 - ndotv, 2.2) * specular * 0.18 : 0.0;
+
+    const vec3 ambient_color = vec3(params.ambient_color_r, params.ambient_color_g,
+                                    params.ambient_color_b);
+    const vec3 light_color = vec3(params.light_color_r, params.light_color_g,
+                                  params.light_color_b);
+    return clamp(ambient_term * ambient_color +
+                 diffuse_term * light_color +
+                 specular_term * vec3(0.98) +
+                 rim_term * light_color * 0.6,
+                 vec3(0.0), vec3(1.0));
 }
 
 void main() {
@@ -106,13 +208,25 @@ void main() {
         vec3 light = (w0 * vertex_inverse_depth(ia) * vertex_light(ia) +
                       w1 * vertex_inverse_depth(ib) * vertex_light(ib) +
                       w2 * vertex_inverse_depth(ic) * vertex_light(ic)) / inverse_depth;
+        vec3 normal = (w0 * vertex_inverse_depth(ia) * vertex_normal(ia) +
+                       w1 * vertex_inverse_depth(ib) * vertex_normal(ib) +
+                       w2 * vertex_inverse_depth(ic) * vertex_normal(ic)) / inverse_depth;
         vec4 texel = sample_texture(uv);
         float alpha = texel.a * params.tint_a;
         if (params.has_alpha_cutoff != 0 && alpha < params.alpha_cutoff) continue;
         if (alpha <= 1e-6) continue;
+        vec3 shading = light;
+        if ((params.shading_flags & 1) != 0)
+            shading = evaluate_material_shading(uv, normal);
         nearest_depth = depth;
-        nearest_color = vec4(texel.rgb * light * vec3(params.tint_r, params.tint_g, params.tint_b) *
-                             params.tint_a, alpha);
+        vec3 color = texel.rgb * shading *
+                     vec3(params.tint_r, params.tint_g, params.tint_b) * params.tint_a;
+        if ((params.shading_flags & 16) != 0) {
+            color = clamp(color + vec3(params.emissive_r, params.emissive_g,
+                                       params.emissive_b) * alpha,
+                          vec3(0.0), vec3(1.0));
+        }
+        nearest_color = vec4(color, alpha);
         covered = true;
     }
 

@@ -16,6 +16,44 @@ namespace chronon3d {
 
 enum class EmitterShape : std::uint8_t { Box, Ellipse, Edge, Path };
 
+/// Deterministic divergence-free ambient flow (dust, embers, motes).
+///
+/// The displacement is the curl of a scalar potential built from three sine
+/// waves, so the field preserves density and can never run away: every particle
+/// stays within `strength * 1.13` of its ballistic path. The result is a pure
+/// function of spawn position, age, and phase, which keeps random-access and
+/// distributed renders identical to sequential ones.
+struct ParticleFlowParams {
+    f32 strength{0.0f}; ///< peak displacement in canvas units; 0 disables the field
+    f32 scale{0.012f};  ///< spatial frequency (1/units): larger = finer swirls
+    f32 speed{0.35f};   ///< temporal frequency (rad/s)
+};
+
+/// Per-particle alpha shimmer over the particle lifetime. `amount == 0` keeps
+/// the color ramp untouched; `amount == 1` can fade a mote fully out at the
+/// trough. Speed is in cycles per second.
+struct ParticleTwinkleParams {
+    f32 amount{0.0f}; ///< [0, 1]
+    f32 speed{0.75f};
+};
+
+/// Sample the divergence-free ambient flow displacement for one particle.
+/// `phase` decorrelates neighbouring particles; pass a deterministic value.
+[[nodiscard]] inline Vec2 particle_flow_displacement(
+    Vec2 origin, f32 age_seconds, f32 phase,
+    const ParticleFlowParams& flow) noexcept {
+    if (flow.strength == 0.0f) return Vec2{0.0f, 0.0f};
+    const f32 k = flow.scale;
+    const f32 t = age_seconds * flow.speed + phase;
+    const f32 ax = k * origin.x + t;
+    const f32 ay = k * 0.83f * origin.y - t * 0.7f + phase * 1.7f;
+    const f32 az = k * 0.6f * (origin.x + origin.y) + t * 1.3f + phase * 0.61f;
+    // curl(sin ax + sin ay + 0.5 sin az) = (d/dy, -d/dx)
+    return Vec2{
+        flow.strength * (0.83f * std::cos(ay) + 0.3f * std::cos(az)),
+        -flow.strength * (std::cos(ax) + 0.3f * std::cos(az))};
+}
+
 /// Stateless CPU particle-emitter description. Samples are a pure function
 /// of this value, particle index, and absolute time; rendering frame order
 /// never affects particle state.
@@ -32,6 +70,8 @@ struct ParticleEmitterParams {
     f32 size_max{1.0f};
     f32 gravity{0.0f};
     f32 turbulence{0.0f};
+    ParticleFlowParams flow{};
+    ParticleTwinkleParams twinkle{};
     EmitterShape shape{EmitterShape::Box};
     std::string path_id;
     std::vector<Vec2> path_points;
@@ -99,7 +139,10 @@ namespace detail {
         !std::isfinite(params.sprite_scale_min) || !std::isfinite(params.sprite_scale_max) ||
         !std::isfinite(params.rotation_min) || !std::isfinite(params.rotation_max) ||
         !std::isfinite(params.angular_velocity_min) || !std::isfinite(params.angular_velocity_max) ||
-        !std::isfinite(params.depth_min) || !std::isfinite(params.depth_max))
+        !std::isfinite(params.depth_min) || !std::isfinite(params.depth_max) ||
+        !std::isfinite(params.flow.strength) || !std::isfinite(params.flow.scale) ||
+        !std::isfinite(params.flow.speed) || !std::isfinite(params.twinkle.amount) ||
+        !std::isfinite(params.twinkle.speed))
         return "particle parameters must be finite";
     if (params.emitter_size.x < 0.0f || params.emitter_size.y < 0.0f ||
         params.lifetime_min <= 0.0f || params.lifetime_max < params.lifetime_min ||
@@ -109,6 +152,9 @@ namespace detail {
         params.angular_velocity_max < params.angular_velocity_min ||
         params.velocity_max.x < params.velocity_min.x ||
         params.velocity_max.y < params.velocity_min.y || params.turbulence < 0.0f ||
+        params.flow.strength < 0.0f || params.flow.scale <= 0.0f || params.flow.speed < 0.0f ||
+        params.twinkle.amount < 0.0f || params.twinkle.amount > 1.0f ||
+        params.twinkle.speed < 0.0f ||
         params.depth_min < 0.0f || params.depth_max > 1.0f || params.depth_max < params.depth_min)
         return "particle ranges must be ordered and non-negative where required";
     if (params.environment && params.count > 4096U)
@@ -194,20 +240,33 @@ namespace detail {
         const Vec2 turbulence{
             params.turbulence * std::sin(turbulence_time + turbulence_phase_x),
             params.turbulence * std::sin(turbulence_time * 0.73f + turbulence_phase_y)};
-        const Vec2 position = spawn + velocity * age +
-            Vec2{0.0f, 0.5f * params.gravity * age * age} + turbulence;
-        const f32 size = random::range(seed,
-            detail::particle_random_index(index, cycle, 8U),
-            params.size_min, params.size_max);
         const f32 depth = random::range(seed,
             detail::particle_random_index(index, cycle, 12U),
             params.depth_min, params.depth_max);
+        Vec2 position = spawn + velocity * age +
+            Vec2{0.0f, 0.5f * params.gravity * age * age} + turbulence;
+        if (params.flow.strength > 0.0f) {
+            // Far motes drift less: the field reads as parallax, not a sheet.
+            const f32 flow_phase = random_at(13U) * 6.2831853071795864769f;
+            const f32 parallax = params.environment ? 1.0f - 0.25f * depth : 1.0f;
+            position = position +
+                particle_flow_displacement(spawn, age, flow_phase, params.flow) * parallax;
+        }
+        const f32 size = random::range(seed,
+            detail::particle_random_index(index, cycle, 8U),
+            params.size_min, params.size_max);
         const f32 rotation = random::range(seed, detail::particle_random_index(index, cycle, 9U), params.rotation_min, params.rotation_max);
         const f32 angular_velocity = random::range(seed, detail::particle_random_index(index, cycle, 10U), params.angular_velocity_min, params.angular_velocity_max);
         const f32 sprite_scale = random::range(seed, detail::particle_random_index(index, cycle, 11U), params.sprite_scale_min, params.sprite_scale_max);
         Color color = params.color_ramp.color_stops.empty()
             ? Color{1.0f, 1.0f, 1.0f, 1.0f}
             : graphics::sample_gradient(params.color_ramp, life_fraction);
+        if (params.twinkle.amount > 0.0f) {
+            const f32 twinkle_phase = random_at(14U) * 6.2831853071795864769f;
+            const f32 shimmer = 0.5f + 0.5f * std::sin(
+                6.2831853071795864769f * params.twinkle.speed * age + twinkle_phase);
+            color.a *= 1.0f - params.twinkle.amount * shimmer;
+        }
         const f32 depth_scale = params.bokeh ? (1.35f - depth * 0.7f) : 1.0f;
         if (params.bokeh) color.a *= 1.0f - depth * 0.35f;
         if (!detail::finite_vec2(position) || !detail::finite_vec2(velocity) ||

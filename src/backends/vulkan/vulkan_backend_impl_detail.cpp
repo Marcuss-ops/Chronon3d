@@ -23,6 +23,7 @@ std::size_t VulkanBackend::Impl::pixel_format_bytes(
     runtime::PixelFormat fmt) noexcept {
     switch (fmt) {
         case runtime::PixelFormat::Rgba32Float: return 16;
+        case runtime::PixelFormat::Rgba16Float: return 8;
         case runtime::PixelFormat::Rgba8Unorm: return 4;
         case runtime::PixelFormat::R8Unorm: return 1;
         case runtime::PixelFormat::Nv12: return 1;
@@ -90,6 +91,8 @@ VkFormat VulkanBackend::Impl::to_vk_format(runtime::PixelFormat fmt) noexcept {
     switch (fmt) {
         case runtime::PixelFormat::Rgba32Float:
             return VK_FORMAT_R32G32B32A32_SFLOAT;
+        case runtime::PixelFormat::Rgba16Float:
+            return VK_FORMAT_R16G16B16A16_SFLOAT;
         case runtime::PixelFormat::Rgba8Unorm:
             return VK_FORMAT_B8G8R8A8_UNORM;
         case runtime::PixelFormat::R8Unorm:

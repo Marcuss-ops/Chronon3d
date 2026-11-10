@@ -26,6 +26,7 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
+#include <chronon3d/scene/model/shape/particles.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
@@ -471,7 +472,7 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
     // pipeline per GpuKernelId, so the count grows with the enum (it was 25
     // when ColorMatrix and OcclusionTag were added).
     const auto expected_kernels =
-        static_cast<std::size_t>(chronon3d::backends::vulkan::GpuKernelId::OcclusionTag) + 1;
+        static_cast<std::size_t>(chronon3d::backends::vulkan::GpuKernelId::ParticleEmitter) + 1;
     CHECK(vulkan->kernel_registry().size() == expected_kernels);
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::DofDepthStamp));
@@ -519,6 +520,8 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
         chronon3d::backends::vulkan::GpuKernelId::TextTileBin));
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::TextTileRaster));
+    CHECK(vulkan->kernel_registry().contains(
+        chronon3d::backends::vulkan::GpuKernelId::ParticleEmitter));
 }
 
 TEST_CASE("Vulkan alpha and luma matte match the CPU coverage formulas") {
@@ -676,6 +679,206 @@ TEST_CASE("Vulkan particle sprite instances apply affine sampling, tint, and opa
     CHECK(pixels[center + 3] == doctest::Approx(0.5f).epsilon(1e-5));
     (void)backend.release_surface(destination);
     (void)backend.release_surface(sprite);
+}
+
+TEST_CASE("Vulkan GPU particle emitter matches the CPU sampler oracle") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+    backends::vulkan::VulkanBackend backend;
+    constexpr RenderSurfaceHandle cpu_destination = 485;
+    constexpr RenderSurfaceHandle gpu_destination = 486;
+    constexpr RenderSurfaceHandle transparent_source = 487;
+    const auto canvas = SurfaceDesc::make(
+        64, 64, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    const auto source = SurfaceDesc::make(
+        1, 1, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    REQUIRE(backend.create_surface(cpu_destination, canvas).ok());
+    REQUIRE(backend.create_surface(gpu_destination, canvas).ok());
+    REQUIRE(backend.create_surface(transparent_source, source).ok());
+    REQUIRE(backend.initialize_transparent_surface(cpu_destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(gpu_destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(transparent_source).ok());
+
+    ParticleEmitterParams emitter;
+    emitter.count = 64;
+    emitter.seed = 90210;
+    emitter.emitter_size = {32.0f, 32.0f};
+    emitter.velocity_min = {0.0f, 0.0f};
+    emitter.velocity_max = {0.0f, 0.0f};
+    emitter.lifetime_min = 10.0f;
+    emitter.lifetime_max = 10.0f;
+    emitter.size_min = 2.0f;
+    emitter.size_max = 6.0f;
+    emitter.gravity = 0.0f;
+    emitter.turbulence = 0.0f;
+    emitter.shape = EmitterShape::Box;
+    emitter.blend_mode = BlendMode::Normal;
+    emitter.color_ramp = graphics::GradientDefinition::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f},
+        {{0.0f, Color{1.0f, 0.35f, 0.1f, 1.0f}},
+         {1.0f, Color{0.2f, 0.6f, 1.0f, 1.0f}}});
+
+    const auto sampled = sample_particles(emitter, 1.0);
+    REQUIRE(sampled.ok());
+    std::vector<LayerInstance> oracle;
+    oracle.reserve(sampled.particles.size());
+    for (const auto& particle : sampled.particles) {
+        const float alpha = std::clamp(particle.color.a, 0.0f, 1.0f);
+        LayerInstance instance;
+        instance.kind = PrimitiveKind::Particle;
+        instance.resource_index = 0;
+        instance.dst_x0 = particle.position.x - particle.size * 0.5f;
+        instance.dst_y0 = particle.position.y - particle.size * 0.5f;
+        instance.dst_x1 = particle.position.x + particle.size * 0.5f;
+        instance.dst_y1 = particle.position.y + particle.size * 0.5f;
+        instance.tint = Color{particle.color.r * alpha,
+                              particle.color.g * alpha,
+                              particle.color.b * alpha, alpha};
+        instance.corner_radius = emitter.bokeh ? 1.0f : 0.0f;
+        instance.blend = emitter.blend_mode;
+        oracle.push_back(instance);
+    }
+    const std::array<RenderSurfaceHandle, 1> resources{transparent_source};
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_layer_batch(
+        cpu_destination, oracle, resources, {}, {}).ok());
+    backend.end_frame_batch();
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_gpu_particle_batch(
+        gpu_destination, transparent_source, emitter, 1.0).ok());
+    backend.end_frame_batch();
+
+    std::vector<float> cpu_pixels(64U * 64U * 4U, 0.0f);
+    std::vector<float> gpu_pixels(64U * 64U * 4U, 0.0f);
+    REQUIRE(backend.download_surface(cpu_destination, cpu_pixels).ok());
+    REQUIRE(backend.download_surface(gpu_destination, gpu_pixels).ok());
+
+    float max_difference = 0.0f;
+    float cpu_energy = 0.0f;
+    float gpu_energy = 0.0f;
+    for (std::size_t i = 0; i < cpu_pixels.size(); ++i) {
+        max_difference = std::max(
+            max_difference, std::abs(cpu_pixels[i] - gpu_pixels[i]));
+        cpu_energy += cpu_pixels[i];
+        gpu_energy += gpu_pixels[i];
+    }
+    CHECK(cpu_energy > 0.0f);
+    CHECK(gpu_energy > 0.0f);
+    CHECK(max_difference < 2.0e-4f);
+    CHECK(backend.kernel_registry().contains(
+        backends::vulkan::GpuKernelId::ParticleEmitter));
+
+    (void)backend.release_surface(cpu_destination);
+    (void)backend.release_surface(gpu_destination);
+    (void)backend.release_surface(transparent_source);
+}
+
+TEST_CASE("Vulkan GPU particle flow and twinkle match the CPU sampler oracle") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+    backends::vulkan::VulkanBackend backend;
+    constexpr RenderSurfaceHandle cpu_destination = 488;
+    constexpr RenderSurfaceHandle gpu_destination = 489;
+    constexpr RenderSurfaceHandle transparent_source = 490;
+    const auto canvas = SurfaceDesc::make(
+        64, 64, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    const auto source = SurfaceDesc::make(
+        1, 1, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    REQUIRE(backend.create_surface(cpu_destination, canvas).ok());
+    REQUIRE(backend.create_surface(gpu_destination, canvas).ok());
+    REQUIRE(backend.create_surface(transparent_source, source).ok());
+    REQUIRE(backend.initialize_transparent_surface(cpu_destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(gpu_destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(transparent_source).ok());
+
+    ParticleEmitterParams emitter;
+    emitter.count = 96;
+    emitter.seed = 60221;
+    emitter.emitter_size = {32.0f, 32.0f};
+    emitter.velocity_min = {-1.5f, -1.5f};
+    emitter.velocity_max = {1.5f, 1.5f};
+    emitter.lifetime_min = 2.0f;
+    emitter.lifetime_max = 3.0f;
+    emitter.size_min = 2.0f;
+    emitter.size_max = 5.0f;
+    emitter.gravity = 0.5f;
+    emitter.turbulence = 0.0f;
+    emitter.flow = {7.0f, 0.045f, 0.65f};
+    emitter.twinkle = {0.85f, 1.10f};
+    emitter.environment = true;
+    emitter.depth_min = 0.2f;
+    emitter.depth_max = 1.0f;
+    emitter.shape = EmitterShape::Box;
+    emitter.blend_mode = BlendMode::Normal;
+    emitter.color_ramp = graphics::GradientDefinition::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f},
+        {{0.0f, Color{1.0f, 0.35f, 0.1f, 1.0f}},
+         {1.0f, Color{0.2f, 0.6f, 1.0f, 1.0f}}});
+
+    // Lifetime 2..3 s at t=7.5 s exercises both the flow/twinkle terms and
+    // the cycle-indexed hash path, where the GLSL u64 multiplication feeds
+    // every particle's per-cycle random stream.
+    constexpr double seconds = 7.5;
+    const auto sampled = sample_particles(emitter, seconds);
+    REQUIRE(sampled.ok());
+    std::vector<LayerInstance> oracle;
+    oracle.reserve(sampled.particles.size());
+    for (const auto& particle : sampled.particles) {
+        const float alpha = std::clamp(particle.color.a, 0.0f, 1.0f);
+        LayerInstance instance;
+        instance.kind = PrimitiveKind::Particle;
+        instance.resource_index = 0;
+        instance.dst_x0 = particle.position.x - particle.size * 0.5f;
+        instance.dst_y0 = particle.position.y - particle.size * 0.5f;
+        instance.dst_x1 = particle.position.x + particle.size * 0.5f;
+        instance.dst_y1 = particle.position.y + particle.size * 0.5f;
+        instance.tint = Color{particle.color.r * alpha,
+                              particle.color.g * alpha,
+                              particle.color.b * alpha, alpha};
+        instance.corner_radius = emitter.bokeh ? 1.0f : 0.0f;
+        instance.blend = emitter.blend_mode;
+        oracle.push_back(instance);
+    }
+    const std::array<RenderSurfaceHandle, 1> resources{transparent_source};
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_layer_batch(
+        cpu_destination, oracle, resources, {}, {}).ok());
+    backend.end_frame_batch();
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_gpu_particle_batch(
+        gpu_destination, transparent_source, emitter, seconds).ok());
+    backend.end_frame_batch();
+
+    std::vector<float> cpu_pixels(64U * 64U * 4U, 0.0f);
+    std::vector<float> gpu_pixels(64U * 64U * 4U, 0.0f);
+    REQUIRE(backend.download_surface(cpu_destination, cpu_pixels).ok());
+    REQUIRE(backend.download_surface(gpu_destination, gpu_pixels).ok());
+
+    float max_difference = 0.0f;
+    float cpu_energy = 0.0f;
+    float gpu_energy = 0.0f;
+    for (std::size_t i = 0; i < cpu_pixels.size(); ++i) {
+        max_difference = std::max(
+            max_difference, std::abs(cpu_pixels[i] - gpu_pixels[i]));
+        cpu_energy += cpu_pixels[i];
+        gpu_energy += gpu_pixels[i];
+    }
+    CHECK(cpu_energy > 0.0f);
+    CHECK(gpu_energy > 0.0f);
+    CHECK_MESSAGE(max_difference < 2.0e-4f,
+                  "flow/twinkle max_difference = " << max_difference);
+
+    (void)backend.release_surface(cpu_destination);
+    (void)backend.release_surface(gpu_destination);
+    (void)backend.release_surface(transparent_source);
 }
 
 TEST_CASE("Vulkan text-run kernel samples a packed glyph atlas into the canvas") {

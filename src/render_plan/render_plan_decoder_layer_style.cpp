@@ -30,6 +30,23 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
         style_plan.text_align = style.value("text_align", std::string{"center"});
         style_plan.font_size = optional_value<float>(style, "font_size");
         style_plan.fill = style.value("fill", std::string{});
+        style_plan.quality = style.value("quality", std::string{"fast"});
+        if (style_plan.quality != "fast" && style_plan.quality != "high")
+            throw std::runtime_error("text style quality must be fast or high");
+        style_plan.shadow_quality = style.value("shadow_quality", std::string{"fast"});
+        if (style_plan.shadow_quality != "fast" &&
+            style_plan.shadow_quality != "canonical")
+            throw std::runtime_error("text style shadow_quality must be fast or canonical");
+        style_plan.stroke_mode = style.value("stroke_mode", std::string{"auto"});
+        if (style_plan.stroke_mode != "auto" &&
+            style_plan.stroke_mode != "distance" &&
+            style_plan.stroke_mode != "vector")
+            throw std::runtime_error("text style stroke_mode must be auto, distance, or vector");
+        if (layer.type != LayerType::Text &&
+            (style.contains("quality") || style.contains("shadow_quality") ||
+             style.contains("stroke_mode")))
+            throw std::runtime_error(
+                "style.quality, shadow_quality, and stroke_mode are only valid for text layers");
         style_plan.gel_surface = style.value("gel_surface", false);
         style_plan.gel_soft_fusion = optional_value<bool>(style, "gel_soft_fusion");
         style_plan.extruded_text = style.value("extruded_text", false);

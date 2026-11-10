@@ -168,6 +168,91 @@ void apply_separable_box_blur(BLImage& image, int radius, TextRunStageState& s) 
     }
 }
 
+// ── apply_separable_gaussian_blur ─────────────────────────────────────────
+//
+// Canonical shadow blur for the run-level union mask.  Unlike the tiered box
+// blur above, this uses the exact separable Gaussian kernel for the authored
+// radius (sigma = radius / 3, the same convention as the software DoF lane).
+// The path is opt-in (TextShadowQuality::Canonical) and runs on the CPU only;
+// the native MTSDF route rejects the mode instead of silently using Fast.
+void apply_separable_gaussian_blur(BLImage& image, int radius, TextRunStageState& s) {
+    (void)s;
+    if (radius <= 0) return;
+    BLImageData data;
+    if (image.getData(&data) != BL_SUCCESS) return;
+    const int w = data.size.w;
+    const int h = data.size.h;
+    if (w <= 0 || h <= 0) return;
+    const int stride = static_cast<int>(data.stride / sizeof(std::uint32_t));
+    std::uint32_t* base = static_cast<std::uint32_t*>(data.pixelData);
+
+    const float sigma = std::max(0.5f, static_cast<float>(radius) / 3.0f);
+    const int kernel_radius = std::max(1, static_cast<int>(std::ceil(3.0f * sigma)));
+    std::vector<float> kernel(static_cast<std::size_t>(kernel_radius * 2 + 1));
+    const float denom = 2.0f * sigma * sigma;
+    float kernel_sum = 0.0f;
+    for (int k = -kernel_radius; k <= kernel_radius; ++k) {
+        const float weight = std::exp(-static_cast<float>(k * k) / denom);
+        kernel[static_cast<std::size_t>(k + kernel_radius)] = weight;
+        kernel_sum += weight;
+    }
+    if (kernel_sum > 0.0f) {
+        for (float& weight : kernel) weight /= kernel_sum;
+    }
+
+    const std::size_t pixels = static_cast<std::size_t>(w) * static_cast<std::size_t>(h);
+    std::vector<float> src(pixels * 4u);
+    std::vector<float> tmp(pixels * 4u);
+    for (int y = 0; y < h; ++y) {
+        const std::uint32_t* row = base + static_cast<std::size_t>(y) * stride;
+        for (int x = 0; x < w; ++x) {
+            const std::uint32_t c = row[x];
+            const std::size_t index = (static_cast<std::size_t>(y) * w + x) * 4u;
+            src[index + 0] = static_cast<float>((c >> 24) & 0xFFu);
+            src[index + 1] = static_cast<float>((c >> 16) & 0xFFu);
+            src[index + 2] = static_cast<float>((c >> 8) & 0xFFu);
+            src[index + 3] = static_cast<float>(c & 0xFFu);
+        }
+    }
+
+    // Horizontal pass, clamped at the image edge.
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const std::size_t out = (static_cast<std::size_t>(y) * w + x) * 4u;
+            float sum[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            for (int k = -kernel_radius; k <= kernel_radius; ++k) {
+                const int sample_x = std::clamp(x + k, 0, w - 1);
+                const std::size_t in =
+                    (static_cast<std::size_t>(y) * w + sample_x) * 4u;
+                const float weight = kernel[static_cast<std::size_t>(k + kernel_radius)];
+                for (int c = 0; c < 4; ++c) sum[c] += src[in + c] * weight;
+            }
+            for (int c = 0; c < 4; ++c) tmp[out + c] = sum[c];
+        }
+    }
+
+    // Vertical pass + write back as premultiplied RGBA8.
+    for (int y = 0; y < h; ++y) {
+        std::uint32_t* row = base + static_cast<std::size_t>(y) * stride;
+        for (int x = 0; x < w; ++x) {
+            float sum[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            for (int k = -kernel_radius; k <= kernel_radius; ++k) {
+                const int sample_y = std::clamp(y + k, 0, h - 1);
+                const std::size_t in =
+                    (static_cast<std::size_t>(sample_y) * w + x) * 4u;
+                const float weight = kernel[static_cast<std::size_t>(k + kernel_radius)];
+                for (int c = 0; c < 4; ++c) sum[c] += tmp[in + c] * weight;
+            }
+            const auto channel = [](float value) -> std::uint32_t {
+                return static_cast<std::uint32_t>(
+                    std::clamp(std::lround(value), 0L, 255L));
+            };
+            row[x] = (channel(sum[0]) << 24) | (channel(sum[1]) << 16) |
+                     (channel(sum[2]) << 8) | channel(sum[3]);
+        }
+    }
+}
+
 // ── downsample_supersampled ────────────────────────────────────────────────
 //
 // Box-filter downsample: each destination pixel = mean of ss×ss source pixels.

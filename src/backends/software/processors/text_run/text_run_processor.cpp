@@ -51,8 +51,16 @@ graph::RenderOpResult draw_text_run(
     CHRONON_TRACE_SCOPE("chronon.text", "text_run_draw");
 
     // Stage 1 — prepare (validation, scratch acquire, font resolve, bbox, ss)
-    if (auto r = stages::prepare_text_run(rctx, params, s); !r.ok()) {
-        return r;
+    auto prepared = stages::prepare_text_run(rctx, params, s);
+    if (!prepared.ok()) {
+        return prepared;
+    }
+    // A zero-item Outcome means there is nothing to rasterize (for example a
+    // typewriter frame with an empty layout).  `prepare_text_run` returns
+    // before acquiring scratch in that case, so falling through would
+    // dereference a null scratch handle in Stage 2.
+    if (prepared.value().items_drawn == 0) {
+        return prepared;
     }
 
     // Stage 2 — rasterize (tier pre-classify → BLImage; nullifies silent-empty)

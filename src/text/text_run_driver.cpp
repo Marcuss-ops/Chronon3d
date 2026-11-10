@@ -45,10 +45,99 @@
 #include <chronon3d/text/text_document.hpp>
 #include <chronon3d/text/animation/text_pre_shaping.hpp>
 #include <chronon3d/text/font_engine.hpp>  // P0-2 — font_layout_identity_of
+#include <chronon3d/text/text_layout_cache.hpp>
 
 #include <cmath>
+#include <string>
 
 namespace chronon3d {
+
+namespace {
+
+// Identity for the canonical pre-shaping map.  Reuse the complete semantic
+// layout key (text + font + paragraph + layout options), not just the source
+// string: a font/layout change must invalidate the codepoint→unit mapping.
+[[nodiscard]] std::string pre_shaping_layout_key(const TextRunShape& shape) {
+    TextLayoutCacheKey key;
+    key.text = shape.pre_shaping_source;
+    if (shape.layout) {
+        const auto& font = shape.layout->font;
+        key.font_path = font.font_path;
+        key.font_family = font.font_family;
+        key.font_weight = font.font_weight;
+        key.font_style = font.font_style;
+        key.font_size = shape.layout->font_size;
+        key.direction = shape.layout->direction;
+        key.language = shape.layout->language;
+        key.variation_axes = shape.layout->variation_axes;
+    }
+    const auto& spec = shape.layout_spec;
+    key.tracking = spec.tracking;
+    key.box_width = spec.box.x;
+    key.box_height = spec.box.y;
+    key.wrap = spec.wrap;
+    key.align = static_cast<int>(spec.align);
+    key.vertical_align = static_cast<int>(spec.vertical_align);
+    key.anchor = static_cast<int>(spec.anchor);
+    key.centering_mode = static_cast<int>(spec.centering_mode);
+    key.line_height = spec.line_height;
+    key.max_lines = spec.max_lines;
+    key.overflow = static_cast<int>(spec.overflow);
+    key.ellipsis = spec.ellipsis;
+    key.features = spec.features;
+    key.paragraph = spec.paragraph;
+    return std::to_string(key.digest());
+}
+
+// Build the canonical map once per authored source + layout identity.  When
+// the active layout already corresponds to the authored source we can reuse
+// its placed run and avoid a second shaping pass entirely.
+[[nodiscard]] std::shared_ptr<const PreShapingUnitMap> ensure_pre_shaping_unit_map(
+    TextRunShape& shape
+) {
+    if (!shape.has_pre_shaping_source || shape.layout == nullptr) {
+        return nullptr;
+    }
+    const std::string key = pre_shaping_layout_key(shape);
+    if (shape.pre_shaping_unit_map &&
+        shape.pre_shaping_unit_map_source == shape.pre_shaping_source &&
+        shape.pre_shaping_unit_map_key == key) {
+        return shape.pre_shaping_unit_map;
+    }
+
+    std::shared_ptr<const PreShapingUnitMap> map;
+    if (shape.layout->source_text == shape.pre_shaping_source) {
+        map = build_pre_shaping_unit_map(
+            shape.layout->placed, shape.pre_shaping_source, key);
+    } else if (shape.engine != nullptr) {
+        TextDocument td;
+        td.utf8 = shape.pre_shaping_source;
+        td.defaults.font = shape.layout->font;
+        td.split_paragraphs();
+        TextLayoutRequest request{
+            &td, &shape.layout_spec, td.defaults.font, 0};
+        request.features = shape.layout_spec.features;
+        TextCompileServices services{shape.engine, shape.cache, {}};
+        auto result = compile_text_document_layout(request, services);
+        if (result && result.value()) {
+            map = build_pre_shaping_unit_map(
+                result.value()->placed, shape.pre_shaping_source, key);
+        }
+    }
+
+    if (!map) {
+        shape.pre_shaping_unit_map.reset();
+        shape.pre_shaping_unit_map_source.clear();
+        shape.pre_shaping_unit_map_key.clear();
+        return nullptr;
+    }
+    shape.pre_shaping_unit_map = map;
+    shape.pre_shaping_unit_map_source = shape.pre_shaping_source;
+    shape.pre_shaping_unit_map_key = key;
+    return map;
+}
+
+} // namespace
 
 // ═══════════════════════════════════════════════════════════
 // update_text_run_shape_per_frame — cheap-path orchestrator
@@ -137,8 +226,13 @@ void update_text_run_shape_per_frame(
 
     // ── Pre-shaping phase: rebuild layout when offset_source differs. ─
     if (has_pre_shaping_properties(shape.animators)) {
+        const bool selector_scoped = has_selector_scoped_pre_shaping(shape.animators);
+        const auto unit_map = selector_scoped
+            ? ensure_pre_shaping_unit_map(shape)
+            : nullptr;
         std::string offset_source = evaluate_pre_shaping_source(
-            shape.animators, shape.pre_shaping_source, time);
+            shape.animators, shape.pre_shaping_source, time,
+            selector_scoped ? unit_map.get() : nullptr);
 
         if (offset_source != shape.layout->source_text) {
             TextDocument td;
@@ -207,8 +301,10 @@ bool apply_active_state_to_text_run_shape(
     if (state.active == nullptr) return false;
 
     // ── Stage 1: select target text per transition type ─────────────
+    // Empty is a valid target for an authoritative transition (typewriter
+    // frame 0).  Rebuild to a zero-glyph layout so both backends hit their
+    // explicit no-op path instead of rendering a stale full-text layout.
     const std::string target_text = select_target_text(state);
-    if (target_text.empty()) return false;
 
     // ── Stage 2: project effective font (P0-2 carries forward) ─────
     const FontSpec effective_font = compute_effective_font(

@@ -1,5 +1,19 @@
 # Chronon3D — Current Status
 
+Text/Composition closure checkpoint (2026-11-10): the `linux-video-release`
+build passes with `-j14` after removing the unused `CompiledComposition`
+FlatBuffer cache API and schema; the rebuilt cache suite passes 206/206 cases
+(103,977 assertions), and the architecture gate passes 218/218, including an
+anti-resurrection rule for that retired API. The typed CUDA program-artifact
+cache remains. The broader Composition executor still has live SDK, registry,
+RenderEngine, renderer, DirectYUV and daemon entrypoints (pinned counts 15/6/9),
+so its ticket remains open. Current text corpus evidence on CLI SHA
+`74d9b861e7509e81ef271dda96294f896c93989c1c7824f77e83611687b2cf22` is 0/8
+against frozen pixel thresholds; the B-spline fill probe was rejected. See the
+[text closure ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md),
+[Composition demolition ticket](tickets/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md),
+and [same-SHA text report](evidence/text-parity-current-cache-20261110/REPORT.md).
+
 Latest benchmark note (2026-11-02): B2 is encoder-bound. The native-surface
 breakdown measures `avcodec_send_frame` at 3.76 ms/frame (`send_frame`
 1712.69 ms / 456) with the render thread at 0.30 ms/frame, so depth, slots and
@@ -145,7 +159,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Lights / shadows (T05) | PARTIAL — 2026-10-30 final-binary no-probe acceptance: 5/5 complete caster-off and 5/5 caster-on, gate 30/30 PASS (means 53.1802/53.5169, zero black, opaque 1.0, A/B 8.8485%); shadow-quality review and same-SHA CI remain open. All renders decoded; process exit is not the image gate. Physical image-alias guards did not fire. Descriptor probe showed distinct Lighting sets/views/images/allocations and valid extents; Transform snapshots were populated while two Lighting snapshots read zero. Focused backend Lighting tests pass 3/3 cases, 69/69 assertions, but do not reproduce the graph issue. Lifetime root cause and shadow-quality acceptance remain open; C2 timings are 2.047/2.607/7.998 s for 1k/10k/100k particles (not kernel-only); GPU instancing/parity and same-SHA CI remain open — [ticket and evidence](tickets/TICKET-LIGHTS-SHADOWS-PARTICLES.md) |
 | Render-plan audio mix | PASS (focused) — V3 clips, trim, gain automation, ducking and native mux integration; GPU/CI same-SHA certification remains separate |
 | Text Core V1 | PASS (focused) |
-| Text animator P1/P2 | DONE (software) — per-glyph shadow/glow/gradient, real caret and PreLayout word/line reflow are implemented; V3 schema/compiler/decoder and focused tests pass (44/44 animator, 4/4 composer spacing, 11/11 GPU-text rejection, 20/20 driver). Native MTSDF parity for these effects and the caret remains fail-closed — [ticket](tickets/TICKET-TEXT-ANIMATOR-PARITY-20261107.md) |
+| Text animator AE parity | PARTIAL — functional selectors/caret and ordered multi-shadow paths are implemented; 0/8 frozen CPU/GPU corpus cases pass the unchanged pixel gate; Vulkan canonical shadow/vector stroke and transition+span combination remain open — [ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md) |
 | Text depth focus (text_depth_focus_v1) | PARTIAL — resolver and preset recipes are in `ChrononPlugin/plugins/typography`; text animator primitives remain in Chronon3D |
 | Text Production V1 | PARTIAL — acceptance contract is in [`RELEASE_GATE.md`](RELEASE_GATE.md): 20 general + 8 subtitle presets, timed JSON/SRT input, productive word styling, per-preset 16:9/9:16 short/long multi-time goldens, installed-SDK use, and serial/parallel determinism. The claimed 20+8 catalog count is not backed by a current inventory artifact found in this checkout; the other end-to-end criteria are not certified. |
 | GPU Production V1 | PARTIAL / scope not separately defined — no dedicated ticket or acceptance contract named “GPU Production V1” was found. Related measurable C3D gates are [zero-copy Z-waves](tickets/TICKET-ZERO-COPY-ZWAVES.md), [GPU corpus](tickets/TICKET-GPU-BASELINE-CORPUS.md), and the GPU-native video evidence above; the content corpus and broad release certification remain open. |
@@ -155,6 +169,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | CI infrastructure | PARTIAL — latest listed Actions batch on `a214fad` allocated runners; release artifact passed, Chronon CI/Developer Gates/CFI were cancelled, and Chronon Nightly/CodeQL/runtime/resource-leak failed. Local fixes cover the `write()` warning, two Linux Release test compile defects and a stale SDK header-install path. On 2026-10-29 the targeted current-tree build succeeded after staging the 3.27 GB static SDK archive in `/dev/shm`; 10 focused CTest suites pass after correcting the catalog census (57 effects, 51 native, 6 explicit fail-closed). SDK shared-library link and C ABI test now pass locally; latest T05 acceptance is 5/5 off and 5/5 on (gate 30/30), with shadow quality/same-SHA open; latest B2 mean is 238.200 fps, below 300; same-SHA CI remains external — [ticket](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md). |
 | Determinism | PARTIAL — `BitExact` / `DeterministicWithinPlatform` / `Approximate` types and focused fusion certification tests exist; broad cross-backend scene certification remains open |
 | Premium effects brush pressure | PASS (local) — pressure expectation corrected to the documented contract; `chronon3d_effects_tests` 275/275 green |
+| Faceless shorts capability (skill parity) | PARTIAL — 2026-11-09: E1 (Vulkan inline-mesh MR/PBR) and E3 (rigged GLB → RenderPlan) are implemented. E3 is verified end-to-end locally on a real character (150-frame 1080×1920 plan + manifest, 5,088-vertex `low-poly_man`, clip `Idle2`, software render exit 0, 150/150 non-empty frames, plan/manifest byte-identical across regenerations); E1's shader and host plumbing compile, validate, and its Vulkan pixel gate passes locally (1/1 case, 16/16 assertions, exit 0). Face rig/viseme ([E2](../../ChrononMotion3D/docs/tickets/TICKET-CM3D-FACIAL-RIG-VISEME-20261109.md)) remains optional. Registry: [gaps](../../ChrononMotion3D/docs/tickets/TICKET-CM3D-ENGINE-FACELESS-GAPS-20261109.md) |
 | Packaging | PASS (historical/local evidence) |
 
 ## Closed checkpoints (chronicle index)

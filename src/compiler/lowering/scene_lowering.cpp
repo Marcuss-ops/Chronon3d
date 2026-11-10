@@ -46,6 +46,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             case render_plan::LayerType::Color: kind = NodeKind::Color; break;
             case render_plan::LayerType::Shape: kind = NodeKind::Shape; break;
             case render_plan::LayerType::Mesh: kind = NodeKind::Mesh; break;
+            case render_plan::LayerType::Particles: kind = NodeKind::Particles; break;
         }
         out.nodes.push_back({i, kind, 0, 0, i});
         StaticLayerProgram lowered;
@@ -80,6 +81,15 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
                 lowered.position[0] += box_w * 0.5f;
                 lowered.position[1] += box_h * 0.5f;
             }
+        } else if (layer.type == render_plan::LayerType::Particles &&
+                   layer.position_dimensions >= 2) {
+            // Keep the legacy particle layer's absolute-canvas placement
+            // after the typed graph applies its implicit canvas-centre basis.
+            // The old RenderPlan scene path adds that basis in addition to
+            // the authored particle position; retain the same sample pose
+            // until the public coordinate contract is deliberately changed.
+            lowered.position[0] += static_cast<float>(plan.canvas.width) * 0.5f;
+            lowered.position[1] += static_cast<float>(plan.canvas.height) * 0.5f;
         }
         lowered.scale = layer.scale;
         lowered.rotation = layer.rotation;
@@ -105,6 +115,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.radius = layer.radius.value_or(0.0f);
         lowered.shape = layer.shape;
         lowered.inline_mesh = layer.inline_mesh;
+        lowered.particle_emitter = layer.particle_emitter;
         if (layer.type == render_plan::LayerType::Shape && lowered.size_dimensions == 0) {
             lowered.size = {static_cast<float>(plan.canvas.width),
                             static_cast<float>(plan.canvas.height)};
@@ -117,6 +128,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             // and the render graph falls back to a ClearNode for the layer.
             lowered.text_style = layer.style;
             lowered.text_animators = layer.text_animators;
+            lowered.text_transitions = layer.text_transitions;
             lowered.text_spans = layer.text_spans;
             lowered.svg_glyph_paint_ranges = layer.svg_glyph_paint_ranges;
         }

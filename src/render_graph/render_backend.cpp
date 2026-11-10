@@ -400,6 +400,17 @@ RenderOpResult RenderBackendSurfaceApi::bloom_surfaces(
             "RenderBackend::bloom_surfaces: native surfaces are not supported"));
     }
 
+RenderOpResult RenderBackendSurfaceApi::bloom_pyramid_surfaces(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*scratch_full*/,
+        std::span<const runtime::RenderSurfaceHandle> /*mips*/,
+        float /*threshold*/, float /*radius*/, float /*intensity*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::bloom_pyramid_surfaces: native surfaces are not supported"));
+    }
+
 RenderOpResult RenderBackendSurfaceApi::yuv_overlay_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
@@ -513,7 +524,8 @@ RenderOpResult RenderBackendTextureApi::draw_text_batch(
         runtime::RenderSurfaceHandle /*destination*/,
         std::span<const runtime::GlyphStatic> /*glyphs*/,
         std::span<const runtime::TextRunDynamic> /*runs*/,
-        std::span<const runtime::RenderSurfaceHandle> /*atlas_pages*/) {
+        std::span<const runtime::RenderSurfaceHandle> /*atlas_pages*/,
+        std::span<const runtime::GlyphPaint> /*paints*/) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::draw_text_batch: not supported by this backend"));
@@ -540,7 +552,8 @@ RenderOpResult RenderBackendTextureApi::draw_inline_mesh_surface(
         const Color& /*premultiplied_tint*/,
         std::optional<float> /*alpha_cutoff*/,
         runtime::RenderSurfaceHandle /*depth_destination*/,
-        float /*depth_marker*/) {
+        float /*depth_marker*/,
+        const InlineMeshShadingParams& /*shading*/) {
     return RenderOpResult(make_render_backend_error(
         RenderBackendErrorCode::UnsupportedCapability,
         "RenderBackend::draw_inline_mesh_surface: not supported by this backend"));

@@ -1,0 +1,1420 @@
+{
+  "corpus": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/manifest.json",
+  "cli": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli",
+  "cli_sha256": "49517b0c6b2d6e4509d62033bcdf8cafa3b89f59a4737c9767ebe6c3ba46c1a4",
+  "vulkan_identity": "==========\nVULKANINFO\n==========\nVulkan Instance Version: 1.3.204\nInstance Extensions: count = 20\n-------------------------------\nVK_EXT_acquire_drm_display             : extension revision 1\nVK_EXT_acquire_xlib_display            : extension revision 1\nVK_EXT_debug_report                    : extension revision 10\nVK_EXT_debug_utils                     : extension revision 2\nVK_EXT_direct_mode_display             : extension revision 1\nVK_EXT_display_surface_counter         : extension revision 1\nVK_EXT_swapchain_colorspace            : extension revision 5\nVK_KHR_device_group_creation           : extension revision 1\nVK_KHR_display                         : extension revision 23\nVK_KHR_external_fence_capabilities     : extension revision 1\nVK_KHR_external_memory_capabilities    : extension revision 1\nVK_KHR_external_semaphore_capabilities : extension revision 1\nVK_KHR_get_display_properties2         : extension revision 1\nVK_KHR_get_physical_device_properties2 : extension revision 2\nVK_KHR_get_surface_capabilities2       : extension revision 1\nVK_KHR_surface                         : extension revision 25\nVK_KHR_surface_protected_capabilities  : extension revision 1\nVK_KHR_wayland_surface                 : extension revision 6",
+  "thresholds": {
+    "alpha_iou_min": 0.995,
+    "coverage_ratio_min": 0.99,
+    "coverage_ratio_max": 1.01,
+    "rgb_mae_max": 0.00784313725490196,
+    "rgb_p99_max": 0.03137254901960784,
+    "ssim_luma_min": 0.98,
+    "psnr_luma_min_db": 35.0,
+    "flat_max": 0.00784313725490196,
+    "bbox_slack_px": 1,
+    "edge_band_px": 2
+  },
+  "cases": {
+    "latin_basic": {
+      "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/latin_basic.plan.json",
+      "plan_sha256": "4ff5bf3a6334f95cfb4b4566c3110d4b3e9aaa4731b8dd6a4eb4d3de6c05637c",
+      "frames": {
+        "0": {
+          "bbox_software": [
+            334,
+            365,
+            946,
+            435
+          ],
+          "bbox_vulkan": [
+            333,
+            365,
+            946,
+            435
+          ],
+          "mask_pixels_software": 19565,
+          "mask_pixels_vulkan": 19574,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.948086 < 0.995",
+            "rgb_mae 0.020598 > 0.00784313725490196",
+            "rgb_p99 0.509804 > 0.03137254901960784",
+            "psnr_luma 21.072 dB < 35.0"
+          ],
+          "alpha_iou": 0.9480862077547161,
+          "coverage_ratio": 1.0004600051111678,
+          "roi": [
+            329,
+            361,
+            951,
+            440
+          ],
+          "rgb_mae": 0.02059849165380001,
+          "rgb_p95": 0.1568627506494522,
+          "rgb_p99": 0.5098039507865906,
+          "rgb_max": 0.7647058963775635,
+          "psnr_luma_db": 21.071810300995107,
+          "ssim_luma": 0.9826300700127716,
+          "flat_max_outside_edge": 0.0
+        },
+        "15": {
+          "bbox_software": [
+            334,
+            365,
+            946,
+            435
+          ],
+          "bbox_vulkan": [
+            333,
+            365,
+            946,
+            435
+          ],
+          "mask_pixels_software": 19565,
+          "mask_pixels_vulkan": 19574,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.948086 < 0.995",
+            "rgb_mae 0.020598 > 0.00784313725490196",
+            "rgb_p99 0.509804 > 0.03137254901960784",
+            "psnr_luma 21.072 dB < 35.0"
+          ],
+          "alpha_iou": 0.9480862077547161,
+          "coverage_ratio": 1.0004600051111678,
+          "roi": [
+            329,
+            361,
+            951,
+            440
+          ],
+          "rgb_mae": 0.02059849165380001,
+          "rgb_p95": 0.1568627506494522,
+          "rgb_p99": 0.5098039507865906,
+          "rgb_max": 0.7647058963775635,
+          "psnr_luma_db": 21.071810300995107,
+          "ssim_luma": 0.9826300700127716,
+          "flat_max_outside_edge": 0.0
+        },
+        "30": {
+          "bbox_software": [
+            334,
+            365,
+            946,
+            435
+          ],
+          "bbox_vulkan": [
+            333,
+            365,
+            946,
+            435
+          ],
+          "mask_pixels_software": 19565,
+          "mask_pixels_vulkan": 19574,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.948086 < 0.995",
+            "rgb_mae 0.020598 > 0.00784313725490196",
+            "rgb_p99 0.509804 > 0.03137254901960784",
+            "psnr_luma 21.072 dB < 35.0"
+          ],
+          "alpha_iou": 0.9480862077547161,
+          "coverage_ratio": 1.0004600051111678,
+          "roi": [
+            329,
+            361,
+            951,
+            440
+          ],
+          "rgb_mae": 0.02059849165380001,
+          "rgb_p95": 0.1568627506494522,
+          "rgb_p99": 0.5098039507865906,
+          "rgb_max": 0.7647058963775635,
+          "psnr_luma_db": 21.071810300995107,
+          "ssim_luma": 0.9826300700127716,
+          "flat_max_outside_edge": 0.0
+        }
+      },
+      "pass": false,
+      "failures": [],
+      "repeat_software_identical": true,
+      "worst": {
+        "alpha_iou": 0.9480862077547161,
+        "coverage_ratio": 1.0004600051111678,
+        "rgb_mae": 0.02059849165380001,
+        "rgb_p95": 0.1568627506494522,
+        "rgb_p99": 0.5098039507865906,
+        "rgb_max": 0.7647058963775635,
+        "ssim_luma": 0.9826300700127716,
+        "psnr_luma_db": 21.071810300995107
+      }
+    },
+    "exact_3d": {
+      "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/exact_3d.plan.json",
+      "plan_sha256": "0c6a887185958e6988a44cf878ec9d262ae0585f4689cca86bd7a830fa7cb151",
+      "frames": {
+        "0": {
+          "bbox_software": [
+            130,
+            24,
+            1149,
+            492
+          ],
+          "bbox_vulkan": [
+            129,
+            24,
+            1149,
+            492
+          ],
+          "mask_pixels_software": 79270,
+          "mask_pixels_vulkan": 78823,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.984248 < 0.995"
+          ],
+          "alpha_iou": 0.9842483118708738,
+          "coverage_ratio": 0.9943610445313485,
+          "roi": [
+            125,
+            20,
+            1154,
+            497
+          ],
+          "rgb_mae": 0.0009274297044612467,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.027450978755950928,
+          "rgb_max": 0.250980406999588,
+          "psnr_luma_db": 43.30328375341466,
+          "ssim_luma": 0.9997895407248116,
+          "flat_max_outside_edge": 0.0
+        },
+        "10": {
+          "bbox_software": [
+            199,
+            24,
+            1164,
+            503
+          ],
+          "bbox_vulkan": [
+            198,
+            24,
+            1164,
+            503
+          ],
+          "mask_pixels_software": 75767,
+          "mask_pixels_vulkan": 75063,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.981164 < 0.995"
+          ],
+          "alpha_iou": 0.9811642935953344,
+          "coverage_ratio": 0.9907083558805284,
+          "roi": [
+            194,
+            20,
+            1169,
+            508
+          ],
+          "rgb_mae": 0.0009783426066860557,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.027450978755950928,
+          "rgb_max": 0.2862745225429535,
+          "psnr_luma_db": 42.89273613325169,
+          "ssim_luma": 0.9997657535019484,
+          "flat_max_outside_edge": 0.0
+        },
+        "15": {
+          "bbox_software": [
+            248,
+            24,
+            1145,
+            509
+          ],
+          "bbox_vulkan": [
+            248,
+            24,
+            1145,
+            509
+          ],
+          "mask_pixels_software": 71121,
+          "mask_pixels_vulkan": 70274,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.981821 < 0.995",
+            "coverage_ratio 0.988091 outside threshold"
+          ],
+          "alpha_iou": 0.9818209850587278,
+          "coverage_ratio": 0.9880907186344399,
+          "roi": [
+            244,
+            20,
+            1150,
+            514
+          ],
+          "rgb_mae": 0.0009637384209781885,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.027450978755950928,
+          "rgb_max": 0.2823529541492462,
+          "psnr_luma_db": 43.08671874390525,
+          "ssim_luma": 0.9997758298717733,
+          "flat_max_outside_edge": 0.0
+        },
+        "20": {
+          "bbox_software": [
+            304,
+            24,
+            1106,
+            515
+          ],
+          "bbox_vulkan": [
+            304,
+            24,
+            1106,
+            515
+          ],
+          "mask_pixels_software": 64653,
+          "mask_pixels_vulkan": 63948,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.983206 < 0.995",
+            "coverage_ratio 0.989096 outside threshold"
+          ],
+          "alpha_iou": 0.983206106870229,
+          "coverage_ratio": 0.9890956336132894,
+          "roi": [
+            300,
+            20,
+            1111,
+            520
+          ],
+          "rgb_mae": 0.0009469531360082328,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.027450978755950928,
+          "rgb_max": 0.2823529541492462,
+          "psnr_luma_db": 43.17816800251275,
+          "ssim_luma": 0.999780389201833,
+          "flat_max_outside_edge": 0.0
+        },
+        "45": {
+          "bbox_software": [
+            473,
+            24,
+            804,
+            55
+          ],
+          "bbox_vulkan": [
+            473,
+            24,
+            804,
+            55
+          ],
+          "mask_pixels_software": 4980,
+          "mask_pixels_vulkan": 4819,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.966091 < 0.995",
+            "coverage_ratio 0.967671 outside threshold",
+            "rgb_p99 0.039216 > 0.03137254901960784"
+          ],
+          "alpha_iou": 0.966091492776886,
+          "coverage_ratio": 0.9676706827309237,
+          "roi": [
+            469,
+            20,
+            809,
+            60
+          ],
+          "rgb_mae": 0.0021272588055580854,
+          "rgb_p95": 0.0117647061124444,
+          "rgb_p99": 0.03921568766236305,
+          "rgb_max": 0.1882352977991104,
+          "psnr_luma_db": 43.046245114596324,
+          "ssim_luma": 0.9996426882779116,
+          "flat_max_outside_edge": 0.0
+        },
+        "70": {
+          "bbox_software": [
+            473,
+            24,
+            804,
+            531
+          ],
+          "bbox_vulkan": [
+            473,
+            24,
+            804,
+            531
+          ],
+          "mask_pixels_software": 19430,
+          "mask_pixels_vulkan": 19218,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.973851 < 0.995",
+            "coverage_ratio 0.989089 outside threshold"
+          ],
+          "alpha_iou": 0.9738508682328907,
+          "coverage_ratio": 0.9890890375707668,
+          "roi": [
+            469,
+            20,
+            809,
+            536
+          ],
+          "rgb_mae": 0.0007505461107939482,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.023529410362243652,
+          "rgb_max": 0.21176470816135406,
+          "psnr_luma_db": 44.20558076593882,
+          "ssim_luma": 0.9997228645284197,
+          "flat_max_outside_edge": 0.0
+        },
+        "90": {
+          "bbox_software": [
+            424,
+            24,
+            975,
+            525
+          ],
+          "bbox_vulkan": [
+            424,
+            24,
+            975,
+            525
+          ],
+          "mask_pixels_software": 47115,
+          "mask_pixels_vulkan": 46527,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.982177 < 0.995",
+            "coverage_ratio 0.987520 outside threshold"
+          ],
+          "alpha_iou": 0.9821768765081919,
+          "coverage_ratio": 0.9875198981216173,
+          "roi": [
+            420,
+            20,
+            980,
+            530
+          ],
+          "rgb_mae": 0.0010329590877518058,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.0313725471496582,
+          "rgb_max": 0.2980392277240753,
+          "psnr_luma_db": 42.92799822523673,
+          "ssim_luma": 0.9997684553207625,
+          "flat_max_outside_edge": 0.0
+        },
+        "110": {
+          "bbox_software": [
+            192,
+            24,
+            1165,
+            502
+          ],
+          "bbox_vulkan": [
+            191,
+            24,
+            1165,
+            502
+          ],
+          "mask_pixels_software": 76296,
+          "mask_pixels_vulkan": 75603,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.981257 < 0.995"
+          ],
+          "alpha_iou": 0.9812568477069964,
+          "coverage_ratio": 0.990916955017301,
+          "roi": [
+            187,
+            20,
+            1170,
+            507
+          ],
+          "rgb_mae": 0.0009585863444954157,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.027450978755950928,
+          "rgb_max": 0.27450981736183167,
+          "psnr_luma_db": 42.912880667333354,
+          "ssim_luma": 0.9997672729921915,
+          "flat_max_outside_edge": 0.0
+        }
+      },
+      "pass": false,
+      "failures": [],
+      "repeat_software_identical": true,
+      "worst": {
+        "alpha_iou": 0.966091492776886,
+        "coverage_ratio": 0.9676706827309237,
+        "rgb_mae": 0.0021272588055580854,
+        "rgb_p95": 0.0117647061124444,
+        "rgb_p99": 0.03921568766236305,
+        "rgb_max": 0.2980392277240753,
+        "ssim_luma": 0.9996426882779116,
+        "psnr_luma_db": 44.20558076593882
+      }
+    },
+    "effects": {
+      "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/effects.plan.json",
+      "plan_sha256": "63adf630695df2e9f66e52e18628fa1bc4471749c5e97be6ea4dc86a4974c29e",
+      "frames": {
+        "0": {
+          "bbox_software": [
+            254,
+            123,
+            1032,
+            454
+          ],
+          "bbox_vulkan": [
+            258,
+            127,
+            1016,
+            438
+          ],
+          "mask_pixels_software": 148998,
+          "mask_pixels_vulkan": 125886,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.844884 < 0.995",
+            "coverage_ratio 0.844884 outside threshold",
+            "bbox side 0 differs by 4px",
+            "rgb_mae 0.021765 > 0.00784313725490196",
+            "rgb_p99 0.247059 > 0.03137254901960784",
+            "psnr_luma 26.414 dB < 35.0",
+            "flat background differs by 0.023529"
+          ],
+          "alpha_iou": 0.8448838239439456,
+          "coverage_ratio": 0.8448838239439456,
+          "roi": [
+            250,
+            119,
+            1037,
+            459
+          ],
+          "rgb_mae": 0.021765369921922684,
+          "rgb_p95": 0.12941177189350128,
+          "rgb_p99": 0.24705882370471954,
+          "rgb_max": 0.929411768913269,
+          "psnr_luma_db": 26.414452528551138,
+          "ssim_luma": 0.9919350550341197,
+          "flat_max_outside_edge": 0.0235294122248888
+        },
+        "20": {
+          "bbox_software": [
+            254,
+            123,
+            1032,
+            454
+          ],
+          "bbox_vulkan": [
+            258,
+            127,
+            1016,
+            438
+          ],
+          "mask_pixels_software": 148998,
+          "mask_pixels_vulkan": 125886,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.844884 < 0.995",
+            "coverage_ratio 0.844884 outside threshold",
+            "bbox side 0 differs by 4px",
+            "rgb_mae 0.021765 > 0.00784313725490196",
+            "rgb_p99 0.247059 > 0.03137254901960784",
+            "psnr_luma 26.414 dB < 35.0",
+            "flat background differs by 0.023529"
+          ],
+          "alpha_iou": 0.8448838239439456,
+          "coverage_ratio": 0.8448838239439456,
+          "roi": [
+            250,
+            119,
+            1037,
+            459
+          ],
+          "rgb_mae": 0.021765369921922684,
+          "rgb_p95": 0.12941177189350128,
+          "rgb_p99": 0.24705882370471954,
+          "rgb_max": 0.929411768913269,
+          "psnr_luma_db": 26.414452528551138,
+          "ssim_luma": 0.9919350550341197,
+          "flat_max_outside_edge": 0.0235294122248888
+        },
+        "40": {
+          "bbox_software": [
+            254,
+            123,
+            1032,
+            454
+          ],
+          "bbox_vulkan": [
+            258,
+            127,
+            1016,
+            438
+          ],
+          "mask_pixels_software": 148998,
+          "mask_pixels_vulkan": 125886,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.844884 < 0.995",
+            "coverage_ratio 0.844884 outside threshold",
+            "bbox side 0 differs by 4px",
+            "rgb_mae 0.021765 > 0.00784313725490196",
+            "rgb_p99 0.247059 > 0.03137254901960784",
+            "psnr_luma 26.414 dB < 35.0",
+            "flat background differs by 0.023529"
+          ],
+          "alpha_iou": 0.8448838239439456,
+          "coverage_ratio": 0.8448838239439456,
+          "roi": [
+            250,
+            119,
+            1037,
+            459
+          ],
+          "rgb_mae": 0.021765369921922684,
+          "rgb_p95": 0.12941177189350128,
+          "rgb_p99": 0.24705882370471954,
+          "rgb_max": 0.929411768913269,
+          "psnr_luma_db": 26.414452528551138,
+          "ssim_luma": 0.9919350550341197,
+          "flat_max_outside_edge": 0.0235294122248888
+        },
+        "60": {
+          "bbox_software": [
+            254,
+            123,
+            1032,
+            454
+          ],
+          "bbox_vulkan": [
+            258,
+            127,
+            1016,
+            438
+          ],
+          "mask_pixels_software": 148998,
+          "mask_pixels_vulkan": 125886,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.844884 < 0.995",
+            "coverage_ratio 0.844884 outside threshold",
+            "bbox side 0 differs by 4px",
+            "rgb_mae 0.021765 > 0.00784313725490196",
+            "rgb_p99 0.247059 > 0.03137254901960784",
+            "psnr_luma 26.414 dB < 35.0",
+            "flat background differs by 0.023529"
+          ],
+          "alpha_iou": 0.8448838239439456,
+          "coverage_ratio": 0.8448838239439456,
+          "roi": [
+            250,
+            119,
+            1037,
+            459
+          ],
+          "rgb_mae": 0.021765369921922684,
+          "rgb_p95": 0.12941177189350128,
+          "rgb_p99": 0.24705882370471954,
+          "rgb_max": 0.929411768913269,
+          "psnr_luma_db": 26.414452528551138,
+          "ssim_luma": 0.9919350550341197,
+          "flat_max_outside_edge": 0.0235294122248888
+        }
+      },
+      "pass": false,
+      "failures": [],
+      "repeat_software_identical": true,
+      "worst": {
+        "alpha_iou": 0.8448838239439456,
+        "coverage_ratio": 0.8448838239439456,
+        "rgb_mae": 0.021765369921922684,
+        "rgb_p95": 0.12941177189350128,
+        "rgb_p99": 0.24705882370471954,
+        "rgb_max": 0.929411768913269,
+        "ssim_luma": 0.9919350550341197,
+        "psnr_luma_db": 26.414452528551138
+      }
+    },
+    "multi_shadow": {
+      "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/multi_shadow.plan.json",
+      "plan_sha256": "00377e3820cd665ca076ef5faf68845931dbf28a4e3afda6c1162ce2fc9a40c8",
+      "frames": {
+        "0": {
+          "bbox_software": [
+            368,
+            334,
+            916,
+            465
+          ],
+          "bbox_vulkan": [
+            374,
+            340,
+            911,
+            458
+          ],
+          "mask_pixels_software": 67126,
+          "mask_pixels_vulkan": 55040,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.819951 < 0.995",
+            "coverage_ratio 0.819951 outside threshold",
+            "bbox side 0 differs by 6px",
+            "rgb_mae 0.085631 > 0.00784313725490196",
+            "rgb_p99 0.423529 > 0.03137254901960784",
+            "psnr_luma 21.942 dB < 35.0",
+            "ssim_luma 0.978971 < 0.98"
+          ],
+          "alpha_iou": 0.8199505407740667,
+          "coverage_ratio": 0.8199505407740667,
+          "roi": [
+            364,
+            330,
+            921,
+            470
+          ],
+          "rgb_mae": 0.0856313556432724,
+          "rgb_p95": 0.3372548818588257,
+          "rgb_p99": 0.42352941632270813,
+          "rgb_max": 0.5803921818733215,
+          "psnr_luma_db": 21.94222669492983,
+          "ssim_luma": 0.9789709781102908,
+          "flat_max_outside_edge": 0.0
+        },
+        "15": {
+          "bbox_software": [
+            368,
+            334,
+            916,
+            465
+          ],
+          "bbox_vulkan": [
+            374,
+            340,
+            911,
+            458
+          ],
+          "mask_pixels_software": 67126,
+          "mask_pixels_vulkan": 55040,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.819951 < 0.995",
+            "coverage_ratio 0.819951 outside threshold",
+            "bbox side 0 differs by 6px",
+            "rgb_mae 0.085631 > 0.00784313725490196",
+            "rgb_p99 0.423529 > 0.03137254901960784",
+            "psnr_luma 21.942 dB < 35.0",
+            "ssim_luma 0.978971 < 0.98"
+          ],
+          "alpha_iou": 0.8199505407740667,
+          "coverage_ratio": 0.8199505407740667,
+          "roi": [
+            364,
+            330,
+            921,
+            470
+          ],
+          "rgb_mae": 0.0856313556432724,
+          "rgb_p95": 0.3372548818588257,
+          "rgb_p99": 0.42352941632270813,
+          "rgb_max": 0.5803921818733215,
+          "psnr_luma_db": 21.94222669492983,
+          "ssim_luma": 0.9789709781102908,
+          "flat_max_outside_edge": 0.0
+        },
+        "30": {
+          "bbox_software": [
+            368,
+            334,
+            916,
+            465
+          ],
+          "bbox_vulkan": [
+            374,
+            340,
+            911,
+            458
+          ],
+          "mask_pixels_software": 67126,
+          "mask_pixels_vulkan": 55040,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.819951 < 0.995",
+            "coverage_ratio 0.819951 outside threshold",
+            "bbox side 0 differs by 6px",
+            "rgb_mae 0.085631 > 0.00784313725490196",
+            "rgb_p99 0.423529 > 0.03137254901960784",
+            "psnr_luma 21.942 dB < 35.0",
+            "ssim_luma 0.978971 < 0.98"
+          ],
+          "alpha_iou": 0.8199505407740667,
+          "coverage_ratio": 0.8199505407740667,
+          "roi": [
+            364,
+            330,
+            921,
+            470
+          ],
+          "rgb_mae": 0.0856313556432724,
+          "rgb_p95": 0.3372548818588257,
+          "rgb_p99": 0.42352941632270813,
+          "rgb_max": 0.5803921818733215,
+          "psnr_luma_db": 21.94222669492983,
+          "ssim_luma": 0.9789709781102908,
+          "flat_max_outside_edge": 0.0
+        }
+      },
+      "pass": false,
+      "failures": [],
+      "repeat_software_identical": true,
+      "worst": {
+        "alpha_iou": 0.8199505407740667,
+        "coverage_ratio": 0.8199505407740667,
+        "rgb_mae": 0.0856313556432724,
+        "rgb_p95": 0.3372548818588257,
+        "rgb_p99": 0.42352941632270813,
+        "rgb_max": 0.5803921818733215,
+        "ssim_luma": 0.9789709781102908,
+        "psnr_luma_db": 21.94222669492983
+      }
+    },
+    "rtl_caret": {
+      "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/rtl_caret.plan.json",
+      "plan_sha256": "7dcef860b547062a270f56cfc52df177226adb9772d4d2606ad962c101f0483a",
+      "frames": {
+        "0": {
+          "bbox_software": [
+            394,
+            129,
+            886,
+            601
+          ],
+          "bbox_vulkan": [
+            393,
+            128,
+            886,
+            600
+          ],
+          "mask_pixels_software": 19208,
+          "mask_pixels_vulkan": 18558,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.908530 < 0.995",
+            "coverage_ratio 0.966160 outside threshold",
+            "rgb_p99 0.200000 > 0.03137254901960784",
+            "psnr_luma 24.308 dB < 35.0",
+            "ssim_luma 0.970071 < 0.98"
+          ],
+          "alpha_iou": 0.9085304224782697,
+          "coverage_ratio": 0.9661599333610995,
+          "roi": [
+            389,
+            124,
+            891,
+            606
+          ],
+          "rgb_mae": 0.006362838204950094,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.19999998807907104,
+          "rgb_max": 1.0,
+          "psnr_luma_db": 24.30835206879271,
+          "ssim_luma": 0.9700708898593274,
+          "flat_max_outside_edge": 0.0
+        },
+        "8": {
+          "bbox_software": [
+            394,
+            129,
+            886,
+            601
+          ],
+          "bbox_vulkan": [
+            393,
+            128,
+            886,
+            600
+          ],
+          "mask_pixels_software": 19208,
+          "mask_pixels_vulkan": 18558,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.908530 < 0.995",
+            "coverage_ratio 0.966160 outside threshold",
+            "rgb_p99 0.200000 > 0.03137254901960784",
+            "psnr_luma 24.308 dB < 35.0",
+            "ssim_luma 0.970071 < 0.98"
+          ],
+          "alpha_iou": 0.9085304224782697,
+          "coverage_ratio": 0.9661599333610995,
+          "roi": [
+            389,
+            124,
+            891,
+            606
+          ],
+          "rgb_mae": 0.006362838204950094,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.19999998807907104,
+          "rgb_max": 1.0,
+          "psnr_luma_db": 24.30835206879271,
+          "ssim_luma": 0.9700708898593274,
+          "flat_max_outside_edge": 0.0
+        },
+        "16": {
+          "bbox_software": [
+            394,
+            129,
+            886,
+            601
+          ],
+          "bbox_vulkan": [
+            393,
+            128,
+            886,
+            600
+          ],
+          "mask_pixels_software": 19208,
+          "mask_pixels_vulkan": 18558,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.908530 < 0.995",
+            "coverage_ratio 0.966160 outside threshold",
+            "rgb_p99 0.200000 > 0.03137254901960784",
+            "psnr_luma 24.308 dB < 35.0",
+            "ssim_luma 0.970071 < 0.98"
+          ],
+          "alpha_iou": 0.9085304224782697,
+          "coverage_ratio": 0.9661599333610995,
+          "roi": [
+            389,
+            124,
+            891,
+            606
+          ],
+          "rgb_mae": 0.006362838204950094,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.19999998807907104,
+          "rgb_max": 1.0,
+          "psnr_luma_db": 24.30835206879271,
+          "ssim_luma": 0.9700708898593274,
+          "flat_max_outside_edge": 0.0
+        },
+        "24": {
+          "bbox_software": [
+            394,
+            129,
+            886,
+            601
+          ],
+          "bbox_vulkan": [
+            393,
+            128,
+            886,
+            600
+          ],
+          "mask_pixels_software": 19208,
+          "mask_pixels_vulkan": 18558,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.908530 < 0.995",
+            "coverage_ratio 0.966160 outside threshold",
+            "rgb_p99 0.200000 > 0.03137254901960784",
+            "psnr_luma 24.308 dB < 35.0",
+            "ssim_luma 0.970071 < 0.98"
+          ],
+          "alpha_iou": 0.9085304224782697,
+          "coverage_ratio": 0.9661599333610995,
+          "roi": [
+            389,
+            124,
+            891,
+            606
+          ],
+          "rgb_mae": 0.006362838204950094,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.19999998807907104,
+          "rgb_max": 1.0,
+          "psnr_luma_db": 24.30835206879271,
+          "ssim_luma": 0.9700708898593274,
+          "flat_max_outside_edge": 0.0
+        }
+      },
+      "pass": false,
+      "failures": [],
+      "repeat_software_identical": true,
+      "worst": {
+        "alpha_iou": 0.9085304224782697,
+        "coverage_ratio": 0.9661599333610995,
+        "rgb_mae": 0.006362838204950094,
+        "rgb_p95": 0.0,
+        "rgb_p99": 0.19999998807907104,
+        "rgb_max": 1.0,
+        "ssim_luma": 0.9700708898593274,
+        "psnr_luma_db": 24.30835206879271
+      }
+    },
+    "transitions": {
+      "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/transitions.plan.json",
+      "plan_sha256": "3773f69c05413fd9fc9955bb6f0923498193ee75aad2766b965543e85de00131",
+      "frames": {
+        "0": {
+          "bbox_software": [
+            372,
+            365,
+            908,
+            434
+          ],
+          "bbox_vulkan": [
+            371,
+            365,
+            908,
+            435
+          ],
+          "mask_pixels_software": 16824,
+          "mask_pixels_vulkan": 16825,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.975634 < 0.995",
+            "rgb_p99 0.176471 > 0.03137254901960784",
+            "psnr_luma 29.102 dB < 35.0"
+          ],
+          "alpha_iou": 0.9756341005166745,
+          "coverage_ratio": 1.000059438896814,
+          "roi": [
+            367,
+            361,
+            913,
+            440
+          ],
+          "rgb_mae": 0.007245727814733982,
+          "rgb_p95": 0.04313725233078003,
+          "rgb_p99": 0.17647060751914978,
+          "rgb_max": 0.5333333611488342,
+          "psnr_luma_db": 29.101722355394315,
+          "ssim_luma": 0.9972291105318262,
+          "flat_max_outside_edge": 0.0
+        },
+        "15": {
+          "bbox_software": [
+            372,
+            365,
+            908,
+            434
+          ],
+          "bbox_vulkan": [
+            371,
+            365,
+            908,
+            435
+          ],
+          "mask_pixels_software": 16824,
+          "mask_pixels_vulkan": 16825,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.975634 < 0.995",
+            "rgb_p99 0.176471 > 0.03137254901960784",
+            "psnr_luma 29.102 dB < 35.0"
+          ],
+          "alpha_iou": 0.9756341005166745,
+          "coverage_ratio": 1.000059438896814,
+          "roi": [
+            367,
+            361,
+            913,
+            440
+          ],
+          "rgb_mae": 0.007245727814733982,
+          "rgb_p95": 0.04313725233078003,
+          "rgb_p99": 0.17647060751914978,
+          "rgb_max": 0.5333333611488342,
+          "psnr_luma_db": 29.101722355394315,
+          "ssim_luma": 0.9972291105318262,
+          "flat_max_outside_edge": 0.0
+        },
+        "30": {
+          "bbox_software": [
+            372,
+            365,
+            908,
+            434
+          ],
+          "bbox_vulkan": [
+            371,
+            365,
+            908,
+            435
+          ],
+          "mask_pixels_software": 16824,
+          "mask_pixels_vulkan": 16825,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.975634 < 0.995",
+            "rgb_p99 0.176471 > 0.03137254901960784",
+            "psnr_luma 29.102 dB < 35.0"
+          ],
+          "alpha_iou": 0.9756341005166745,
+          "coverage_ratio": 1.000059438896814,
+          "roi": [
+            367,
+            361,
+            913,
+            440
+          ],
+          "rgb_mae": 0.007245727814733982,
+          "rgb_p95": 0.04313725233078003,
+          "rgb_p99": 0.17647060751914978,
+          "rgb_max": 0.5333333611488342,
+          "psnr_luma_db": 29.101722355394315,
+          "ssim_luma": 0.9972291105318262,
+          "flat_max_outside_edge": 0.0
+        },
+        "45": {
+          "bbox_software": [
+            372,
+            365,
+            908,
+            434
+          ],
+          "bbox_vulkan": [
+            371,
+            365,
+            908,
+            435
+          ],
+          "mask_pixels_software": 16824,
+          "mask_pixels_vulkan": 16825,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.975634 < 0.995",
+            "rgb_p99 0.176471 > 0.03137254901960784",
+            "psnr_luma 29.102 dB < 35.0"
+          ],
+          "alpha_iou": 0.9756341005166745,
+          "coverage_ratio": 1.000059438896814,
+          "roi": [
+            367,
+            361,
+            913,
+            440
+          ],
+          "rgb_mae": 0.007245727814733982,
+          "rgb_p95": 0.04313725233078003,
+          "rgb_p99": 0.17647060751914978,
+          "rgb_max": 0.5333333611488342,
+          "psnr_luma_db": 29.101722355394315,
+          "ssim_luma": 0.9972291105318262,
+          "flat_max_outside_edge": 0.0
+        },
+        "60": {
+          "bbox_software": [
+            372,
+            365,
+            908,
+            434
+          ],
+          "bbox_vulkan": [
+            371,
+            365,
+            908,
+            435
+          ],
+          "mask_pixels_software": 16824,
+          "mask_pixels_vulkan": 16825,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.975634 < 0.995",
+            "rgb_p99 0.176471 > 0.03137254901960784",
+            "psnr_luma 29.102 dB < 35.0"
+          ],
+          "alpha_iou": 0.9756341005166745,
+          "coverage_ratio": 1.000059438896814,
+          "roi": [
+            367,
+            361,
+            913,
+            440
+          ],
+          "rgb_mae": 0.007245727814733982,
+          "rgb_p95": 0.04313725233078003,
+          "rgb_p99": 0.17647060751914978,
+          "rgb_max": 0.5333333611488342,
+          "psnr_luma_db": 29.101722355394315,
+          "ssim_luma": 0.9972291105318262,
+          "flat_max_outside_edge": 0.0
+        }
+      },
+      "pass": false,
+      "failures": [],
+      "repeat_software_identical": true,
+      "worst": {
+        "alpha_iou": 0.9756341005166745,
+        "coverage_ratio": 1.000059438896814,
+        "rgb_mae": 0.007245727814733982,
+        "rgb_p95": 0.04313725233078003,
+        "rgb_p99": 0.17647060751914978,
+        "rgb_max": 0.5333333611488342,
+        "ssim_luma": 0.9972291105318262,
+        "psnr_luma_db": 29.101722355394315
+      }
+    },
+    "fractional": {
+      "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/fractional.plan.json",
+      "plan_sha256": "e2829fa2fa46b40b25dcf47af639e974728c23b5260a2ab2d2e572b59cee294a",
+      "frames": {
+        "0": {
+          "bbox_software": [
+            0,
+            78,
+            1279,
+            492
+          ],
+          "bbox_vulkan": [
+            0,
+            79,
+            1279,
+            492
+          ],
+          "mask_pixels_software": 112806,
+          "mask_pixels_vulkan": 111455,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.986175 < 0.995",
+            "coverage_ratio 0.988024 outside threshold"
+          ],
+          "alpha_iou": 0.9861749519533084,
+          "coverage_ratio": 0.9880236866833324,
+          "roi": [
+            0,
+            74,
+            1280,
+            497
+          ],
+          "rgb_mae": 0.0008854526095092297,
+          "rgb_p95": 0.003921568393707275,
+          "rgb_p99": 0.0235294122248888,
+          "rgb_max": 0.23529411852359772,
+          "psnr_luma_db": 44.33577551753493,
+          "ssim_luma": 0.9998685160557361,
+          "flat_max_outside_edge": 0.0
+        },
+        "1": {
+          "bbox_software": [
+            0,
+            78,
+            1279,
+            492
+          ],
+          "bbox_vulkan": [
+            0,
+            79,
+            1279,
+            492
+          ],
+          "mask_pixels_software": 112806,
+          "mask_pixels_vulkan": 111455,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.986175 < 0.995",
+            "coverage_ratio 0.988024 outside threshold"
+          ],
+          "alpha_iou": 0.9861749519533084,
+          "coverage_ratio": 0.9880236866833324,
+          "roi": [
+            0,
+            74,
+            1280,
+            497
+          ],
+          "rgb_mae": 0.0008854526095092297,
+          "rgb_p95": 0.003921568393707275,
+          "rgb_p99": 0.0235294122248888,
+          "rgb_max": 0.23529411852359772,
+          "psnr_luma_db": 44.33577551753493,
+          "ssim_luma": 0.9998685160557361,
+          "flat_max_outside_edge": 0.0
+        },
+        "2": {
+          "bbox_software": [
+            0,
+            78,
+            1279,
+            492
+          ],
+          "bbox_vulkan": [
+            0,
+            79,
+            1279,
+            492
+          ],
+          "mask_pixels_software": 112806,
+          "mask_pixels_vulkan": 111455,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.986175 < 0.995",
+            "coverage_ratio 0.988024 outside threshold"
+          ],
+          "alpha_iou": 0.9861749519533084,
+          "coverage_ratio": 0.9880236866833324,
+          "roi": [
+            0,
+            74,
+            1280,
+            497
+          ],
+          "rgb_mae": 0.0008854526095092297,
+          "rgb_p95": 0.003921568393707275,
+          "rgb_p99": 0.0235294122248888,
+          "rgb_max": 0.23529411852359772,
+          "psnr_luma_db": 44.33577551753493,
+          "ssim_luma": 0.9998685160557361,
+          "flat_max_outside_edge": 0.0
+        }
+      },
+      "pass": false,
+      "failures": [],
+      "repeat_software_identical": true,
+      "worst": {
+        "alpha_iou": 0.9861749519533084,
+        "coverage_ratio": 0.9880236866833324,
+        "rgb_mae": 0.0008854526095092297,
+        "rgb_p95": 0.003921568393707275,
+        "rgb_p99": 0.0235294122248888,
+        "rgb_max": 0.23529411852359772,
+        "ssim_luma": 0.9998685160557361,
+        "psnr_luma_db": 44.33577551753493
+      }
+    },
+    "multipage": {
+      "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tests/text/fixtures/pixel_parity/multipage.plan.json",
+      "plan_sha256": "ae4fc3a0987954c9f72be1d32da32fbe26f23614dcb3df7d7358d832c76605a9",
+      "frames": {
+        "0": {
+          "bbox_software": [
+            105,
+            134,
+            1173,
+            719
+          ],
+          "bbox_vulkan": [
+            106,
+            134,
+            1173,
+            719
+          ],
+          "mask_pixels_software": 189773,
+          "mask_pixels_vulkan": 188275,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.979143 < 0.995",
+            "rgb_p99 0.254902 > 0.03137254901960784",
+            "psnr_luma 26.268 dB < 35.0"
+          ],
+          "alpha_iou": 0.9791431084307074,
+          "coverage_ratio": 0.9921063586495444,
+          "roi": [
+            101,
+            130,
+            1178,
+            720
+          ],
+          "rgb_mae": 0.005625702440738678,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.2549019455909729,
+          "rgb_max": 1.0,
+          "psnr_luma_db": 26.267796060385944,
+          "ssim_luma": 0.9942507473399811,
+          "flat_max_outside_edge": 0.0
+        },
+        "1": {
+          "bbox_software": [
+            105,
+            134,
+            1173,
+            719
+          ],
+          "bbox_vulkan": [
+            106,
+            134,
+            1173,
+            719
+          ],
+          "mask_pixels_software": 189773,
+          "mask_pixels_vulkan": 188275,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.979143 < 0.995",
+            "rgb_p99 0.254902 > 0.03137254901960784",
+            "psnr_luma 26.268 dB < 35.0"
+          ],
+          "alpha_iou": 0.9791431084307074,
+          "coverage_ratio": 0.9921063586495444,
+          "roi": [
+            101,
+            130,
+            1178,
+            720
+          ],
+          "rgb_mae": 0.005625702440738678,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.2549019455909729,
+          "rgb_max": 1.0,
+          "psnr_luma_db": 26.267796060385944,
+          "ssim_luma": 0.9942507473399811,
+          "flat_max_outside_edge": 0.0
+        },
+        "2": {
+          "bbox_software": [
+            105,
+            134,
+            1173,
+            719
+          ],
+          "bbox_vulkan": [
+            106,
+            134,
+            1173,
+            719
+          ],
+          "mask_pixels_software": 189773,
+          "mask_pixels_vulkan": 188275,
+          "pass": false,
+          "failures": [
+            "alpha_iou 0.979143 < 0.995",
+            "rgb_p99 0.254902 > 0.03137254901960784",
+            "psnr_luma 26.268 dB < 35.0"
+          ],
+          "alpha_iou": 0.9791431084307074,
+          "coverage_ratio": 0.9921063586495444,
+          "roi": [
+            101,
+            130,
+            1178,
+            720
+          ],
+          "rgb_mae": 0.005625702440738678,
+          "rgb_p95": 0.0,
+          "rgb_p99": 0.2549019455909729,
+          "rgb_max": 1.0,
+          "psnr_luma_db": 26.267796060385944,
+          "ssim_luma": 0.9942507473399811,
+          "flat_max_outside_edge": 0.0
+        }
+      },
+      "pass": false,
+      "failures": [],
+      "repeat_software_identical": true,
+      "worst": {
+        "alpha_iou": 0.9791431084307074,
+        "coverage_ratio": 0.9921063586495444,
+        "rgb_mae": 0.005625702440738678,
+        "rgb_p95": 0.0,
+        "rgb_p99": 0.2549019455909729,
+        "rgb_max": 1.0,
+        "ssim_luma": 0.9942507473399811,
+        "psnr_luma_db": 26.267796060385944
+      }
+    }
+  },
+  "pass": false
+}

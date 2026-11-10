@@ -4,6 +4,7 @@
 
 #include "vulkan_backend_impl.hpp"
 
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -208,6 +209,141 @@ void VulkanBackend::Impl::bloom(runtime::RenderSurfaceHandle destination,
     constexpr float identity_tint[4]{1.0f, 1.0f, 1.0f, 1.0f};
     record_composite(command, composite_descriptor, dst, horizontal,
                      6, intensity, identity_tint);
+    dst.initialized = true;
+    ++frame_batch.pass_count;
+    ++stats.passes_executed;
+}
+
+void VulkanBackend::Impl::bloom_pyramid(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle scratch_full,
+    std::span<const runtime::RenderSurfaceHandle> mips,
+    float threshold, float radius, float intensity) {
+    if (!std::isfinite(threshold) || threshold < 0.0f || threshold > 1.0f ||
+        !std::isfinite(radius) || radius < 0.0f || radius > 96.0f ||
+        !std::isfinite(intensity) || intensity < 0.0f || intensity > 4.0f) {
+        throw std::invalid_argument(
+            "Vulkan bloom pyramid parameters are outside supported ranges");
+    }
+    if (mips.size() < 2 || mips.size() > 8) {
+        throw std::invalid_argument(
+            "Vulkan bloom pyramid requires between 2 and 8 mip surfaces");
+    }
+
+    auto& dst = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    auto& full = resolve_image(scratch_full);
+    if (!src_image.initialized ||
+        src_image.width != dst.width || src_image.height != dst.height ||
+        full.width != src_image.width || full.height != src_image.height) {
+        throw std::invalid_argument(
+            "Vulkan bloom pyramid has incompatible full-resolution surfaces");
+    }
+    if (full.format != VK_FORMAT_R16G16B16A16_SFLOAT) {
+        throw std::invalid_argument(
+            "Vulkan bloom pyramid full-resolution scratch must be R16G16B16A16_SFLOAT");
+    }
+
+    std::array<Image*, 8> levels{};
+    std::uint32_t expected_width = src_image.width;
+    std::uint32_t expected_height = src_image.height;
+    for (std::size_t i = 0; i < mips.size(); ++i) {
+        auto& level = resolve_image(mips[i]);
+        expected_width = std::max(1u, expected_width / 2u);
+        expected_height = std::max(1u, expected_height / 2u);
+        if (level.width != expected_width || level.height != expected_height) {
+            throw std::invalid_argument(
+                "Vulkan bloom pyramid mip dimensions do not form a half-resolution chain");
+        }
+        if (level.format != VK_FORMAT_R16G16B16A16_SFLOAT) {
+            throw std::invalid_argument(
+                "Vulkan bloom pyramid mip surfaces must be R16G16B16A16_SFLOAT");
+        }
+        levels[i] = &level;
+    }
+    if (!frame_batch.active) {
+        throw std::logic_error("Vulkan bloom pyramid requires an active frame batch");
+    }
+
+    const auto command = active_command_buffer();
+    emit_pass_sync(command,
+                   {&dst, &src_image, &full,
+                    levels[0], levels[1], levels[2], levels[3],
+                    levels[4], levels[5], levels[6], levels[7]},
+                   runtime::GpuPassKind::Bloom);
+
+    const auto transition = [&](Image& image, bool write_to_read) {
+        runtime::ResourceTransition barrier;
+        barrier.range = runtime::image_range(runtime::ResourceAspect::Color);
+        barrier.before = runtime::ResourceState{
+            .stages = runtime::PipelineStage::ComputeShader,
+            .access = write_to_read ? runtime::AccessMask::ShaderWrite
+                                    : runtime::AccessMask::ShaderRead,
+            .layout = runtime::ResourceLayout::General,
+            .queue = runtime::QueueClass::Compute,
+        };
+        barrier.after = runtime::ResourceState{
+            .stages = runtime::PipelineStage::ComputeShader,
+            .access = write_to_read ? runtime::AccessMask::ShaderRead
+                                    : runtime::AccessMask::ShaderWrite,
+            .layout = runtime::ResourceLayout::General,
+            .queue = runtime::QueueClass::Compute,
+        };
+        emit_resource_transition(command, image.image, barrier);
+    };
+
+    // Pass 0 prefilters the scene (rgba32f) into mip 0 (rgba16f): soft-knee
+    // threshold plus the Karis-weighted 13-tap kernel. The remaining levels
+    // average the already-filtered half-float energy.
+    {
+        Image& destination_mip = *levels[0];
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_descriptors(descriptors, destination_mip, src_image);
+        record_bloom_prefilter(command, descriptors, destination_mip, src_image,
+                               threshold, 0.5f);
+        destination_mip.initialized = true;
+        transition(destination_mip, true);
+    }
+    for (std::size_t i = 1; i < mips.size(); ++i) {
+        Image& destination_mip = *levels[i];
+        const Image& source_mip = *levels[i - 1];
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_descriptors(descriptors, destination_mip, source_mip);
+        record_bloom_downsample(command, descriptors, destination_mip, source_mip);
+        destination_mip.initialized = true;
+        transition(destination_mip, true);
+    }
+
+    // Upsample from the coarsest level, adding each tent-filtered level to
+    // the already-downsampled data stored in the next finer mip.
+    for (std::size_t i = mips.size(); i-- > 1;) {
+        Image& destination_mip = *levels[i - 1];
+        Image& source_mip = *levels[i];
+        transition(destination_mip, false);
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_descriptors(descriptors, destination_mip, source_mip);
+        record_bloom_upsample(command, descriptors, destination_mip, source_mip,
+                              1.0f, 1.0f, true);
+        transition(destination_mip, true);
+    }
+
+    // The final upsample writes the full-resolution bloom texture; the
+    // existing composite kernel then adds it to the source with linear
+    // additive energy instead of the saturating screen operator.
+    transition(full, false);
+    const auto final_descriptors = allocate_pass_descriptor_set();
+    write_descriptors(final_descriptors, full, *levels[0]);
+    record_bloom_upsample(command, final_descriptors, full, *levels[0],
+                          1.0f, 1.0f, false);
+    full.initialized = true;
+    transition(full, true);
+
+    // Add the rgba16f bloom to the rgba32f layer without clamping: energy above
+    // 1.0 must survive for the output transform (exposure + ACES) to compress.
+    const auto composite_descriptors = allocate_pass_descriptor_set();
+    write_descriptors(composite_descriptors, dst, full);
+    record_bloom_composite(command, composite_descriptors, dst, full, intensity);
     dst.initialized = true;
     ++frame_batch.pass_count;
     ++stats.passes_executed;

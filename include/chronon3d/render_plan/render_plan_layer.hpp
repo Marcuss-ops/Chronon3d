@@ -59,6 +59,9 @@ struct LayerPlan {
     std::vector<TextSpanOverride> text_spans;
     std::vector<TextGlyphPaintRange> svg_glyph_paint_ranges;
     std::optional<TextCounterPlan> text_counter;
+    // V3 explicit text-source transitions.  Mutually exclusive with
+    // text_counter; both feed the same AnimatedTextDocument materialization.
+    std::optional<TextTransitionsPlan> text_transitions;
 
     // Normalized concrete font asset path copied from style.font by decoder.
     // Kept as an execution field so asset preflight remains simple.

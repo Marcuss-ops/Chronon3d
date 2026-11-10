@@ -21,12 +21,14 @@ namespace chronon3d::text::driver {
 ///   - Hold / Cut / DissolveLayouts → `state.active->utf8` (the
 ///     transition_text is empty for these modes / mixed per-glyph in the
 ///     compositor, not in the layout).
-///   - Scramble / Morph             → `state.transition_text` (filled
-///     by `AnimatedTextDocument::sample_at` for these modes); falls back
-///     to `state.active->utf8` when transition_text is empty (e.g. mix
-///     pre/post-conditions clip the transition).
-/// Returns empty string when `state.active == nullptr` (caller treats
-/// this as a no-op opportunity).
+///   - Scramble / Morph / Typewriter → `state.transition_text` when
+///     `transition_text_authoritative` is set.  Empty is a valid target for
+///     typewriter frame 0; it must not fall back to `state.active->utf8`.
+///     When the flag is false (Hold/Cut/DissolveLayouts), returns
+///     `state.active->utf8`.
+/// Returns empty string when `state.active == nullptr`.  An empty string is
+/// a valid layout target when the transition owns the text; callers must
+/// rebuild the zero-glyph layout instead of treating it as "no work".
 [[nodiscard]] std::string select_target_text(const ActiveTextState& state);
 
 /// True iff the per-frame transition expects to shape crossfade slots:

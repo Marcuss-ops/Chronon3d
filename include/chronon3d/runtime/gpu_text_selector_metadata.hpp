@@ -7,8 +7,8 @@
 namespace chronon3d::runtime {
 
 // Prepared MTSDF GlyphStatic.flags keeps the existing 48-byte ABI. Bit 0 marks
-// MTSDF; bits 1..15 carry the static index for the active Word or Line selector.
-// 0x7fff is a sentinel for glyphs without an assignment.
+// MTSDF; bits 1..15 carry the static index for the active Word, Line, Grapheme
+// or Character selector. 0x7fff is a sentinel for glyphs without an assignment.
 inline constexpr std::uint16_t kMtsdfGlyphWordIndexShift = 1u;
 inline constexpr std::uint16_t kMtsdfGlyphWordIndexMask = 0x7fffu;
 

@@ -156,8 +156,10 @@ inline std::uint64_t glyph_key_hash64(const GpuGlyphKey& key) noexcept {
 /// Pen-relative placement of a glyph, preserved across the CPU→GPU promotion
 /// so a VRAM-resident glyph can be composited without re-shaping.
 struct GpuGlyphMetrics {
-    int x_offset{0};
-    int y_offset{0};
+    // Float so the MTSDF fractional plane origin survives the atlas handoff;
+    // integer coverage glyphs simply carry integral values.
+    float x_offset{0.0f};
+    float y_offset{0.0f};
     float advance_x{0.0f};
 };
 

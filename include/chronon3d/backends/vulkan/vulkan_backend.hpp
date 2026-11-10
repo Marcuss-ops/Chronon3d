@@ -29,6 +29,10 @@ typedef struct CUctx_st *CUcontext;
 #include <utility>
 #include <vector>
 
+namespace chronon3d {
+struct ParticleEmitterParams;
+}
+
 namespace chronon3d::backends::vulkan {
 
 class VulkanDebugContext;
@@ -535,6 +539,11 @@ public:
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, float) override;
+    graph::RenderOpResult bloom_pyramid_surfaces(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        runtime::RenderSurfaceHandle,
+        std::span<const runtime::RenderSurfaceHandle>,
+        float, float, float) override;
     graph::RenderOpResult color_adjust_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, const Color&, float) override;
@@ -568,7 +577,8 @@ public:
         runtime::RenderSurfaceHandle destination,
         std::span<const runtime::GlyphStatic> glyphs,
         std::span<const runtime::TextRunDynamic> runs,
-        std::span<const runtime::RenderSurfaceHandle> atlas_pages) override;
+        std::span<const runtime::RenderSurfaceHandle> atlas_pages,
+        std::span<const runtime::GlyphPaint> paints) override;
 
     /// Execute a compiled GPU layer batch.  Every instance in `instances`
     /// is composited into `destination` in painter order.  `resources` maps
@@ -582,6 +592,16 @@ public:
         std::span<const runtime::RenderSurfaceHandle> resources,
         std::span<const float> transforms,
         std::span<const float> paints) override;
+
+    /// First GPU-driven particle step: a stateless compute pass derives
+    /// billboard instances from the emitter and absolute time, then reuses the
+    /// layer-batch procedural-disc rasterizer.  The CPU sampler remains the
+    /// oracle; path/sprite emitters and unsupported blends fail closed.
+    graph::RenderOpResult execute_gpu_particle_batch(
+        runtime::RenderSurfaceHandle destination,
+        runtime::RenderSurfaceHandle transparent_source,
+        const ParticleEmitterParams& emitter,
+        double seconds);
     graph::RenderOpResult draw_inline_mesh_surface(
         runtime::RenderSurfaceHandle destination,
         runtime::RenderSurfaceHandle texture,
@@ -592,7 +612,8 @@ public:
         std::optional<float> alpha_cutoff,
         runtime::RenderSurfaceHandle depth_destination =
             runtime::kInvalidRenderSurfaceHandle,
-        float depth_marker = 1.0f) override;
+        float depth_marker = 1.0f,
+        const graph::InlineMeshShadingParams& shading = {}) override;
 
     /// Rasterize light-space caster triangles into `depth_map` (r = nearest
     /// depth, g = coverage). Vertices are packed as (x_px, y_px, depth, 1).

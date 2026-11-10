@@ -60,6 +60,14 @@ struct LayerStylePlan {
     std::string text_align{"center"};
     std::optional<float> font_size;
     std::string fill;
+    // "fast" (default) or "high". High selects the generation-2 128-em MTSDF
+    // profile; the value is part of the text style fingerprint.
+    std::string quality{"fast"};
+    // "fast" (default) or "canonical". Canonical selects the CPU Gaussian
+    // union-mask shadow; the native MTSDF route rejects it explicitly.
+    std::string shadow_quality{"fast"};
+    // "auto" (default), "distance" or "vector". Vector is CPU-only.
+    std::string stroke_mode{"auto"};
     bool gel_surface{false};
     // Smoothly fuse glyphs that actually touch/overlap into one GEL dome.
     // Unspecified preserves the historical GEL behavior for old plans.

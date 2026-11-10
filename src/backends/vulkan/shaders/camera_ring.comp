@@ -106,14 +106,20 @@ vec4 gather_camera_ring(vec2 uv, ivec2 pixel, ivec2 size, float coc,
     return accumulated / float(taps);
 }
 
-// A 16x16 workgroup shares one gather per 4x4 (or 2x2) pixel block when the
-// CoC is large. The blur is low-frequency there, so replicating the block
-// centre is visually equivalent and cuts the gather count 16x. Small radii
-// keep the per-pixel golden-angle gather and the 2x2 sensor prefilter; the
-// safe-zone copy is always exact. All threads reach every barrier because the
-// mode is uniform per workgroup.
-shared vec4 tile[16][16];
+// A 16x16 workgroup builds a small grid of blur-field samples and every pixel
+// bilinearly interpolates that grid. The old path replicated one gather over a
+// 16x16 block; at large CoC that produced visible 16-pixel steps. Here the
+// field is sampled every 8 pixels (or every 4 pixels for medium CoC) and the
+// interpolation removes the block boundaries while keeping the gather count
+// low. The grid includes the group boundary sample (spacing 4 -> 5x5, spacing
+// 8 -> 3x3) so neighbouring workgroups share exactly the same edge value.
+// Small radii keep the per-pixel golden-angle gather and the 2x2 sensor
+// prefilter; the safe-zone copy is always exact. All threads reach every
+// barrier because the mode is uniform per workgroup.
+shared vec4 tile[9][9];
 shared int tile_mode;
+shared int tile_spacing;
+shared int tile_grid;
 
 void main() {
     ivec2 size = imageSize(destination_image);
@@ -129,10 +135,13 @@ void main() {
             (vec2(gl_WorkGroupID.xy * uvec2(16u)) + vec2(8.0)) / vec2(size);
         float group_radius_px =
             ring_coc(group_uv) * params.max_blur_radius * float(size.x);
-        tile_mode = group_radius_px >= 24.0 ? 16
-                  : (group_radius_px >= 8.0 ? 8
-                  : (group_radius_px >= 3.0 ? 4
-                  : (group_radius_px >= 1.0 ? 2 : 1)));
+        if (group_radius_px >= 3.0) {
+            // 2 px grid: the old 8 px / 3x3 field showed square steps at
+            // large camera-ring CoC. 9x9 samples still fit one 16x16 group.
+            tile_mode = 2; tile_spacing = 2; tile_grid = 9;
+        } else {
+            tile_mode = 1; tile_spacing = 1; tile_grid = 0;
+        }
     }
     barrier();
     int mode = tile_mode;
@@ -143,15 +152,28 @@ void main() {
             imageStore(destination_image, pixel, imageLoad(source_image, pixel));
         } else {
             imageStore(destination_image, pixel,
-                       gather_camera_ring(uv, pixel, size, coc, true, 64));
+                       gather_camera_ring(uv, pixel, size, coc, true, 32));
         }
         return;
     }
 
-    int tap_limit = mode >= 16 ? 8 : (mode >= 8 ? 16 : 64);
-    if (in_bounds && (local.x % mode == 0) && (local.y % mode == 0)) {
-        tile[local.y][local.x] =
-            gather_camera_ring(uv, pixel, size, coc, false, tap_limit);
+    const int spacing = tile_spacing;
+    const int grid = tile_grid;
+    const int sample_count = grid * grid;
+    const int linear = local.y * 16 + local.x;
+    if (linear < sample_count) {
+        const int gx = linear % grid;
+        const int gy = linear / grid;
+        const ivec2 group_origin = ivec2(gl_WorkGroupID.xy * uvec2(16u));
+        const ivec2 sample_pixel = clamp(
+            group_origin + ivec2(gx * spacing, gy * spacing),
+            ivec2(0), size - ivec2(1));
+        const vec2 sample_uv = (vec2(sample_pixel) + vec2(0.5)) / vec2(size);
+        const float sample_coc = ring_coc(sample_uv);
+        tile[gy][gx] = sample_coc <= 0.001
+            ? imageLoad(source_image, sample_pixel)
+            : gather_camera_ring(sample_uv, sample_pixel, size, sample_coc,
+                                 false, 32);
     }
     barrier();
     if (!in_bounds) return;
@@ -161,11 +183,16 @@ void main() {
         return;
     }
 
-    ivec2 origin = ivec2(local.x - local.x % mode, local.y - local.y % mode);
-    ivec2 origin_pixel = pixel - (local - origin);
-    vec2 origin_uv = (vec2(origin_pixel) + vec2(0.5)) / vec2(size);
-    vec4 result = ring_coc(origin_uv) > 0.001
-        ? tile[origin.y][origin.x]
-        : gather_camera_ring(uv, pixel, size, coc, false, tap_limit);
-    imageStore(destination_image, pixel, result);
+    const ivec2 group_origin = ivec2(gl_WorkGroupID.xy * uvec2(16u));
+    const vec2 grid_pos = vec2(pixel - group_origin) / float(spacing);
+    const ivec2 cell = ivec2(floor(grid_pos));
+    const int gx = clamp(cell.x, 0, grid - 2);
+    const int gy = clamp(cell.y, 0, grid - 2);
+    const vec2 f = clamp(grid_pos - vec2(gx, gy), 0.0, 1.0);
+    const vec4 c00 = tile[gy][gx];
+    const vec4 c10 = tile[gy][gx + 1];
+    const vec4 c01 = tile[gy + 1][gx];
+    const vec4 c11 = tile[gy + 1][gx + 1];
+    imageStore(destination_image, pixel,
+               mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y));
 }

@@ -49,6 +49,7 @@ populate_font_spans(
         ShapedFontSpan span;
         span.font        = font_identity_of(para_runs[ri].font);
         span.variation_axes = variation_axes;
+        span.direction   = para_runs[ri].direction;
         span.font_size   = para_runs[ri].font.font_size;
         span.glyph_begin = begin;
         span.glyph_end   = end;
@@ -69,6 +70,7 @@ populate_font_spans(
         ShapedFontSpan span;
         span.font = font_identity_of(para_runs.front().font);
         span.variation_axes = variation_axes;
+        span.direction = para_runs.front().direction;
         span.font_size = para_runs.front().font.font_size;
         span.glyph_begin = 0;
         span.glyph_end = static_cast<std::uint32_t>(

@@ -18,6 +18,10 @@ set(_chronon3d_shaders
     lut_bulk
     sharpen
     bloom_threshold
+    bloom_prefilter
+    bloom_downsample
+    bloom_upsample
+    bloom_composite
     glow_prepare
     color_adjust
     color_matrix
@@ -27,6 +31,7 @@ set(_chronon3d_shaders
     text_run
     fill_rect
     layer_batch
+    particle_emitter
     inline_mesh
     text_tile_bin
     text_tile_raster
@@ -70,6 +75,10 @@ set(_chronon3d_shader_abi_prefixes
     lut_bulk:LutBulk
     sharpen:Sharpen
     bloom_threshold:BloomThreshold
+    bloom_prefilter:BloomPrefilter
+    bloom_downsample:BloomDownsample
+    bloom_upsample:BloomUpsample
+    bloom_composite:BloomComposite
     glow_prepare:GlowPrepare
     color_adjust:ColorAdjust
     color_matrix:ColorMatrix
@@ -79,6 +88,7 @@ set(_chronon3d_shader_abi_prefixes
     text_run:TextRun
     fill_rect:FillRect
     layer_batch:LayerBatch
+    particle_emitter:ParticleEmitter
     inline_mesh:InlineMesh
     text_tile_bin:TextTileBin
     text_tile_raster:TextTileRaster
@@ -155,6 +165,7 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_operations_color_private.cpp
     vulkan_backend_text_ops_private.cpp
     vulkan_backend_layer_ops_private.cpp
+    vulkan_backend_particle_ops_private.cpp
     vulkan_backend_inline_mesh_private.cpp
     vulkan_backend_shadow_private.cpp
     vulkan_backend_resources_private.cpp

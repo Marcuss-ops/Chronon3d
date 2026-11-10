@@ -4,6 +4,8 @@
 
 #include <chronon3d/text/animated_text_document.hpp>
 
+#include <chronon3d/backends/text/text_unicode_grapheme.hpp>
+
 #include "text_scramble_helpers.hpp"  // FASE 15 — scramble/morph helpers extracted
 
 #include <algorithm>
@@ -121,6 +123,7 @@ ActiveTextState AnimatedTextDocument::sample_at(Frame frame) const {
         result.dissolve_from = &prev_kf.document;
         result.transition = SourceTextTransition::Scramble;
         result.mix = mix;
+        result.transition_text_authoritative = true;
 
         // Generate the per-frame scrambled text.
         // Uses the PREVIOUS keyframe's scramble_params (the one that
@@ -142,6 +145,7 @@ ActiveTextState AnimatedTextDocument::sample_at(Frame frame) const {
         result.dissolve_from = &prev_kf.document;
         result.transition = SourceTextTransition::Morph;
         result.mix = mix;
+        result.transition_text_authoritative = true;
 
         result.transition_text = text_internal::generate_morphed_text(
             prev_kf.document.utf8,
@@ -151,6 +155,41 @@ ActiveTextState AnimatedTextDocument::sample_at(Frame frame) const {
             prev_kf.morph_params.easing,
             result.morph_map
         );
+        break;
+    }
+
+    case SourceTextTransition::Typewriter: {
+        result.active = &next_kf->document;
+        result.dissolve_from = &prev_kf.document;
+        result.transition = SourceTextTransition::Typewriter;
+        result.mix = mix;
+        result.transition_text_authoritative = true;
+
+        // Reveal the incoming document by complete grapheme clusters.  The
+        // previous text is intentionally irrelevant: a typewriter transition
+        // types the destination, it does not blend two layouts.
+        const std::string& incoming = next_kf->document.utf8;
+        const size_t total = detail::grapheme_cluster_count(incoming);
+        if (total == 0) {
+            result.transition_text = incoming;
+            break;
+        }
+
+        f32 progress = mix;
+        if (prev_kf.typewriter_params.chars_per_frame > 0.0f) {
+            const f32 revealed = pos * prev_kf.typewriter_params.chars_per_frame;
+            progress = std::clamp(
+                revealed / static_cast<f32>(total), 0.0f, 1.0f);
+        }
+        const f32 eased = prev_kf.typewriter_params.easing.apply(progress);
+        const size_t visible = std::min(
+            total, static_cast<size_t>(eased * static_cast<f32>(total)));
+        // Zero visible clusters is a legal frame: keep the run empty and let
+        // both backends draw a successful no-op.  A synthetic space used to
+        // change the authored layout and made frame 0 depend on a fake glyph.
+        result.transition_text = visible == 0
+            ? std::string{}
+            : incoming.substr(0, detail::grapheme_byte_offset_at(incoming, visible));
         break;
     }
 

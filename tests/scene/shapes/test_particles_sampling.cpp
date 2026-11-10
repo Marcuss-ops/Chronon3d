@@ -83,6 +83,65 @@ TEST_CASE("particle sampler validates ranges before sampling") {
     params = dust_emitter();
     CHECK_FALSE(chronon3d::sample_particles(params,
         std::numeric_limits<double>::infinity()).ok());
+    params = dust_emitter();
+    params.flow.scale = 0.0f;
+    CHECK_FALSE(chronon3d::validate_particle_emitter(params).empty());
+    params = dust_emitter();
+    params.twinkle.amount = 1.5f;
+    CHECK_FALSE(chronon3d::validate_particle_emitter(params).empty());
+}
+
+TEST_CASE("curl flow is opt-in, deterministic, and bounded") {
+    const auto params = dust_emitter();
+    const auto baseline = chronon3d::sample_particles(params, 2.25);
+    REQUIRE(baseline.ok());
+
+    auto flowed = params;
+    flowed.flow.strength = 42.0f;
+    flowed.flow.scale = 0.006f;
+    flowed.flow.speed = 0.4f;
+    const auto first = chronon3d::sample_particles(flowed, 2.25);
+    const auto repeated = chronon3d::sample_particles(flowed, 2.25);
+    REQUIRE(first.ok());
+    REQUIRE(repeated.ok());
+    REQUIRE(first.particles.size() == baseline.particles.size());
+
+    bool moved = false;
+    for (std::size_t i = 0; i < first.particles.size(); ++i) {
+        const auto dx = first.particles[i].position.x - baseline.particles[i].position.x;
+        const auto dy = first.particles[i].position.y - baseline.particles[i].position.y;
+        CHECK(first.particles[i].position.x == repeated.particles[i].position.x);
+        CHECK(first.particles[i].position.y == repeated.particles[i].position.y);
+        // The curl of the scalar potential stays within 1.13x / 1.3x of
+        // `strength`; a larger drift would mean the field integrated away.
+        CHECK(std::abs(dx) <= flowed.flow.strength * 1.13f + 1.0e-3f);
+        CHECK(std::abs(dy) <= flowed.flow.strength * 1.30f + 1.0e-3f);
+        if (std::abs(dx) + std::abs(dy) > 0.25f) moved = true;
+    }
+    CHECK(moved);
+}
+
+TEST_CASE("twinkle modulates alpha without moving the particle") {
+    const auto params = dust_emitter();
+    const auto plain = chronon3d::sample_particles(params, 1.5);
+    auto twinkling = params;
+    twinkling.twinkle.amount = 0.7f;
+    twinkling.twinkle.speed = 0.9f;
+    const auto shimmer = chronon3d::sample_particles(twinkling, 1.5);
+    REQUIRE(plain.ok());
+    REQUIRE(shimmer.ok());
+    REQUIRE(plain.particles.size() == shimmer.particles.size());
+    bool dimmed = false;
+    for (std::size_t i = 0; i < plain.particles.size(); ++i) {
+        CHECK(shimmer.particles[i].position.x == plain.particles[i].position.x);
+        CHECK(shimmer.particles[i].position.y == plain.particles[i].position.y);
+        CHECK(shimmer.particles[i].size == plain.particles[i].size);
+        CHECK(shimmer.particles[i].color.a <= plain.particles[i].color.a + 1.0e-6f);
+        CHECK(shimmer.particles[i].color.a >=
+              plain.particles[i].color.a * (1.0f - twinkling.twinkle.amount) - 1.0e-5f);
+        if (shimmer.particles[i].color.a < plain.particles[i].color.a - 1.0e-3f) dimmed = true;
+    }
+    CHECK(dimmed);
 }
 
 TEST_CASE("particle sampler rejects finite parameters that overflow integration") {

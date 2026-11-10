@@ -218,10 +218,10 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
         loc.height = static_cast<std::uint16_t>(height);
         loc.local_x = static_cast<std::int16_t>(metrics.x_offset);
         loc.local_y = static_cast<std::int16_t>(metrics.y_offset);
-        loc.plane_left = static_cast<float>(metrics.x_offset);
-        loc.plane_top = static_cast<float>(metrics.y_offset);
-        loc.plane_right = static_cast<float>(metrics.x_offset + static_cast<int>(width));
-        loc.plane_bottom = static_cast<float>(metrics.y_offset + static_cast<int>(height));
+        loc.plane_left = metrics.x_offset;
+        loc.plane_top = metrics.y_offset;
+        loc.plane_right = metrics.x_offset + static_cast<float>(width);
+        loc.plane_bottom = metrics.y_offset + static_cast<float>(height);
         loc.advance_x = metrics.advance_x;
         m_locations.emplace(key, loc);
         m_metrics.emplace(key, metrics);
@@ -275,10 +275,10 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
     loc.local_y = static_cast<std::int16_t>(metrics.y_offset);
     loc.width = static_cast<std::uint16_t>(width);
     loc.height = static_cast<std::uint16_t>(height);
-    loc.plane_left = static_cast<float>(metrics.x_offset);
-    loc.plane_top = static_cast<float>(metrics.y_offset);
-    loc.plane_right = static_cast<float>(metrics.x_offset + static_cast<int>(width));
-    loc.plane_bottom = static_cast<float>(metrics.y_offset + static_cast<int>(height));
+    loc.plane_left = metrics.x_offset;
+    loc.plane_top = metrics.y_offset;
+    loc.plane_right = metrics.x_offset + static_cast<float>(width);
+    loc.plane_bottom = metrics.y_offset + static_cast<float>(height);
     loc.advance_x = metrics.advance_x;
 
     // AUDIT-2026-09-09 N-02 — the per-glyph driver upload runs OUTSIDE the

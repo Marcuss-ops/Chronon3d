@@ -130,7 +130,7 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     // MTSDF outlines are evaluated as a distance-field threshold, so their
     // result does not depend on the vector stroke miter limit. Keep the
     // cap/join/dash checks: those change the outline topology or end treatment.
-    if (!shape.layout || shape.animated_doc || shape.caret.enabled ||
+    if (!shape.layout || shape.animated_doc ||
         shape.paint.fill_style || shape.paint.stroke_style ||
         shape.paint.stroke_cap != LineCap::Butt ||
         shape.paint.stroke_join != LineJoin::Miter ||
@@ -145,6 +145,21 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
         (shape.paint.stroke_width < 0.0f || shape.paint.stroke_width > 16.0f)) {
         return false;
     }
+    if (shape.paint.stroke_enabled &&
+        shape.paint.stroke_mode == TextStrokeMode::Vector) {
+        return false;
+    }
+    if (shape.paint.shadow_quality == TextShadowQuality::Canonical &&
+        std::any_of(shape.shadows.begin(), shape.shadows.end(),
+                    [](const TextShadow& shadow) { return shadow.enabled; })) {
+        return false;
+    }
+    if (shape.caret.enabled &&
+        (!std::isfinite(shape.caret.width) || shape.caret.width < 0.0f ||
+         !std::isfinite(shape.caret.height) || shape.caret.height < 0.0f ||
+         !std::isfinite(shape.caret.opacity))) {
+        return false;
+    }
     for (const auto& shadow : shape.shadows) {
         if (!shadow.enabled) continue;
         if (shadow.blur < 0.0f || shadow.blur > 64.0f ||
@@ -152,6 +167,15 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
             std::abs(shadow.offset.y) + shadow.blur > 64.0f) {
             return false;
         }
+    }
+    // The composite GEL pass shades from the shared silhouette and keeps its
+    // own fill color; a per-glyph gradient would be silently ignored there.
+    if (shape.material.enabled && shape.material.gel_surface &&
+        std::any_of(shape.glyphs.begin(), shape.glyphs.end(),
+            [](const GlyphInstanceState& glyph) {
+                return glyph.fill_gradient.enabled;
+            })) {
+        return false;
     }
     // Animator selectors and animated values are evaluated by Chronon's
     // canonical per-frame evaluator before reaching this predicate. Vulkan
@@ -163,25 +187,50 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     // cannot express without changing their meaning.
     return std::all_of(shape.glyphs.begin(), shape.glyphs.end(),
         [](const GlyphInstanceState& glyph) {
-            return std::abs(glyph.rotation.x) < 89.0f &&
-                   std::abs(glyph.rotation.y) < 89.0f &&
-                   (std::abs(glyph.rotation.z) <= 1e-6f ||
-                    (std::abs(glyph.anchor.x) <= 1e-6f &&
-                     std::abs(glyph.anchor.y) <= 1e-6f)) &&
+            return std::isfinite(glyph.rotation.x) &&
+                   std::isfinite(glyph.rotation.y) &&
+                   // In-plane rotation composes with a non-zero anchor:
+                   // gpu_anchor_pivot_offset() bakes the pivot into
+                   // animator_position_x/y for the per-glyph record.
+
                    std::isfinite(glyph.position.z) &&
                    std::abs(glyph.anchor.z) <= 1e-6f &&
-                   std::abs(glyph.skew) <= 1e-6f &&
-                   std::abs(glyph.skew_axis) <= 1e-6f &&
-                   !glyph.shadow.enabled && !glyph.glow.enabled &&
-                   !glyph.fill_gradient.enabled &&
+                   std::isfinite(glyph.skew) &&
+                   std::abs(glyph.skew) < 89.0f &&
+                   std::isfinite(glyph.skew_axis) &&
+                   (!glyph.shadow.enabled ||
+                    (std::isfinite(glyph.shadow.blur) &&
+                     glyph.shadow.blur >= 0.0f && glyph.shadow.blur <= 64.0f &&
+                     std::isfinite(glyph.shadow.opacity) &&
+                     glyph.shadow.opacity >= 0.0f &&
+                     std::isfinite(glyph.shadow.offset.x) &&
+                     std::isfinite(glyph.shadow.offset.y) &&
+                     std::abs(glyph.shadow.offset.x) + glyph.shadow.blur <= 64.0f &&
+                     std::abs(glyph.shadow.offset.y) + glyph.shadow.blur <= 64.0f)) &&
+                   (!glyph.glow.enabled ||
+                    (std::isfinite(glyph.glow.radius) &&
+                     glyph.glow.radius >= 0.0f && glyph.glow.radius <= 64.0f &&
+                     std::isfinite(glyph.glow.intensity))) &&
+                   std::isfinite(glyph.fill_gradient.angle_degrees) &&
+                   std::isfinite(glyph.fill_gradient.start.r) &&
+                   std::isfinite(glyph.fill_gradient.start.g) &&
+                   std::isfinite(glyph.fill_gradient.start.b) &&
+                   std::isfinite(glyph.fill_gradient.start.a) &&
+                   std::isfinite(glyph.fill_gradient.end.r) &&
+                   std::isfinite(glyph.fill_gradient.end.g) &&
+                   std::isfinite(glyph.fill_gradient.end.b) &&
+                   std::isfinite(glyph.fill_gradient.end.a) &&
                    std::isfinite(glyph.scale.x) &&
                    std::isfinite(glyph.scale.y) &&
                    std::isfinite(glyph.scale.z) &&
-                   glyph.background.a <= 1e-6f &&
-                   glyph.stroke.a <= 1e-6f &&
-                   glyph.stroke_width <= 1e-6f &&
-                   glyph.background_padding_em <= 1e-6f &&
-                   glyph.background_radius_em <= 1e-6f;
+                   std::isfinite(glyph.background_padding_em) &&
+                   glyph.background_padding_em >= 0.0f &&
+                   std::isfinite(glyph.background_radius_em) &&
+                   glyph.background_radius_em >= 0.0f &&
+                   (glyph.stroke.a <= 1e-6f ||
+                    (std::isfinite(glyph.stroke_width) &&
+                     glyph.stroke_width >= 0.0f &&
+                     glyph.stroke_width <= 16.0f));
         });
 }
 

@@ -248,6 +248,12 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
 
     const auto& shape = params.shape;
     const auto& layout = *shape.layout;
+    const bool canonical_shadow =
+        shape.paint.shadow_quality == TextShadowQuality::Canonical;
+    const auto shadow_blur_radius = [canonical_shadow](f32 blur) {
+        if (!canonical_shadow) return detail::bucket_radius_for_tier(blur);
+        return static_cast<int>(std::lround(std::max(0.0f, blur)));
+    };
 
     // Opt-in source geometry dump for range-highlight diagnostics. This is
     // the actual HarfBuzz/FreeType placed layout consumed by this raster pass;
@@ -319,7 +325,8 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
         const PlacedGlyphRun& source_placed,
         const std::vector<std::uint32_t>& tier_glyphs,
         const TextRasterSpace& raster_space,
-        const std::vector<std::size_t>& glyph_span_indices
+        const std::vector<std::size_t>& glyph_span_indices,
+        bool canonical_blur
     ) -> std::size_t {
         std::size_t drawn = 0;
         BLContext ctx(target);
@@ -670,7 +677,11 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
         ctx.end();
 
         if (drawn > 0 && blur_radius > 0) {
-            apply_separable_box_blur(target, blur_radius, s);
+            if (canonical_blur) {
+                apply_separable_gaussian_blur(target, blur_radius, s);
+            } else {
+                apply_separable_box_blur(target, blur_radius, s);
+            }
         }
         return drawn;
     };
@@ -693,10 +704,9 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
         };
         const TextRasterSpace shadow_space{1, s.offset_x, s.offset_y};
         const std::size_t sh_drawn = render_tier_to_image(
-            shadow_img, shadow_color,
-            detail::bucket_radius_for_tier(shadow.blur),
+            shadow_img, shadow_color, shadow_blur_radius(shadow.blur),
             shape.glyphs, layout.placed, s.all_active_glyphs,
-            shadow_space, s.per_glyph_span_idx);
+            shadow_space, s.per_glyph_span_idx, canonical_shadow);
         if (sh_drawn == 0) {
             release_surface(s, std::move(shadow_img));
             continue;
@@ -758,7 +768,7 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
             const auto drawn = render_tier_to_image(
                 effect, tint, detail::bucket_radius_for_tier(glyph.shadow.blur),
                 shape.glyphs, layout.placed, one, s.raster_space,
-                s.per_glyph_span_idx);
+                s.per_glyph_span_idx, false);
             if (drawn > 0) {
                 composite_effect(effect, glyph.shadow.offset, glyph.shadow.color,
                                  glyph.shadow.opacity);
@@ -774,7 +784,7 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
             const auto drawn = render_tier_to_image(
                 effect, tint, detail::bucket_radius_for_tier(glyph.glow.radius),
                 shape.glyphs, layout.placed, one, s.raster_space,
-                s.per_glyph_span_idx);
+                s.per_glyph_span_idx, false);
             if (drawn > 0) {
                 composite_effect(effect, Vec2{0.0f, 0.0f}, glyph.glow.color,
                                  glyph.glow.intensity);
@@ -803,7 +813,7 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
         const std::size_t drawn = render_tier_to_image(
             tier_img, std::nullopt, kBlurTierRadii[tier],
             shape.glyphs, layout.placed, s.active_tiers[tier],
-            s.raster_space, s.per_glyph_span_idx);
+            s.raster_space, s.per_glyph_span_idx, false);
         if (drawn == 0) {
             release_surface(s, std::move(tier_img));
             continue;
@@ -849,10 +859,9 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
             };
             const TextRasterSpace shadow_space{1, s.offset_x, s.offset_y};
             const std::size_t sh_drawn = render_tier_to_image(
-                shadow_img, shadow_color,
-                detail::bucket_radius_for_tier(shadow.blur),
+                shadow_img, shadow_color, shadow_blur_radius(shadow.blur),
                 shape.dissolve_glyphs, cf_layout.placed, all_outgoing_glyphs,
-                shadow_space, s.dissolve_per_glyph_span_idx);
+                shadow_space, s.dissolve_per_glyph_span_idx, canonical_shadow);
             if (sh_drawn == 0) {
                 release_surface(s, std::move(shadow_img));
                 continue;
@@ -881,7 +890,7 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                 tier_img, std::nullopt, kBlurTierRadii[tier],
                 shape.dissolve_glyphs, shape.dissolve_layout->placed,
                 s.dissolve_tiers[tier],
-                s.raster_space, s.dissolve_per_glyph_span_idx);
+                s.raster_space, s.dissolve_per_glyph_span_idx, false);
             if (drawn == 0) {
                 release_surface(s, std::move(tier_img));
                 continue;

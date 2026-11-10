@@ -84,14 +84,36 @@ static_assert(sizeof(GpuGlyphStatic) == 48);
 struct GpuGlyphDynamic {
     float tracking_prefix;
     float selector_weight;
+    std::uint32_t background_color;
+    float background_padding_px;
+    float background_radius_px;
+    float skew_tan;
+    float skew_axis_cos;
+    float skew_axis_sin;
+    std::uint32_t style_flags;
+    std::uint32_t reserved;
+    std::uint32_t gradient_start_color;
+    std::uint32_t gradient_end_color;
+    float gradient_angle_degrees;
+    std::uint32_t reserved2;
+    std::uint32_t shadow_color;
+    float shadow_dx;
+    float shadow_dy;
+    float shadow_blur;
+    float shadow_opacity;
+    std::uint32_t glow_color;
+    float glow_radius;
+    float glow_intensity;
+    std::uint32_t reserved3;
+    std::uint32_t reserved4;
 };
-static_assert(sizeof(GpuGlyphDynamic) == 8);
+static_assert(sizeof(GpuGlyphDynamic) == 96);
 
 // Use the production ABI directly. The tiled shaders consume the complete
 // selector/animator block (128 bytes, std430 stride); pin it here so stale
 // canary builds or host/shader drift cannot silently shift following runs.
 using GpuTextRunDynamic = chronon3d::runtime::TextRunDynamic;
-static_assert(sizeof(GpuTextRunDynamic) == 128);
+static_assert(sizeof(GpuTextRunDynamic) == 160);
 static_assert(alignof(GpuTextRunDynamic) == 16);
 
 struct RasterPush {
@@ -378,7 +400,7 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
                                     kAtlasSize, VK_FORMAT_R8G8B8A8_UNORM);
 
     // Glyph / run / tile-index buffers.
-    std::array<GpuGlyphStatic, 4> glyphs{};
+    std::array<GpuGlyphStatic, 9> glyphs{};
     // Glyph A: coverage/premultiplied, plane [4,8)x[4,8), run transform
     // (10,12) → screen rect x∈[14,18), y∈[16,20).  Spans tiles (0,1),(1,1).
     glyphs[0].run_index = 0;
@@ -423,12 +445,77 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     glyphs[3].plane_right = 8.0f;
     glyphs[3].plane_bottom = 8.0f;
     glyphs[3].draw_order = 3;
+    // Glyph F: per-glyph background probe. Flat-zero MTSDF ink at run (50,50)
+    // with 2 px padding and a 4 px radius; the background must appear outside
+    // the ink plane while the rounded corner stays empty.
+    glyphs[4].run_index = 4;
+    glyphs[4].atlas_page_and_flags = 1u << 16; // MTSDF
+    glyphs[4].atlas_pos = 56u | (0u << 16);
+    glyphs[4].atlas_size = 8u | (8u << 16);
+    glyphs[4].plane_left = 0.0f;
+    glyphs[4].plane_top = 0.0f;
+    glyphs[4].plane_right = 8.0f;
+    glyphs[4].plane_bottom = 8.0f;
+    glyphs[4].draw_order = 4;
+    // Glyph G: per-glyph 15-degree skew around the layout origin. The
+    // unskewed plane occupies screen x 50..58; at y=17 the skewed fill must
+    // reach x=59 while x=50 must already be outside.
+    glyphs[5].run_index = 5;
+    glyphs[5].atlas_page_and_flags = 1u << 16; // MTSDF
+    glyphs[5].atlas_pos = 8u | (0u << 16);
+    glyphs[5].atlas_size = 8u | (8u << 16);
+    glyphs[5].plane_left = 0.0f;
+    glyphs[5].plane_top = 0.0f;
+    glyphs[5].plane_right = 8.0f;
+    glyphs[5].plane_bottom = 8.0f;
+    glyphs[5].draw_order = 5;
+    // Glyph H: per-glyph linear gradient probe. Flat MTSDF fill at run (50,30)
+    // with red→blue left-to-right over the plane diagonal.
+    glyphs[6].run_index = 6;
+    glyphs[6].atlas_page_and_flags = 1u << 16; // MTSDF
+    glyphs[6].atlas_pos = 8u | (0u << 16);
+    glyphs[6].atlas_size = 8u | (8u << 16);
+    glyphs[6].plane_left = 0.0f;
+    glyphs[6].plane_top = 0.0f;
+    glyphs[6].plane_right = 8.0f;
+    glyphs[6].plane_bottom = 8.0f;
+    glyphs[6].draw_order = 6;
+    // Glyph I: per-glyph drop shadow. Flat MTSDF ink at run (50,40), red
+    // shadow offset by (3,3) px; the probe reads the shadow outside the fill.
+    glyphs[7].run_index = 7;
+    glyphs[7].atlas_page_and_flags = 1u << 16; // MTSDF
+    glyphs[7].atlas_pos = 8u | (0u << 16);
+    glyphs[7].atlas_size = 8u | (8u << 16);
+    glyphs[7].plane_left = 0.0f;
+    glyphs[7].plane_top = 0.0f;
+    glyphs[7].plane_right = 8.0f;
+    glyphs[7].plane_bottom = 8.0f;
+    glyphs[7].draw_order = 7;
+    // Glyph J: per-glyph glow. Flat MTSDF ink at run (40,20), blue halo with
+    // a 3 px radius; the probe reads the halo just outside the fill plane.
+    glyphs[8].run_index = 8;
+    glyphs[8].atlas_page_and_flags = 1u << 16; // MTSDF
+    glyphs[8].atlas_pos = 8u | (0u << 16);
+    glyphs[8].atlas_size = 8u | (8u << 16);
+    glyphs[8].plane_left = 0.0f;
+    glyphs[8].plane_top = 0.0f;
+    glyphs[8].plane_right = 8.0f;
+    glyphs[8].plane_bottom = 8.0f;
+    glyphs[8].draw_order = 8;
 
-    std::array<GpuTextRunDynamic, 4> runs{};
+    std::array<GpuTextRunDynamic, 9> runs{};
     runs[0].tx = 10.0f; runs[0].ty = 12.0f;
     runs[0].sx = 1.0f; runs[0].sy = 1.0f;
     runs[0].opacity = 1.0f;
     runs[0].color = 0xFFFFFFFFu; // white/identity tint
+    // Native caret probe: layout rect (10,8) 2x4 at run (10,12) → screen
+    // x 20..22, y 20..24, clear of every glyph.
+    runs[0].caret_flags = 1u;
+    runs[0].caret_color = 0xFF00FF00u; // green
+    runs[0].caret_x = 10.0f;
+    runs[0].caret_y = 8.0f;
+    runs[0].caret_width = 2.0f;
+    runs[0].caret_height = 4.0f;
     runs[1].tx = 30.0f; runs[1].ty = 30.0f;
     runs[1].sx = 1.0f; runs[1].sy = 1.0f;
     runs[1].opacity = 1.0f;
@@ -440,12 +527,64 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     runs[2].distance_range_bits = std::bit_cast<std::uint32_t>(1.0f);
     runs[3].tx = -0.25f; runs[3].ty = 47.75f;
     runs[3].distance_range_bits = std::bit_cast<std::uint32_t>(1.0f);
+    runs[4].tx = 50.0f; runs[4].ty = 50.0f;
+    runs[4].sx = 1.0f; runs[4].sy = 1.0f;
+    runs[4].opacity = 1.0f;
+    runs[4].color = 0xFFFFFFFFu;
+    runs[4].distance_range_bits = std::bit_cast<std::uint32_t>(1.0f);
+    runs[5].tx = 50.0f; runs[5].ty = 10.0f;
+    runs[5].sx = 1.0f; runs[5].sy = 1.0f;
+    runs[5].opacity = 1.0f;
+    runs[5].color = 0xFFFFFFFFu;
+    runs[5].distance_range_bits = std::bit_cast<std::uint32_t>(1.0f);
+    runs[6].tx = 50.0f; runs[6].ty = 30.0f;
+    runs[6].sx = 1.0f; runs[6].sy = 1.0f;
+    runs[6].opacity = 1.0f;
+    runs[6].color = 0xFFFFFFFFu;
+    runs[6].distance_range_bits = std::bit_cast<std::uint32_t>(1.0f);
+    runs[7].tx = 50.0f; runs[7].ty = 40.0f;
+    runs[7].sx = 1.0f; runs[7].sy = 1.0f;
+    runs[7].opacity = 1.0f;
+    runs[7].color = 0xFFFFFFFFu;
+    runs[7].distance_range_bits = std::bit_cast<std::uint32_t>(1.0f);
+    runs[8].tx = 40.0f; runs[8].ty = 20.0f;
+    runs[8].sx = 1.0f; runs[8].sy = 1.0f;
+    runs[8].opacity = 1.0f;
+    runs[8].color = 0xFFFFFFFFu;
+    runs[8].distance_range_bits = std::bit_cast<std::uint32_t>(1.0f);
 
-    std::array<GpuGlyphDynamic, 4> glyph_dynamic{};
+    std::array<GpuGlyphDynamic, 9> glyph_dynamic{};
     glyph_dynamic[0].selector_weight = 1.0f;
     glyph_dynamic[1].selector_weight = 1.0f;
     glyph_dynamic[2].selector_weight = 1.0f;
     glyph_dynamic[3].selector_weight = 1.0f;
+    glyph_dynamic[4].selector_weight = 1.0f;
+    glyph_dynamic[4].style_flags = 1u; // background
+    glyph_dynamic[4].background_color = 0xFF00FF00u; // unpack: r=0,g=1,b=0
+    glyph_dynamic[4].background_padding_px = 2.0f;
+    glyph_dynamic[4].background_radius_px = 4.0f;
+    glyph_dynamic[5].selector_weight = 1.0f;
+    glyph_dynamic[5].style_flags = 2u; // skew
+    glyph_dynamic[5].skew_tan = 0.2679491924f; // tan(15 degrees)
+    glyph_dynamic[5].skew_axis_cos = 0.0f;
+    glyph_dynamic[5].skew_axis_sin = 1.0f; // axis 90°: x shifts with y
+    glyph_dynamic[6].selector_weight = 1.0f;
+    glyph_dynamic[6].style_flags = 16u; // gradient
+    glyph_dynamic[6].gradient_start_color = 0xFF0000FFu; // red
+    glyph_dynamic[6].gradient_end_color = 0xFFFF0000u;   // blue
+    glyph_dynamic[6].gradient_angle_degrees = 0.0f;
+    glyph_dynamic[7].selector_weight = 1.0f;
+    glyph_dynamic[7].style_flags = 4u; // shadow
+    glyph_dynamic[7].shadow_color = 0xFF0000FFu; // red
+    glyph_dynamic[7].shadow_dx = 3.0f;
+    glyph_dynamic[7].shadow_dy = 3.0f;
+    glyph_dynamic[7].shadow_blur = 0.0f;
+    glyph_dynamic[7].shadow_opacity = 1.0f;
+    glyph_dynamic[8].selector_weight = 1.0f;
+    glyph_dynamic[8].style_flags = 8u; // glow
+    glyph_dynamic[8].glow_color = 0xFFFF0000u; // blue
+    glyph_dynamic[8].glow_radius = 3.0f;
+    glyph_dynamic[8].glow_intensity = 1.0f;
 
     const VkDeviceSize count_bytes = kTilesX * kTilesY * sizeof(std::uint32_t);
     const VkDeviceSize index_bytes = count_bytes * kMaxGlyphsPerTile;
@@ -525,10 +664,11 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
         {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
         {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
         {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
-        {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
+        {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+        {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
     VkDescriptorSetLayout bin_layout = VK_NULL_HANDLE;
     const VkDescriptorSetLayoutCreateInfo bin_layout_info{
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, 4, bin_bindings};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, 5, bin_bindings};
     REQUIRE(vkCreateDescriptorSetLayout(ctx.device, &bin_layout_info, nullptr,
                                         &bin_layout) == VK_SUCCESS);
 
@@ -619,8 +759,10 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, bin_set, 2, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &bc, nullptr},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, bin_set, 3, 0, 1,
-         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &bi, nullptr}};
-    vkUpdateDescriptorSets(ctx.device, 4, bin_writes, 0, nullptr);
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &bi, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, bin_set, 4, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &bd, nullptr}};
+    vkUpdateDescriptorSets(ctx.device, 5, bin_writes, 0, nullptr);
 
     const VkDescriptorImageInfo dst_info{VK_NULL_HANDLE, dst.view, VK_IMAGE_LAYOUT_GENERAL};
     const VkDescriptorImageInfo atlas_info{VK_NULL_HANDLE, atlas.view, VK_IMAGE_LAYOUT_GENERAL};
@@ -682,7 +824,7 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
                          VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
     // Bin.
-    const BinPush bin_push_data{4u, kTilesX, kTilesY,
+    const BinPush bin_push_data{9u, kTilesX, kTilesY,
                                 kMaxGlyphsPerTile, kDstSize, kDstSize};
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bin_pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bin_pipeline_layout,
@@ -785,6 +927,87 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     CHECK(near_px(just_outside.b, expected_bg.b));
     CHECK(near_px(just_outside.a, expected_bg.a));
 
+    // ── P1-08: per-glyph background and skew ─────────────────────────────
+    // Glyph F has no ink, so a green pixel proves background is emitted. The
+    // probe is one pixel outside the ink plane and inside the 2 px padding.
+    const Pixel padded_background = at(48, 54);
+    CHECK(near_px(padded_background.r, 0.0f));
+    CHECK(near_px(padded_background.g, 1.0f));
+    CHECK(near_px(padded_background.b, 0.0f));
+    CHECK(near_px(padded_background.a, 1.0f));
+    // The 4 px radius must cut the square padding corner.
+    const Pixel rounded_corner = at(48, 48);
+    CHECK(near_px(rounded_corner.r, expected_bg.r));
+    CHECK(near_px(rounded_corner.g, expected_bg.g));
+    CHECK(near_px(rounded_corner.b, expected_bg.b));
+    CHECK(near_px(rounded_corner.a, expected_bg.a));
+    const Pixel outside_padding = at(47, 54);
+    CHECK(near_px(outside_padding.r, expected_bg.r));
+    CHECK(near_px(outside_padding.g, expected_bg.g));
+    CHECK(near_px(outside_padding.b, expected_bg.b));
+    CHECK(near_px(outside_padding.a, expected_bg.a));
+
+    // Glyph G skews left as y grows. x=49 is outside the unskewed plane but
+    // inside the skewed one at y=17; x=57 is the inverse case.
+    const Pixel skewed_inside = at(49, 17);
+    CHECK(near_px(skewed_inside.r, 1.0f));
+    CHECK(near_px(skewed_inside.g, 1.0f));
+    CHECK(near_px(skewed_inside.b, 1.0f));
+    CHECK(near_px(skewed_inside.a, 1.0f));
+    const Pixel skewed_outside = at(57, 17);
+    CHECK(near_px(skewed_outside.r, expected_bg.r));
+    CHECK(near_px(skewed_outside.g, expected_bg.g));
+    CHECK(near_px(skewed_outside.b, expected_bg.b));
+    CHECK(near_px(skewed_outside.a, expected_bg.a));
+
+    // Glyph H: the gradient goes red→blue across the glyph plane.
+    const Pixel gradient_left = at(50, 30);
+    CHECK(gradient_left.r > 0.75f);
+    CHECK(gradient_left.b < 0.25f);
+    CHECK(near_px(gradient_left.a, 1.0f));
+    const Pixel gradient_right = at(57, 30);
+    CHECK(gradient_right.b > 0.75f);
+    CHECK(gradient_right.r < 0.25f);
+    CHECK(near_px(gradient_right.a, 1.0f));
+
+    // Native caret: green inside its layout rect, untouched outside.
+    const Pixel caret_inside = at(20, 22);
+    CHECK(near_px(caret_inside.r, 0.0f));
+    CHECK(near_px(caret_inside.g, 1.0f));
+    CHECK(near_px(caret_inside.b, 0.0f));
+    CHECK(near_px(caret_inside.a, 1.0f));
+    const Pixel caret_outside = at(23, 22);
+    CHECK(near_px(caret_outside.r, expected_bg.r));
+    CHECK(near_px(caret_outside.g, expected_bg.g));
+    CHECK(near_px(caret_outside.b, expected_bg.b));
+    CHECK(near_px(caret_outside.a, expected_bg.a));
+
+    // Glyph I: the (3,3) px shadow is visible outside the fill plane. y=45
+    // stays above the green background of Glyph F, which starts at y=48.
+    const Pixel shadow_inside = at(59, 45);
+    CHECK(near_px(shadow_inside.r, 1.0f));
+    CHECK(near_px(shadow_inside.g, 0.0f));
+    CHECK(near_px(shadow_inside.b, 0.0f));
+    CHECK(near_px(shadow_inside.a, 1.0f));
+    // Opposite direction: no fill and no offset shadow reaches (49,39).
+    const Pixel shadow_outside = at(49, 39);
+    CHECK(near_px(shadow_outside.r, expected_bg.r));
+    CHECK(near_px(shadow_outside.g, expected_bg.g));
+    CHECK(near_px(shadow_outside.b, expected_bg.b));
+    CHECK(near_px(shadow_outside.a, expected_bg.a));
+
+    // Glyph J: the blue glow falls off with distance; (49,24) is 0.5 px
+    // outside the fill plane and inside the 3 px radius, (52,24) is outside.
+    const Pixel glow_inside = at(49, 24);
+    CHECK(glow_inside.b > 0.80f);
+    CHECK(glow_inside.r < 0.20f);
+    CHECK(near_px(glow_inside.a, 1.0f));
+    const Pixel glow_outside = at(52, 24);
+    CHECK(near_px(glow_outside.r, expected_bg.r));
+    CHECK(near_px(glow_outside.g, expected_bg.g));
+    CHECK(near_px(glow_outside.b, expected_bg.b));
+    CHECK(near_px(glow_outside.a, expected_bg.a));
+
     // ── Contract 4: fractional (bilinear) atlas sampling ─────────────────
     // Glyph C ramps (i + 0.5) / 8 across its rect and its run is translated
     // by half a texel, so destination pixel x samples texel x - 0.5, i.e.
@@ -837,7 +1060,7 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     CHECK(counts[1 * kTilesX + 0] >= 1); // tile (0,1)
     CHECK(counts[1 * kTilesX + 1] >= 1); // tile (1,1)
     CHECK(counts[2 * kTilesX + 2] >= 1); // tile (2,2) — glyph B
-    CHECK(counts[3 * kTilesX + 3] == 0); // tile (3,3) untouched
+    CHECK(counts[3 * kTilesX + 1] == 0); // tile (1,3) untouched
 
     vkDestroyFence(ctx.device, fence, nullptr);
     vkFreeCommandBuffers(ctx.device, cmd_pool, 1, &cmd);

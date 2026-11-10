@@ -134,6 +134,20 @@ struct ResolvedLayerMediaAssets {
 [[nodiscard]] ResolvedLayerMediaAssets resolve_layer_media_assets(
     const RenderPlan& plan, chronon3d::assets::AssetResolver& resolver);
 
+struct PreparedTextTransitions {
+    std::shared_ptr<const chronon3d::AnimatedTextDocument> document;
+    chronon3d::TextDefinition final_definition;
+};
+
+/// Lower the V3 `text_transitions` block into the same AnimatedTextDocument
+/// consumed by the RenderPlan and compiled-program scene evaluators. Keeping
+/// this in one helper prevents the two routes from drifting on transition
+/// parameters or the final static fallback.
+[[nodiscard]] PreparedTextTransitions build_text_transitions(
+    const std::string& layer_id,
+    const chronon3d::TextDefinition& base_definition,
+    const TextTransitionsPlan& transitions, FrameRate fps);
+
 struct PreparedTextLayers {
     std::vector<std::optional<chronon3d::PreparedText>> texts;
     std::vector<std::shared_ptr<const chronon3d::AnimatedTextDocument>> counters;

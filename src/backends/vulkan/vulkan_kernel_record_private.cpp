@@ -266,6 +266,81 @@ namespace chronon3d::backends::vulkan {
         ++stats.vk_cmd_dispatch_count;
     }
 
+    void VulkanBackend::Impl::record_bloom_prefilter(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& source,
+        float threshold, float soft_knee) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::BloomPrefilter)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float threshold;
+            float soft_knee;
+            std::int32_t first_pass;
+            std::int32_t padding;
+        } push{threshold, soft_knee, 1, 0};
+        static_assert(sizeof(push) == 16, "Bloom prefilter push must be 16 bytes");
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(push), &push);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void VulkanBackend::Impl::record_bloom_downsample(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& source) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::BloomDownsample)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void VulkanBackend::Impl::record_bloom_upsample(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& source,
+        float filter_radius, float intensity, bool additive) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::BloomUpsample)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float filter_radius;
+            float intensity;
+            std::int32_t additive;
+            std::int32_t padding;
+        } push{filter_radius, intensity, additive ? 1 : 0, 0};
+        static_assert(sizeof(push) == 16, "Bloom upsample push must be 16 bytes");
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(push), &push);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void VulkanBackend::Impl::record_bloom_composite(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& source, float intensity) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::BloomComposite)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float intensity;
+            float padding[3];
+        } push{intensity, {0.0f, 0.0f, 0.0f}};
+        static_assert(sizeof(push) == 16, "Bloom composite push must be 16 bytes");
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(push), &push);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
     void VulkanBackend::Impl::record_glow_prepare(
         VkCommandBuffer command, VkDescriptorSet descriptors,
         const Image& destination, const Image& source,

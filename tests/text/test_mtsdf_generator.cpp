@@ -64,8 +64,8 @@ std::uint64_t hash_bitmap(const chronon3d::MtsdfGlyphBitmap& bitmap) noexcept {
     std::uint64_t h = 1469598103934665603ull;
     h = mix(h, bitmap.width);
     h = mix(h, bitmap.height);
-    h = mix(h, static_cast<std::uint32_t>(bitmap.x_offset));
-    h = mix(h, static_cast<std::uint32_t>(bitmap.y_offset));
+    h = mix(h, std::bit_cast<std::uint32_t>(bitmap.x_offset));
+    h = mix(h, std::bit_cast<std::uint32_t>(bitmap.y_offset));
     h = mix(h, std::bit_cast<std::uint32_t>(bitmap.advance_x));
     for (const float packed : bitmap.rgba8) {
         h = mix(h, std::bit_cast<std::uint32_t>(packed));
