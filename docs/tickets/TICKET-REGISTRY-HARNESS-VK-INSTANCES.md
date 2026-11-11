@@ -2,12 +2,13 @@
 
 ## Stato
 
-OPEN (2026-11-02). Eredità di
+PARTIAL (2026-11-11). Eredità di
 [`TICKET-POOL-SURFACE-REUSE`](archive/TICKET-POOL-SURFACE-REUSE.md) (chiuso) e
 unico gate residuo di
 [`TICKET-AE-EFFECT-PARITY`](archive/TICKET-AE-EFFECT-PARITY.md) per il
-run completo `ctest`. Non è un difetto di rendering: **zero asserzioni
-falliscono** in tutti i run.
+run completo `ctest`. Il `-9` storico è un difetto dell'ICD NVIDIA headless;
+con llvmpipe il `-9` è assente, ma restano **9 mismatch reali di effect
+parity** (non un problema del harness).
 
 ## Sintomo
 
@@ -70,6 +71,15 @@ toccare i test.
   1 fallito, **0** `-9`; 1.931.853 asserzioni (1 fallita).
 - Il solo file surfaces: 23 casi, 22 passati, 1 fallito, 0 `-9`; il fallimento
   è la stessa riga 518.
+
+### Misura 2026-11-11 (release, llvmpipe)
+
+`VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json`, binario Release
+corrente: **139 casi, 130 passati, 9 falliti, 0 `VkResult=-9`**, 4.458
+asserzioni fallite su 1.934.365. Il test GEL composite è stato corretto
+(soglia backlit 0.75–0.95, prima 0.45–0.90) e passa 10/10; restano nove casi
+effect parity che falliscono anche isolati e con ICD NVIDIA. Il gate 130/130
+resta aperto; il `-9` non è più la causa.
 
 ### Misura 2026-11-08 (release, llvmpipe)
 

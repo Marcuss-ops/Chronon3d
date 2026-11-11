@@ -92,6 +92,13 @@ TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") 
     // would be too short because frame-slot retirement could recycle a surface
     // while the CUDA importer still owns the ring slot.
     CHECK(desc.lifetime == chronon3d::runtime::LifetimeClass::PipelineSlot);
+    // The importer-owned ring is identified by this residency contract: the
+    // framebuffer pool must treat the handle as borrowed (the decoder session
+    // releases it) instead of retiring the slot at the end of every frame.
+    CHECK(desc.residency.exportable);
+    CHECK(desc.residency.importable);
+    CHECK(desc.residency.decoder_compatible);
+    CHECK_FALSE(desc.residency.encoder_compatible);
     // float4 write view must fit exactly inside the external allocation.
     CHECK(desc.bytes == static_cast<std::size_t>(width) * height * 16);
     CHECK(desc.bytes ==

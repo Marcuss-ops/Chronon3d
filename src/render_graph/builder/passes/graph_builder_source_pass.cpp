@@ -244,7 +244,26 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // nodes with one SourceNode carrying the sampled instance stream.
         if (ctx.policy.require_native_gpu &&
             gpu_particle_node != layer.nodes.end()) {
-            const auto node = *gpu_particle_node;
+            auto node = *gpu_particle_node;
+            // A fresh graph build is used for every GPU-particle frame.  The
+            // authoring marker only carries the t=0 sample; without replacing
+            // it here the graph is rebuilt at the right frame but always draws
+            // the initial particle cloud.  Mirror the per-frame instance
+            // conversion used by refresh_source_node().
+            if (sampled_particle_layer &&
+                sampled_particle_layer->kind == compiler::NodeKind::Particles &&
+                sampled_particle_layer->active &&
+                !sampled_particle_layer->elements.empty()) {
+                node.gpu_particle_instances.clear();
+                node.gpu_particle_instances.reserve(
+                    sampled_particle_layer->elements.size());
+                for (const auto& sample : sampled_particle_layer->elements) {
+                    node.gpu_particle_instances.push_back({
+                        Vec2{sample.position.x, sample.position.y}, sample.color,
+                        sample.size, sample.rotation.z, sample.sprite_scale,
+                        sample.position.z, sample.velocity});
+                }
+            }
             if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
                 std::fprintf(stderr,
                     "[gpu-particles-build] layer='%s' node='%s' instances=%zu shape=%d pos=(%.2f,%.2f,%.2f)\n",

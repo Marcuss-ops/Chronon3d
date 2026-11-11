@@ -102,6 +102,24 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         }
     }
 
+    if (prepared->atlas_generation != ctx.gpu_glyph_atlas->generation()) {
+        // The atlas advanced its residency epoch (clear/reattach) after this
+        // run was prepared. Rebuild once through the canonical preparation
+        // path; a stale batch must never bind retired pages.
+        spdlog::warn(
+            "[text-cache] rebuilding prepared MTSDF batch after glyph-atlas epoch change");
+        ctx.gpu_text_prepared_cache->clear();
+        auto rebuilt = prepare_mtsdf_text_run(
+            *ctx.gpu_glyph_atlas, ctx.asset_resolver, shape);
+        if (!rebuilt || !rebuilt->ready) {
+            return graph::RenderOpResult(graph::make_render_backend_error(
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "MTSDF text route could not rebuild after glyph-atlas epoch change"));
+        }
+        ctx.gpu_text_prepared_cache->store(*shape.layout, quality_key, rebuilt);
+        prepared = std::move(rebuilt);
+    }
+
     if (!prepared->ready) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
@@ -195,6 +213,9 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         }
         if (shape.material.gel_soft_fusion) {
             run.effect_flags |= (1u << 10);
+        }
+        if (shape.material.gel_reference_20261107) {
+            run.effect_flags |= kTextRunEffectGelReference;
         }
         run.effect_flags |= (static_cast<std::uint32_t>(
             shape.material.gel_debug_mode & 0x7u) << 6u);

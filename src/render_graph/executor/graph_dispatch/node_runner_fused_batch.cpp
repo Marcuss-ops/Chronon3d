@@ -104,6 +104,9 @@ void fill_mtsdf_effects(const TextRunShape& shape,
         if (shape.material.gel_soft_fusion) {
             run.effect_flags |= (1u << 10);
         }
+        if (shape.material.gel_reference_20261107) {
+            run.effect_flags |= chronon3d::graph::text_run::kTextRunEffectGelReference;
+        }
         run.effect_flags |= (static_cast<std::uint32_t>(
             shape.material.gel_debug_mode & 0x7u) << 6u);
         run.animator_reserved5 = ::chronon3d::text::gel::pack_light_parameters(

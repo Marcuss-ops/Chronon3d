@@ -149,22 +149,37 @@ int render_and_encode_ffmpeg(
     std::chrono::steady_clock::time_point* sidecar_written_at,
     std::shared_ptr<SoftwareRenderer> warm_renderer,
     const compiler::CompiledProgram* program) {
+    const auto record_setup_failure = [&](std::string message,
+                                          std::string stage = "setup") {
+        if (!execution) return;
+        execution->export_failure.stage = std::move(stage);
+        execution->export_failure.message = std::move(message);
+        execution->export_failure.failure_class =
+            media::classify_export_failure(execution->export_failure.message);
+    };
+
     if (opts.output.output.empty()) {
         spdlog::error("[video] No output path specified.");
+        record_setup_failure("no output path specified");
         return 1;
     }
     if (end <= start) {
         spdlog::error("[video] Empty frame range [{}, {})", start, end);
+        record_setup_failure("empty frame range");
         return 1;
     }
     if (!program) {
         spdlog::error("[video] no executable CompiledProgram was supplied; "
                       "the legacy Composition executor has been removed");
+        record_setup_failure("no executable CompiledProgram was supplied");
         return 1;
     }
     if (opts.sink.ffmpeg_mode != "pipe") {
         spdlog::error("[video] Unsupported ffmpeg mode '{}'. Only 'pipe' is available",
                       opts.sink.ffmpeg_mode);
+        record_setup_failure(
+            "UnsupportedCapability: unsupported ffmpeg mode '" +
+            opts.sink.ffmpeg_mode + "'");
         return 1;
     }
     // Ingress contract: a supplied compressed source must be readable before
@@ -173,6 +188,7 @@ int render_and_encode_ffmpeg(
     if (!opts.gop_source.empty()) {
         if (!program) {
             spdlog::error("[video] GOP execution requires a CompiledProgram");
+            record_setup_failure("GOP execution requires a CompiledProgram");
             return 1;
         }
         std::error_code ec;
@@ -181,6 +197,9 @@ int render_and_encode_ffmpeg(
         if (!readable) {
             spdlog::error("[video] gop_source '{}' is not a readable regular file (ec={})",
                           opts.gop_source, ec ? ec.message() : "none");
+            record_setup_failure(
+                "gop_source '" + opts.gop_source +
+                "' is not a readable regular file");
             return 1;
         }
     }
@@ -215,6 +234,7 @@ int render_and_encode_ffmpeg(
     } else {
         if (!program) {
             spdlog::error("[video] GOP inspection requires a CompiledProgram");
+            record_setup_failure("GOP inspection requires a CompiledProgram");
             return 1;
         }
         const media::GopAnalysisSummary summary = detail::inspect_source_once(
@@ -269,6 +289,9 @@ int render_and_encode_ffmpeg(
             spdlog::error(
                 "[video] FAIL_CLOSED: requested execution cannot run on this host "
                 "(resolver reason: {}); aborting before setup", reason);
+            record_setup_failure(
+                "UnsupportedCapability: requested execution cannot run on this host "
+                "(resolver reason: " + reason + ")");
             return 1;
         }
         spdlog::warn(
@@ -283,6 +306,9 @@ int render_and_encode_ffmpeg(
     // lane anymore.
     if (const auto packet_copy_status = detail::execute_packet_copy_lane(
             render_opts, start_sec, end_sec)) {
+        if (*packet_copy_status != 0) {
+            record_setup_failure("packet-copy lane failed", "packet-copy");
+        }
         return *packet_copy_status;
     }
 
@@ -330,6 +356,9 @@ int render_and_encode_ffmpeg(
 
     auto* device_scheduler = execution ? execution->device_scheduler : nullptr;
     auto video_runtimes = execution ? execution->video_runtimes : nullptr;
+    // Keep the context alive across the move so the structured failure the
+    // native exporter produced can be published to the job boundary.
+    auto execution_owner = execution;
     auto result = render_and_encode_native(
         registry, composition_id,
         settings, start, end, render_opts, cpu_budget,
@@ -338,6 +367,18 @@ int render_and_encode_ffmpeg(
         std::move(execution),
         std::move(warm_renderer),
         program);
+    if (execution_owner && result.return_code != 0) {
+        auto& failure = execution_owner->export_failure;
+        // Never publish an empty structured failure: the job boundary would
+        // otherwise fall back to the old, misleading EncoderFailed text.
+        failure.stage = result.failure_stage.empty() ? "native" : result.failure_stage;
+        failure.node = result.failure_node;
+        failure.message = result.failure_message.empty()
+            ? "native export failed without a captured detail"
+            : result.failure_message;
+        failure.frame = result.failure_frame;
+        failure.failure_class = media::classify_export_failure(failure.message);
+    }
     if (sidecar_written_at) *sidecar_written_at = result.sidecar_written_at;
     return result.return_code;
 }

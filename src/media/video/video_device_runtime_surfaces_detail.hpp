@@ -57,6 +57,15 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
     // source→encode device copy.
     if (slot.native_surface != runtime::kInvalidRenderSurfaceHandle ||
         slot.source_surface != runtime::kInvalidRenderSurfaceHandle) {
+        // source_surface is an alias of the encode backing by contract. A
+        // cleared alias (slot recycle) must not force a new Vulkan image: the
+        // encode surface is still bound and valid, and rebuilding it every
+        // frame leaks one export-owned PipelineSlot backing per frame.
+        if (slot.source_surface == runtime::kInvalidRenderSurfaceHandle &&
+            slot.native_surface != runtime::kInvalidRenderSurfaceHandle &&
+            backend.is_native_surface_valid(slot.native_surface)) {
+            slot.source_surface = slot.native_surface;
+        }
         const auto encode_desc = registry.lookup(slot.native_surface);
         const auto source_desc = registry.lookup(slot.source_surface);
         const bool reusable = encode_desc && source_desc &&
@@ -76,6 +85,14 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
             slot.backend = &backend;
             return true;
         }
+        spdlog::warn(
+            "[slot-surface] rebuild slot={} native={} source={} encode_desc={} source_desc={} alias={} backend_valid={} size={}x{}",
+            slot.slot_id, slot.native_surface, slot.source_surface,
+            encode_desc.has_value(), source_desc.has_value(),
+            slot.source_surface == slot.native_surface,
+            slot.native_surface != runtime::kInvalidRenderSurfaceHandle &&
+                backend.is_native_surface_valid(slot.native_surface),
+            desc.width, desc.height);
         // A daemon may reuse its execution-slot pool for the next render job
         // after the prior Vulkan/CUDA session has been torn down. In that
         // case the registry can still describe a surface whose backend

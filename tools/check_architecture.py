@@ -213,6 +213,32 @@ class Runner:
         self.passes: list[str] = []
         self.failures: list[str] = []
         self.configured_build_dir: Path | None = None
+        self._install_error_adapter_scans()
+
+    def _install_error_adapter_scans(self) -> None:
+        """Project the data-driven adapter registry into executable scans.
+
+        The registry is the only place that may declare an adapter guard.  A
+        hand-written `*_construction_adapter_only` scan is rejected by
+        `check_error_adapter_inventory`; the executable rules below are
+        generated from the same TOML data so pattern and allowlist have one
+        seat.
+        """
+        cfg = self.rules.get("error_adapter_inventory") or {}
+        adapters = cfg.get("adapters") or []
+        scans = self.rules.setdefault("scan", [])
+        names = {rule.get("name") for rule in scans if isinstance(rule, dict)}
+        for adapter in adapters:
+            if not isinstance(adapter, dict):
+                continue
+            name = adapter.get("name")
+            if not name or name in names:
+                continue
+            rule = {key: value for key, value in adapter.items()
+                    if key != "legacy_type"}
+            rule["data_driven_adapter"] = True
+            scans.append(rule)
+            names.add(name)
 
     def selected(self, name: str) -> bool:
         return self.prefix is None or name.startswith(self.prefix)
@@ -544,49 +570,55 @@ class Runner:
             for t in cfg.get("foreign_adapter_types", [])
         }
 
-        # The error-adapter family is `<subject>_error_construction_adapter_only`;
-        # the bare `_construction_adapter_only` suffix also carries unrelated
-        # guards (e.g. conversion_result), so select on the full family name and
-        # slice only the shared tail.
-        family = "_error_construction_adapter_only"
+        # The construction-adapter guards are data: one registry entry per
+        # guarded type, expanded into executable scans by
+        # `_install_error_adapter_scans`.  The TOML carries pattern and
+        # allowlist; the error header remains the authority for which legacy
+        # types may have a guard.  A hand-written scan with the adapter suffix is
+        # rejected so the registry cannot be bypassed by adding a literal copy.
         suffix = "_construction_adapter_only"
-        stems_by_rule = {
-            rule["name"][: -len(suffix)]: rule["name"]
+        adapters = [entry for entry in (cfg.get("adapters") or [])
+                    if isinstance(entry, dict)]
+        hardcoded = sorted(
+            str(rule.get("name", "?"))
             for rule in self.rules.get("scan", [])
-            if str(rule.get("name", "")).endswith(family)
-        }
+            if str(rule.get("name", "")).endswith(suffix)
+            and not rule.get("data_driven_adapter"))
 
-        def related(stem: str, candidate: str) -> bool:
-            """True when one underscore-stem is a prefix/suffix-extension of the
-            other. The rule stems and the normalized inventory names differ only
-            in how much namespace they carry, so containment either way is the
-            honest test."""
-            return (stem == candidate or stem.startswith(candidate + "_") or
-                    candidate.startswith(stem + "_") or
-                    stem.endswith("_" + candidate) or
-                    candidate.endswith("_" + stem))
-
-        def resolves(stem: str) -> bool:
-            if any(related(stem, extra) for extra in foreign):
-                return True
-            return any(related(stem, known) for known in stems)
-
-        unmatched = sorted(
-            rule_name for stem, rule_name in stems_by_rule.items()
-            if not resolves(stem))
         problems: list[str] = []
         if arity != len(rows):
             problems.append(
                 f"declared arity {arity} != {len(rows)} inventory row(s)")
-        if unmatched:
+        if not adapters:
+            problems.append("no data-driven construction adapter entries")
+        if hardcoded:
             problems.append(
-                f"adapter rule(s) with no registered legacy type: {unmatched}")
-        if not stems_by_rule:
-            problems.append("no adapter-construction rules loaded")
+                "hand-written adapter scan(s) bypass the registry: "
+                f"{hardcoded}")
+
+        seen_names: set[str] = set()
+        for adapter in adapters:
+            rule_name = str(adapter.get("name", ""))
+            if not rule_name.endswith(suffix):
+                problems.append(
+                    f"adapter {rule_name!r} does not end with {suffix!r}")
+            if rule_name in seen_names:
+                problems.append(f"duplicate adapter entry: {rule_name}")
+            seen_names.add(rule_name)
+            legacy_type = str(adapter.get("legacy_type", "")).strip()
+            normalized = self._normalize_legacy_type(legacy_type)
+            if (not legacy_type or
+                    (normalized not in stems and normalized not in foreign)):
+                problems.append(
+                    f"adapter {rule_name!r} has unregistered legacy_type "
+                    f"{legacy_type!r}")
+            if not adapter.get("patterns"):
+                problems.append(f"adapter {rule_name!r} has no patterns")
+
         if problems:
             self.fail(name, "; ".join(problems))
         else:
-            self.ok(name, f"{len(rows)} inventory row(s) ↔ {len(stems_by_rule)} adapter rule(s)")
+            self.ok(name, f"{len(rows)} inventory row(s) ↔ {len(adapters)} data-driven adapter(s)")
 
     def check_scan(self, rule: dict[str, Any]) -> None:
         name = rule["name"]

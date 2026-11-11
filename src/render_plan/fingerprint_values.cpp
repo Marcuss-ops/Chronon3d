@@ -230,6 +230,10 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
     if (style.gel_surface) {
         out.add_bool(style.gel_transmission_enabled);
         out.add_bool(style.gel_soft_fusion.value_or(true));
+        if (style.gel_material_profile != "current") {
+            out.add_string("gel_material_profile");
+            out.add_string(style.gel_material_profile);
+        }
     }
     out.add_uint32(style.gel_debug_mode);
     if (style.gel_core) {

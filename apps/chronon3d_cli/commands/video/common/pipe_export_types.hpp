@@ -32,6 +32,12 @@ struct PipeExportResult {
     bool encoder_close_failed{false};
     bool output_published{false};
     bool copy_eligible{false};
+    // First structured failure propagated from the render loop (see
+    // PipeExportStatus). Empty on success.
+    std::string failure_stage;
+    std::string failure_node;
+    std::string failure_message;
+    int failure_frame{-1};
     std::string sha256;
     // Timing lexicon: absent = not measured, never a fabricated 0.
     std::optional<double> ffprobe_ms;

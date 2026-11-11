@@ -14,6 +14,8 @@
 #include <exception>
 #include <memory>
 #include <optional>
+#include <string>
+#include <utility>
 
 namespace chronon3d::cli {
 
@@ -219,7 +221,20 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     ctx.opts.cancellation_token->is_cancelled()) {
                     mark_pipe_cancelled(status, current_frame);
                 } else {
-                    mark_pipe_render_failed(status, current_frame);
+                    // Preserve the executor's structured node error. Without
+                    // this, the job boundary only sees rc!=0 and reports a
+                    // synthetic EncoderFailed for a graph/VRAM failure.
+                    std::string node;
+                    std::string message;
+                    if (ctx.sw_renderer) {
+                        if (const auto error =
+                                ctx.sw_renderer->session().last_frame_error()) {
+                            node = error->node_name;
+                            message = error->message;
+                        }
+                    }
+                    mark_pipe_render_failed(status, current_frame,
+                                            std::move(node), std::move(message));
                 }
                 break;
             }

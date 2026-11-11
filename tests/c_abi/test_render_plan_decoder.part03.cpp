@@ -215,6 +215,40 @@ nlohmann::json v3_text_plan() {
 
 } // namespace
 
+TEST_CASE("render plan V3 decodes text variation axes and rejects malformed axes") {
+    auto source = v3_text_plan();
+    source["layers"][0]["style"]["variation_axes"] = "wght=650,wdth=92";
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->layers[0].style.has_value());
+    CHECK(decoded->layers[0].style->variation_axes == "wght=650,wdth=92");
+
+    source["layers"][0]["style"]["variation_axes"] = "wght";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+
+    source["layers"][0]["style"]["variation_axes"] = "wght=abc";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan V3 decodes the difference selector combine mode") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"id":"diff","selectors":[{"unit":"glyph","combine":"difference"}],
+         "properties":[{"property":"opacity","keyframes":[{"frame":0,"value":1}]}]}
+    ])JSON");
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->layers[0].text_animators.size() == 1);
+    CHECK(decoded->layers[0].text_animators[0].selectors[0].combine == "difference");
+
+    source["layers"][0]["text_animators"][0]["selectors"][0]["combine"] = "xor";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
 TEST_CASE("render plan V3 decodes per-glyph rotation and fill_color animator tracks") {
     auto source = v3_text_plan();
     source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([

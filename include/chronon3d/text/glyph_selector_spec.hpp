@@ -78,8 +78,9 @@ enum class SelectorCombineMode {
     Add,       // sum (clamped to [0,1])
     Subtract,  // subtract from previous
     Intersect, // min(previous, current)
-    Min,       // min(previous, current) — alias for Intersect
-    Max        // max(previous, current)
+    Min,        // min(previous, current) — alias for Intersect
+    Max,        // max(previous, current)
+    Difference  // absolute difference |previous - current|
 };
 
 // ── SelectorWeight — computed per-unit weight ────────────────────────────

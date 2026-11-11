@@ -74,8 +74,8 @@ TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
         "square", "ramp_up", "ramp_down", "triangle", "round", "smooth", "wiggly", "noise"};
     static constexpr std::array<std::string_view, 6> orders{
         "forward", "reverse", "from_center", "to_center", "random", "index"};
-    static constexpr std::array<std::string_view, 6> combines{
-        "replace", "add", "subtract", "intersect", "min", "max"};
+    static constexpr std::array<std::string_view, 7> combines{
+        "replace", "add", "subtract", "intersect", "min", "max", "difference"};
     if (std::find(units.begin(), units.end(), selector.unit) == units.end() ||
         std::find(shapes.begin(), shapes.end(), selector.shape) == shapes.end() ||
         std::find(orders.begin(), orders.end(), selector.order) == orders.end() ||

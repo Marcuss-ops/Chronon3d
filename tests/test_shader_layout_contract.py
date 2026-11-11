@@ -62,6 +62,7 @@ CPP_SCALARS = {
     "double": "f64",
     "std::int32_t": "i32",
     "std::uint32_t": "u32",
+    "std::uint16_t": "u16",
     "std::int64_t": "i64",
     "std::uint64_t": "u64",
     "int": "i32",
@@ -165,12 +166,18 @@ def _std430_size(members):
     return size + ((-size) % struct_align)
 
 
-def _cpp_fields(body):
-    """C++ members as [(name, canonical slot)], in declaration order."""
+def _cpp_typed_fields(body):
+    """C++ members as [(name, declared type)], in declaration order."""
     fields = []
     for raw in body.splitlines():
         line = raw.strip()
         if not line:
+            continue
+        # GlyphStatic declares inline accessors; skip those, but keep fields
+        # whose brace initializer calls a function (e.g. numeric_limits<T>::max()).
+        if line.startswith(("static_assert", "friend ", "using ")) or re.search(
+            r"\)\s*(?:const\b|noexcept\b|override\b|final\b|\{)", line
+        ):
             continue
         match = re.fullmatch(
             r"(?P<type>[A-Za-z_:][\w:]*)\s+(?P<name>[A-Za-z_]\w*)"
@@ -184,10 +191,16 @@ def _cpp_fields(body):
             raise AssertionError(
                 "unsupported C++ type %r — extend CPP_SCALARS" % cpp_type
             )
-        fields.append((match.group("name"), CPP_SCALARS[cpp_type]))
+        fields.append((match.group("name"), cpp_type))
     if not fields:
         raise AssertionError("no members parsed for %s" % STRUCT_NAME)
     return fields
+
+
+def _cpp_fields(body):
+    """C++ members as [(name, canonical slot)], in declaration order."""
+    return [(name, CPP_SCALARS[cpp_type])
+            for name, cpp_type in _cpp_typed_fields(body)]
 
 
 def _cpp_pinned_size(header_text, struct_name=STRUCT_NAME):
@@ -375,6 +388,59 @@ def test_text_tile_dynamic_layout_matches_cpp():
             )
 
 
+def _cpp_glyph_static_words(body):
+    """Packed 32-bit word sequence of the C++ GlyphStatic record.
+
+    The shader folds each adjacent pair of 16-bit C++ fields
+    (`atlas_page`+`flags`, `atlas_x`+`atlas_y`, `atlas_w`+`atlas_h`) into one
+    `uint`. Comparing the packed word sequence is the real ABI contract here:
+    member names intentionally differ across the boundary.
+    """
+    words = []
+    pending_u16 = 0
+    for name, cpp_type in _cpp_typed_fields(body):
+        if cpp_type == "std::uint16_t":
+            pending_u16 += 1
+            if pending_u16 == 2:
+                words.append("u32")
+                pending_u16 = 0
+            continue
+        if pending_u16:
+            raise AssertionError(
+                "C++ GlyphStatic leaves %s unpaired before %s" % (pending_u16, name)
+            )
+        words.append(CPP_SCALARS[cpp_type])
+    if pending_u16:
+        raise AssertionError("C++ GlyphStatic has an unpaired std::uint16_t")
+    return words
+
+
+def test_text_tile_glyph_static_layout_matches_cpp():
+    header = _read(CPP_HEADER)
+    cpp_words = _cpp_glyph_static_words(_struct_body(header, "GlyphStatic"))
+    pinned = _cpp_pinned_size(header, "GlyphStatic")
+    assert pinned == 48, "GlyphStatic ABI must remain 48 bytes"
+
+    for shader in TEXT_TILE_SHADERS:
+        members = _glsl_members(_struct_body(_read(shader), "GpuGlyphStatic"))
+        glsl_words = _glsl_slots(members)
+        assert glsl_words == cpp_words, (
+            "%s GpuGlyphStatic packed words diverge from C++ GlyphStatic: "
+            "%r != %r" % (shader.name, glsl_words, cpp_words)
+        )
+        computed = _std430_size(members)
+        assert computed == pinned, (
+            "%s std430 size %d != C++ GlyphStatic size %d"
+            % (shader.name, computed, pinned)
+        )
+        stride = _spirv_array_stride(shader, "GpuGlyphStatic")
+        if stride is not None:
+            assert stride == pinned, (
+                "%s compiled GpuGlyphStatic ArrayStride %d != C++ size %d"
+                % (shader.name, stride, pinned)
+            )
+
+
 if __name__ == "__main__":
     test_glsl_slot_sequence_matches_cpp()
     test_shared_member_names_keep_order()
@@ -382,9 +448,10 @@ if __name__ == "__main__":
     test_shader_comment_declares_real_size()
     compiled = test_compiled_array_stride_matches_cpp()
     test_text_tile_dynamic_layout_matches_cpp()
+    test_text_tile_glyph_static_layout_matches_cpp()
     print(
         "shader layout contract tests: PASS (text-run SPIR-V stride check: %s; "
-        "text-tile GLSL/C++ layout checks: PASS)"
+        "text-tile GLSL/C++ layout checks: PASS, incl. GpuGlyphStatic)"
         % ("ran" if compiled else "skipped")
     )
     sys.exit(0)

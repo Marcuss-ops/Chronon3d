@@ -2,6 +2,7 @@
 
 #include <apps/chronon3d_cli/commands/video/common/pipe_export_helpers.hpp>
 #include <apps/chronon3d_cli/commands/video/common/pipe_export_queue.hpp>
+#include <chronon3d/media/video/video_job_execution_context.hpp>
 
 #include <memory>
 #include <stdexcept>
@@ -62,15 +63,39 @@ TEST_CASE("PipeExportHelpers: failure markers keep exact failure reason") {
     CHECK_FALSE(writer.success);
     CHECK(writer.writer_error);
     CHECK_FALSE(writer.cancelled);
+    CHECK(writer.failure_stage == "writer");
+    CHECK_FALSE(writer.failure_message.empty());
 
     PipeExportStatus render;
     mark_pipe_render_failed(render, 9);
     CHECK_FALSE(render.success);
     CHECK(render.render_failed);
     CHECK_FALSE(render.writer_error);
+    CHECK(render.failure_stage == "render");
+    CHECK_FALSE(render.failure_message.empty());
 
     PipeExportStatus exception;
     mark_pipe_exception(exception, 3, std::runtime_error("test"));
     CHECK_FALSE(exception.success);
     CHECK(exception.exception_error);
+    CHECK(exception.failure_stage == "exception");
+    CHECK(exception.failure_message == "test");
+}
+
+TEST_CASE("VideoExportFailure: device memory and capability failures are typed") {
+    using chronon3d::media::VideoExportFailureClass;
+    using chronon3d::media::classify_export_failure;
+
+    CHECK(classify_export_failure("") == VideoExportFailureClass::None);
+    CHECK(classify_export_failure(
+              "VmaCreateImage failed with VkResult=-2") ==
+          VideoExportFailureClass::DeviceMemory);
+    CHECK(classify_export_failure(
+              "VK_ERROR_OUT_OF_HOST_MEMORY while uploading") ==
+          VideoExportFailureClass::DeviceMemory);
+    CHECK(classify_export_failure(
+              "UnsupportedCapability: nvenc is unavailable") ==
+          VideoExportFailureClass::UnsupportedCapability);
+    CHECK(classify_export_failure("RenderFailed: graph node exploded") ==
+          VideoExportFailureClass::Render);
 }

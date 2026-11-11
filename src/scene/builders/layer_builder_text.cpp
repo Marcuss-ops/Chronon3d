@@ -65,6 +65,10 @@ TextRunBuilder& LayerBuilder::text_run(std::string name, PreparedText params) {
     auto spec_uptr = std::make_unique<PendingTextRun>(PendingTextRun{
         .name = std::move(name),
         .params = std::move(params),
+        // SceneBuilder(ctx) already cascaded FrameContext::font_engine here.
+        // Persist it into the pending payload so a text_run authored through
+        // the fluent API never silently falls back to CWD-relative resolution.
+        .font_engine = m_font_engine,
         .consumed = false,
     });
     PendingTextRun* spec_ptr = spec_uptr.get();

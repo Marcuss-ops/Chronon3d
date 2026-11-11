@@ -56,6 +56,9 @@ struct LayerStylePlan {
     std::string font_family;
     int font_weight{400};
     std::string font_style{"normal"};
+    // OpenType variable-font coordinates, e.g. "wght=650,wdth=92".
+    // Parsed by the compiler into ParagraphStyle::variable_axes.
+    std::string variation_axes;
     std::string text_direction{"auto"};
     std::string text_align{"center"};
     std::optional<float> font_size;
@@ -75,6 +78,9 @@ struct LayerStylePlan {
     bool extruded_text{false};
     float extrusion_depth{12.0f};
     bool gel_transmission_enabled{true};
+    // GEL material constants. "current" keeps the post-2026-11-08 shading;
+    // "reference_20261107" selects the certified 2026-11-07 closure.
+    std::string gel_material_profile{"current"};
     bool gel_core{false};
     // 0=material, 1=composite SDF, 2=height, 3=normals, 4=normal validity,
     // 5=gel transmission flag / destination alpha.

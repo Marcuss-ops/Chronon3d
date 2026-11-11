@@ -3,6 +3,16 @@
 Stato: **PARTIAL — OPEN** (scope scelto dall'utente il 2026-10-08: luci reali con ombre
 portate, e istanziamento GPU per le particelle).
 
+### Aggiornamento 2026-11-11 — review visiva dei frame T05
+
+I frame on/off del closeout 2026-10-30 sono stati riextratti dagli MP4:
+`t05-on-1.mp4` mostra due ombre portate nette sul backdrop, `t05-off-1.mp4`
+mostra lo stesso piano senza ombre e senza residuo nero. La review conferma che
+il gate immagine locale (30/30, zero pixel neri) descrive un A/B reale. La
+scena resta una composizione di verifica, non una composizione di produzione
+approvata; la certificazione same-SHA/CI e la shadow quality di produzione
+restano aperte. T05 resta **PARTIAL — OPEN**.
+
 ### Aggiornamento 2026-11-06 — falloff AE
 
 Il falloff point AE Inverse Square Clamped è ora una modalità esplicita di

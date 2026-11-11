@@ -1,7 +1,11 @@
 # Cache identity and invalidation keys
 
-- **Status:** ACTIVE — inventory and digest-preserving hashing split started
-  2026-11-01; versioned semantic keys and mutation coverage remain open.
+- **Status:** CLOSED (2026-11-11) — inventory/owner map complete; V2 semantic
+  keys and field-mutation coverage in place; V1+V2 digest fixtures pinned for
+  every key that exposes `digest_v1` (FrameCacheKey, VideoFrameKey,
+  TextLayoutCacheKey) plus NodeCacheKey, Curve and GPU glyph fixtures. The
+  opaque producer V1 helpers remain frozen and covered by their mutation
+  suites; no production caller constructs them.
 - **Owner:** Chronon3D cache/runtime maintainers.
 
 ## Goal
@@ -380,6 +384,19 @@ cases and 103,975/103,975 assertions. The full architecture checker passes
 217/217 rules, including the 24-class cache-family inventory. This closes the
 PathShape omission only; the overall identity inventory and legacy fixture
 criteria remain open.
+
+## Closeout 2026-11-11 — legacy/V2 fixture gap
+
+- `FrameCacheKey`: V1 `15271311225107256366`, V2 `8530631660911191565`.
+- `VideoFrameKey`: V1 `4747266337232658455`, V2 `17712888411037905226`.
+- `TextLayoutCacheKey`: V1 `15831138664930118102`, V2 `2756599720308027833`.
+- `NodeCacheKey` V1, Curve V1 and GPU glyph V1/V2 fixtures remain pinned in
+  their existing tests.
+- Verification: `chronon3d_cache_tests` **206/206 cases, 103.979/103.979
+  assertions**; golden-digest cases 3/3 (9/9 assertions); TextLayout fixture
+  4/4 assertions; architecture gate **218/218** and gate selftest **32/32**.
+- The fixture gap is closed. No new cache family, storage engine or parallel
+  registry was introduced.
 
 ## Exit criteria
 

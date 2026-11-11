@@ -61,6 +61,8 @@ struct GpuGlyphPlacement {
 /// predicate and both compute shaders agree on the representation.
 inline constexpr float kGpuExact3DRotationThreshold = 89.0f;
 inline constexpr std::uint32_t kTextRunEffectExact3DRotation = 1u << 11;
+/// Selects the certified 2026-11-07 GEL material constants in the tile shader.
+inline constexpr std::uint32_t kTextRunEffectGelReference = 1u << 13;
 
 [[nodiscard]] inline bool gpu_uses_exact_3d_rotation(
     const GlyphInstanceState& glyph) noexcept {

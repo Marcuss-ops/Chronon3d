@@ -584,6 +584,19 @@ TEST_CASE("VRAM glyph atlas batch residency matches per-glyph lookups") {
     CHECK_FALSE(out[1].has_value());
 }
 
+TEST_CASE("GpuGlyphAtlas generation advances on residency invalidation") {
+    chronon3d::runtime::GpuGlyphAtlas atlas;
+    const auto initial = atlas.generation();
+    REQUIRE(initial > 0);
+
+    atlas.clear();
+    const auto after_first_clear = atlas.generation();
+    CHECK(after_first_clear > initial);
+
+    atlas.clear();
+    CHECK(atlas.generation() > after_first_clear);
+}
+
 TEST_CASE("MTSDF glyph identity ignores runtime font size and has one canonical hash") {
     using chronon3d::runtime::GlyphRepresentation;
     using chronon3d::runtime::GpuGlyphKey;

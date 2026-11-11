@@ -20,7 +20,7 @@
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
-#include <chronon3d/render_graph/pipeline/frame_parameter_block.hpp>
+#include <chronon3d/render_graph/pipeline/per_binding_transform_block.hpp>
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
@@ -224,7 +224,7 @@ BENCHMARK(BM_BindingBuild)
 
 static void BM_ProgramRefresh(benchmark::State& state) {
     const int num_bindings = static_cast<int>(state.range(0));
-    FrameParameterBlock block;
+    PerBindingTransformBlock block;
     block.warm_up(static_cast<size_t>(num_bindings));
 
     for (auto _ : state) {
@@ -302,14 +302,14 @@ BENCHMARK(BM_ProgramCacheMiss)
     ->Unit(benchmark::kMicrosecond);
 
 // ══════════════════════════════════════════════════════════════════════════
-// BM_FrameParamBlockWarmUp — Warm up FrameParameterBlock with N entries
+// BM_FrameParamBlockWarmUp — Warm up PerBindingTransformBlock with N entries
 // ══════════════════════════════════════════════════════════════════════════
 
 static void BM_FrameParamBlockWarmUp(benchmark::State& state) {
     const int num_entries = static_cast<int>(state.range(0));
 
     for (auto _ : state) {
-        FrameParameterBlock block;
+        PerBindingTransformBlock block;
         block.warm_up(static_cast<size_t>(num_entries));
         benchmark::DoNotOptimize(block.size());
         benchmark::ClobberMemory();

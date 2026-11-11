@@ -1,9 +1,17 @@
 #pragma once
 
 // ──────────────────────────────────────────────────────────────────────────────
-// frame_parameter_block.hpp — B6: FrameParameterBlock
+// per_binding_transform_block.hpp — per-binding transform storage for Precomp
 //
-// A pre-allocated container for per-frame dynamic data that the refresh
+// This is NOT the whole-frame sampled parameter authority.  The canonical
+// per-frame sampled layer payload lives in
+// `chronon3d::compiler::FrameParameterBlock` (compiler/frame_parameters.hpp)
+// and is consumed by the render pipeline.  The table of per-frame-time slices
+// lives in `chronon3d::graph::FrameParameterTable`.  This type owns only the
+// pre-allocated transform/effect slots for one nested `PrecompNode` binding
+// table; it is named for that role so the three axes cannot be confused again.
+//
+// A pre-allocated container for per-binding dynamic data that the refresh
 // pipeline writes into before execution.  Eliminates per-frame allocation
 // of parameter vectors by sizing once during warm-up and reusing the same
 // storage across frames.
@@ -25,7 +33,7 @@
 
 namespace chronon3d::graph {
 
-// ── Per-layer transform block ────────────────────────────────────────────────
+// ── Per-binding transform block ──────────────────────────────────────────────
 //
 /// Compact structure holding all per-frame dynamic data for one layer binding.
 /// Sized once at warm-up; refresh() writes into existing slots without
@@ -48,12 +56,12 @@ struct LayerParameterBlock {
     bool   refreshed_this_frame{false};
 };
 
-// ── FrameParameterBlock ──────────────────────────────────────────────────────
+// ── PerBindingTransformBlock ─────────────────────────────────────────────────
 //
 /// Holds one LayerParameterBlock per binding entry, pre-sized at warm-up.
 /// The refresh pipeline writes to blocks[i] for each binding i without
 /// growing the vector.
-struct FrameParameterBlock {
+struct PerBindingTransformBlock {
     /// Indexed by SceneBinding position in the binding table.
     std::vector<LayerParameterBlock> layers;
 

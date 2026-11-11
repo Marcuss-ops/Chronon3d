@@ -86,6 +86,26 @@ TEST_CASE("Combine: Max mode") {
     CHECK(w == doctest::Approx(0.7f));
 }
 
+TEST_CASE("Combine: Difference mode") {
+    GlyphSelectorSpec spec1;
+    spec1.id = "s1";
+    spec1.combine = SelectorCombineMode::Replace;
+    spec1.amount.set(80.0f);
+
+    GlyphSelectorSpec spec2;
+    spec2.id = "s2";
+    spec2.combine = SelectorCombineMode::Difference;
+    spec2.amount.set(30.0f);
+
+    auto placed = make_test_placed_run(1);
+    auto source = make_test_source(1);
+    auto map = build_text_unit_map(placed, source);
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+
+    f32 w = evaluate_selectors({spec1, spec2}, map, 0, source, t);
+    CHECK(w == doctest::Approx(0.5f));
+}
+
 TEST_CASE("Combine: Replace mode overwrites") {
     GlyphSelectorSpec spec1;
     spec1.id = "s1";

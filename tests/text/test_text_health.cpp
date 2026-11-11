@@ -9,11 +9,16 @@
 
 #include <array>
 #include <cmath>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+
+#ifndef CHRONON3D_SOURCE_DIR
+#define CHRONON3D_SOURCE_DIR "."
+#endif
 
 using namespace chronon3d;
 
@@ -27,7 +32,11 @@ struct TextHealthEnvironment {
     TextHealthEnvironment()
         : runtime(chronon3d::runtime::RuntimeContext::create(
               chronon3d::runtime::RuntimeConfig{config, std::nullopt}).value()),
-          font_engine(runtime->resolver()) {}
+          font_engine(runtime->resolver()) {
+        // Font fixtures and bundled assets are repository-relative. Anchor the
+        // resolver to the source tree so the suite is CWD-independent.
+        runtime->resolver().mount(std::filesystem::path(CHRONON3D_SOURCE_DIR));
+    }
 };
 
 [[nodiscard]] std::optional<FontSpec> find_health_font(
@@ -238,6 +247,13 @@ TEST_CASE("Text health / missing OpenType BASE script records use fallback") {
     CHECK_FALSE(latin_hanging.has_value());
     CHECK_FALSE(arabic_hanging.has_value());
     CHECK_FALSE(latin_script.has_value());
+}
+
+TEST_CASE("Text health / relative font path without engine fails closed") {
+    auto spec = make_health_spec(
+        "FAIL CLOSED",
+        FontSpec{"assets/fonts/Inter-Bold.ttf", "Inter", 700, "normal", 48.0f});
+    CHECK(materialize_prepared_text(spec, nullptr, SampleTime{}) == nullptr);
 }
 
 TEST_CASE("Text health / Unicode and RTL text survive shaping and materialization") {

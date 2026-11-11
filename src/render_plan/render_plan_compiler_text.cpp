@@ -95,6 +95,11 @@ PreparedTextLayers prepare_text_layers(
     for (std::size_t index = 0; index < plan.layers.size(); ++index) {
         const auto& layer = plan.layers[index];
         if (layer.type != LayerType::Text) continue;
+        if (!font_engine) {
+            throw std::runtime_error(
+                "FontEngineUnavailable: text layer '" + layer.id +
+                "' cannot resolve fonts without a FontEngine");
+        }
         auto definition = materialize_text(layer, canvas);
         if (!definition.style.font.font_path.empty()) {
             const auto resolved = resolver.resolve_logical(
@@ -239,6 +244,19 @@ chronon3d::TextDefinition materialize_text(
     definition.style.font.font_weight = layer.style->font_weight;
     definition.style.font.font_style = layer.style->font_style;
     definition.style.font.font_size = *layer.style->font_size;
+    if (!layer.style->variation_axes.empty()) {
+        std::size_t axis_begin = 0;
+        while (axis_begin <= layer.style->variation_axes.size()) {
+            const auto axis_end = layer.style->variation_axes.find(',', axis_begin);
+            const auto token = layer.style->variation_axes.substr(
+                axis_begin, axis_end == std::string::npos
+                    ? std::string::npos : axis_end - axis_begin);
+            definition.paragraph.variable_axes.push_back(chronon3d::VariableAxis{
+                token.substr(0, 4), std::stof(token.substr(5))});
+            if (axis_end == std::string::npos) break;
+            axis_begin = axis_end + 1;
+        }
+    }
     definition.paragraph.direction = layer.style->text_direction == "rtl"
         ? TextDirection::RTL : layer.style->text_direction == "ltr"
             ? TextDirection::LTR : TextDirection::Auto;
@@ -265,6 +283,8 @@ chronon3d::TextDefinition materialize_text(
             layer.style->gel_soft_fusion.value_or(true);
         definition.style.material.gel_transmission_enabled =
             layer.style->gel_transmission_enabled;
+        definition.style.material.gel_reference_20261107 =
+            layer.style->gel_material_profile == "reference_20261107";
         definition.style.material.gel_debug_mode = layer.style->gel_debug_mode;
         if (layer.style->gel_light_azimuth_radians)
             definition.style.material.gel_light_azimuth_radians =
@@ -364,7 +384,10 @@ chronon3d::TextDefinition materialize_text(
     definition.frame.grow_and_shrink =
         layer.style->text_fit_mode == "grow_and_shrink";
     definition.frame.min_font_size = layer.style->min_font_size.value_or(12.0f);
-    definition.frame.max_font_size = layer.style->max_font_size.value_or(160.0f);
+    // The authored size is the ceiling: defaulting max_font_size to 160
+    // silently capped 180/200 px titles even when they fit the box.
+    definition.frame.max_font_size = layer.style->max_font_size.value_or(
+        layer.style->font_size.value_or(160.0f));
     definition.frame.placement = chronon3d::TextPlacement{
         chronon3d::TextPlacementKind::CanvasCenter, {0.0f, 0.0f}};
     return definition;

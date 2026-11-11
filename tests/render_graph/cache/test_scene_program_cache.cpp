@@ -1,5 +1,5 @@
 // =============================================================================
-// test_scene_program_cache.cpp — SceneProgramCache + FrameParameterBlock
+// test_scene_program_cache.cpp — SceneProgramCache + PerBindingTransformBlock
 //
 // Tests from the spec (§B6):
 //
@@ -14,7 +14,7 @@
 
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>
-#include <chronon3d/render_graph/pipeline/frame_parameter_block.hpp>
+#include <chronon3d/render_graph/pipeline/per_binding_transform_block.hpp>
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
@@ -179,7 +179,7 @@ TEST_CASE("scene_program_cache: invalid program is not cached") {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("frame_parameter_block: no residual values after refresh") {
-    FrameParameterBlock block;
+    PerBindingTransformBlock block;
     block.warm_up(3);    // 3 binding entries
 
     // ── Frame 0: simulate setting layer[1].opacity = 0.25 ───────────
@@ -232,7 +232,7 @@ TEST_CASE("frame_parameter_block: no residual values after refresh") {
 TEST_CASE("frame_parameter_block: opacity refresh without residuals") {
     // Direct test matching the spec: Frame 0 opacity = 0.25,
     // Frame 1 opacity = 0.75, after refresh must be 0.75 exactly.
-    FrameParameterBlock block;
+    PerBindingTransformBlock block;
     block.warm_up(1);
 
     // Frame 0
@@ -259,7 +259,7 @@ TEST_CASE("frame_parameter_block: opacity refresh without residuals") {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("frame_parameter_block: capacity stable after warm-up") {
-    FrameParameterBlock block;
+    PerBindingTransformBlock block;
 
     // Initial state.
     CHECK(block.empty());
@@ -287,7 +287,7 @@ TEST_CASE("frame_parameter_block: capacity stable after warm-up") {
 }
 
 TEST_CASE("frame_parameter_block: warm-up with larger count reallocates") {
-    FrameParameterBlock block;
+    PerBindingTransformBlock block;
 
     block.warm_up(2);
     auto first_capacity = block.capacity();
@@ -313,7 +313,7 @@ TEST_CASE("frame_parameter_block: warm-up with larger count reallocates") {
 }
 
 TEST_CASE("frame_parameter_block: warm-up with same count is no-op") {
-    FrameParameterBlock block;
+    PerBindingTransformBlock block;
 
     block.warm_up(5);
     auto cap = block.capacity();
@@ -488,11 +488,11 @@ TEST_CASE("scene_program_cache: set_capacity evicts excess") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// FrameParameterBlock edge cases
+// PerBindingTransformBlock edge cases
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("frame_parameter_block: default construction") {
-    FrameParameterBlock block;
+    PerBindingTransformBlock block;
     CHECK(block.empty());
     CHECK(block.size() == 0);
     CHECK(block.capacity() == 0);
@@ -500,7 +500,7 @@ TEST_CASE("frame_parameter_block: default construction") {
 }
 
 TEST_CASE("frame_parameter_block: begin_frame resets per-frame flags") {
-    FrameParameterBlock block;
+    PerBindingTransformBlock block;
     block.warm_up(2);
 
     block[0].refreshed_this_frame = true;
@@ -516,7 +516,7 @@ TEST_CASE("frame_parameter_block: begin_frame resets per-frame flags") {
 }
 
 TEST_CASE("frame_parameter_block: access by index") {
-    FrameParameterBlock block;
+    PerBindingTransformBlock block;
     block.warm_up(3);
 
     block[0].opacity = 0.1f;

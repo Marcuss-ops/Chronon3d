@@ -9,6 +9,8 @@ if(CHRONON3D_BUILD_TESTS AND CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
         SOURCES text/test_text_health.cpp
         LABELS text-health
     )
+    target_compile_definitions(chronon3d_text_health_tests PRIVATE
+        CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
     add_custom_target(chronon3d_text_health
         COMMAND ${CMAKE_CTEST_COMMAND}
             --output-on-failure
@@ -157,6 +159,8 @@ chronon3d_add_test_suite(
     TIER INTEGRATION
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_run_builder_animated_doc.cpp
 )
+target_compile_definitions(chronon3d_text_run_builder_animated_doc_tests PRIVATE
+    CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 chronon3d_add_test_suite(
     NAME chronon3d_text_run_driver_tests
     TIER INTEGRATION

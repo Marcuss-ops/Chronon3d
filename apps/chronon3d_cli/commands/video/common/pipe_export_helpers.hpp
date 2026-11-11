@@ -37,6 +37,13 @@ struct PipeExportStatus {
     int frames_rendered{0};
     int frames_enqueued{0};
     int frames_encoded{0};
+    // First structured failure, preserved verbatim so the job boundary can
+    // report the cause instead of synthesizing "encoder failed". Empty on
+    // success and on cancellation.
+    std::string failure_stage;    // render | writer | exception | encoder
+    std::string failure_node;
+    std::string failure_message;
+    int failure_frame{-1};
 };
 
 [[nodiscard]] bool should_log_pipe_progress(int done_count, int total);
@@ -45,7 +52,8 @@ struct PipeExportStatus {
 
 void mark_pipe_cancelled(PipeExportStatus& status, Frame frame);
 void mark_pipe_writer_failed(PipeExportStatus& status, Frame frame);
-void mark_pipe_render_failed(PipeExportStatus& status, Frame frame);
+void mark_pipe_render_failed(PipeExportStatus& status, Frame frame,
+                             std::string node = {}, std::string message = {});
 void mark_pipe_exception(PipeExportStatus& status, Frame frame, const std::exception& error);
 
 [[nodiscard]] size_t compute_pipe_arena_size(int width, int height);

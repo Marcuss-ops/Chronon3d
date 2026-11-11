@@ -253,4 +253,5 @@ TEST_CASE("TextLayoutCacheKey pins V1 digest and uses a distinct V2 schema") {
     CHECK(key.digest_v1() == 15831138664930118102ULL);
     CHECK(key.digest() == key.digest_v2());
     CHECK(key.digest() != key.digest_v1());
+    CHECK(key.digest_v2() == 2756599720308027833ULL); // V2 fixture: changing the schema requires a version bump
 }

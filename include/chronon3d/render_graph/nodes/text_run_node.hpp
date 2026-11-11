@@ -16,6 +16,7 @@
 // is_text_run_shape = true and text_run_shape != nullptr.
 
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <memory>
@@ -145,6 +146,17 @@ private:
     TextRunPlacement m_placement;
     std::optional<f32> m_opacity_override;
     std::shared_ptr<Framebuffer> m_cached_result{nullptr};
+
+    // Native text output is FrameTransient but explicitly unplanned, so the
+    // backend excludes it from the generic transient drain (it cannot know
+    // whether an external caller owns the handle). This node created the
+    // surface, so it owns the release. Keep one previous-frame lease and
+    // release it at the next execute(): the compositor has consumed it by
+    // then and the backend defers the physical release while a GPU
+    // submission still references it. This bounds a long text run to one
+    // in-flight text surface instead of one allocation per frame.
+    runtime::RenderSurfaceHandle m_pending_native_surface{
+        runtime::kInvalidRenderSurfaceHandle};
 
     // ── Fase A6 (DONE) — node immutability ───────────────────────────
     // m_shape is READ-ONLY after construction.  Per-frame glyph

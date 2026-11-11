@@ -2,7 +2,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cctype>
 #include <cmath>
+#include <cstdlib>
 #include <numbers>
 #include <optional>
 #include <stdexcept>
@@ -26,6 +28,7 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
         style_plan.font_family = style.value("font_family", std::string{});
         style_plan.font_weight = style.value("font_weight", 400);
         style_plan.font_style = style.value("font_style", std::string{"normal"});
+        style_plan.variation_axes = style.value("variation_axes", std::string{});
         style_plan.text_direction = style.value("direction", std::string{"auto"});
         style_plan.text_align = style.value("text_align", std::string{"center"});
         style_plan.font_size = optional_value<float>(style, "font_size");
@@ -52,6 +55,8 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
         style_plan.extruded_text = style.value("extruded_text", false);
         style_plan.extrusion_depth = style.value("extrusion_depth", 12.0f);
         style_plan.gel_transmission_enabled = style.value("gel_transmission", true);
+        style_plan.gel_material_profile =
+            style.value("gel_material_profile", std::string{"current"});
         style_plan.gel_core = style.value("gel_core", false);
         style_plan.gel_debug_mode = style.value("gel_debug_mode", std::uint8_t{0});
         if (style.contains("gel_light")) {
@@ -75,6 +80,33 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
             (style_plan.text_align != "left" && style_plan.text_align != "center" &&
              style_plan.text_align != "right"))
             throw std::runtime_error("text style font weight, style, or alignment is invalid");
+        if (style.contains("variation_axes")) {
+            if (layer.type != LayerType::Text)
+                throw std::runtime_error("style.variation_axes is only valid for text layers");
+            if (style_plan.variation_axes.size() > 512)
+                throw std::runtime_error("text style variation_axes is too long");
+            std::size_t axis_begin = 0;
+            while (axis_begin <= style_plan.variation_axes.size()) {
+                const auto axis_end = style_plan.variation_axes.find(',', axis_begin);
+                const auto token = style_plan.variation_axes.substr(
+                    axis_begin, axis_end == std::string::npos
+                        ? std::string::npos : axis_end - axis_begin);
+                if (token.size() < 6 || token[4] != '=')
+                    throw std::runtime_error(
+                        "text style variation_axes requires tag=value entries");
+                for (std::size_t i = 0; i < 4; ++i)
+                    if (!std::isalnum(static_cast<unsigned char>(token[i])))
+                        throw std::runtime_error(
+                            "text style variation_axes tag must be four alphanumeric characters");
+                char* end = nullptr;
+                const float value = std::strtof(token.c_str() + 5, &end);
+                if (end == token.c_str() + 5 || *end != '\0' || !std::isfinite(value))
+                    throw std::runtime_error(
+                        "text style variation_axes value must be finite");
+                if (axis_end == std::string::npos) break;
+                axis_begin = axis_end + 1;
+            }
+        }
         if (style_plan.text_fit_mode != "none" &&
             style_plan.text_fit_mode != "shrink_only" &&
             style_plan.text_fit_mode != "grow_and_shrink")
@@ -97,6 +129,14 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
         if (style_plan.gel_soft_fusion && !style_plan.gel_surface)
             throw std::runtime_error(
                 "style.gel_soft_fusion requires gel_surface on a text layer");
+        if (style_plan.gel_material_profile != "current" &&
+            style_plan.gel_material_profile != "reference_20261107")
+            throw std::runtime_error(
+                "text style gel_material_profile must be current or reference_20261107");
+        if (style_plan.gel_material_profile != "current" &&
+            (!style_plan.gel_surface || layer.type != LayerType::Text))
+            throw std::runtime_error(
+                "style.gel_material_profile requires gel_surface on a text layer");
         if (style_plan.extruded_text &&
             (layer.type != LayerType::Text || !layer.enable_3d ||
              style_plan.gel_surface || style_plan.gel_core))

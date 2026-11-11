@@ -22,7 +22,11 @@
 
 namespace test_text_fixture {
 
+#if defined(CHRONON3D_SOURCE_DIR)
+constexpr const char* kInterBoldPath = CHRONON3D_SOURCE_DIR "/tests/fixtures/Inter-Bold.ttf";
+#else
 constexpr const char* kInterBoldPath = "tests/fixtures/Inter-Bold.ttf";
+#endif
 // When assets/ has been bootstrapped this resolves to the fleet entry
 // Chronon3d/assets/fonts/Inter-Bold.ttf — same bytes as the fixture above.
 

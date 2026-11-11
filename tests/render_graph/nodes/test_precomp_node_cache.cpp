@@ -29,7 +29,7 @@
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
-#include <chronon3d/render_graph/pipeline/frame_parameter_block.hpp>
+#include <chronon3d/render_graph/pipeline/per_binding_transform_block.hpp>
 #include <chronon3d/render_graph/builder/precomp_builder_service.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
@@ -312,16 +312,16 @@ TEST_CASE("precomp_cache: parameter block sized after execution") {
     PrecompNode precomp("inner", Frame{0}, Frame{60}, Frame{-1}, policy);
 
     // Before execution: parameter block should be empty
-    CHECK(precomp.param_block().empty());
+    CHECK(precomp.transform_block().empty());
 
     // After execution: parameter block should be warm (non-empty)
     precomp.execute(tc.ctx, {}, {});
-    CHECK_FALSE(precomp.param_block().empty());
-    CHECK(precomp.param_block().size() > 0);
+    CHECK_FALSE(precomp.transform_block().empty());
+    CHECK(precomp.transform_block().size() > 0);
 
     // Second execution: size should remain stable
     precomp.execute(tc.ctx, {}, {});
-    CHECK(precomp.param_block().size() > 0);
+    CHECK(precomp.transform_block().size() > 0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

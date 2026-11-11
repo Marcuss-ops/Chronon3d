@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <spdlog/spdlog.h>
 #include <thread>
+#include <utility>
 
 namespace chronon3d::cli {
 
@@ -57,18 +58,41 @@ void mark_pipe_writer_failed(PipeExportStatus& status, Frame frame) {
     spdlog::error("[video] FFmpeg writer failed before frame {}", frame);
     status.success = false;
     status.writer_error = true;
+    if (status.failure_stage.empty()) {
+        status.failure_stage = "writer";
+        status.failure_frame = static_cast<int>(frame.integral());
+        status.failure_node = "encoder";
+        status.failure_message = "FFmpeg writer failed";
+    }
 }
 
-void mark_pipe_render_failed(PipeExportStatus& status, Frame frame) {
+void mark_pipe_render_failed(PipeExportStatus& status, Frame frame,
+                             std::string node, std::string message) {
     spdlog::error("[video] Failed to render frame {}", frame);
     status.success = false;
     status.render_failed = true;
+    if (status.failure_stage.empty()) {
+        status.failure_stage = "render";
+        status.failure_frame = static_cast<int>(frame.integral());
+        status.failure_node = std::move(node);
+        status.failure_message = message.empty()
+            ? "render failed without a captured detail"
+            : std::move(message);
+    }
 }
 
 void mark_pipe_exception(PipeExportStatus& status, Frame frame, const std::exception& error) {
     spdlog::error("[video] Exception during render loop (frame {}): {}", frame, error.what());
     status.success = false;
     status.exception_error = true;
+    if (status.failure_stage.empty()) {
+        status.failure_stage = "exception";
+        status.failure_frame = static_cast<int>(frame.integral());
+        status.failure_message = error.what();
+        if (status.failure_message.empty()) {
+            status.failure_message = "exception with empty message";
+        }
+    }
 }
 
 size_t compute_pipe_arena_size(int width, int height) {

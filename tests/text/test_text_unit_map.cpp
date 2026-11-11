@@ -83,7 +83,9 @@ TEST_CASE("TextUnitMap: character selectors retain whitespace omitted by shaping
                               size_t{4}, size_t{5}, size_t{6}}) {
         PlacedGlyph glyph;
         glyph.glyph_id = static_cast<u32>(byte + 1);
-        glyph.cluster = static_cast<u32>(run.glyphs.size());
+        // HarfBuzz cluster is the source byte offset; keep it consistent with
+        // byte_offset instead of using the glyph index.
+        glyph.cluster = static_cast<u32>(byte);
         glyph.is_cluster_start = true;
         glyph.byte_offset = static_cast<u32>(byte);
         glyph.byte_len = 1;
