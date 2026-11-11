@@ -1,6 +1,6 @@
 # RenderPlan and motion feature closure
 
-**Stato (2026-11-02): PARTIAL** — le voci implementate hanno prove locali;
+**Stato (agg. 2026-11-11): PARTIAL** — le voci implementate hanno prove locali;
 restano i gate elencati nel TODO, tra cui CI same-SHA, parità Vulkan delle
 mesh procedurali e l'esecuzione del link/test C ABI.
 
@@ -12,7 +12,7 @@ status below is updated only from commands actually executed in this workspace.
 
 - [ ] **Gate 0 — ripristinare il runner dispatch** — logica: precondizione (feature freeze): senza CI green sullo SHA esatto nessuna implementazione procede. Gate: runner allocato + CI green.
 - [ ] **Gate 1 GradientMesh native parity (priorità massima)** — logica: è il gate più alto valore; poi Gate 2 colored Field2D → Gate 3 composable SDF fills → Gate 4 VectorField → Gate 5 pattern geometrici → Gate 6 accettazione end-to-end. Dove: generatori procedurali (§14 della scheda) + lane Vulkan strict-native per le mesh generate. Gate: per ogni gate, parità dichiarata + golden.
-- [ ] **Audit diff sorgente + test residui** — logica: chiudere il residuo di diff/test dopo l'implementazione; certificazione Vulkan strict per mesh generate; oracle ombre CPU/Vulkan. Gate: audit chiuso + oracle verdi.
+- [ ] **Audit diff sorgente + test residui** — restano la certificazione Vulkan strict per mesh generate e l'audit complessivo. **Sotto-gate oracle ombre CPU/Vulkan PASS il 2026-11-11:** 5 casi / 68 asserzioni, `cpu_gpu_max_delta=0`; report in [`ae-shadow-map-20261111`](../evidence/ae-shadow-map-20261111/README.md). Gate complessivo ancora aperto finché i residui mesh e audit non sono chiusi.
 - [ ] **C ABI executable link e test execution: NOT RUN** — logica: eseguire realmente il link e i test; finora mai eseguiti. Gate: CTest verde con esito registrato.
 
 ## 0. Reconcile implementation surface

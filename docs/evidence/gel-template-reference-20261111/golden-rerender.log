@@ -1,0 +1,91 @@
+[2026-11-11 13:54:30.861] [info] [asset-profile] kind=3 path=docs/evidence/gel-reference-camera-20261106/LiberationMono-Bold.ttf bytes=307996 cache=miss invalidated=0 stat=0.04ms hash=1.52ms hashed_bytes=307996 total=1.78ms
+[2026-11-11 13:54:30.865] [info] [asset-profile] kind=0 path=docs/evidence/gel-text-stress-20261105/gel-reference-plate-20261106.png bytes=431631 cache=miss invalidated=0 stat=0.05ms hash=2.59ms hashed_bytes=431631 total=3.31ms
+[2026-11-11 13:54:30.865] [info] [asset-digest-cache] hits=0 misses=2 invalidations=0 bytes_hashed=739627 lookup_ms=0.01 write_ms=0.01 full_hash_ms=4.11
+[2026-11-11 13:54:30.865] [info] [plan-profile] read=0.26ms parse=0.16ms decode=41.18ms resolver=0.00ms compile_validate=6.01ms total=47.63ms
+[2026-11-11 13:54:30.865] [info] [video] execution plan resolved (reason: gpu_composition_pipe_no_video_source); decode=2 composite=2 encode=2 interop=0 handoff=3 codec=3
+[2026-11-11 13:54:30.892] [info] [video-runtime] created persistent runtime for device 0 (CUDA ordinal 0)
+[2026-11-11 13:54:30.892] [info] [video] Using raw sink (new) — frames will be written as raw pixel data to docs/evidence/gel-template-reference-20261111/golden-rerender.partial.rgba
+[2026-11-11 13:54:30.893] [info] [video] encoder feed capability: host_frame=true direct_yuv=false native_surface=false
+[2026-11-11 13:54:30.894] [info] [video_adapter] Opened raw sink: 1094x143 @ 30/1fps, format=rgba, codec=libx264
+[2026-11-11 13:54:31.107] [warning] [imgprof] decode=11.2ms
+[2026-11-11 13:54:31.135] [info] ImageCache: downscaled runtime image (2170x284 -> 2048x268, cap=2048)
+[2026-11-11 13:54:31.135] [warning] [imgprof] downscale=39.4ms
+[2026-11-11 13:54:31.143] [warning] [imgprof] convert=47.6ms
+[2026-11-11 13:54:31.180] [warning] [imgprof] sha256=84.1ms
+[2026-11-11 13:54:31.180] [info] ImageCache: loaded 'docs/evidence/gel-text-stress-20261105/gel-reference-plate-20261106.png' (2048x268) in 84.160ms
+[2026-11-11 13:54:31.189] [info] [pool-warm] Pre-allocated and pre-imported 6 execution slots (1094x143) for native NVENC
+[2026-11-11 13:54:31.290] [info] [video]   1/1 frames
+[2026-11-11 13:54:31.337] [info] chronon3d::vulkan text batch formats: dst_image.format=109 atlas_image.format=44 atlas_encoding=2 (shader contract: dst rgba32f, atlas rgba8)
+[2026-11-11 13:54:31.337] [info] [text-route] frame=0 route=mtsdf
+[2026-11-11 13:54:31.337] [info] [text-route] frame=0 route=mtsdf
+[2026-11-11 13:54:31.343] [info] [text-route] frame=0 route=mtsdf
+[2026-11-11 13:54:31.343] [info] [temp-lifetime] frame=0 after_level=0 live=[0,1,3,7,11,15,24,33,] retired=[]
+[2026-11-11 13:54:31.343] [info] [exec-level-diag] frame=0 level=0 nodes=8 input_ms=0.004 dispatch_ms=35.849 fb_release_ms=0.001
+[2026-11-11 13:54:31.343] [info] [graph-edge] frame=0 level=1 consumer_id=2 input_index=0 producer_id=0 producer_level=0
+[2026-11-11 13:54:31.343] [info] [graph-edge] frame=0 level=1 consumer_id=2 input_index=1 producer_id=1 producer_level=0
+[2026-11-11 13:54:31.343] [info] [graph-edge] frame=0 level=1 consumer_id=4 input_index=0 producer_id=3 producer_level=0
+[2026-11-11 13:54:31.343] [info] [graph-edge] frame=0 level=1 consumer_id=8 input_index=0 producer_id=7 producer_level=0
+[2026-11-11 13:54:31.343] [info] [graph-edge] frame=0 level=1 consumer_id=12 input_index=0 producer_id=11 producer_level=0
+[2026-11-11 13:54:31.343] [info] [graph-edge] frame=0 level=1 consumer_id=16 input_index=0 producer_id=15 producer_level=0
+[2026-11-11 13:54:31.343] [info] [graph-edge] frame=0 level=1 consumer_id=25 input_index=0 producer_id=24 producer_level=0
+[2026-11-11 13:54:31.343] [info] [graph-edge] frame=0 level=1 consumer_id=34 input_index=0 producer_id=33 producer_level=0
+[2026-11-11 13:54:31.346] [info] [temp-lifetime] frame=0 after_level=1 live=[2,4,8,12,16,25,34,] retired=[0,1,3,7,11,15,24,33,]
+[2026-11-11 13:54:31.346] [info] [exec-level-diag] frame=0 level=1 nodes=7 input_ms=0.021 dispatch_ms=2.751 fb_release_ms=0.002
+[2026-11-11 13:54:31.346] [info] [graph-edge] frame=0 level=2 consumer_id=5 input_index=0 producer_id=4 producer_level=1
+[2026-11-11 13:54:31.346] [info] [graph-edge] frame=0 level=2 consumer_id=9 input_index=0 producer_id=8 producer_level=1
+[2026-11-11 13:54:31.346] [info] [graph-edge] frame=0 level=2 consumer_id=13 input_index=0 producer_id=12 producer_level=1
+[2026-11-11 13:54:31.346] [info] [graph-edge] frame=0 level=2 consumer_id=17 input_index=0 producer_id=16 producer_level=1
+[2026-11-11 13:54:31.346] [info] [graph-edge] frame=0 level=2 consumer_id=26 input_index=0 producer_id=25 producer_level=1
+[2026-11-11 13:54:31.346] [info] [graph-edge] frame=0 level=2 consumer_id=35 input_index=0 producer_id=34 producer_level=1
+[2026-11-11 13:54:31.347] [info] [temp-lifetime] frame=0 after_level=2 live=[2,5,9,13,17,26,35,] retired=[4,8,12,16,25,34,]
+[2026-11-11 13:54:31.347] [info] [exec-level-diag] frame=0 level=2 nodes=6 input_ms=0.008 dispatch_ms=1.367 fb_release_ms=0.002
+[2026-11-11 13:54:31.347] [info] [graph-edge] frame=0 level=3 consumer_id=6 input_index=0 producer_id=2 producer_level=1
+[2026-11-11 13:54:31.347] [info] [graph-edge] frame=0 level=3 consumer_id=6 input_index=1 producer_id=5 producer_level=2
+[2026-11-11 13:54:31.347] [info] [graph-edge] frame=0 level=3 consumer_id=22 input_index=0 producer_id=17 producer_level=2
+[2026-11-11 13:54:31.347] [info] [graph-edge] frame=0 level=3 consumer_id=31 input_index=0 producer_id=26 producer_level=2
+[2026-11-11 13:54:31.347] [info] [graph-edge] frame=0 level=3 consumer_id=40 input_index=0 producer_id=35 producer_level=2
+[2026-11-11 13:54:31.358] [info] [temp-lifetime] frame=0 after_level=3 live=[6,9,13,22,31,40,] retired=[2,5,17,26,35,]
+[2026-11-11 13:54:31.358] [info] [exec-level-diag] frame=0 level=3 nodes=4 input_ms=0.008 dispatch_ms=10.584 fb_release_ms=0.004
+[2026-11-11 13:54:31.358] [info] [graph-edge] frame=0 level=4 consumer_id=10 input_index=0 producer_id=6 producer_level=3
+[2026-11-11 13:54:31.358] [info] [graph-edge] frame=0 level=4 consumer_id=10 input_index=1 producer_id=9 producer_level=2
+[2026-11-11 13:54:31.358] [info] [temp-lifetime] frame=0 after_level=4 live=[10,13,22,31,40,] retired=[6,9,]
+[2026-11-11 13:54:31.358] [info] [exec-level-diag] frame=0 level=4 nodes=1 input_ms=0.004 dispatch_ms=0.180 fb_release_ms=0.001
+[2026-11-11 13:54:31.358] [info] [graph-edge] frame=0 level=5 consumer_id=14 input_index=0 producer_id=10 producer_level=4
+[2026-11-11 13:54:31.358] [info] [graph-edge] frame=0 level=5 consumer_id=14 input_index=1 producer_id=13 producer_level=2
+[2026-11-11 13:54:31.358] [info] [temp-lifetime] frame=0 after_level=5 live=[14,22,31,40,] retired=[10,13,]
+[2026-11-11 13:54:31.358] [info] [exec-level-diag] frame=0 level=5 nodes=1 input_ms=0.003 dispatch_ms=0.048 fb_release_ms=0.001
+[2026-11-11 13:54:31.358] [info] [graph-edge] frame=0 level=6 consumer_id=23 input_index=0 producer_id=14 producer_level=5
+[2026-11-11 13:54:31.358] [info] [graph-edge] frame=0 level=6 consumer_id=23 input_index=1 producer_id=22 producer_level=3
+[2026-11-11 13:54:31.359] [info] [temp-lifetime] frame=0 after_level=6 live=[23,31,40,] retired=[14,22,]
+[2026-11-11 13:54:31.359] [info] [exec-level-diag] frame=0 level=6 nodes=1 input_ms=0.093 dispatch_ms=0.794 fb_release_ms=0.001
+[2026-11-11 13:54:31.359] [info] [graph-edge] frame=0 level=7 consumer_id=32 input_index=0 producer_id=23 producer_level=6
+[2026-11-11 13:54:31.359] [info] [graph-edge] frame=0 level=7 consumer_id=32 input_index=1 producer_id=31 producer_level=3
+[2026-11-11 13:54:31.360] [info] [temp-lifetime] frame=0 after_level=7 live=[32,40,] retired=[23,31,]
+[2026-11-11 13:54:31.360] [info] [exec-level-diag] frame=0 level=7 nodes=1 input_ms=0.003 dispatch_ms=0.401 fb_release_ms=0.001
+[2026-11-11 13:54:31.360] [info] [graph-edge] frame=0 level=8 consumer_id=41 input_index=0 producer_id=32 producer_level=7
+[2026-11-11 13:54:31.360] [info] [graph-edge] frame=0 level=8 consumer_id=41 input_index=1 producer_id=40 producer_level=3
+[2026-11-11 13:54:31.360] [info] [temp-lifetime] frame=0 after_level=8 live=[41,] retired=[32,40,]
+[2026-11-11 13:54:31.360] [info] [exec-level-diag] frame=0 level=8 nodes=1 input_ms=0.003 dispatch_ms=0.057 fb_release_ms=0.001
+[2026-11-11 13:54:31.393] [info] [video] Exporting via Arena-backed SIMD pipeline
+[2026-11-11 13:54:31.397] [info] [video] explicit GPU surface readback completed for raw/host sink at frame 0 (1094x143)
+[2026-11-11 13:54:31.401] [info] [video] writer join complete
+[2026-11-11 13:54:31.401] [info] [drain-debug] start drain, capacity=6
+[2026-11-11 13:54:31.401] [info] [drain-debug] reap done, busy_count=0
+[2026-11-11 13:54:31.401] [info] [video] trimming framebuffer pool
+[2026-11-11 13:54:31.401] [info] [video] Released framebuffer pool — memory trimmed
+[2026-11-11 13:54:31.401] [info] [video] frame-loop cleanup complete
+[2026-11-11 13:54:31.401] [info] [video] Encoder write blocked duration: 0.00 ms
+[2026-11-11 13:54:31.401] [info] [video_diag] conversion_and_copy_duration_ms: 1 ms
+[2026-11-11 13:54:31.401] [info] [video_diag] conversion_bytes_written=625768 encoder_staging_copy_bytes=0 encoder_slot_reuses=0
+[2026-11-11 13:54:31.402] [info] [video_adapter] Closed sink — 1 frames written, write_blocked=0.52ms, close=0.20ms
+[2026-11-11 13:54:31.402] [info] [video_native] convert=0.00ms  send_frame=0.00ms  backpressure=0.00ms  flush=0.00ms  receive_packet=0.00ms  mux_write=0.00ms  trailer=0.00ms
+[2026-11-11 13:54:31.402] [info] [video] render_ms=101.60 encode_ms=10.41 writer_encode_ms=6.04 wall_ms=536.83 nvml_stop_ms=0.19
+[2026-11-11 13:54:31.402] [info] [video] FFmpeg queue wait duration: 0.00 ms
+[2026-11-11 13:54:31.410] [info] [video] pre-encode artifact verified: 1 frames × 625768 bytes = 625768 bytes (format rgba), sha256=3cc9a3bd6fe0730a093089586182da24b28175d83642382bb32bcb15f2b91784
+[2026-11-11 13:54:31.412] [info] [startup-profile] total=262.14ms logger=0.02ms cli_bootstrap=1.73ms cli_parse=nullms composition=0.01ms plan_read=0.26ms json_parse=0.16ms plan_decode_validate=41.18ms asset_resolve=0.00ms plan_compile=6.01ms unaccounted=43.82ms
+[2026-11-11 13:54:31.413] [info] [video] Wrote exact per-frame timing sidecar: docs/evidence/gel-template-reference-20261111/golden-rerender.rgba.timing.json
+[2026-11-11 13:54:31.413] [info] [INFO] job-lifecycle: queue_close_ms=0.0 writer_join_ms=0.0 encoder_reset_ms=0.2 decoder_reset_ms=0.0 full_graph_reset_ms=0.0 sink_ctx_reset_ms=0.0 device_runtime_reset_ms=0.0 device_reservation_reset_ms=0.0
+[2026-11-11 13:54:31.413] [info] [INFO] job-lifecycle: sidecar_write_ms=1.8 session_teardown_ms=0.2
+[2026-11-11 13:54:31.416] [info] [INFO] job-lifecycle: post_sidecar_to_receipt_ms=2.1
+[2026-11-11 13:54:31.416] [info] [INFO] job-lifecycle: execute_ms=550.5 caller_tail_ms=0.0 receipt_deferred=0
+[2026-11-11 13:54:31.416] [info] [INFO] job-lifecycle: slot_pool_close_ms=0.0 surface_release_ms=0.0
