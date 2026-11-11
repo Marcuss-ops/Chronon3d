@@ -101,6 +101,18 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_steady_state_allocation_gate.py")
         NAME chronon3d_steady_state_allocation_gate_tests
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_steady_state_allocation_gate.py"
     )
+    set_tests_properties(chronon3d_steady_state_allocation_gate_tests PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    )
+endif()
+
+# CLI-dependent integration cases need the executable selected by this build
+# configuration; their Linux-only fallback search paths cannot find a Windows
+# multi-config output directory.
+if(TARGET chronon3d_cli AND TEST chronon3d_deterministic_tests)
+    set_tests_properties(chronon3d_deterministic_tests PROPERTIES
+        ENVIRONMENT "CHRONON3D_CLI_BINARY=$<TARGET_FILE:chronon3d_cli>"
+    )
 endif()
 
 # Golden end-to-end gate: three deterministic software renders (text, 2.5D,

@@ -40,6 +40,20 @@ void close_process_pipe(std::FILE* pipe) {
 #endif
 }
 
+std::string quote_shell_path(const std::filesystem::path& path) {
+#ifdef _WIN32
+    return "\"" + path.string() + "\"";
+#else
+    std::string quoted{"'"};
+    for (const char ch : path.string()) {
+        if (ch == '\'') quoted += "'\\''";
+        else quoted += ch;
+    }
+    quoted += '\'';
+    return quoted;
+#endif
+}
+
 /// Run a shell command and capture its stdout.  Empty on failure to spawn.
 std::string run_capture(const std::string& command) {
     std::array<char, 4096> buffer{};
@@ -271,8 +285,11 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
             // full multithreaded decode pass; certify adds the historical
             // `ffmpeg -f null -` smoke on top of the count_frames pass above.
             const std::string decode_cmd =
-                "ffmpeg -v error -i '" + output_path.string() +
-                "' -f null - > /dev/null 2>&1";
+#ifdef _WIN32
+                "ffmpeg -v error -i " + quote_shell_path(output_path) + " -f null - >NUL 2>&1";
+#else
+                "ffmpeg -v error -i " + quote_shell_path(output_path) + " -f null - >/dev/null 2>&1";
+#endif
             switch (level) {
                 case VerifyLevel::Fast:
                     receipt.verification.decode = "skip";

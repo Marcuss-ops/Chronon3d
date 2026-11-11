@@ -31,7 +31,9 @@
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <memory>
+#include <limits>
 #include <mutex>
 #include <set>
 #include <shared_mutex>
@@ -58,6 +60,10 @@ bool is_invisible_codepoint(char32_t cp) noexcept {
 /// ownership without destroying a face that is still being shaped or probed.
 struct FaceEntry {
     FontFaceId id{0};
+    // FT_New_Memory_Face keeps a pointer to its input for the lifetime of the
+    // face. Owning the bytes here also lets Windows replace/update a font file
+    // while the cached face is live (FT_New_Face leaves the file mapped).
+    std::vector<FT_Byte> font_data;
     FT_Face ft_face{nullptr};
     hb_font_t* hb_font{nullptr};
     std::string resolved_path;
@@ -379,8 +385,34 @@ struct FontEngine::Impl {
                                          const std::string& resolved) {
         if (!ft_library) return {};
         const auto resolve_start = profiling::now();
+        auto entry = std::make_shared<FaceEntry>();
+        std::ifstream input(std::filesystem::path{resolved},
+                            std::ios::binary | std::ios::ate);
+        if (!input) {
+            spdlog::warn("FontEngine: failed to open font '{}' (resolved: '{}')",
+                         spec.font_path, resolved);
+            return {};
+        }
+        const auto end = input.tellg();
+        const auto file_size = static_cast<std::streamoff>(end);
+        if (file_size <= 0 || static_cast<std::uintmax_t>(file_size) >
+                            static_cast<std::uintmax_t>(std::numeric_limits<FT_Long>::max())) {
+            spdlog::warn("FontEngine: font '{}' has an invalid or unsupported size",
+                         resolved);
+            return {};
+        }
+        entry->font_data.resize(static_cast<std::size_t>(file_size));
+        input.seekg(0, std::ios::beg);
+        if (!input.read(reinterpret_cast<char*>(entry->font_data.data()),
+                        static_cast<std::streamsize>(entry->font_data.size()))) {
+            spdlog::warn("FontEngine: failed to read font '{}'", resolved);
+            return {};
+        }
+
         FT_Face face = nullptr;
-        FT_Error err = FT_New_Face(ft_library, resolved.c_str(), 0, &face);
+        FT_Error err = FT_New_Memory_Face(
+            ft_library, entry->font_data.data(),
+            static_cast<FT_Long>(entry->font_data.size()), 0, &face);
         if (err != 0) {
             // A missing font is retried once per text span: an overlay render
             // emitted tens of thousands of identical lines (60 GB of syslog in
@@ -402,7 +434,6 @@ struct FontEngine::Impl {
             return {};
         }
 
-        auto entry = std::make_shared<FaceEntry>();
         entry->id = next_face_id.fetch_add(1, std::memory_order_relaxed);
         entry->ft_face = face;
         entry->hb_font = hb_font;

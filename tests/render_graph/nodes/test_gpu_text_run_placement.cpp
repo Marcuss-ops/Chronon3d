@@ -572,8 +572,10 @@ TEST_CASE("GPU MTSDF consumes word spacing from resolved glyph positions") {
         states[0], 0.0f, 0.0f, 1.0f, 1.0f);
     const auto second = make_gpu_glyph_placement(
         states[1], 0.0f, 0.0f, 1.0f, 1.0f);
-    CHECK(second.tx - first.tx == doctest::Approx(
-        states[1].layout_position.x - states[0].layout_position.x + 12.0f));
+    // Each prepared plane already contains its immutable layout advance; the
+    // per-glyph dynamic translation must therefore carry only the resolved
+    // animator offset here.
+    CHECK(second.tx - first.tx == doctest::Approx(12.0f));
 }
 
 TEST_CASE("Text animation evaluation is deterministic under random access") {

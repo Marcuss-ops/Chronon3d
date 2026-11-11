@@ -8,6 +8,11 @@
 namespace render_plan_test {
 
 inline nlohmann::json base_plan(nlohmann::json layers = nlohmann::json::array()) {
+    // A single object passed through a braced function argument can be
+    // materialized as a JSON object by some compiler/library combinations.
+    // The render-plan contract always requires layers to be an array.
+    if (layers.is_object())
+        layers = nlohmann::json::array({std::move(layers)});
     return {
         {"schema", "chronon.render-plan.v3"},
         {"version", 3},

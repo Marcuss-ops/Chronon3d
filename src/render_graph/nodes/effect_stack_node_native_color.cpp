@@ -497,6 +497,17 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
         return false;
     }
 
+    auto native_transform = lowering->transform;
+    const bool has_partial_clip = lowering->honors_clip && clip &&
+        !clip_covers_result(clip, result);
+    if (has_partial_clip) {
+        raster::BBox local{clip->x0 - result.origin_x(), clip->y0 - result.origin_y(),
+                           clip->x1 - result.origin_x(), clip->y1 - result.origin_y()};
+        local.clip_to(result.width(), result.height());
+        native_transform.clip_enabled = true;
+        native_transform.clip_bounds = {local.x0, local.y0, local.x1, local.y1};
+    }
+
     RenderOpResult status = source_is_existing
         ? RenderOpResult(RenderOpOutcome{})
         : ctx.backend_surface_api()->create_surface(source, desc);
@@ -519,22 +530,22 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
         const auto intermediate = make();
         status = ctx.backend_surface_api()->create_surface(intermediate, desc);
         if (status.ok())
-            status = ctx.backend_surface_api()->color_transform_surface(intermediate, source, lowering->transform);
-        auto vertical = lowering->transform;
+            // The horizontal pass must compute the full source halo. The clip
+            // is applied only to the vertical destination pass below.
+            status = ctx.backend_surface_api()->color_transform_surface(
+                intermediate, source, lowering->transform);
+        auto vertical = native_transform;
         vertical.p[0][2] = 1.0f;
         if (status.ok())
             status = ctx.backend_surface_api()->color_transform_surface(output, intermediate, vertical);
     } else if (status.ok()) {
-        status = ctx.backend_surface_api()->color_transform_surface(output, source, lowering->transform);
+        status = ctx.backend_surface_api()->color_transform_surface(output, source, native_transform);
     }
 
     // Clip-honoring processors leave pixels outside the clip untouched.
     auto final_surface = output;
     const bool partial_clip = lowering->honors_clip && clip &&
-        !clip_covers_result(clip, result) &&
-        !(ctx.policy.require_native_gpu ||
-          (source_is_borrowed && borrowed_source_framebuffer &&
-           borrowed_source_framebuffer->is_gpu_authoritative()));
+        !clip_covers_result(clip, result);
     if (status.ok() && partial_clip) {
         raster::BBox local{clip->x0 - result.origin_x(), clip->y0 - result.origin_y(),
                            clip->x1 - result.origin_x(), clip->y1 - result.origin_y()};

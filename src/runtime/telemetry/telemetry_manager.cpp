@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <fstream>
 #include <utility>
+#include <cstdlib>
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -189,7 +190,9 @@ bool TelemetryManager::record_run(const TelemetryRunSnapshot& snapshot) {
 }
 
 std::string TelemetryManager::get_os_name() {
-#if defined(__linux__)
+#if defined(_WIN32)
+    return "Windows";
+#elif defined(__linux__)
     return "Linux";
 #elif defined(__APPLE__)
     return "macOS";
@@ -199,7 +202,13 @@ std::string TelemetryManager::get_os_name() {
 }
 
 std::string TelemetryManager::get_cpu_model() {
-#if defined(__linux__)
+#if defined(_WIN32)
+    if (const char* model = std::getenv("PROCESSOR_IDENTIFIER");
+        model && *model) {
+        return model;
+    }
+    return "Generic CPU";
+#elif defined(__linux__)
     // First "model name" line of /proc/cpuinfo, e.g.
     // "model name\t: Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz".
     std::ifstream cpuinfo("/proc/cpuinfo");

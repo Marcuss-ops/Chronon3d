@@ -21,6 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GATE = ROOT / "tools" / "gates" / "check_steady_state_allocations.sh"
+RUN_BASH_SCRIPT = ROOT / "tests" / "support" / "run_bash_script.py"
 REVISION = "abc123def4567890"
 
 GATE_PASS, GATE_FAIL, GATE_INTERNAL = 0, 1, 2
@@ -50,7 +51,8 @@ def _run(report_text, expected_revision=REVISION, **extra_env):
         env["CHRONON_STEADY_STATE_REPORT"] = str(report)
         env.update({key: str(value) for key, value in extra_env.items()})
         proc = subprocess.run(
-            ["bash", str(GATE)], capture_output=True, text=True, env=env
+            [sys.executable, str(RUN_BASH_SCRIPT), "run", str(GATE)],
+            capture_output=True, text=True, env=env
         )
         return proc.returncode, proc.stdout, proc.stderr
 

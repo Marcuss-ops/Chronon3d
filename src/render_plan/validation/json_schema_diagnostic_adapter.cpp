@@ -61,7 +61,14 @@ const nlohmann::json& instance_at_pointer(const nlohmann::json& instance,
                                           std::string_view pointer) {
     if (pointer.empty()) return instance;
     try {
-        return instance.at(nlohmann::json::json_pointer(std::string(pointer)));
+        // json-schema-validator versions used by some Windows package builds
+        // report a property path without the leading slash required by
+        // nlohmann::json_pointer (for example "layers" instead of "/layers").
+        // Normalize that representation before resolving the diagnostic value.
+        const auto normalized = pointer.front() == '/'
+            ? std::string(pointer)
+            : '/' + std::string(pointer);
+        return instance.at(nlohmann::json::json_pointer(normalized));
     } catch (...) {
         // The validator is authoritative for the pointer. If a pointer names
         // a missing value (for example a required-property failure), keep the

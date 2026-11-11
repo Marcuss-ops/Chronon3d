@@ -83,6 +83,8 @@ def render(cli: Path, plan_path: Path, out_path: Path) -> list[str]:
         str(frames - 1),
         "--video-sink",
         "raw",
+        "--pipe-pixfmt",
+        "rgba",
         "--output",
         str(out_path),
         "-v",

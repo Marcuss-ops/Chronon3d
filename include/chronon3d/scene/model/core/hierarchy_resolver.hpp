@@ -17,7 +17,7 @@ namespace chronon3d {
 // Forward declaration — Layer is defined in scene/model/layer/layer.hpp.
 // This canonical header is the single source of truth for hierarchical
 // transform resolution; no other transform-resolution headers are needed.
-class Layer;
+struct Layer;
 
 // ── Input: flat array of nodes with parent references ──────────────────────
 

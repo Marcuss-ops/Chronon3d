@@ -1,5 +1,6 @@
 #include "video_job_time_rescale.hpp"
 
+#include <cmath>
 #include <limits>
 
 namespace chronon3d::cli::video_detail {
@@ -10,6 +11,28 @@ std::int64_t rescale_ticks_exact(std::int64_t ticks, std::int64_t from_num,
                                  std::int64_t to_den,
                                  FrameRounding rounding) noexcept {
     if (from_num <= 0 || from_den <= 0 || to_num <= 0 || to_den <= 0) return 0;
+#if defined(_MSC_VER)
+    const long double numerator = static_cast<long double>(ticks) * from_num * to_num;
+    const long double denominator = static_cast<long double>(from_den) * to_den;
+    long double result = 0.0L;
+    switch (rounding) {
+        case FrameRounding::Floor:
+            result = std::floor(numerator / denominator);
+            break;
+        case FrameRounding::Ceiling:
+            result = std::ceil(numerator / denominator);
+            break;
+        case FrameRounding::Nearest:
+        default:
+            result = std::round(numerator / denominator);
+            break;
+    }
+    if (result > static_cast<long double>(std::numeric_limits<std::int64_t>::max()))
+        return std::numeric_limits<std::int64_t>::max();
+    if (result < static_cast<long double>(std::numeric_limits<std::int64_t>::min()))
+        return std::numeric_limits<std::int64_t>::min();
+    return static_cast<std::int64_t>(result);
+#else
     const __int128 numerator = static_cast<__int128>(ticks) * from_num * to_num;
     const __int128 denominator = static_cast<__int128>(from_den) * to_den;
     if (denominator == 0) return 0;
@@ -37,6 +60,7 @@ std::int64_t rescale_ticks_exact(std::int64_t ticks, std::int64_t from_num,
     if (result < std::numeric_limits<std::int64_t>::min())
         return std::numeric_limits<std::int64_t>::min();
     return static_cast<std::int64_t>(result);
+#endif
 }
 
 } // namespace

@@ -205,10 +205,22 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
     std::optional<Reply> shutdown;
     if (connected) {
         const auto make_payload = [&](std::string_view job_id) {
-            return std::string{R"({"job_id":")"} + std::string{job_id} +
-            R"(","plan_path":")" + plan_path.string() +
-            R"(","output":")" + output_path.string() +
-            R"(","range_enabled":true,"first_frame":0,"last_frame":0,"output_spec":{"width":64,"height":64,"encoder_backend":"pipe","gpu_hot_path_mode":"auto"},"execution_requirements":{"gpu_required":false,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":false,"packet_copy_allowed":true}})";
+            return nlohmann::json{
+                {"job_id", job_id},
+                {"plan_path", plan_path.generic_string()},
+                {"output", output_path.generic_string()},
+                {"range_enabled", true},
+                {"first_frame", 0},
+                {"last_frame", 0},
+                {"output_spec", {{"width", 64}, {"height", 64},
+                                  {"encoder_backend", "pipe"},
+                                  {"gpu_hot_path_mode", "auto"}}},
+                {"execution_requirements", {{"gpu_required", false},
+                                            {"cpu_fallback_allowed", true},
+                                            {"composition_required", false},
+                                            {"video_source_required", false},
+                                            {"packet_copy_allowed", true}}}
+            }.dump();
         };
         unknown_status = status_client.request(Command::GetJobStatus,
                                               "no-such-daemon-job");
@@ -341,10 +353,16 @@ TEST_CASE("daemon RENDER_BATCH preserves segment order and isolates a failed seg
 
     const auto make_payload = [&](std::string_view job_id,
                                   std::string_view output) {
-        return std::string{R"({"job_id":")"} + std::string{job_id} +
-            R"(","plan_path":")" + plan_path.string() +
-            R"(","output":")" + std::string{output} +
-            R"(","backend":"software","range_enabled":true,"first_frame":0,"last_frame":0,"output_spec":{"width":64,"height":64,"encoder_backend":"pipe","gpu_hot_path_mode":"auto"},"execution_requirements":{"backend":"software","gpu_required":false,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":false,"packet_copy_allowed":true}})";
+        return nlohmann::json{
+            {"job_id", job_id}, {"plan_path", plan_path.generic_string()},
+            {"output", output}, {"backend", "software"}, {"range_enabled", true},
+            {"first_frame", 0}, {"last_frame", 0},
+            {"output_spec", {{"width", 64}, {"height", 64},
+                              {"encoder_backend", "pipe"}, {"gpu_hot_path_mode", "auto"}}},
+            {"execution_requirements", {{"backend", "software"}, {"gpu_required", false},
+                                        {"cpu_fallback_allowed", true}, {"composition_required", false},
+                                        {"video_source_required", false}, {"packet_copy_allowed", true}}}
+        }.dump();
     };
 
     std::optional<Reply> batch_reply;
@@ -353,8 +371,10 @@ TEST_CASE("daemon RENDER_BATCH preserves segment order and isolates a failed seg
     if (connected) {
         const auto first = make_payload("batch-segment-0", "segment-0.png");
         const auto second = make_payload("batch-segment-1", "segment-1.png");
-        const std::string batch_payload =
-            std::string{"{\"jobs\":"} + "[" + first + "," + second + "]}";
+        const std::string batch_payload = nlohmann::json{
+            {"jobs", nlohmann::json::array({nlohmann::json::parse(first),
+                                            nlohmann::json::parse(second)})}
+        }.dump();
         batch_reply = client.request(Command::RenderBatch, batch_payload);
         retry_reply = client.request(
             Command::RenderJob,
@@ -489,10 +509,16 @@ TEST_CASE("daemon runs the deferred receipt step after releasing the render lane
     REQUIRE(connected);
 
     const auto make_payload = [&](std::string_view job_id) {
-        return std::string{R"({"job_id":")"} + std::string{job_id} +
-        R"(","plan_path":")" + plan_path.string() +
-        R"(","output":")" + output_path.string() +
-        R"(","range_enabled":true,"first_frame":0,"last_frame":0,"output_spec":{"width":64,"height":64,"encoder_backend":"pipe","gpu_hot_path_mode":"auto"},"execution_requirements":{"gpu_required":false,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":false,"packet_copy_allowed":true}})";
+        return nlohmann::json{
+            {"job_id", job_id}, {"plan_path", plan_path.generic_string()},
+            {"output", output_path.generic_string()}, {"range_enabled", true},
+            {"first_frame", 0}, {"last_frame", 0},
+            {"output_spec", {{"width", 64}, {"height", 64},
+                              {"encoder_backend", "pipe"}, {"gpu_hot_path_mode", "auto"}}},
+            {"execution_requirements", {{"gpu_required", false}, {"cpu_fallback_allowed", true},
+                                        {"composition_required", false},
+                                        {"video_source_required", false}, {"packet_copy_allowed", true}}}
+        }.dump();
     };
 
     std::optional<Reply> reply_a;

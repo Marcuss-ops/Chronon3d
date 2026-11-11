@@ -36,6 +36,7 @@ layout(push_constant) uniform ColorMatrixParams {
     vec4 p[5];
     // x: mode, y: clamp to [0,1] (affine only), z: straight-alpha domain
     vec4 options;
+    ivec4 clip_bounds;
 } params;
 
 float levels_channel(float x, float ib, float iw, float g, float ob, float ow) {
@@ -157,12 +158,23 @@ vec4 ae_sample(vec2 position, ivec2 size, bool thresholded) {
                    ae_fetch(base + ivec2(1, 1), size, thresholded), t.x), t.y);
 }
 
+// Match C++ std::lround; GLSL round() leaves half-way cases implementation-defined.
+int ae_round_away_from_zero(float value) {
+    return int(value >= 0.0 ? floor(value + 0.5) : ceil(value - 0.5));
+}
+
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(destination_image);
     if (coord.x >= size.x || coord.y >= size.y) return;
 
     vec4 source = imageLoad(source_image, coord);
+    if (params.options.w > 0.5 &&
+        (coord.x < params.clip_bounds.x || coord.y < params.clip_bounds.y ||
+         coord.x >= params.clip_bounds.z || coord.y >= params.clip_bounds.w)) {
+        imageStore(destination_image, coord, source);
+        return;
+    }
     int ae_mode = int(params.options.x + 0.5);
     if (ae_mode == 13) {
         float progress = params.p[0].x;
@@ -243,11 +255,11 @@ void main() {
             float sigma_y = max(3.0, min(radius * 0.04, 8.0));
             vec4 column = vec4(0.0);
             for (int iy = 0; iy < kColumnSamples; ++iy) {
-                int sy = clamp(int(round(center.y - band_y + float(iy) * sample_step)),
+                int sy = clamp(ae_round_away_from_zero(center.y - band_y + float(iy) * sample_step),
                                0, size.y - 1);
                 for (int ix = 0; ix < taps_x; ++ix) {
                     float offset_x = -extent_x + float(ix) * step_x;
-                    ivec2 tap_coord = ivec2(round(position.x + offset_x), sy);
+                    ivec2 tap_coord = ivec2(ae_round_away_from_zero(position.x + offset_x), sy);
                     column += ae_fetch(tap_coord, size, true) * wx[ix];
                 }
             }
@@ -262,7 +274,9 @@ void main() {
             return;
         }
         float alpha = clamp(light.a, 0.0, 1.0);
-        imageStore(destination_image, coord, vec4(light.rgb * (alpha / light.a) + source.rgb * (1.0 - alpha), alpha + source.a * (1.0 - alpha)));
+        vec3 composited = light.rgb * (alpha / light.a) + source.rgb * (1.0 - alpha);
+        imageStore(destination_image, coord,
+                   vec4(max(source.rgb, composited), alpha + source.a * (1.0 - alpha)));
         return;
     }
     if (params.options.x > 6.5 && params.options.x < 7.5) {

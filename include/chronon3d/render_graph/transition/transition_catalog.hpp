@@ -12,7 +12,7 @@
 
 namespace chronon3d::graph {
 
-class RenderGraphContext;
+struct RenderGraphContext;
 
 /// Abstract mask generator used by mask-based transitions (wipe, iris).
 /// This keeps the "how do I compute a transition mask" question separate

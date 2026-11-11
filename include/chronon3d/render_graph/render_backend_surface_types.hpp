@@ -22,6 +22,8 @@ struct NativeColorTransform {
         {0.0f, 0.0f, 0.0f, 0.0f}}};
     bool clamp_unit{false};
     bool straight_alpha{false};
+    bool clip_enabled{false};
+    std::array<std::int32_t, 4> clip_bounds{};
 };
 
 /// Push layout is 128 bytes: mode, edge mode, and 30 float parameters.

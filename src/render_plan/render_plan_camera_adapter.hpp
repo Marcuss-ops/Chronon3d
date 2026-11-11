@@ -9,6 +9,13 @@
 #include <utility>
 #include <vector>
 
+#ifdef near
+#undef near
+#endif
+#ifdef far
+#undef far
+#endif
+
 namespace chronon3d::render_plan::detail {
 
 inline chronon3d::Camera2_5D make_camera_value(

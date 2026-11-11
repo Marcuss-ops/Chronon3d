@@ -30,6 +30,13 @@
 
 #include <spdlog/spdlog.h>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -98,15 +105,44 @@ private:
     spdlog::level::level_enum previous_;
 };
 
-bool command_succeeds(const char* command) {
-    return std::system(command) == 0;
+bool ffmpeg_command_succeeds(const char* arguments) {
+#ifdef _WIN32
+    // Avoid the C runtime's shell lookup/quoting differences (which can report
+    // "access denied" for a valid ffmpeg.exe on PATH). Launch ffmpeg directly
+    // and discard its diagnostic output through the Windows NUL device.
+    HANDLE null_output = CreateFileA("NUL", GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (null_output == INVALID_HANDLE_VALUE) return false;
+    STARTUPINFOA startup{};
+    startup.cb = sizeof(startup);
+    startup.dwFlags = STARTF_USESTDHANDLES;
+    startup.hStdOutput = null_output;
+    startup.hStdError = null_output;
+    startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    PROCESS_INFORMATION process{};
+    std::string command = "ffmpeg.exe ";
+    command += arguments;
+    const BOOL created = CreateProcessA(nullptr, command.data(), nullptr, nullptr,
+        TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &process);
+    CloseHandle(null_output);
+    if (!created) return false;
+    WaitForSingleObject(process.hProcess, INFINITE);
+    DWORD exit_code = 1;
+    const BOOL got_exit_code = GetExitCodeProcess(process.hProcess, &exit_code);
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    return got_exit_code && exit_code == 0;
+#else
+    const std::string command = std::string("ffmpeg ") + arguments +
+        " > /dev/null 2>&1";
+    return std::system(command.c_str()) == 0;
+#endif
 }
 
 bool encoder_available(const char* name) {
-    const std::string command =
-        "ffmpeg -hide_banner -h encoder=" + std::string(name) +
-        " > /dev/null 2>&1";
-    return command_succeeds(command.c_str());
+    const std::string arguments = "-hide_banner -h encoder=" + std::string(name);
+    return ffmpeg_command_succeeds(arguments.c_str());
 }
 
 std::string host_arch() noexcept {
@@ -124,6 +160,12 @@ std::string host_arch() noexcept {
 }
 
 std::string read_cpu_model_name() {
+#ifdef _WIN32
+    char model[256]{};
+    const DWORD length = GetEnvironmentVariableA(
+        "PROCESSOR_IDENTIFIER", model, static_cast<DWORD>(sizeof(model)));
+    return length > 0 && length < sizeof(model) ? model : "unknown";
+#else
     std::ifstream in("/proc/cpuinfo");
     if (!in.is_open()) return "unknown";
     std::string line;
@@ -142,10 +184,15 @@ std::string read_cpu_model_name() {
         return first == std::string::npos ? "unknown" : value.substr(first);
     }
     return "unknown";
+#endif
 }
 
 std::uint64_t host_ram_bytes() noexcept {
-#if defined(__linux__)
+#ifdef _WIN32
+    MEMORYSTATUSEX status{};
+    status.dwLength = sizeof(status);
+    return GlobalMemoryStatusEx(&status) ? status.ullTotalPhys : 0;
+#elif defined(__linux__)
     const long pages = sysconf(_SC_PHYS_PAGES);
     const long page_size = sysconf(_SC_PAGE_SIZE);
     if (pages > 0 && page_size > 0) {
@@ -257,8 +304,7 @@ void collect_backend_checks(DoctorReport& report) {
 }
 
 void collect_encoder_checks(DoctorReport& report) {
-    const bool ffmpeg_ok =
-        command_succeeds("ffmpeg -version > /dev/null 2>&1");
+    const bool ffmpeg_ok = ffmpeg_command_succeeds("-version");
     add_check(report, "encoder.ffmpeg",
               ffmpeg_ok ? DoctorStatus::Pass : DoctorStatus::Fail,
               ffmpeg_ok ? "ffmpeg executable found on PATH"

@@ -212,4 +212,12 @@ private:
         std::move(_chronon_try_result).value();                              \
     })
 
+// Portable statement form for compilers without GNU statement expressions
+// (notably MSVC). `name` is the unwrapped value declared in the current scope.
+#define CHRONON_TRY_ASSIGN(name, expr)                                       \
+    auto _chronon_try_result_##name = (expr);                                \
+    if (!_chronon_try_result_##name)                                         \
+        return std::move(_chronon_try_result_##name).error();                \
+    auto name = std::move(_chronon_try_result_##name).value()
+
 } // namespace chronon3d

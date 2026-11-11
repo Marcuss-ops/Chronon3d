@@ -4,6 +4,10 @@
 #include <string>
 #include <utility>
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
 #if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -60,6 +64,20 @@ struct FormatContextGuard {
     // Durations accepted by this translation unit are positive and have
     // positive time-base components. Cross-multiplication stays comfortably
     // inside signed 128-bit range for FFmpeg's i64 timestamps + i32 rationals.
+#if defined(_MSC_VER)
+    // AVRational components are positive signed 32-bit values, so each scale
+    // factor fits in i64. _mul128 then compares the full 128-bit products
+    // without relying on the GCC/Clang-only __int128 extension.
+    const auto lhs_scale = lhs.time_base.numerator * rhs.time_base.denominator;
+    const auto rhs_scale = rhs.time_base.numerator * lhs.time_base.denominator;
+    __int64 lhs_high = 0;
+    __int64 rhs_high = 0;
+    const auto lhs_low = static_cast<unsigned __int64>(
+        _mul128(lhs.ticks(), lhs_scale, &lhs_high));
+    const auto rhs_low = static_cast<unsigned __int64>(
+        _mul128(rhs.ticks(), rhs_scale, &rhs_high));
+    return lhs_high < rhs_high || (lhs_high == rhs_high && lhs_low < rhs_low);
+#else
     const __int128 lhs_scaled = static_cast<__int128>(lhs.ticks()) *
                                 static_cast<__int128>(lhs.time_base.numerator) *
                                 static_cast<__int128>(rhs.time_base.denominator);
@@ -67,6 +85,7 @@ struct FormatContextGuard {
                                 static_cast<__int128>(rhs.time_base.numerator) *
                                 static_cast<__int128>(lhs.time_base.denominator);
     return lhs_scaled < rhs_scaled;
+#endif
 }
 
 #endif

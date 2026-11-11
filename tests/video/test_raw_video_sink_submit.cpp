@@ -195,6 +195,7 @@ TEST_CASE("RawVideoSink: written bytes match input exactly") {
 
     CHECK(std::memcmp(expected.data(), actual.data(), frame_bytes) == 0);
 
+    file.close();
     std::filesystem::remove(path);
 }
 
@@ -241,5 +242,6 @@ TEST_CASE("RawVideoSink: submit RGBA8 with row padding (non-zero stride)") {
               static_cast<std::streamsize>(tight_frame));
     CHECK(std::memcmp(expected.data(), actual.data(), tight_frame) == 0);
 
+    file.close();
     std::filesystem::remove(path);
 }

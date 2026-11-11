@@ -133,6 +133,7 @@ TEST_CASE("RawVideoSink: submit with mismatched pixel format fails") {
     CHECK_FALSE(sink.submit(fv));
     CHECK(sink.state() == VideoSinkState::Failed);
 
+    sink.close();
     std::filesystem::remove(path);
 }
 
@@ -154,6 +155,7 @@ TEST_CASE("RawVideoSink: submit with mismatched dimensions fails") {
     CHECK_FALSE(sink.submit(fv));
     CHECK(sink.state() == VideoSinkState::Failed);
 
+    sink.close();
     std::filesystem::remove(path);
 }
 

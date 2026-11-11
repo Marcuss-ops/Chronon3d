@@ -354,7 +354,9 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         // P4 batch superjob: the per-item windows travel with the job so the
         // export can cut one MP4 per item from a single encoder session.
         request.video_settings.output_segments = normalized_job.output.output_segments;
-        request.video_settings.pipe_pixfmt = normalized_job.output.pipe_pixfmt;
+        if (!normalized_job.output.pipe_pixfmt.empty()) {
+            request.video_settings.pipe_pixfmt = normalized_job.output.pipe_pixfmt;
+        }
         request.video_settings.color_output = !normalized_job.output.color_output.empty()
             ? normalized_job.output.color_output : context.decoded.output.color_space;
         if (context.decoded.color_management &&

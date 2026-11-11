@@ -10,24 +10,32 @@ chronon3d_add_test_suite(
 
 add_test(
     NAME chronon3d_compiler_boundary_gate
-    COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/ci/check_compiler_boundary.sh
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/support/run_bash_script.py run
+        ${CMAKE_SOURCE_DIR}/scripts/ci/check_compiler_boundary.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 add_test(
     NAME chronon3d_runtime_ownership_gate
-    COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/ci/check_runtime_ownership.sh
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/support/run_bash_script.py run
+        ${CMAKE_SOURCE_DIR}/scripts/ci/check_runtime_ownership.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 add_test(
     NAME chronon3d_graph_executor_authority_gate
-    COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/ci/check_graph_executor_authority.sh
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/support/run_bash_script.py run
+        ${CMAKE_SOURCE_DIR}/scripts/ci/check_graph_executor_authority.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 add_test(
     NAME chronon3d_render_session_migration_gate
-    COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/ci/check_render_session_migration.sh
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/support/run_bash_script.py run
+        ${CMAKE_SOURCE_DIR}/scripts/ci/check_render_session_migration.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

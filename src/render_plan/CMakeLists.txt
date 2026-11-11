@@ -125,6 +125,39 @@ file(READ "${CHRONON3D_RENDER_PLAN_SCHEMA_FILE}"
      CHRONON3D_RENDER_PLAN_SCHEMA_JSON)
 file(READ "${CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_FILE}"
      CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_JSON)
+
+# MSVC limits an individual string-literal token to 16,384 characters. Split
+# embedded schemas into adjacent raw-string tokens; C++ concatenates them at
+# compile time, preserving the exact JSON passed to the runtime parser.
+function(chronon3d_split_raw_literal input_var delimiter output_var)
+    set(_content "${${input_var}}")
+    string(LENGTH "${_content}" _content_length)
+    set(_offset 0)
+    set(_literal "")
+    set(_chunk_size 7000)
+    while(_offset LESS _content_length)
+        math(EXPR _remaining "${_content_length} - ${_offset}")
+        if(_remaining GREATER _chunk_size)
+            set(_length ${_chunk_size})
+        else()
+            set(_length ${_remaining})
+        endif()
+        string(SUBSTRING "${_content}" ${_offset} ${_length} _chunk)
+        if(_offset GREATER 0)
+            string(APPEND _literal ")${delimiter}\" R\"${delimiter}(")
+        endif()
+        string(APPEND _literal "${_chunk}")
+        math(EXPR _offset "${_offset} + ${_length}")
+    endwhile()
+    set(${output_var} "${_literal}" PARENT_SCOPE)
+endfunction()
+
+chronon3d_split_raw_literal(
+    CHRONON3D_RENDER_PLAN_SCHEMA_JSON C3V2
+    CHRONON3D_RENDER_PLAN_SCHEMA_JSON)
+chronon3d_split_raw_literal(
+    CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_JSON C3V3
+    CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_JSON)
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/render_plan_schema.hpp.in
     ${CMAKE_CURRENT_BINARY_DIR}/generated_render_plan_schema.hpp

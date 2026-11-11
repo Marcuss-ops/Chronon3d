@@ -23,6 +23,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <string_view>
 
 namespace {
 
@@ -105,8 +106,8 @@ TEST_CASE("video timing sidecar emits one v3 document with an inline summary") {
     std::ifstream input(sidecar);
     const auto document = nlohmann::json::parse(input);
 
-    CHECK(chronon3d::cli::pipe_timing::kTimingSidecarSchema ==
-          "chronon3d.frame-timing.v3");
+    CHECK(std::string_view{chronon3d::cli::pipe_timing::kTimingSidecarSchema} ==
+          std::string_view{"chronon3d.frame-timing.v3"});
     CHECK(chronon3d::cli::pipe_timing::kTimingSidecarVersion == 3);
     CHECK(document.at("schema") == chronon3d::cli::pipe_timing::kTimingSidecarSchema);
     CHECK(document.at("version") == chronon3d::cli::pipe_timing::kTimingSidecarVersion);
@@ -122,6 +123,7 @@ TEST_CASE("video timing sidecar emits one v3 document with an inline summary") {
     CHECK(emitted_keys == v3_additive_keys);
     CHECK_FALSE(std::filesystem::exists(legacy_summary));
 
+    input.close();
     std::filesystem::remove(sidecar);
 }
 

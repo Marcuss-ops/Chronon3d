@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -70,8 +71,13 @@ namespace detail {
     if (a.numerator < 0 || b.numerator < 0) {
         throw std::invalid_argument("duration time-base must be non-negative");
     }
+#if defined(_MSC_VER)
+    const long double left = static_cast<long double>(lhs.value) * a.numerator * b.denominator;
+    const long double right = static_cast<long double>(rhs.value) * b.numerator * a.denominator;
+#else
     const __int128 left = static_cast<__int128>(lhs.value) * a.numerator * b.denominator;
     const __int128 right = static_cast<__int128>(rhs.value) * b.numerator * a.denominator;
+#endif
     return left < right;
 }
 
@@ -97,6 +103,17 @@ namespace detail {
         return Frame{0};
     }
 
+#if defined(_MSC_VER)
+    const long double numerator = static_cast<long double>(duration.value) *
+                                  base.numerator * rate.numerator;
+    const long double denominator = static_cast<long double>(base.denominator) *
+                                    rate.denominator;
+    const long double frames = std::ceil(numerator / denominator);
+    if (frames > static_cast<long double>(std::numeric_limits<i64>::max())) {
+        throw std::overflow_error("temporal halo exceeds frame range");
+    }
+    return Frame{static_cast<i64>(frames)};
+#else
     const __int128 numerator = static_cast<__int128>(duration.value) *
                                static_cast<__int128>(base.numerator) *
                                static_cast<__int128>(rate.numerator);
@@ -107,6 +124,7 @@ namespace detail {
         throw std::overflow_error("temporal halo exceeds frame range");
     }
     return Frame{static_cast<i64>(frames)};
+#endif
 }
 
 } // namespace detail

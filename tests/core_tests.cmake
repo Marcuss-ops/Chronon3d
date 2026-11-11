@@ -10,6 +10,7 @@ add_test(
 )
 set_tests_properties(chronon3d_architecture_registry PROPERTIES
     LABELS "architecture;gate"
+    ENVIRONMENT "PYTHONUTF8=1;PYTHONIOENCODING=utf-8"
 )
 add_test(
     NAME chronon3d_frame_slot_transition_lint
@@ -22,7 +23,9 @@ set_tests_properties(chronon3d_frame_slot_transition_lint PROPERTIES
 )
 add_test(
     NAME chronon3d_asset_consumer_shell_syntax
-    COMMAND bash -n ${CMAKE_SOURCE_DIR}/tools/sdk/run_asset_authoring_consumer.sh
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/support/run_bash_script.py check
+        ${CMAKE_SOURCE_DIR}/tools/sdk/run_asset_authoring_consumer.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(chronon3d_asset_consumer_shell_syntax PROPERTIES

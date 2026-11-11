@@ -8,6 +8,15 @@
 #include <optional>
 #include <string>
 
+// A platform header may reintroduce the Win32 near/far macros after
+// render_plan.hpp declares CameraPlan's fields with those names.
+#ifdef near
+#undef near
+#endif
+#ifdef far
+#undef far
+#endif
+
 namespace chronon3d::render_plan {
 
 /// Shared producer/consumer admission contract. All values use RenderPlan
@@ -33,8 +42,8 @@ namespace chronon3d::render_plan {
         return "camera DoF focus/blur values are outside supported bounds";
     if (dof_highlight_gain_unsupported(c.dof_highlight_gain))
         return "camera DoF highlight_gain must be in [0, 8]";
-    // Iris polygons still have no implementation. Highlight weighting is
-    // supported by both software and Vulkan circular-bokeh kernels.
+    // Polygonal apertures and highlight weighting are consumed by both the
+    // software and Vulkan disk-bokeh kernels.
     if (dof_shape_unsupported(c.iris_blades))
         return "unsupported camera capability: iris_blades must be 0 (circle) or 3..12 (regular polygon)";
     return std::nullopt;

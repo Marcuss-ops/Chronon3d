@@ -97,8 +97,14 @@ public:
         if (W <= 0 || H <= 0) return;
         if (output.width() != W || output.height() != H) return;
 
-        // First call: just copy and store history.
-        if (!has_history()) {
+        // A resized input invalidates the motion field as well as history.
+        // In particular, do not block-match a new, larger frame against the
+        // old smaller framebuffer: candidate blocks could read past its rows.
+        const bool dimensions_changed = m_prev &&
+            (m_prev->width() != W || m_prev->height() != H);
+
+        // First call (or first frame after a resize): copy and re-seed history.
+        if (!has_history() || dimensions_changed) {
             output.clear(Color{0, 0, 0, 0});
             for (i32 y = 0; y < H; ++y) {
                 const Color* src_row = current.pixels_row(y);

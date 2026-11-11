@@ -194,7 +194,8 @@ TEST_CASE("AssetResolver::resolve_logical enforces the mounted root") {
 
     const auto resolved = r.resolve_logical("logical/ok.txt");
     REQUIRE(resolved.has_value());
-    CHECK(*resolved == (g_temp.path / "logical/ok.txt").lexically_normal());
+    CHECK(std::filesystem::equivalent(
+        *resolved, (g_temp.path / "logical/ok.txt").lexically_normal()));
     CHECK_FALSE(r.resolve_logical("../logical/ok.txt").has_value());
     CHECK_FALSE(r.resolve_logical(g_temp.path / "logical/ok.txt").has_value());
 }
@@ -209,7 +210,9 @@ TEST_CASE("AssetResolver::resolve_logical follows internal symlinks but rejects 
     std::filesystem::create_symlink("absent", temp.path / "mount/dangling");
     chronon3d::assets::AssetResolver resolver;
     resolver.mount(temp.path / "mount");
-    CHECK(resolver.resolve_logical("inside-link") == temp.path / "mount/inside.txt");
+    const auto internal_link = resolver.resolve_logical("inside-link");
+    REQUIRE(internal_link.has_value());
+    CHECK(std::filesystem::equivalent(*internal_link, temp.path / "mount/inside.txt"));
     CHECK_FALSE(resolver.resolve_logical("outside-link"));
     CHECK_FALSE(resolver.resolve_logical("outside-dir/outside.txt"));
     CHECK_FALSE(resolver.resolve_logical("dangling"));

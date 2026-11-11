@@ -200,7 +200,8 @@ TEST_CASE("ADR-032 [C7]: depth is taken from input when valid, recomputed otherw
     // matrix still passes it. Here it does not.
     {
         const Mat4 projection =
-                glm::perspective(glm::radians(50.0f), 16.0f / 9.0f, 1.0f, 100.0f);
+                glm::perspectiveRH_ZO(
+                    glm::radians(50.0f), 16.0f / 9.0f, 1.0f, 100.0f);
         const Mat4 clip_from_local =
                 projection * glm::translate(Mat4(1.0f), glm::vec3(0.0f, 0.0f, -10.0f));
 

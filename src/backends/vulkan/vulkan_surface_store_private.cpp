@@ -5,7 +5,6 @@
 #include "vulkan_backend_impl.hpp"
 
 #include <vector>
-#include <execinfo.h>
 
 namespace chronon3d::backends::vulkan {
 
