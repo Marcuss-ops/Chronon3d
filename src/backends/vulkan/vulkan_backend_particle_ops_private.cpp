@@ -8,6 +8,7 @@
 #include "vulkan_backend_impl.hpp"
 #include "vulkan_particle_emitter.hpp"
 
+#include <chronon3d/runtime/gpu_layer_batch.hpp>
 #include <chronon3d/scene/model/shape/particles.hpp>
 
 #include <algorithm>
@@ -31,8 +32,9 @@ struct alignas(16) GpuLayerInstance {
     std::uint32_t resource_idx{0};
     std::uint32_t pad{0};
     float particle_color[4]{1.0f, 1.0f, 1.0f, 1.0f};
+    float particle_motion[4]{0.0f, 0.0f, 0.0f, 0.0f};
 };
-static_assert(sizeof(GpuLayerInstance) == 112,
+static_assert(sizeof(GpuLayerInstance) == 128,
               "GpuLayerInstance must match layer_batch.comp std430 ABI");
 
 void emit_particle_buffer_barrier(
@@ -102,6 +104,7 @@ GpuParticleEmitterUniform make_particle_uniform(
     uniform.angular[0] = emitter.angular_velocity_min;
     uniform.angular[1] = emitter.angular_velocity_max;
     uniform.angular[2] = static_cast<float>(layer_blend_mode(emitter.blend_mode));
+    uniform.angular[3] = runtime::kParticleTrailSeconds;
 
     if (emitter.color_ramp.color_stops.empty()) {
         for (std::size_t i = 0; i < kGpuParticleLutEntries; ++i) {

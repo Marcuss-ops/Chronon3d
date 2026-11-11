@@ -631,6 +631,56 @@ TEST_CASE("Vulkan particle instances render procedural discs in one layer batch"
     (void)backend.release_surface(transparent_source);
 }
 
+TEST_CASE("Vulkan particle motion draws a trail outside the head rectangle") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+    backends::vulkan::VulkanBackend backend;
+    constexpr RenderSurfaceHandle destination = 9001;
+    constexpr RenderSurfaceHandle transparent_source = 9002;
+    const auto canvas = SurfaceDesc::make(
+        12, 12, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    const auto source = SurfaceDesc::make(
+        2, 2, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    REQUIRE(backend.create_surface(destination, canvas).ok());
+    REQUIRE(backend.create_surface(transparent_source, source).ok());
+    REQUIRE(backend.initialize_transparent_surface(destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(transparent_source).ok());
+
+    LayerInstance particle;
+    particle.kind = PrimitiveKind::Particle;
+    particle.resource_index = 0;
+    particle.dst_x0 = 6.0f; particle.dst_y0 = 4.0f;
+    particle.dst_x1 = 8.0f; particle.dst_y1 = 6.0f;
+    particle.tint = Color{1.0f, 0.0f, 0.0f, 1.0f};
+    particle.motion_x = -4.0f;
+    const std::array<LayerInstance, 1> instances{particle};
+    const std::array<RenderSurfaceHandle, 1> resources{transparent_source};
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_layer_batch(
+        destination, instances, resources, {}, {}).ok());
+    backend.end_frame_batch();
+
+    std::vector<float> pixels(12 * 12 * 4, 0.0f);
+    REQUIRE(backend.download_surface(destination, pixels).ok());
+    const auto alpha = [&](int x, int y) {
+        return pixels[(static_cast<std::size_t>(y) * 12U +
+                       static_cast<std::size_t>(x)) * 4U + 3U];
+    };
+    // The head pixel is lit but antialiased at this corner (0.792893); the
+    // tail at x=3..4 is outside dst_rect (x=6..8) and fully covered. Without
+    // the dispatch-bounds expansion those tail pixels are never visited.
+    CHECK(alpha(7, 5) > 0.75f);
+    CHECK(alpha(4, 5) == doctest::Approx(1.0f).epsilon(1e-5));
+    CHECK(alpha(3, 5) == doctest::Approx(1.0f).epsilon(1e-5));
+    CHECK(alpha(4, 1) == doctest::Approx(0.0f).epsilon(1e-5));
+    CHECK(backend.stats().layer_batch_calls == 1);
+    (void)backend.release_surface(destination);
+    (void)backend.release_surface(transparent_source);
+}
+
 TEST_CASE("Vulkan particle sprite instances apply affine sampling, tint, and opacity") {
     using namespace chronon3d;
     using namespace chronon3d::runtime;
@@ -738,6 +788,19 @@ TEST_CASE("Vulkan GPU particle emitter matches the CPU sampler oracle") {
                               particle.color.b * alpha, alpha};
         instance.corner_radius = emitter.bokeh ? 1.0f : 0.0f;
         instance.blend = emitter.blend_mode;
+        // The CPU oracle now owns the same bounded exposure as the GPU
+        // emitter; without this the parity test compares a dot against a
+        // trailing capsule and fails on the newly covered pixels.
+        Vec2 trail = particle.velocity * kParticleTrailSeconds;
+        const float trail_limit = std::max(
+            particle.size * kParticleTrailMaxSizeFactor,
+            kParticleTrailMinPixels);
+        const float trail_length =
+            std::sqrt(trail.x * trail.x + trail.y * trail.y);
+        if (trail_length > trail_limit && trail_length > 0.0f)
+            trail *= trail_limit / trail_length;
+        instance.motion_x = trail.x;
+        instance.motion_y = trail.y;
         oracle.push_back(instance);
     }
     const std::array<RenderSurfaceHandle, 1> resources{transparent_source};
@@ -843,6 +906,19 @@ TEST_CASE("Vulkan GPU particle flow and twinkle match the CPU sampler oracle") {
                               particle.color.b * alpha, alpha};
         instance.corner_radius = emitter.bokeh ? 1.0f : 0.0f;
         instance.blend = emitter.blend_mode;
+        // The CPU oracle now owns the same bounded exposure as the GPU
+        // emitter; without this the parity test compares a dot against a
+        // trailing capsule and fails on the newly covered pixels.
+        Vec2 trail = particle.velocity * kParticleTrailSeconds;
+        const float trail_limit = std::max(
+            particle.size * kParticleTrailMaxSizeFactor,
+            kParticleTrailMinPixels);
+        const float trail_length =
+            std::sqrt(trail.x * trail.x + trail.y * trail.y);
+        if (trail_length > trail_limit && trail_length > 0.0f)
+            trail *= trail_limit / trail_length;
+        instance.motion_x = trail.x;
+        instance.motion_y = trail.y;
         oracle.push_back(instance);
     }
     const std::array<RenderSurfaceHandle, 1> resources{transparent_source};

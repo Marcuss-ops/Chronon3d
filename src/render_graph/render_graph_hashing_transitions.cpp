@@ -124,6 +124,7 @@ u64 hash_render_node_content_impl(const RenderNode& n, bool semantic_v2) {
         seed = hash_combine(seed, hash_value(particle.rotation));
         seed = hash_combine(seed, hash_value(particle.sprite_scale));
         seed = hash_combine(seed, hash_value(particle.z));
+        seed = hash_combine(seed, hash_vec2(particle.velocity));
     }
     if (n.inline_mesh_material) {
         seed = hash_combine(seed, hash_bytes(&n.inline_mesh_material->diffuse, sizeof(float)));

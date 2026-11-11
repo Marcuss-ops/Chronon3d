@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
+#include <string>
 #include "../../builder/graph_builder_coordinates.hpp"
 #include "../../builder/evaluated_layer_placement.hpp"
 #include "../../builder/graph_builder_internal.hpp"
@@ -83,6 +85,11 @@ void refresh_source_node(
             layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& candidate) {
                 return !candidate.gpu_particle_instances.empty();
             });
+        if (marker == layer.nodes.end() && !sampled_layer->elements.empty()) {
+            throw std::runtime_error(
+                "GPU particle layer '" + std::string(layer.name) +
+                "' has no instance marker");
+        }
         if (marker != layer.nodes.end()) authored_node = &*marker;
     } else if (source_layer_kind && layer.nodes.size() == 1) {
         authored_node = &layer.nodes.front();
@@ -104,7 +111,7 @@ void refresh_source_node(
                 src_node.gpu_particle_instances.push_back({
                     Vec2{sample.position.x, sample.position.y}, sample.color,
                     sample.size, sample.rotation.z, sample.sprite_scale,
-                    sample.position.z});
+                    sample.position.z, sample.velocity});
             }
         }
     }

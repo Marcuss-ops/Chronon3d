@@ -196,6 +196,23 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& node) {
                 return !node.gpu_particle_instances.empty();
             });
+        const auto* sampled_particle_layer =
+            ctx.frame_parameters &&
+                    node_ctx.layer_index < ctx.frame_parameters->layers.size()
+                ? &ctx.frame_parameters->layers[node_ctx.layer_index]
+                : nullptr;
+        // A non-empty sampled emitter without a marker would silently build a
+        // transparent source. Fail closed instead of returning a blank frame
+        // when the last-node association is broken by a materializer change.
+        if (ctx.policy.require_native_gpu && sampled_particle_layer &&
+            sampled_particle_layer->kind == compiler::NodeKind::Particles &&
+            sampled_particle_layer->active &&
+            !sampled_particle_layer->elements.empty() &&
+            gpu_particle_node == layer.nodes.end()) {
+            throw std::runtime_error(
+                "GPU particle layer '" + std::string(layer.name) +
+                "' has no instance marker");
+        }
         // A track-animated layer is frame-variant even when the materialized
         // Scene (and therefore `cache_static`) says otherwise: the sampled
         // transform lives in FrameParameterBlock only. Keying such a node as
@@ -228,6 +245,16 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         if (ctx.policy.require_native_gpu &&
             gpu_particle_node != layer.nodes.end()) {
             const auto node = *gpu_particle_node;
+            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+                std::fprintf(stderr,
+                    "[gpu-particles-build] layer='%s' node='%s' instances=%zu shape=%d pos=(%.2f,%.2f,%.2f)\n",
+                    layer.name.c_str(), node.name.c_str(),
+                    node.gpu_particle_instances.size(),
+                    static_cast<int>(node.shape.type()),
+                    static_cast<double>(node.world_transform.position.x),
+                    static_cast<double>(node.world_transform.position.y),
+                    static_cast<double>(node.world_transform.position.z));
+            }
             cache::NodeCacheKey source_key = cache::NodeCacheIdentityBuilder{
                 "layer.gpu_particles:" + std::string(layer.name)
             }
@@ -244,6 +271,19 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             const Mat4 shape_matrix = finalize_source_placement_matrix(
                 source_placement, item, node, ctx);
             const f32 shape_opacity = source_placement.opacity;
+            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+                std::fprintf(stderr,
+                    "[gpu-particles-matrices] item_t=(%.2f,%.2f) source_t=(%.2f,%.2f) node_t=(%.2f,%.2f) final_t=(%.2f,%.2f) centered=%d\n",
+                    static_cast<double>(item.world_matrix[3][0]),
+                    static_cast<double>(item.world_matrix[3][1]),
+                    static_cast<double>(source_placement.layer.source_matrix[3][0]),
+                    static_cast<double>(source_placement.layer.source_matrix[3][1]),
+                    static_cast<double>(node.world_transform.position.x),
+                    static_cast<double>(node.world_transform.position.y),
+                    static_cast<double>(shape_matrix[3][0]),
+                    static_cast<double>(shape_matrix[3][1]),
+                    should_use_centered_rendering(item, ctx) ? 1 : 0);
+            }
             return graph.add_node(std::make_unique<SourceNode>(
                 std::string(node.name), node, source_key,
                 std::optional<Mat4>(shape_matrix),

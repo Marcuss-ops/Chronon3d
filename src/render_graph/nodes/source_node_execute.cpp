@@ -351,11 +351,35 @@ NodeExecResult SourceNode::execute(
                     radius_x <= 0.0f || radius_y <= 0.0f) {
                     continue;
                 }
+                // Transform the emitter-local velocity into framebuffer space
+                // and expose only a short trail. Without this the GPU batch
+                // receives a dot with no direction, which is why motion was
+                // invisible even after the sampler produced it.
+                const Vec2 velocity{
+                    particle_matrix[0][0] * particle.velocity.x +
+                        particle_matrix[0][1] * particle.velocity.y,
+                    particle_matrix[1][0] * particle.velocity.x +
+                        particle_matrix[1][1] * particle.velocity.y};
+                Vec2 motion = velocity * runtime::kParticleTrailSeconds;
+                const float trail_limit = std::max(
+                    particle.size * runtime::kParticleTrailMaxSizeFactor,
+                    runtime::kParticleTrailMinPixels);
+                const float motion_length = glm::length(motion);
+                if (std::isfinite(motion_length) && motion_length > trail_limit &&
+                    motion_length > 0.0f) {
+                    motion *= trail_limit / motion_length;
+                }
+                if (!std::isfinite(motion.x) || !std::isfinite(motion.y))
+                    motion = Vec2{0.0f, 0.0f};
                 runtime::LayerInstance instance;
                 instance.kind = m_node.gpu_particle_sprite_path.empty()
                     ? runtime::PrimitiveKind::Particle
                     : runtime::PrimitiveKind::ParticleSprite;
                 instance.resource_index = 0;
+                if (instance.kind == runtime::PrimitiveKind::Particle) {
+                    instance.motion_x = motion.x;
+                    instance.motion_y = motion.y;
+                }
                 const float sprite_size = particle.size * particle.sprite_scale;
                 const float radius = sprite_size * 0.5f;
                 if (sprite_image && (!std::isfinite(sprite_size) || sprite_size <= 0.0f))
@@ -452,6 +476,17 @@ NodeExecResult SourceNode::execute(
                 }
             }
 
+            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+                std::fprintf(stderr,
+                    "[gpu-particles-draw] node='%s' input=%zu drawn=%zu fb=%dx%d surface=%u matrix_t=(%.2f,%.2f) scale=(%.2f,%.2f)\n",
+                    m_name.c_str(), m_node.gpu_particle_instances.size(),
+                    instances.size(), fb->width(), fb->height(),
+                    static_cast<unsigned>(fb->surface_handle()),
+                    static_cast<double>(particle_matrix[3][0]),
+                    static_cast<double>(particle_matrix[3][1]),
+                    static_cast<double>(axis_x_scale),
+                    static_cast<double>(axis_y_scale));
+            }
             if (!instances.empty()) {
                 runtime::RenderSurfaceHandle resource_handle = sprite_surface;
                 if (resource_handle == runtime::kInvalidRenderSurfaceHandle) {
@@ -475,7 +510,16 @@ NodeExecResult SourceNode::execute(
                             rendered.error().message}};
                 }
             }
+            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+                std::fprintf(stderr,
+                    "[gpu-particles-result] node='%s' opaque=%d cleared=%d\n",
+                    m_name.c_str(), fb->is_opaque() ? 1 : 0,
+                    fb->is_content_cleared() ? 1 : 0);
+            }
             fb->set_opaque(false);
+            // The batch wrote the native surface, not the CPU shadow. Keep the
+            // shadow's "fully transparent" metadata accurate for any later
+            // CPU fallback; it is not a visibility/empty-surface signal.
             fb->set_content_cleared(true);
             return NodeExecResult{std::move(fb)};
         }

@@ -83,6 +83,9 @@ struct SampledElementParameters {
     float size{1.0f};
     float sprite_scale{1.0f};
     bool active{true};
+    // Emitter-local pixels per second. Kept on the sampled element so the
+    // GPU instance can draw a velocity-aligned trail instead of a round dot.
+    Vec2 velocity{0.0f, 0.0f};
 };
 
 struct SampledLayerParameters {

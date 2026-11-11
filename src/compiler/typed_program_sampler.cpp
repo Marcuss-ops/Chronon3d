@@ -159,6 +159,7 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                     element.color = particle.color;
                     element.size = particle.size;
                     element.sprite_scale = particle.sprite_scale;
+                    element.velocity = particle.velocity;
                     sampled.elements.push_back(element);
                 }
                 sampled.time_dependent = true;

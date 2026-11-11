@@ -45,6 +45,8 @@ struct RenderNode {
         f32 rotation{0.0f};
         f32 sprite_scale{1.0f};
         f32 z{0.0f};
+        // Emitter-local pixels per second; drives the oriented particle trail.
+        Vec2 velocity{0.0f, 0.0f};
     };
     std::pmr::string name;
     Transform world_transform;

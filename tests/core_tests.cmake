@@ -86,6 +86,7 @@ chronon3d_add_test_suite(
         registry/test_backend_registry_batches.cpp
         registry/test_backend_registry_parity.cpp
         registry/test_backend_registry_surfaces.cpp
+        registry/test_graph_particle_marker.cpp
 )
 
 chronon3d_add_test_suite(
