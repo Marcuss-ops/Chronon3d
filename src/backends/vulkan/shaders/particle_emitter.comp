@@ -18,6 +18,7 @@ struct GpuLayerInstance {
     uint resource_idx;
     uint primitive_kind;
     vec4 particle_color;
+    vec4 particle_motion; // xy trail vector in pixels, z length, w reserved
 };
 
 layout(binding = 0, std430) writeonly buffer ParticleInstances {
@@ -158,6 +159,7 @@ void emit_empty(uint index) {
     instance.resource_idx = 0u;
     instance.primitive_kind = 1u;
     instance.particle_color = vec4(0.0);
+    instance.particle_motion = vec4(0.0);
     instances[index] = instance;
 }
 
@@ -269,5 +271,15 @@ void main() {
     instance.resource_idx = 0u;
     instance.primitive_kind = 1u;
     instance.particle_color = vec4(color.rgb * alpha, alpha);
+    // Mirror SourceNode's CPU exposure: motion * seconds, bounded by both a
+    // size-relative and an absolute pixel cap. layer_batch.comp renders this
+    // as the capsule from the head to the previous exposure position.
+    vec2 trail = velocity * max(u.angular.w, 0.0);
+    float trail_limit = max(size * 6.0, 24.0);
+    float trail_length = length(trail);
+    if (trail_length > trail_limit && trail_length > 0.0)
+        trail *= trail_limit / trail_length;
+    if (!finite(trail.x) || !finite(trail.y)) trail = vec2(0.0);
+    instance.particle_motion = vec4(trail, length(trail), 0.0);
     instances[index] = instance;
 }

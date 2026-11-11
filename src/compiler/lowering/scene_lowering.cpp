@@ -83,13 +83,14 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             }
         } else if (layer.type == render_plan::LayerType::Particles &&
                    layer.position_dimensions >= 2) {
-            // Keep the legacy particle layer's absolute-canvas placement
-            // after the typed graph applies its implicit canvas-centre basis.
-            // The old RenderPlan scene path adds that basis in addition to
-            // the authored particle position; retain the same sample pose
-            // until the public coordinate contract is deliberately changed.
-            lowered.position[0] += static_cast<float>(plan.canvas.width) * 0.5f;
-            lowered.position[1] += static_cast<float>(plan.canvas.height) * 0.5f;
+            // Particle samples are emitter-local around (0, 0), so the authored
+            // absolute-canvas position must be made centre-relative exactly
+            // like Text. SourceNode then applies the implicit canvas centre
+            // once. Adding the centre here doubled it and moved every particle
+            // off-canvas (e.g. a 1920x1080 plan at [960,540] sampled at
+            // [2880,1620]).
+            lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
+            lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
         }
         lowered.scale = layer.scale;
         lowered.rotation = layer.rotation;

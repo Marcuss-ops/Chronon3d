@@ -355,7 +355,8 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                 particle.position, particle.color, particle.size,
                                 particle.rotation, particle.sprite_scale,
                                 emitter.environment
-                                    ? (1.0f - particle.depth) * 100.0f : 0.0f});
+                                    ? (1.0f - particle.depth) * 100.0f : 0.0f,
+                                particle.velocity});
                         }
                         marker.gpu_particle_bokeh = emitter.bokeh;
                         marker.gpu_particle_sprite_path = emitter.sprite_asset;

@@ -9,7 +9,7 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D dst_image;
 layout(binding = 1, rgba32f) uniform readonly image2D src_image;
 
-// 112 bytes per instance, matching C++ GpuLayerInstance
+// 128 bytes per instance, matching C++ GpuLayerInstance
 struct GpuLayerInstance {
     vec4 dst_rect;      // dst_x0, dst_y0, dst_x1, dst_y1 in destination pixels
     vec4 src_rect;      // src_u0, src_v0, src_u1, src_v1 (normalized 0..1)
@@ -19,8 +19,9 @@ struct GpuLayerInstance {
     uint has_affine;    // 0 = axis-aligned dst_rect, 1 = affine transform
     uint blend_mode;    // 0 = normal (premultiplied over), 1 = add, 2 = replace
     uint resource_idx;  // resource index
-    uint primitive_kind; // 1 = procedural particle disc
+    uint primitive_kind; // 1 = procedural particle capsule/disc
     vec4 particle_color; // premultiplied RGBA for procedural particles
+    vec4 particle_motion; // xy trail vector in pixels, z length, w reserved
 };
 
 layout(binding = 3, std430) buffer LayerInstances {
@@ -77,23 +78,33 @@ void main() {
         bool hit = false;
 
         if (inst.primitive_kind == 1u) {
-            if (float(pixel.x) >= inst.dst_rect.x && float(pixel.x) < inst.dst_rect.z &&
-                float(pixel.y) >= inst.dst_rect.y && float(pixel.y) < inst.dst_rect.w) {
-                float rw = inst.dst_rect.z - inst.dst_rect.x;
-                float rh = inst.dst_rect.w - inst.dst_rect.y;
-                if (rw > 0.0 && rh > 0.0) {
-                    vec2 point = vec2(
-                        (float(pixel.x) + 0.5 - inst.dst_rect.x) / rw,
-                        (float(pixel.y) + 0.5 - inst.dst_rect.y) / rh) * 2.0 - 1.0;
-                    float distance_from_center = length(point);
-                    if (distance_from_center < 1.0) {
-                        float coverage = inst.limits.w > 0.5
-                            ? 1.0 - distance_from_center
-                            : clamp((1.0 - distance_from_center) *
-                                    min(rw, rh) * 0.5 + 0.5, 0.0, 1.0);
-                        src_col = inst.particle_color * coverage;
-                        hit = true;
-                    }
+            float rw = inst.dst_rect.z - inst.dst_rect.x;
+            float rh = inst.dst_rect.w - inst.dst_rect.y;
+            if (rw > 0.0 && rh > 0.0) {
+                // Head is the current sample. Drawing the disc at its position
+                // one exposure earlier, then taking the union of the two, is a
+                // capsule oriented along the motion vector. With zero motion
+                // this degrades exactly to the old round particle.
+                vec2 head = vec2(0.5 * (inst.dst_rect.x + inst.dst_rect.z),
+                                 0.5 * (inst.dst_rect.y + inst.dst_rect.w));
+                float radius = 0.5 * min(rw, rh);
+                vec2 motion = inst.particle_motion.xy;
+                float motion_length2 = dot(motion, motion);
+                float along = 0.0;
+                if (motion_length2 > 1e-6) {
+                    along = clamp(dot(vec2(pixel) + vec2(0.5) - head,
+                                      motion) / motion_length2, 0.0, 1.0);
+                }
+                vec2 closest = head + motion * along;
+                float normalized = length(vec2(pixel) + vec2(0.5) - closest) /
+                    max(radius, 1e-6);
+                if (normalized < 1.0) {
+                    float coverage = inst.limits.w > 0.5
+                        ? 1.0 - normalized
+                        : clamp((1.0 - normalized) * radius + 0.5,
+                                0.0, 1.0);
+                    src_col = inst.particle_color * coverage;
+                    hit = true;
                 }
             }
         } else if (inst.has_affine == 0u) {

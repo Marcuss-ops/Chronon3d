@@ -31,6 +31,13 @@ namespace chronon3d::runtime {
 
 // ── PrimitiveKind ────────────────────────────────────────────────────────────
 
+// Particle trails are a short, bounded exposure of the emitter velocity. The
+// constants are shared by the CPU instance path and the GPU emitter so both
+// producers feed the same capsule rasterizer.
+inline constexpr float kParticleTrailSeconds = 0.12f;
+inline constexpr float kParticleTrailMaxSizeFactor = 6.0f;
+inline constexpr float kParticleTrailMinPixels = 24.0f;
+
 enum class PrimitiveKind : std::uint8_t {
     Image        = 0,
     Text         = 1,
@@ -61,6 +68,12 @@ struct LayerInstance {
     BlendMode       blend{BlendMode::Normal};
     float           corner_radius{0.0f};
     Color           tint{1.0f, 1.0f, 1.0f, 1.0f};
+
+    // Particle-only: velocity exposure in framebuffer pixels. The shader
+    // draws a capsule from the head rectangle towards (x, y), which is the
+    // position `trail_seconds` ago. Zero for every other primitive kind.
+    float           motion_x{0.0f};
+    float           motion_y{0.0f};
 
     [[nodiscard]] bool operator==(const LayerInstance&) const noexcept = default;
 };

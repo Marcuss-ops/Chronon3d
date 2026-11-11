@@ -582,10 +582,10 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
     if (layer.start_frame) builder.from(*layer.start_frame);
     if (layer.duration_frames) builder.duration(*layer.duration_frames);
     if (layer.position_dimensions >= 2) {
-        // Render-plan geometry (Text, Shape) is authored in absolute canvas
-        // coordinates, while LayerBuilder transforms are centred on the
-        // canvas. Convert it once; screen-space placement adds the canvas
-        // centre again when resolving framebuffer coordinates.
+        // Render-plan geometry (Text, Shape, Particles) is authored in
+        // absolute canvas coordinates, while LayerBuilder transforms are
+        // centred on the canvas. Convert it once; screen-space placement adds
+        // the canvas centre again when resolving framebuffer coordinates.
         if (layer.id.ends_with("__stroke")) {
             const float sw = layer.size_dimensions >= 2 ? layer.size[0] : 0.0f;
             const float sh = layer.size_dimensions >= 2 ? layer.size[1] : 0.0f;
@@ -593,7 +593,9 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                 layer.position[0] + static_cast<float>(canvas_width) - sw * 0.5f,
                 layer.position[1] + static_cast<float>(canvas_height) - sh * 0.5f,
                 layer.position[2]});
-        } else if (layer.type == LayerType::Text || layer.type == LayerType::Shape) {
+        } else if (layer.type == LayerType::Text ||
+                   layer.type == LayerType::Shape ||
+                   layer.type == LayerType::Particles) {
             builder.position({
                 layer.position[0] - static_cast<float>(canvas_width) * 0.5f,
                 layer.position[1] - static_cast<float>(canvas_height) * 0.5f,

@@ -20,9 +20,10 @@ struct alignas(16) GpuLayerInstance {
     std::uint32_t resource_idx{0};
     std::uint32_t pad{0};
     float particle_color[4]{1.0f, 1.0f, 1.0f, 1.0f};
+    float particle_motion[4]{0.0f, 0.0f, 0.0f, 0.0f};
 };
-static_assert(sizeof(GpuLayerInstance) == 112,
-              "GpuLayerInstance must be 112 bytes");
+static_assert(sizeof(GpuLayerInstance) == 128,
+              "GpuLayerInstance must match the 128-byte layer_batch.comp ABI");
 
 } // namespace
 
@@ -130,6 +131,21 @@ void VulkanBackend::Impl::execute_layer_batch(
                 gpu_inst.particle_color[1] = inst.tint.g;
                 gpu_inst.particle_color[2] = inst.tint.b;
                 gpu_inst.particle_color[3] = inst.tint.a;
+                const float motion_x =
+                    std::isfinite(inst.motion_x) ? inst.motion_x : 0.0f;
+                const float motion_y =
+                    std::isfinite(inst.motion_y) ? inst.motion_y : 0.0f;
+                gpu_inst.particle_motion[0] = motion_x;
+                gpu_inst.particle_motion[1] = motion_y;
+                gpu_inst.particle_motion[2] =
+                    std::sqrt(motion_x * motion_x + motion_y * motion_y);
+                // The compute shader loops over the head rectangle only; the
+                // tail capsule can leave it, so expand the dispatch bounds by
+                // the full motion vector.
+                dx0 = std::min(dx0, dx0 + motion_x);
+                dx1 = std::max(dx1, dx1 + motion_x);
+                dy0 = std::min(dy0, dy0 + motion_y);
+                dy1 = std::max(dy1, dy1 + motion_y);
             } else if (inst.kind == runtime::PrimitiveKind::ParticleSprite) {
                 gpu_inst.pad = 2u;
                 gpu_inst.particle_color[0] = inst.tint.r;

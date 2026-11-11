@@ -284,7 +284,8 @@ void append_particles_layer_for_scene(
                     particle.position, particle.color, particle.size,
                     particle.rotation, particle.sprite_scale,
                     layer.particle_emitter->environment
-                        ? (1.0f - particle.depth) * 100.0f : 0.0f});
+                        ? (1.0f - particle.depth) * 100.0f : 0.0f,
+                    particle.velocity});
             }
             node.gpu_particle_bokeh = layer.particle_emitter->bokeh;
             node.gpu_particle_sprite_path = resolved_particle_sprite_paths[index];
