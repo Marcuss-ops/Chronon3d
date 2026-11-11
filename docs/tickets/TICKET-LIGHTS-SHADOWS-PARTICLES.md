@@ -3,6 +3,16 @@
 Stato: **PARTIAL — OPEN** (scope scelto dall'utente il 2026-10-08: luci reali con ombre
 portate, e istanziamento GPU per le particelle).
 
+### Aggiornamento 2026-11-11 — shadow map PCF
+
+Il pass Vulkan production di shadow map, PCF e bias adattivo è implementato;
+la canary hardware RTX 4060 Ti passa con 51 asserzioni e 0 px di errore sul
+bordo. Il ticket architetturale precedente era obsoleto; dettaglio e report:
+[`TICKET-SHADOW-MAP-PCF`](TICKET-SHADOW-MAP-PCF-20261106.md) e
+[`evidenza Vulkan 2026-11-11`](../evidence/ae-shadow-map-20261111/README.md).
+T05 resta aperto per la review della qualità nella scena di produzione, la
+parità visiva/benchmark delle particelle e la CI same-SHA.
+
 ### Aggiornamento 2026-11-06 — falloff AE
 
 Il falloff point AE Inverse Square Clamped è ora una modalità esplicita di

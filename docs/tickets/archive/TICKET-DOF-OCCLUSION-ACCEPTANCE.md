@@ -65,6 +65,18 @@ Questi due probe non coprono i gate completi sottostanti.
 
 La forma geometrica dell'iris (lamelle) non è supportata e deve restare fail-closed. `highlight_gain` è implementato nei kernel software e Vulkan e ammesso dal contratto camera nell'intervallo [0, 8]; la sua lowering e la parità numerica CPU/Vulkan fanno parte della verifica del bokeh.
 
+## Aggiornamento Vulkan 2026-11-11
+
+La canary hardware `chronon3d_vulkan_dof_depth_canary_tests` è stata eseguita
+sul percorso Vulkan con 3/3 casi e 47/47 asserzioni PASS. Copre risoluzione
+depth, risposta circolare di un punto HDR e una barra foreground a fuoco che
+resta pulita dal bokeh lontano. L'immagine sintetica acquisita è
+[`bokeh.png`](../../evidence/dof-vulkan-20261111/bokeh.png), con PGM e log
+originali nella stessa directory. Il caso è mirato al kernel GPU; non è la
+fixture integrata Software↔Vulkan richiesta dal criterio seguente, quindi la
+parità numerica end-to-end, il bleed sui piani sfocati e la CI same-SHA restano
+aperti.
+
 ## Criterio di chiusura
 
 Tutti i gate DoF sopra passano su fixture versionate, stessi parametri e soglie nei backend richiesti; risultati raw e manifest SHA vengono allegati. La voce AO si chiude con decisione esplicita: capability implementata e verificata in un ticket dedicato, oppure fuori perimetro documentato. Nessun PASS è inferito da un MP4 dimostrativo o dal solo cambiamento ON/OFF.

@@ -1,17 +1,32 @@
 # TICKET-SHADOW-MAP-PCF — Ombra 3D con depth map e PCF
 
-- **Stato:** OPEN / architecture-gated — 2026-11-06
+- **Stato:** IMPLEMENTED / local Vulkan acceptance PASS; same-SHA CI pending — updated 2026-11-11
 - **Data:** 2026-11-06
 - **Ambito:** Chronon3d, backend Vulkan di produzione
 - **Origine:** audit After Effects 3D, test 6 (`docs/evidence/ae3d-parity-20261106/`)
 
-## Problema
+## Aggiornamento 2026-11-11 — implementazione e prova GPU
+
+Il precedente rilievo architetturale è superato: il backend Vulkan di produzione
+ora registra i pass `ShadowCaster` e `ShadowApply` come kernel compute, espone
+`supports_shadow_map()` e fail-closed quando Vulkan o i kernel non sono
+disponibili. La CPU reference e il contratto condiviso coprono proiezione,
+raggio PCF e bias adattivo.
+
+La canary Vulkan è stata eseguita sull'RTX 4060 Ti, driver 610.88, con il
+RenderPlan source SHA `2303721e2452563afd2af646bda663f5bfde0a17`. Risultato:
+1 caso / 51 asserzioni PASS; errore di posizione 0 px, PCF edge 0.4 e
+`cpu_gpu_max_delta` 0. Report riproducibile in
+[`ae-shadow-map-20261111/`](../evidence/ae-shadow-map-20261111/README.md).
+La suite CI sullo SHA esatto resta da eseguire.
+
+## Problema storico (superato dalla implementazione)
 
 L'audit AE richiede una shadow map con PCF, Shadow Diffusion e bias adattivo.
-Il backend Vulkan di produzione non ha né una depth target in light space né un
-pass di sampling delle ombre. `ShadowNode` proietta l'alpha del caster in screen
-space e applica un blur separabile: è un'ombra 2.5D, non una shadow map di
-scena. Il PCF OpenGL in `render/` è look-dev e non è evidenza per Vulkan.
+Questa descrizione valeva prima dell'aggiunta del pass compute Vulkan e non
+descrive più il tree corrente. `ShadowNode` rimane il percorso 2.5D storico;
+la canary di produzione usa le API `shadow_map_caster_surface()` e
+`shadow_map_apply_surface()`.
 
 Questo non è un fix di formula: è un sottosistema di rendering. Non viene
 dichiarato PASS finché non esiste un pass Vulkan eseguibile e verificato.
@@ -71,13 +86,16 @@ artefatto Vulkan da misurare: il test 6 resta `GAP`, non `FAIL`.
 
 ## Criteri di accettazione
 
-- [ ] Una depth target in light space è allocata e transizionata correttamente.
-- [ ] Un caster produce un'ombra sul receiver con posizione entro 1 px.
-- [ ] PCF riduce l'aliasing e rispetta il raggio di Diffusion.
-- [ ] Il bias evita l'auto-ombra senza staccare l'ombra dal contatto.
-- [ ] Il backend fallisce esplicitamente se la shadow map non è disponibile.
-- [ ] L'audit AE test 6 passa con evidenza Vulkan, non solo CPU.
+- [x] Una depth target in light space è allocata e transizionata correttamente.
+- [x] Un caster produce un'ombra sul receiver con posizione entro 1 px.
+- [x] PCF riduce l'aliasing e rispetta il raggio di Diffusion.
+- [x] Il bias evita l'auto-ombra senza staccare l'ombra dal contatto.
+- [x] Il backend fallisce esplicitamente se la shadow map non è disponibile.
+- [x] L'audit AE test 6 passa con evidenza Vulkan, non solo CPU.
 - [ ] La suite C3D mirata e la CI same-SHA sono verdi.
+
+La canary mirata è verde localmente; il checkbox resta aperto soltanto per la
+certificazione CI same-SHA.
 
 ## Stato della build
 
