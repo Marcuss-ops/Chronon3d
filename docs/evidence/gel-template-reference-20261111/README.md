@@ -16,10 +16,12 @@ historic artifacts are preserved unchanged.
 
 ## Current golden replay
 
-On NVIDIA GeForce RTX 4060 Ti, driver 610.88, clean CLI
-`build/chronon/win-gpu-release-clean/apps/chronon3d_cli/chronon3d_cli.exe`,
+On NVIDIA GeForce RTX 4060 Ti, driver 610.88, the clean CLI at capture time
+(`build/chronon/win-gpu-release-clean/apps/chronon3d_cli/chronon3d_cli.exe`),
 with `--backend vulkan --gpu-hot-path-mode require_gpu_native`, rendering the
-tracked 1094×143 `final.plan.json` produced:
+tracked 1094×143 `final.plan.json` produced. The temporary 5.41 GiB clean build
+directory was removed after preserving the raw frame, PNG and binary hash to
+recover disk space.
 
 CLI SHA-256: `ED780FD8D5C6FC6842D42CA34FC9794EDDDBEA3FACEB4306DF25FAB8D25C0506`.
 
