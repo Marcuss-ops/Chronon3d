@@ -59,6 +59,7 @@ chronon3d::SelectorCombineMode text_selector_combine(std::string_view value) {
         std::pair{"intersect"sv, SelectorCombineMode::Intersect},
         std::pair{"min"sv, SelectorCombineMode::Min},
         std::pair{"max"sv, SelectorCombineMode::Max},
+        std::pair{"difference"sv, SelectorCombineMode::Difference},
     };
     return enum_from_string(value, kValues, "unsupported text selector combine mode: ");
 }

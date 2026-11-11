@@ -141,16 +141,19 @@ per design cherode essere ottimizzati (C24 — già correttamente congelato).
 
 Tutte le evidenze sono nell'audit `fixes.md`; qui il piano esecutivo.
 
-## W3.1 — `GpuGlyphAtlas`: generation counter (item 2.2)
-- **Stato:** `location()` ×2 + `metrics()` + `page_handle()` = **4 acquisizioni
-  `shared_lock(m_mutex)` per glyph per frame** sul mutex più caldo del draw path.
-- **Fix:** validare la prepared run con **1 atomic load** (`generation`) dell'atlas;
-  le location sono già snapshot in `GlyphStatic`; ogni invalidate dell'atlas
-  incrementa generation, e una prepared run stale viene ri-preparata. Nessun lock
-  per glyph.
+## W3.1 — `GpuGlyphAtlas`: generation counter (item 2.2) — LAND 2026-11-11
+- **Stato:** il batch lock è già in produzione: `resolve_resident()` proietta
+  location + page + metrics sotto **un solo `shared_lock` per run**, quindi la
+  prepare/draw path non paga più 4 acquisizioni per glyph. Restava il generation
+  counter.
+- **Fix (LAND):** `GpuGlyphAtlas::m_generation` atomico + `generation()`;
+  `GpuPreparedTextRun::atlas_generation` catturato alla prepare; il draw path
+  ricostruisce la run quando l'epoch non coincide. `clear()` e `attach()`
+  avanzano l'epoch; la crescita delle pagine **non** la avanza, perché non
+  invalida location o handle esistenti. Nessun lock per glyph.
 - Passi:
-  1. `std::atomic<uint64_t> m_generation` nell'atlas; bump a ogni
-     invalidate/push pagina;
+  1. `std::atomic<uint64_t> m_generation` nell'atlas; bump su
+     invalidate/reattach (non su page growth);
   2. `GpuPreparedTextRun` memorizza generation alla creazione; `execute`
      ri-prepara se `prepared.generation != atlas.generation` → esito via
      `Result`/optional (niente throw, coerente con 3.1);
@@ -161,25 +164,22 @@ Tutte le evidenze sono nell'audit `fixes.md`; qui il piano esecutivo.
   `docs/evidence/`).
 - Rischio: basso. **Prima fix di W3 da eseguire** (miglior rapporto payoff/rischio).
 
-## W3.2 — Demolizione `TextBatch` (item G.1)
-Pipeline creata e registrata all'avvio
-(`vulkan_backend_lifecycle_private.cpp`), shader compilato ed embedded,
-**zero call-site di produzione**; riattivandola il record 64-byte verrebbe
-letto come 128-byte = silent corruption senza errore di build.
-- Checklist demolition (già enumerata in G.1): `record_text_batch`
-  (definizione + dichiarazione in `vulkan_backend_impl.hpp:425`),
-  `GpuKernelId::TextBatch`, registrazione/pipeline nel lifecycle,
-  `text_batch.comp`, entry CMake, embed SPIR-V, test ABI relativo.
-- Precondizione: ri-verify zero refs a livello repo, documentata nel commit.
-- Gate: build verde, suite text/ABI verdi, e seguendo lo stesso schema
-  anti-resurrection già usato per la demolizione del pipe FFMPEG (per evitare la
-  resurrezione).
+## W3.2 — Demolizione `TextBatch` (item G.1) — CHIUSO 2026-11-11
+Verifica sul tree corrente: `text_batch.comp` non esiste, `record_text_batch`
+non ha definizione né call-site, `GpuKernelId::TextBatch` non esiste, la
+lifecycle non registra la pipeline e `src/backends/vulkan/CMakeLists.txt` non
+compila lo shader. `GpuPassKind` conserva il valore 10 come riservato
+(`gpu_command_plan.hpp`), quindi la demolizione non può essere riattivata per
+errore. Restano solo riferimenti storici in `fixes.md` e nei ticket; nessun
+codice di produzione.
+- Gate: build Release `-j12` verde e suite text/ABI verdi sul tree che contiene
+  questa verifica.
 
-## W3.3 — Layout contract generalizzato (residuo di G.5)
-- `tests/test_shader_layout_contract.py` copre `text_run.comp`; estenderlo alle
-  coppie `GpuGlyphStatic`/`GlyphStatic` e `GpuTextRunDynamic`/`TextRunDynamic`
-  dei due `text_tile_*` (oggi verificate a mano via `glslangValidator`, non
-  asserite nel test).
+## W3.3 — Layout contract generalizzato (residuo di G.5) — LAND 2026-11-11
+- **Stato:** `tests/test_shader_layout_contract.py` copre `text_run.comp`,
+  `GpuTextRunDynamic`/`TextRunDynamic` e ora anche `GpuGlyphStatic`/`GlyphStatic`
+  sui due `text_tile_*`: sequenza dei word packati a 32 bit, size std430 e
+  `ArrayStride` SPIR-V compilato. Il test passa con `glslangValidator` presente.
 - Passo strutturale successivo (la sua PR): `tools/shaders/spirv_abi_gen.cpp`
   emette **member offset + size** delle storage buffer structs, così il test
   consuma l'ABI generata e le copie manuali vengono eliminate.
@@ -195,25 +195,23 @@ auto-prova già sviluppata per `text_run.comp`.
 
 # W4 — Macchina di certificazione veritiera (decisioni differite B.1/B.2 + B.4-F.2 + 3.2)
 
-- **B.1 (differito in F.2):** decidere l'asse dei 3 contenitori per-frame
-  (`compiler::FrameParameterBlock` / `graph::FrameParameterBlock` /
-  `graph::FrameParameterTable`). È una decisione di ownership, non un rename:
-  - Owner A = whole-frame per-layer sampled (vivo);
-  - Owner B = per-binding transform (solo `PrecompNode`);
-  - Owner C = per-frame-time slice (`CompiledFrameGraph`/`GPUCommandPlan`/
-    `CompiledComposition`).
-  Proposta da valutare: rinominare B `PerBindingTransformBlock`, mantenere A come
-  canonical per i sampled layer params, C per la table per-frame; documento mappa
-  in `docs/architecture/` + eliminazione degli owner decaduti dopo il rename.
-- **B.2 (differito):** 18 regole `*_error_construction_adapter_only` con
-  allowlist hardcodata → **1 regola data-driven** (registro nel TOML o
-  annotazione `CHRONON_ERROR_ADAPTER` nel codice, letta da `check_architecture.py`).
-  Elimina la change amplification ×3 per ogni nuovo tipo errore.
+- **B.1 — LAND 2026-11-11:** asse deciso e applicato. Owner A resta
+  `compiler::FrameParameterBlock` (whole-frame sampled); owner B è stato
+  rinominato `graph::PerBindingTransformBlock`; owner C resta
+  `graph::FrameParameterTable` (per-frame-time slice). La mappa a tre assi è in
+  `docs/architecture/RUNTIME-OWNERSHIP-MATRIX.md`; `PrecompNode` usa solo
+  `m_transform_block` e il vecchio header è stato rimosso. Test precomp 11/11.
+- **B.2 — LAND 2026-11-11:** le 20 guardie `*_construction_adapter_only`
+  hardcodate sono state sostituite da `[error_adapter_inventory.adapters]` nel
+  TOML. `check_architecture.py` genera gli scan dal registro, valida ogni
+  `legacy_type` contro `kLegacyErrorMappings` e fallisce se compare uno scan
+  adapter hardcoded. Selftest esteso a 32/32; gate arch 218/218.
 - **B.4-F.2:** policy su dove vive il report del run corrente per
   `steady_state_allocations` (proposta: sidecar del run con hash del binary,
   in `docs/evidence/runs/<sha>/`; la baseline resta solo riferimento).
-- **3.2:** eliminare `derive_code_from_message` (`shot_timeline.cpp:335-355`):
-  propagare il codice strutturato dall'origine (`Result<T,E>` già canonico).
+- **3.2 — CHIUSO/RITIRATO 2026-11-11:** `derive_code_from_message` non esiste
+  più nel tree; il path `camera_v1/shot_timeline.cpp` è stato ritirato. Restano
+  solo riferimenti storici in `fixes.md`; nessun adapter o fallback nuovo.
 
 Gate W4: selftest del gate esteso (case non-dati + mutazioni); il passcount attuale
 (184/184 storico) non è la metrica — la metrica è: **nessun gate che contiene
@@ -247,11 +245,11 @@ ricopia).
 ```text
  1. TICKET-MAIN-TRUTH-STAGE-1-2 (CI same-SHA verde)   ← priorità assoluta
  2. W1.1 riproduttore teardown (bit-deterministico)   ← sblocca W1
- 3. W3.1 generation counter atlas                     ← alto payoff / basso rischio
- 4. W3.2 demolizione TextBatch                        ← elimina silent-corruption latente
+ 3. W3.1 generation counter atlas — LAND 2026-11-11
+ 4. W3.2 demolizione TextBatch — CHIUSO 2026-11-11 (già assente dal tree)
  5. W1.2 contratto lifetime → W1.3 stress gate        ← il grosso di W1
- 6. W3.3 layout contract generalizzato
- 7. W4 (B.1, B.2, B.4-F.2, 3.2)
+ 6. W3.3 layout contract generalizzato — LAND 2026-11-11
+ 7. W4 — B.1/B.2/3.2 LAND 2026-11-11; B.4-F.2 decision remains
  8. W2 C22 — CHIUSO 2026-11-10 (compat chain deleted; corpus NOT RUN)
  9. W5 gate effetti
 10. W2 C23 — CHIUSO 2026-11-10 (executor removed; no PASS claimed)
@@ -265,8 +263,8 @@ evidence sotto `docs/evidence/`.
 
 - [ ] CI same-SHA verde (owner: MAIN-TRUTH)
 - [ ] W1: riproduttore risolto via contratto; teardown-stress come gate; root cause T05 chiusa
-- [ ] W3.1 / W3.2 / W3.3 applicati con gate
-- [ ] W4: item applicati o decisi; nessun gate con literal-duplicati
+- [x] W3.1 / W3.2 / W3.3 applicati con gate (2026-11-11: build Release `-j12`, suite cache 206/206, registry atlas PASS, contract test PASS)
+- [x] W4: B.1/B.2/3.2 LAND 2026-11-11; 20 adapter data-driven, selftest 32/32, arch 218/218; B.4-F.2 policy remains a separate decision
 - [ ] W5: regola effetti attiva come gate arch
 - [x] W2: C22/C23 compatibility chain removed 2026-11-10; corpus NOT RUN (legacy lane deleted), no PASS claimed
 - [ ] Indice aggiornato: riga in `FOLLOWUP_TICKETS.md` + una riga di sintesi in `CURRENT_STATUS.md`

@@ -281,8 +281,19 @@ void RuntimeContext::attach_backend(
             // framebuffer pool. Returning that framebuffer must not destroy
             // the persistent ring resource; the job/exporter owns its
             // lifetime and releases it during finalization.
+            //
+            // Decode-import surfaces have the same borrowed-ownership shape:
+            // the CUDA importer owns a SLOT RING of them, reuses each slot
+            // across frames, and releases the handles when the decoder
+            // session ends. The graph may adopt the decoded framebuffer into
+            // this pool, but returning that copy must not retire the ring
+            // slot; doing so forced the importer to allocate a fresh 1080p
+            // external image every frame.
             if (const auto record = m_asset_services.surface_registry.lookup(handle);
-                record && record->desc.lifetime == runtime::LifetimeClass::JobPersistent) {
+                record &&
+                (record->desc.lifetime == runtime::LifetimeClass::JobPersistent ||
+                 (record->desc.residency.importable &&
+                  record->desc.residency.decoder_compatible))) {
                 framebuffer.clear_surface_handle();
                 return;
             }

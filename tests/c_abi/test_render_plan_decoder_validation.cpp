@@ -1129,12 +1129,14 @@ TEST_CASE("native gel surface style is accepted only for text layers") {
     auto plan = render_plan_test::base_plan({{{"id", "txt"}, {"type", "text"},
         {"text", "gel"}, {"style", {{"font", "font.ttf"},
         {"font_size", 36}, {"fill", "#00E5FF"}, {"gel_surface", true},
+        {"gel_material_profile", "reference_20261107"},
         {"gel_debug_mode", 1},
         {"gel_light", {{"azimuth_radians", 1.2}, {"elevation", 0.05}}}}}}});
     auto decoded = chronon3d::render_plan::decode_render_plan(plan);
     REQUIRE(decoded);
     REQUIRE(decoded->layers[0].style);
     CHECK(decoded->layers[0].style->gel_surface);
+    CHECK(decoded->layers[0].style->gel_material_profile == "reference_20261107");
     CHECK(decoded->layers[0].style->gel_transmission_enabled);
     CHECK_FALSE(decoded->layers[0].style->gel_soft_fusion.has_value());
     CHECK(decoded->layers[0].style->gel_debug_mode == 1);
@@ -1156,6 +1158,12 @@ TEST_CASE("native gel surface style is accepted only for text layers") {
     invalid_light = plan;
     invalid_light["layers"][0]["style"]["gel_debug_mode"] = 8;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_light));
+    auto invalid_profile = plan;
+    invalid_profile["layers"][0]["style"]["gel_material_profile"] = "bogus";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_profile));
+    invalid_profile = plan;
+    invalid_profile["layers"][0]["style"]["gel_surface"] = false;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_profile));
     invalid_light = plan;
     invalid_light["layers"][0]["style"].erase("gel_surface");
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_light));

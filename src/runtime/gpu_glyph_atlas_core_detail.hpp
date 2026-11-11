@@ -22,6 +22,8 @@ void GpuGlyphAtlas::attach(RenderSurfaceRegistry& registry,
                            graph::RenderBackend& backend) noexcept {
     std::unique_lock lock(m_mutex);
     m_cache.attach(registry, backend);
+    // Rebinding invalidates every page handle a prepared run captured.
+    m_generation.fetch_add(1, std::memory_order_release);
 }
 
 // Called with m_mutex already in unique_lock by the caller (acquire).
@@ -563,6 +565,9 @@ void GpuGlyphAtlas::clear() noexcept {
         counter.hits.store(0, std::memory_order_relaxed);
     }
     m_cache.clear();
+    // Every resident location is gone: prepared runs that captured the old
+    // epoch must rebuild instead of binding retired pages.
+    m_generation.fetch_add(1, std::memory_order_release);
 }
 
 void GpuGlyphAtlas::set_budget_bytes(std::size_t budget_bytes) noexcept {

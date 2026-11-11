@@ -295,6 +295,17 @@ public:
     void set_budget_bytes(std::size_t budget_bytes) noexcept;
     [[nodiscard]] GpuGlyphAtlasStats stats() const noexcept;
 
+    /// Monotonic residency epoch used to validate prepared text runs.
+    ///
+    /// Advances when `clear()` drops every location/page or `attach()` rebinds
+    /// the atlas to another registry/backend. Page growth does NOT advance it:
+    /// adding a page leaves existing locations and handles valid. A prepared
+    /// run captures this value at build time and rebuilds when it changes,
+    /// without taking the atlas lock per glyph.
+    [[nodiscard]] std::uint64_t generation() const noexcept {
+        return m_generation.load(std::memory_order_acquire);
+    }
+
 private:
     struct AtlasPage {
         RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
@@ -345,6 +356,7 @@ private:
     // in gpu_glyph_atlas_core_detail.hpp; this is the minimal contention
     // step with Basso rischio that already de-serializes concurrent readers.
     mutable std::shared_mutex m_mutex;
+    std::atomic<std::uint64_t> m_generation{1};
     GpuAssetCache m_cache;
     std::vector<AtlasPage> m_pages;
     std::unordered_map<GpuGlyphKey, GlyphLocation, GpuGlyphKeyHash> m_locations;

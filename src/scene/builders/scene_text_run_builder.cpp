@@ -260,11 +260,21 @@ namespace text_run_materialize_detail {
 
 /// Use the supplied engine when available. Otherwise use a process-wide
 /// engine whose resolver supports absolute paths and system fonts. Relative
-/// asset paths require an explicitly mounted engine supplied through the
-/// pending spec, layer builder, or render engine. Function-local static
-/// initialization is thread-safe.
-[[nodiscard]] FontEngine* resolve_engine(FontEngine* preferred) {
+/// asset paths require an explicit engine: resolving them against the
+/// process CWD is not allowed. Function-local static initialization is
+/// thread-safe.
+[[nodiscard]] FontEngine* resolve_engine(FontEngine* preferred, const FontSpec& font) {
     if (preferred) return preferred;
+
+    if (!font.font_path.empty() &&
+        !std::filesystem::path{font.font_path}.is_absolute()) {
+        spdlog::error(
+            "materialize_prepared_text: no FontEngine provided for relative "
+            "font path '{}'; refusing CWD-relative resolution. Wire a "
+            "FontEngine or use an absolute path.",
+            font.font_path);
+        return nullptr;
+    }
 
     static assets::AssetResolver s_fallback_resolver;
     static FontEngine s_fallback_engine(s_fallback_resolver);
@@ -313,8 +323,6 @@ std::shared_ptr<const PreparedTextRun> prepare_text_run(
         return nullptr;
     }
 
-    FontEngine* use_engine = resolve_engine(engine);
-
     // Supply the default font when neither path nor family was authored.
     PreparedText prepared_with_font = normalized;
     if (!prepared_with_font.glyph_paint_ranges.empty())
@@ -322,6 +330,11 @@ std::shared_ptr<const PreparedTextRun> prepare_text_run(
     if (prepared_with_font.style.font.font_path.empty() &&
         prepared_with_font.style.font.font_family.empty()) {
         prepared_with_font.style.font.font_path = presets::inter_bold_font_path();
+    }
+
+    FontEngine* use_engine = resolve_engine(engine, prepared_with_font.style.font);
+    if (!use_engine) {
+        return nullptr;
     }
 
     TextCompileServices services{

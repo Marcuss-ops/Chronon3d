@@ -139,20 +139,25 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
     ++stats.submissions;
     pending_timeline_value = signal_value;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    // Only an encoder destination is handed off to CUDA by this submit. A
+    // `cuda_ready` slot belongs to the decode-import lane: CUDA produced the
+    // image and already signalled C2V, so Vulkan is its terminal consumer and
+    // ownership must not be transferred back. Marking those slots
+    // `export_handed_off` retained one 1080p external image per frame forever:
+    // the framebuffer pool releases the import handle at the end of the frame,
+    // but no CUDA consumer ever calls `acquire_pending_cuda_surface()` for it,
+    // so the lazy prune could never destroy the backing.
     const auto mark_standalone_export = [this](const std::uint64_t physical_slot) {
         const auto it = surfaces.physical_surfaces.find(physical_slot);
         if (it == surfaces.physical_surfaces.end()) return;
         it->second.image.cuda_export_fence_slot.reset();
         it->second.image.cuda_export_standalone_fence = true;
-        // The consumer now owns the image as far as Vulkan ordering goes: the
-        // lazy prune must retain the slot until it comes back.
+        // The encoder consumer now owns the image as far as Vulkan ordering
+        // goes: the lazy prune must retain the slot until it comes back.
         it->second.image.export_handed_off = true;
     };
-    for (const auto physical_slot : surfaces.cuda_ready_surfaces)
-        mark_standalone_export(physical_slot);
     for (const auto physical_slot : surfaces.cuda_export_ready_surfaces)
-        if (!surfaces.cuda_ready_surfaces.contains(physical_slot))
-            mark_standalone_export(physical_slot);
+        mark_standalone_export(physical_slot);
     surfaces.cuda_ready_surfaces.clear();
     surfaces.cuda_export_ready_surfaces.clear();
 #endif

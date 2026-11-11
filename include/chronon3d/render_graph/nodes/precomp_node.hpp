@@ -6,7 +6,7 @@
 // Renders a nested composition (Precomp layer).  All caching is delegated to
 // the centralized SceneProgramStore on the parent session; the node
 // itself holds only its composition identity (comp_name, frame range,
-// cache frame), a `PrecompCachePolicy`, and a `FrameParameterBlock`.
+// cache frame), a `PrecompCachePolicy`, and a `PerBindingTransformBlock`.
 //
 // WP 5 PR-removals (now on runtime::JobSession / SceneProgramStore via ctx):
 //   - SceneProgramCache   → ctx.session->program_store().acquire(...)
@@ -28,7 +28,7 @@
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
-#include <chronon3d/render_graph/pipeline/frame_parameter_block.hpp>
+#include <chronon3d/render_graph/pipeline/per_binding_transform_block.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>  // WP-6 PR 6.3 — ExecutionScope parameter for execute_with_scope(...) overload
 #include <span>
@@ -147,9 +147,9 @@ public:
         };
     }
 
-    /// Access the FrameParameterBlock (for diagnostics / testing).
-    [[nodiscard]] FrameParameterBlock& param_block() { return m_param_block; }
-    [[nodiscard]] const FrameParameterBlock& param_block() const { return m_param_block; }
+    /// Access the per-binding transform block (for diagnostics / testing).
+    [[nodiscard]] PerBindingTransformBlock& transform_block() { return m_transform_block; }
+    [[nodiscard]] const PerBindingTransformBlock& transform_block() const { return m_transform_block; }
 
 private:
     std::string m_comp_name;
@@ -160,7 +160,7 @@ private:
 
     // ── WP-5: only identity + policy + param block remain ──────────
     PrecompCachePolicy  m_cache_policy;
-    FrameParameterBlock m_param_block;
+    PerBindingTransformBlock m_transform_block;
     cache::ProgramEvictCallback m_on_evict;
 
     // Review #3 — track the per-instance bucket pointer that `m_on_evict`

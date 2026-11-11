@@ -415,6 +415,7 @@ compile_text_layout(
     // include box metrics instead of ink bounds.
     const bool auto_fit_required = prepared.frame.auto_fit ||
                                    prepared.frame.grow_and_shrink;
+    const f32 authored_font_size = prepared.style.font.font_size;
     PreparedText effective = prepared;
     if (auto_fit_required) {
         const f32 min_fs = prepared.frame.min_font_size;
@@ -451,6 +452,15 @@ compile_text_layout(
                         high = mid;
                     }
                 }
+            }
+            if (best < authored_font_size * 0.999f) {
+                spdlog::warn(
+                    "[text-fit] auto-fit changed the authored font size: "
+                    "authored={:.2f} effective={:.2f} box={:.1f}x{:.1f} mode={}",
+                    authored_font_size, best,
+                    prepared.frame.size.x, prepared.frame.size.y,
+                    prepared.frame.grow_and_shrink ? "grow_and_shrink"
+                                                   : "shrink_only");
             }
             effective.frame.auto_fit = false;
             effective.frame.grow_and_shrink = false;

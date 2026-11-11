@@ -65,7 +65,10 @@ void main() {
         float dst_alpha = max(clamp(dst.a, 0.0, 1.0), 1e-6);
         float backdrop_luma = dot(dst.rgb / dst_alpha,
                                   vec3(0.2126, 0.7152, 0.0722));
-        float backlit = smoothstep(0.45, 0.90,
+        // Only a genuinely bright slit (not a mid-luma floor) may wash the
+        // gel toward white; below this band the documented channel-dependent
+        // Beer-Lambert absorption must remain exact.
+        float backlit = smoothstep(0.75, 0.95,
                                    clamp(backdrop_luma, 0.0, 1.0));
         // A bright slit behind the gel must read through the body ("or"),
         // not as an opaque cyan decal. On a backlit backdrop the gel becomes

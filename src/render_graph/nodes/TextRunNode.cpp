@@ -106,18 +106,42 @@ NodeExecResult TextRunNode::execute(
 ) {
     CHRONON_TRACE_SCOPE("chronon.node", "text_run_render");
 
+    // Native text surfaces are FrameTransient and unplanned: the backend
+    // cannot prove whether an external caller owns an unplanned handle, so
+    // its generic frame drain skips them. This node created the output
+    // surface, hence it owns the release. Release the previous frame's lease
+    // now, after the compositor consumed it; the backend defers the physical
+    // release while a recorded GPU submission still references it. Without
+    // this a long text run allocates one native surface per frame until
+    // vmaCreateImage exhausts device memory.
+    if (m_pending_native_surface != runtime::kInvalidRenderSurfaceHandle) {
+        if (m_pending_native_surface != ctx.policy.native_video_encode_surface) {
+            release_native_surface_handle(ctx, m_pending_native_surface);
+        }
+        m_pending_native_surface = runtime::kInvalidRenderSurfaceHandle;
+    }
+    const auto remember_output_surface = [this, &ctx](const Framebuffer& output) {
+        const auto handle = output.surface_handle();
+        if (handle == runtime::kInvalidRenderSurfaceHandle ||
+            handle == ctx.policy.native_video_encode_surface) {
+            return;
+        }
+        m_pending_native_surface = handle;
+    };
+
     // ── 0. Defensive: missing shape (source-pass only emits when set). ──
     if (!m_shape) {
         auto empty = ctx.acquire_owned_fb(
             ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
         if (ctx.backend && ctx.surface_registry &&
             ctx.backend_stats_api()->supports_native_surfaces() &&
-            !ensure_empty_native_surface(ctx, *empty)) {
+            !ensure_empty_native_surface(ctx, *empty, /*exportable=*/false)) {
             return NodeExecResult{NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,
                 m_name,
                 "failed to materialize empty native text surface"}};
         }
+        remember_output_surface(*empty);
         return NodeExecResult{std::move(empty)};
     }
 
@@ -126,12 +150,15 @@ NodeExecResult TextRunNode::execute(
         auto cached = ctx.acquire_owned_fb(*m_cached_result);
         if (ctx.backend && ctx.surface_registry &&
             ctx.backend_stats_api()->supports_native_surfaces() &&
-            !ensure_native_surface(ctx, *cached, "TextRunNode.cache")) {
+            !ensure_native_surface(ctx, *cached, "TextRunNode.cache",
+                                   /*synchronous_upload=*/false,
+                                   /*exportable=*/false)) {
             return NodeExecResult{NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,
                 m_name,
                 "failed to promote cached text surface to GPU"}};
         }
+        remember_output_surface(*cached);
         return NodeExecResult{std::move(cached)};
     }
 
@@ -168,7 +195,7 @@ NodeExecResult TextRunNode::execute(
         : ctx.acquire_owned_fb(surface_width, surface_height, /*clear=*/true);
     if (ctx.backend && ctx.surface_registry &&
         ctx.backend_stats_api()->supports_native_surfaces() &&
-        !ensure_empty_native_surface(ctx, *fb)) {
+        !ensure_empty_native_surface(ctx, *fb, /*exportable=*/false)) {
         return NodeExecResult{NodeExecutionError{
             RenderBackendErrorCode::ExecutionFailure,
             m_name,
@@ -334,6 +361,7 @@ NodeExecResult TextRunNode::execute(
         m_cached_result = std::make_shared<Framebuffer>(*fb);
     }
 
+    remember_output_surface(*fb);
     return NodeExecResult{std::move(fb)};
 }
 

@@ -35,6 +35,7 @@
 // =============================================================================
 
 #include <chronon3d/runtime/job/job_session.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>  // WP 5.2 — ProgramLease holds shared_ptr<CompiledSceneProgram>; member access (`.empty()`, `.bindings`, `.frame_graph`) requires complete type
@@ -181,17 +182,17 @@ NodeExecResult PrecompNode::execute_with_scope(
     nested_ctx.frame_input.height  = ctx.frame_input.height;
     nested_ctx.node_exec.current_identity.graph = static_cast<GraphInstanceId>(precomp_key.graph);
 
-    // F1.D: P1-16 — the legacy `FrameContext::font_engine` field is REMOVED;
-    // the materializer's `resolve_engine()` provides a process-wide fallback
-    // FontEngine via `ctx.runtime->font_engine()` when `ctx.runtime` is wired
-    // (the standard rendering path).  Hand-built FrameContext (e.g. in tests
-    // without a runtime) must read the engine through their own fallback path.
+    // FrameContext still carries the engine seam: forward the runtime-owned
+    // FontEngine so nested scene builders can resolve relative font assets.
+    // Hand-built contexts without a runtime must wire their own engine; the
+    // materializer's process-wide fallback remains absolute/system-font only.
     const FrameContext nested_frame_ctx = make_frame_context({
         .global_time = SampleTime::from_frame(static_cast<double>(nested_frame), comp.frame_rate()),
         .duration = comp.duration(),
         .width = comp.width(),
         .height = comp.height(),
         .resource = std::pmr::get_default_resource(),
+        .font_engine = ctx.runtime ? &ctx.runtime->font_engine() : nullptr,
     });
     const Scene nested_scene = comp.evaluate(nested_frame_ctx);
     // Nested compositions carry camera state on the materialized Scene.
@@ -249,7 +250,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     }
 
     // ── 6. Warm up parameter block (no-op if size unchanged) ─────────────
-    m_param_block.warm_up(program->bindings.size());
+    m_transform_block.warm_up(program->bindings.size());
 
     // ── 7. Refresh per-frame payloads ────────────────────────────────────
     const auto resolved = detail::resolve_layers(nested_scene, nested_ctx);

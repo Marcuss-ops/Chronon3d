@@ -529,6 +529,9 @@ SelectorWeight evaluate_compiled_selectors(
             case SelectorCombineMode::Max:
                 combined = std::max(combined, w);
                 break;
+            case SelectorCombineMode::Difference:
+                combined = std::abs(combined - w);
+                break;
         }
     }
 

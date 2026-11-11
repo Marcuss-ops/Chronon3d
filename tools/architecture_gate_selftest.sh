@@ -372,6 +372,83 @@ required_patterns = ['unused-by-this-fixture']
 EOF
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# Error-adapter registry: the adapter guard is declared TOML data, expanded
+# into an executable scan.  A hand-written adapter scan, an unregistered legacy
+# type, and a real violation must each fail; the compliant registry must pass.
+# ─────────────────────────────────────────────────────────────────────────
+write_adapter_header() {
+    write_file "$1" "include/chronon3d/core/types/error.hpp" <<'EOF'
+#include <array>
+namespace chronon3d { enum class RenderJobErrorCode { None }; }
+namespace chronon {
+struct LegacyErrorMapping { const char* legacy_type; const char* domain; };
+inline constexpr std::array<LegacyErrorMapping, 1> kLegacyErrorMappings{{
+    {"chronon3d::RenderJobErrorCode", "render_job"},
+}};
+}
+EOF
+}
+
+write_adapter_rules() { # write_adapter_rules <dir> <legacy-type>
+    write_file "$1" "rules.toml" <<'EOF'
+[error_adapter_inventory]
+header = "include/chronon3d/core/types/error.hpp"
+
+[[error_adapter_inventory.adapters]]
+name = "render_job_error_construction_adapter_only"
+legacy_type = "__LEGACY_TYPE__"
+scan_paths = ["include", "src"]
+allow_list = ["include/chronon3d/timeline/render_job.hpp"]
+patterns = ["\\bRenderJobError\\s*\\{"]
+skip_comments = true
+EOF
+    sed -i "s/__LEGACY_TYPE__/$2/" "$1/rules.toml"
+}
+
+case15_error_adapter_data_driven() {
+    write_adapter_header "$1"
+    write_adapter_rules "$1" "chronon3d::RenderJobErrorCode"
+    write_file "$1" "include/chronon3d/timeline/render_job.hpp" <<'EOF'
+struct RenderJobError { int code; };
+inline RenderJobError make_error() { return RenderJobError{0}; }
+EOF
+    write_file "$1" "src/clean.cpp" <<'EOF'
+int clean_translation_unit() { return 0; }
+EOF
+}
+
+case16_error_adapter_hardcoded() {
+    write_adapter_header "$1"
+    write_file "$1" "rules.toml" <<'EOF'
+[[scan]]
+name = "render_job_error_construction_adapter_only"
+scan_paths = ["include"]
+allow_list = ["include/chronon3d/timeline/render_job.hpp"]
+patterns = ["\\bRenderJobError\\s*\\{"]
+skip_comments = true
+EOF
+}
+
+case17_error_adapter_unknown_type() {
+    write_adapter_header "$1"
+    write_adapter_rules "$1" "chronon3d::MissingErrorCode"
+    write_file "$1" "include/chronon3d/timeline/render_job.hpp" <<'EOF'
+struct RenderJobError { int code; };
+EOF
+}
+
+case18_error_adapter_violation() {
+    write_adapter_header "$1"
+    write_adapter_rules "$1" "chronon3d::RenderJobErrorCode"
+    write_file "$1" "include/chronon3d/timeline/render_job.hpp" <<'EOF'
+struct RenderJobError { int code; };
+EOF
+    write_file "$1" "src/rogue_error.cpp" <<'EOF'
+RenderJobError rogue() { return RenderJobError{1}; }
+EOF
+}
+
 # expect_rule_in <case> <rule> <PASS|FAIL> <builder> — the verdict of ONE rule in
 # a fixture registry: a mirror tree may fail unrelated rules, so only the named
 # rule is evidence.
@@ -466,6 +543,13 @@ expect_rule case12_second_cache_engine single_cache_primitive FAIL case12_second
 expect_rule_in case13_contract_stale_target selftest_contract_stale_target FAIL case13_contract_stale_target
 expect_rule_in case13b_stale_target_invariant scan_path_existence FAIL case13_contract_stale_target
 expect_rule_in case14_contract_declared_absence selftest_contract_declared_absence PASS case14_contract_declared_absence
+
+# Adapter registry: data-driven pass, hardcoded bypass fail, unknown legacy
+# type fail, and a real violation fail.
+expect_rule_in case15_error_adapter_data_driven render_job_error_construction_adapter_only PASS case15_error_adapter_data_driven
+expect_rule_in case16_error_adapter_hardcoded error_adapter_inventory_coverage FAIL case16_error_adapter_hardcoded
+expect_rule_in case17_error_adapter_unknown_type error_adapter_inventory_coverage FAIL case17_error_adapter_unknown_type
+expect_rule_in case18_error_adapter_violation render_job_error_construction_adapter_only FAIL case18_error_adapter_violation
 fragment_selfcheck
 
 echo

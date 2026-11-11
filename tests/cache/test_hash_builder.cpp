@@ -57,6 +57,7 @@ TEST_CASE("FrameCacheKey: golden digest") {
     CHECK(key.digest_v1() == expected);
     CHECK(key.digest() == key.digest_v2());
     CHECK(key.digest_v2() != key.digest_v1());
+    CHECK(key.digest_v2() == 8530631660911191565ULL); // V2 fixture: schema change requires a version bump
 }
 
 TEST_CASE("VideoFrameKey: golden digest") {
@@ -74,6 +75,7 @@ TEST_CASE("VideoFrameKey: golden digest") {
     CHECK(key.digest_v1() == expected);
     CHECK(key.digest() == key.digest_v2());
     CHECK(key.digest_v2() != key.digest_v1());
+    CHECK(key.digest_v2() == 17712888411037905226ULL); // V2 fixture: schema change requires a version bump
 }
 
 TEST_CASE("NodeCacheKey: golden digest") {

@@ -280,20 +280,22 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         frame_batch.submitted_submit_end_trace_ns[slot] =
             chronon3d::tracing::TraceTimeNs();
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        // See submit(): only encoder destinations are handed off to CUDA.
+        // `cuda_ready` is the decode-import lane (producer signalled C2V,
+        // Vulkan is the terminal consumer); marking it consumer-owned made
+        // the prune retain one 1080p import surface per frame forever.
         const auto mark_frame_export = [this, slot](const std::uint64_t physical_slot) {
             const auto it = surfaces.physical_surfaces.find(physical_slot);
             if (it == surfaces.physical_surfaces.end()) return;
             it->second.image.cuda_export_fence_slot = slot;
             it->second.image.cuda_export_standalone_fence = false;
-            // See submit(): the slot is retained by the lazy prune until the
-            // CUDA/NVENC consumer returns it.
+            // The encoder consumer now owns the image; the lazy prune must
+            // retain the slot until `acquire_pending_cuda_surface()` returns
+            // it.
             it->second.image.export_handed_off = true;
         };
-        for (const auto physical_slot : surfaces.cuda_ready_surfaces)
-            mark_frame_export(physical_slot);
         for (const auto physical_slot : surfaces.cuda_export_ready_surfaces)
-            if (!surfaces.cuda_ready_surfaces.contains(physical_slot))
-                mark_frame_export(physical_slot);
+            mark_frame_export(physical_slot);
         // Binary CUDA interop used to wait for this fence immediately, which
         // serialized every frame behind CUDA/NVENC.  Reuse is already gated
         // by the next submission's Vulkan wait on C2V; the ring-slot fence is

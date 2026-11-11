@@ -2797,7 +2797,8 @@
             "subtract",
             "intersect",
             "min",
-            "max"
+            "max",
+            "difference"
           ]
         },
         "start": {
@@ -8101,6 +8102,12 @@
           "style": {
             "type": "object",
             "properties": {
+              "variation_axes": {
+                "type": "string",
+                "maxLength": 512,
+                "pattern": "^[ -~]*$",
+                "description": "OpenType variable-font coordinates, e.g. wght=650,wdth=92."
+              },
               "quality": {
                 "type": "string",
                 "enum": ["fast", "high"],
@@ -8147,6 +8154,12 @@
                 "type": "boolean",
                 "default": false,
                 "description": "Select the native MTSDF gel-text surface material."
+              },
+              "gel_material_profile": {
+                "type": "string",
+                "enum": ["current", "reference_20261107"],
+                "default": "current",
+                "description": "GEL material constants: current keeps the post-2026-11-08 shading, reference_20261107 selects the certified 2026-11-07 closure. Requires gel_surface."
               },
               "gel_soft_fusion": {
                 "type": "boolean",

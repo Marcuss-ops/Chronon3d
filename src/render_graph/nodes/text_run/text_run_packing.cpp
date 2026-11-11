@@ -102,6 +102,9 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     }
 
     auto prepared = std::make_shared<runtime::GpuPreparedTextRun>();
+    // Capture the epoch before touching residency. A concurrent clear() during
+    // preparation then leaves this run observably stale, never current.
+    prepared->atlas_generation = glyph_atlas.generation();
 
     // Animator stacks are resolved into GlyphInstanceState before dispatch.
     // Keeping selectors in the prepared cache would freeze a second semantic

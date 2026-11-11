@@ -100,6 +100,10 @@ public:
         }
 
         const Frame source_frame = video::map_video_frame(local_frame, m_source);
+        // The render plan carries workspace-relative logical asset paths.
+        // The decoder opens the path directly and does not know the mounted
+        // assets root, so resolve it here before the first decode/retry.
+        const std::string resolved_source_path = ctx.resolve_asset(m_source.path);
 
         const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
         const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
@@ -108,7 +112,7 @@ public:
             1, static_cast<i64>(std::llround(effective_fps)));
         const RationalTime source_time{source_frame.integral(), Rational{1, source_fps}};
         auto decoded = decoder->decode_frame_at_with_color_transform(
-            m_source.path, source_time, render_w, render_h,
+            resolved_source_path, source_time, render_w, render_h,
             media::VideoColorTransform{m_source.ocio_config_path,
                 m_source.ocio_input_space, m_source.ocio_working_space});
         const auto* decoded_frame = media::decoded_frame_if(decoded);
@@ -119,7 +123,7 @@ public:
                     ? (m_source.source_start + video::detail::safe_loop_frame(source_frame - m_source.source_start, m_source.duration))
                     : (m_source.source_start + std::max<Frame>(0, m_source.duration - 1));
                 decoded = decoder->decode_frame_at_with_color_transform(
-                    m_source.path,
+                    resolved_source_path,
                     RationalTime{retry_frame.integral(), Rational{1, source_fps}},
                     render_w, render_h,
                     media::VideoColorTransform{m_source.ocio_config_path,

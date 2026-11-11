@@ -9,8 +9,39 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace chronon3d::media {
+
+/// Typed classification of the first export failure. The diagnostic string is
+/// still carried verbatim for the user, but the job boundary no longer has to
+/// re-parse it to decide the error family.
+enum class VideoExportFailureClass {
+    None,
+    Render,
+    DeviceMemory,
+    UnsupportedCapability,
+};
+
+[[nodiscard]] inline VideoExportFailureClass classify_export_failure(
+    std::string_view message) noexcept {
+    if (message.empty()) return VideoExportFailureClass::None;
+
+    const auto has = [message](std::string_view needle) {
+        return message.find(needle) != std::string_view::npos;
+    };
+    if (has("DeviceMemoryExhausted") ||
+        has("VK_ERROR_OUT_OF_DEVICE_MEMORY") ||
+        has("VK_ERROR_OUT_OF_HOST_MEMORY") ||
+        has("VmaCreateImage failed") || has("vmaCreateImage failed") ||
+        has("VkResult=-2")) {
+        return VideoExportFailureClass::DeviceMemory;
+    }
+    if (has("UnsupportedCapability") || has("unsupported capability")) {
+        return VideoExportFailureClass::UnsupportedCapability;
+    }
+    return VideoExportFailureClass::Render;
+}
 
 /// Opaque-to-media, process-persistent render resources owned by a CLI/daemon
 /// execution authority. Concrete renderers may attach slot pools and scratch
@@ -46,6 +77,22 @@ struct ObservedSegmentOutputFacts {
     std::string sha256;
     std::optional<double> probe_ms;
     std::optional<double> sha256_ms;
+};
+
+/// First structured failure from the export/render boundary. The video
+/// exporter used to collapse every non-zero return code into EncoderFailed;
+/// this record carries the node and message that actually failed so the job
+/// boundary can report the cause verbatim.
+struct VideoExportFailure {
+    std::string stage;    // render | native | writer | exception | encoder
+    std::string node;
+    std::string message;
+    int frame{-1};
+    VideoExportFailureClass failure_class{VideoExportFailureClass::None};
+
+    [[nodiscard]] bool empty() const noexcept {
+        return stage.empty() && message.empty();
+    }
 };
 
 /// Host-selected placement and persistent per-device video runtime.
@@ -85,6 +132,9 @@ struct VideoJobExecutionContext {
     /// (plan executor or RenderJob executor).
     ObservedOutputFacts observed_output;
     std::vector<ObservedSegmentOutputFacts> observed_segment_outputs;
+    /// Set by the dispatcher when the native export fails. Diagnostic only:
+    /// a successful render leaves it empty.
+    VideoExportFailure export_failure;
 };
 
 } // namespace chronon3d::media

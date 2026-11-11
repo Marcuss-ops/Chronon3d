@@ -32,6 +32,23 @@ these three columns. The old runtime facade remains a compatibility bridge;
 it is not a second owner. A future migration must move a field to one column
 before deleting that bridge.
 
+## Per-frame parameter ownership (B.1)
+
+Three containers previously shared the `FrameParameterBlock` name.  They are
+three different axes, not three implementations of one cache:
+
+| Axis | Sole owner | Consumers |
+|---|---|---|
+| Whole-frame sampled layer payload | `compiler::FrameParameterBlock` (`compiler/frame_parameters.hpp`) | `TypedProgramSampler`, `RenderPipeline`, `FrameSlotPayload`, `RenderGraphContext::frame_parameters` |
+| Per-binding transform/effect slots for one nested Precomp | `graph::PerBindingTransformBlock` (`render_graph/pipeline/per_binding_transform_block.hpp`) | `PrecompNode::m_transform_block` only |
+| Per-frame-time slice table | `graph::FrameParameterTable` (`render_graph/pipeline/frame_parameter_table.hpp`) | `CompiledFrameGraph` / `GPUCommandPlan` / `CompiledComposition` |
+
+The `compiler::FrameParameterBlock` remains the canonical authority for
+sampled layer values.  `PerBindingTransformBlock` is deliberately named for
+its narrower ownership and must not grow sampled-layer payloads.  A new
+per-frame field belongs to exactly one of these rows; it must not be copied
+into a second container.
+
 ## Camera surface authority
 
 Camera intent is authored in ChrononMotion3D (`CameraRig`); C3D only consumes

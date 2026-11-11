@@ -239,144 +239,161 @@ foreign_adapter_types = [
   "chronon3d::CameraEvaluationError",
 ]
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "render_job_error_construction_adapter_only"
+legacy_type = "chronon3d::RenderJobErrorCode"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/timeline/render_job.hpp"]
 patterns = ["\\bRenderJobError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "render_job_request_error_construction_adapter_only"
+legacy_type = "chronon3d::runtime::job::RenderJobRequestErrorCode"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/runtime/job/render_job_request.hpp"]
 patterns = ["\\bRenderJobRequestError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "backend_resolve_error_construction_adapter_only"
+legacy_type = "chronon3d::graph::BackendResolveErrorCode"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/render_graph/backend_registry.hpp"]
 patterns = ["\\bBackendResolveError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "compile_error_construction_adapter_only"
+legacy_type = "chronon3d::compiler::CompileErrorCode"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/compiler/compile_error.hpp"]
 patterns = ["\\bCompileError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "scope_error_construction_adapter_only"
+legacy_type = "chronon3d::graph::ScopeErrorCode"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/core/execution/execution_scope_types.hpp"]
 patterns = ["\\bScopeError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "text_error_construction_adapter_only"
+legacy_type = "chronon3d::TextErrorCode"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/text/text_error.hpp"]
 patterns = ["\\bTextError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "text_layout_error_construction_adapter_only"
+legacy_type = "chronon3d::TextLayoutErrorKind"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/text/text_run_builder.hpp"]
 patterns = ["\\bTextLayoutError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "media_probe_error_construction_adapter_only"
+legacy_type = "chronon3d::media::video::MediaProbeErrorCode"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/media/video/media_probe.hpp"]
 patterns = ["\\bMediaProbeError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "sdk_render_error_construction_adapter_only"
+legacy_type = "chronon3d::sdk::RenderErrorCode"
 scan_paths = ["include", "src", "apps", "tests"]
-allow_list = [
-  "include/chronon3d/sdk/render_error.hpp",
-  "include/chronon3d/render/render_diagnostic.hpp",
-]
+allow_list = ["include/chronon3d/sdk/render_error.hpp", "include/chronon3d/render/render_diagnostic.hpp"]
 patterns = ["\\bRenderError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "render_backend_error_construction_adapter_only"
+legacy_type = "chronon3d::graph::RenderBackendErrorCode"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/render_graph/render_backend_types.hpp"]
 patterns = ["\\bRenderBackendError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "runtime_build_error_construction_adapter_only"
+legacy_type = "chronon3d::runtime::RuntimeBuildError::Code"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/runtime/render_runtime.hpp"]
 patterns = ["\\bRuntimeBuildError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "decode_failure_construction_adapter_only"
+legacy_type = "chronon3d::media::DecodeFailureReason"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/media/decode_result.hpp"]
 patterns = ["\\bDecodeFailure\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "preparation_error_construction_adapter_only"
+legacy_type = "chronon3d::runtime::PreparationError::Code"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/runtime/resource_preparation.hpp"]
 patterns = ["\\bPreparationError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "props_error_construction_adapter_only"
+legacy_type = "chronon3d::PropsErrorReason"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/timeline/composition_props.hpp"]
 patterns = ["\\bPropsError\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "trace_error_construction_adapter_only"
+legacy_type = "chronon3d::trace::TraceError"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/core/tracing/trace_session.hpp"]
 patterns = ["Result<bool,\\s*TraceError>\\s*\\(\\s*TraceError::"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "conversion_result_construction_adapter_only"
+legacy_type = "chronon3d::media::ConversionError"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/media/frame_conversion/frame_converter.hpp"]
 patterns = ["\\bConvertFrameResult\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "video_sink_error_construction_adapter_only"
+legacy_type = "chronon3d::media::video::VideoSinkError"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/media/video/video_sink.hpp"]
 patterns = ["\\bVideoSinkErrorInfo\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "frame_execution_result_construction_adapter_only"
+legacy_type = "chronon3d::runtime::ExecutionFailure"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/runtime/frame_execution_result.hpp"]
 patterns = ["\\bFrameExecutionResult\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "validation_issue_construction_adapter_only"
+legacy_type = "chronon3d::render_plan::ValidationIssueKind"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/render_plan/render_plan_validator.hpp"]
 patterns = ["\\bValidationIssue\\s*\\{"]
 skip_comments = true
 
-[[scan]]
+[[error_adapter_inventory.adapters]]
 name = "render_diagnostic_construction_adapter_only"
+legacy_type = "chronon3d::render::RenderDiagnosticCode"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/render/render_diagnostic.hpp"]
 patterns = ["\\bRenderDiagnostic\\s*\\{"]

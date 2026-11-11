@@ -19,6 +19,9 @@ struct TextMaterial {
     // Native MTSDF gel profile. The fill color remains authored by TextPaint;
     // this flag selects the Vulkan distance-field lighting treatment.
     bool gel_surface{false};
+    // Select the certified 2026-11-07 GEL material constants. False keeps the
+    // current post-2026-11-08 shading.
+    bool gel_reference_20261107{false};
     // Build a shared soft dome where GEL glyphs touch or overlap. False keeps
     // the exact hard union while retaining a shared TextRun surface.
     bool gel_soft_fusion{true};

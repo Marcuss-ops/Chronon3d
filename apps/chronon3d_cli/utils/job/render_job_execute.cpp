@@ -273,7 +273,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
         if (!validate_video_job(job)) {
             return make_render_job_error(
                 RenderJobErrorCode::ValidationFailed,
-                "EncoderFailed: video export validation failed for composition '" +
+                "VideoExportValidationFailed: video export validation failed for composition '" +
                     job.comp_id + "' using codec '" +
                     job.video_settings.codec + "' output '" +
                     job.output + "'");
@@ -325,12 +325,43 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
         }
 
         if (rc != 0) {
+            // Prefer the failure the render boundary actually captured. The
+            // old unconditional EncoderFailed text mislabeled graph-capability
+            // and device-memory failures as codec failures.
+            std::string cause;
+            if (observed_context && !observed_context->export_failure.empty()) {
+                const auto& failure = observed_context->export_failure;
+                cause = failure.stage.empty() ? "export" : failure.stage;
+                if (!failure.node.empty()) cause += ": node '" + failure.node + "'";
+                if (failure.frame >= 0) cause += " frame " + std::to_string(failure.frame);
+                cause += ": ";
+                cause += failure.message.empty()
+                    ? "unspecified failure"
+                    : failure.message;
+            }
+            if (!cause.empty()) {
+                const auto failure_class =
+                    observed_context->export_failure.failure_class !=
+                            media::VideoExportFailureClass::None
+                        ? observed_context->export_failure.failure_class
+                        : media::classify_export_failure(cause);
+                const std::string prefix =
+                    failure_class == media::VideoExportFailureClass::DeviceMemory
+                        ? "DeviceMemoryExhausted: "
+                        : failure_class ==
+                                  media::VideoExportFailureClass::UnsupportedCapability
+                              ? "UnsupportedCapability: "
+                              : "RenderFailed: ";
+                return make_render_job_error(
+                    RenderJobErrorCode::RenderFailed,
+                    prefix + "composition '" + job.comp_id + "' " + cause);
+            }
             return make_render_job_error(
                 RenderJobErrorCode::RenderFailed,
-                "EncoderFailed: video encoder failed for composition '" +
+                "RenderFailed: video export failed for composition '" +
                     job.comp_id + "' using codec '" +
                     job.video_settings.codec + "' output '" +
-                    job.output + "'");
+                    job.output + "' (no structured render failure was captured)");
         }
 
         write_render_job_receipt(job, observed_context.get());

@@ -22,6 +22,9 @@ struct GpuPreparedTextRun {
     bool ready{false};
     std::vector<Batch> batches;
     std::optional<CompiledSelector> reveal_selector;
+    /// Atlas residency epoch captured when this run was prepared. The draw
+    /// path rebuilds a run whose epoch no longer matches the atlas one.
+    std::uint64_t atlas_generation{0};
 };
 
 class GpuTextRunPreparedCache {

@@ -30,6 +30,16 @@ void VulkanBackend::Impl::retire_frame_slot_transient_surfaces(std::size_t slot)
 void VulkanBackend::Impl::release_frame_transient_handles(
     bool log_lifecycle,
     std::span<const runtime::RenderSurfaceHandle> protected_handles) {
+    // This is the post-fence drain: the frames whose leases protect these
+    // images have completed. Drop any residual recording lease before
+    // pruning, otherwise slot_pinned() keeps every retired text surface in
+    // the physical pool until the whole clip exhausts VRAM.
+    release_all_recording_leases_locked();
+    // The fence that owns this drain has completed, so any pin still in the
+    // table is stale bookkeeping rather than live GPU work. Clear it before
+    // the forced reclaim; otherwise every retired 1080p text surface remains
+    // "pinned" and the physical pool grows until vmaCreateImage fails.
+    surfaces.clear_leases();
     // Reused scratch avoids a per-call handle-vector allocation in cleanup.
     auto& handles = transient_release_scratch_;
     handles.clear();
@@ -64,7 +74,11 @@ void VulkanBackend::Impl::release_frame_transient_handles(
             it->second.image.initialized = false;
         ++stats.surface_releases;
     }
-    prune_unused_transient_slots();
+    // This drain runs only after the owning frame fence has completed, so no
+    // recording lease can still pin these images. Force the pool down to the
+    // retained bound instead of keeping every retired 1080p transient (a
+    // 15 s text clip otherwise accumulates ~280 x 33 MB and exhausts VRAM).
+    reclaim_unused_transient_surface_slots();
 }
 
 void VulkanBackend::Impl::release_frame_transient_surfaces() noexcept {
@@ -82,9 +96,39 @@ void VulkanBackend::Impl::release_frame_transient_surfaces() noexcept {
         release_frame_transient_handles(/*log_lifecycle=*/false);
         prune_unused_transient_slots(0);
         if (surfaces.physical_surfaces.size() > 32) {
-            spdlog::warn("[vulkan] transient cleanup retained bindings={} surfaces.physical_surfaces={} unplanned={}",
+            // Diagnose why the forced prune retained images. A slot survives
+            // for exactly four reasons: job-persistent lifetime, an external
+            // consumer handoff that has not returned, a live binding, or a
+            // recording pin. Without the split the pool growth is opaque.
+            std::size_t persistent = 0, exported = 0, bound = 0, pinned = 0, reclaimable = 0;
+            for (const auto& [slot, physical] : surfaces.physical_surfaces) {
+                if (physical.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
+                    ++persistent;
+                } else if (physical.image.export_handed_off) {
+                    ++exported;
+                } else if (surfaces.slot_in_use(slot)) {
+                    ++bound;
+                } else if (surfaces.slot_pinned(slot)) {
+                    ++pinned;
+                } else {
+                    ++reclaimable;
+                }
+            }
+            spdlog::warn("[vulkan] transient cleanup retained bindings={} surfaces.physical_surfaces={} unplanned={} "
+                         "job_persistent={} export_handed_off={} bound={} pinned={} reclaimable={}",
                          surfaces.surface_bindings.size(), surfaces.physical_surfaces.size(),
-                         surfaces.unplanned_surface_handles.size());
+                         surfaces.unplanned_surface_handles.size(), persistent, exported,
+                         bound, pinned, reclaimable);
+            std::size_t samples = 0;
+            for (const auto& [slot, physical] : surfaces.physical_surfaces) {
+                if (samples++ >= 4) break;
+                spdlog::warn("[vulkan] retained slot={} {}x{} lifetime={} exportable={} exported={} initialized={} bound={} pinned={}",
+                             slot, physical.image.width, physical.image.height,
+                             static_cast<int>(physical.desc.lifetime),
+                             physical.image.exportable, physical.image.export_handed_off,
+                             physical.image.initialized, surfaces.slot_in_use(slot),
+                             surfaces.slot_pinned(slot));
+            }
         }
     } catch (const std::exception& error) {
         spdlog::error("[vulkan] transient cleanup failed: {}", error.what());

@@ -113,6 +113,14 @@ PipeExportResult make_pipe_export_result(
     result.exception_error = status.exception_error;
     result.encoder_close_failed = !close_result.success;
     if (result.encoder_close_failed) result.success = false;
+    result.failure_stage = status.failure_stage;
+    result.failure_node = status.failure_node;
+    result.failure_message = status.failure_message;
+    result.failure_frame = status.failure_frame;
+    if (result.encoder_close_failed && result.failure_stage.empty()) {
+        result.failure_stage = "encoder";
+        result.failure_message = "encoder close failed after the render loop";
+    }
 
     result.frames_rendered = status.frames_rendered;
     result.frames_enqueued = status.frames_enqueued;

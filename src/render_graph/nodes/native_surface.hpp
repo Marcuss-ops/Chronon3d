@@ -49,7 +49,8 @@ inline bool native_surface_promotion_diag_enabled() noexcept {
 /// Build the canonical Rgba32Float / Storage / FrameTransient surface
 /// description used by every native full-frame effect/composite fast-path.
 inline runtime::SurfaceDesc native_surface_desc(const RenderGraphContext& ctx,
-                                               i32 width, i32 height) {
+                                               i32 width, i32 height,
+                                               bool exportable = true) {
     auto desc = runtime::SurfaceDesc::make(
         static_cast<std::uint32_t>(width),
         static_cast<std::uint32_t>(height),
@@ -65,7 +66,7 @@ inline runtime::SurfaceDesc native_surface_desc(const RenderGraphContext& ctx,
         desc.residency = runtime::ResourceResidency{
             .domain = runtime::MemoryDomain::Vulkan,
             .device = 0,
-            .exportable = true,
+            .exportable = exportable,
             .importable = false,
             .decoder_compatible = false,
             .encoder_compatible = true,
@@ -110,7 +111,8 @@ inline std::span<const float> framebuffer_rgba_view(
 static inline bool ensure_native_surface(
     RenderGraphContext& ctx, Framebuffer& framebuffer,
     std::string_view promotion_reason = "unspecified",
-    bool synchronous_upload = false) {
+    bool synchronous_upload = false,
+    bool exportable = true) {
     runtime::RenderSurfaceHandle stale_handle = runtime::kInvalidRenderSurfaceHandle;
     bool stale_handle_in_registry = false;
     bool stale_handle_backend_valid = false;
@@ -126,7 +128,7 @@ static inline bool ensure_native_surface(
                 // materialized it; no CPU pixels means no valid promotion.
                 return false;
             }
-            const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height());
+            const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height(), exportable);
             std::vector<float> packed;
             const auto pixels = framebuffer_rgba_view(framebuffer, packed);
             runtime::UploadTicket upload_ticket{};
@@ -192,7 +194,7 @@ static inline bool ensure_native_surface(
         return false;
     }
 
-    const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height());
+    const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height(), exportable);
     // A strict native-video job can still contain a small CPU-authored
     // overlay (for example a decoded watermark or a legacy text fallback).
     // Rejecting promotion here makes CompositeNode fail closed even though
@@ -260,7 +262,8 @@ static inline bool ensure_native_surface(
 /// FrameTransient retirement reclaims the detached backing after its last
 /// graph use, while the new surface starts transparent for clipped dispatches.
 static inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
-                                               Framebuffer& framebuffer) {
+                                               Framebuffer& framebuffer,
+                                               bool exportable = true) {
     if (!ctx.backend || !ctx.surface_registry || !ctx.backend_stats_api()->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
@@ -311,7 +314,7 @@ static inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
             framebuffer.clear_surface_handle();
         }
     }
-    const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height());
+    const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height(), exportable);
     const auto handle = ctx.surface_registry->create(desc);
     if (handle == runtime::kInvalidRenderSurfaceHandle) {
         spdlog::error("[native-surface] registry rejected empty {}x{} surface", framebuffer.width(), framebuffer.height());
@@ -341,6 +344,23 @@ static inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
     return true;
 }
 
+/// Release the native backing named by a standalone surface handle (backend
+/// resource + registry entry). Unlike release_native_surface() this does not
+/// require the Framebuffer that introduced the handle, so a node can keep a
+/// one-frame lease after its output framebuffer has been returned to the
+/// graph. The backend defers the physical release while a recorded GPU
+/// submission still references the handle.
+inline void release_native_surface_handle(RenderGraphContext& ctx,
+                                          runtime::RenderSurfaceHandle handle) {
+    if (handle == runtime::kInvalidRenderSurfaceHandle) return;
+    if (ctx.backend) {
+        (void)ctx.backend_surface_api()->release_surface(handle);
+    }
+    if (ctx.surface_registry) {
+        (void)ctx.surface_registry->release(handle);
+    }
+}
+
 /// Release the native backing of a framebuffer's surface handle (backend
 /// resource + registry entry) and clear the handle.  This is the symmetric
 /// counterpart to ensure_native_surface() and must be used whenever a native
@@ -349,12 +369,7 @@ static inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
 inline void release_native_surface(RenderGraphContext& ctx, Framebuffer& framebuffer) {
     const auto handle = framebuffer.surface_handle();
     if (handle == runtime::kInvalidRenderSurfaceHandle) return;
-    if (ctx.backend) {
-        (void)ctx.backend_surface_api()->release_surface(handle);
-    }
-    if (ctx.surface_registry) {
-        ctx.surface_registry->release(handle);
-    }
+    release_native_surface_handle(ctx, handle);
     framebuffer.clear_surface_handle();
 }
 
