@@ -14,6 +14,15 @@ namespace chronon3d::render_plan {
 namespace {
 
 std::int64_t frame_to_sample(Frame frame, FrameRate fps, int sample_rate) {
+#if defined(_MSC_VER)
+    const long double numerator = static_cast<long double>(frame.integral()) *
+        sample_rate * fps.den();
+    const long double rounded = std::round(numerator / fps.num());
+    if (rounded < 0.0L ||
+        rounded > static_cast<long double>(std::numeric_limits<std::int64_t>::max()))
+        throw std::overflow_error("audio frame-to-sample conversion overflow");
+    return static_cast<std::int64_t>(rounded);
+#else
     const __int128 numerator = static_cast<__int128>(frame.integral()) *
         sample_rate * fps.den();
     const __int128 denominator = fps.num();
@@ -21,6 +30,7 @@ std::int64_t frame_to_sample(Frame frame, FrameRate fps, int sample_rate) {
     if (rounded < 0 || rounded > std::numeric_limits<std::int64_t>::max())
         throw std::overflow_error("audio frame-to-sample conversion overflow");
     return static_cast<std::int64_t>(rounded);
+#endif
 }
 
 std::string sample_gain_expression(const std::vector<float>& values, FrameRate fps) {

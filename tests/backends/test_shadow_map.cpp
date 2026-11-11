@@ -283,9 +283,9 @@ TEST_CASE("Vulkan shadow map caster, PCF and adaptive bias are measurable") {
 
     // Machine-readable evidence for the AE audit. The audit only certifies a
     // PASS when this report exists and satisfies the same tolerances.
-    float edge_px = 0.0f;
-    for (std::uint32_t x = 0; x < size; ++x) {
-        if (hard[pixel(x, 16)] >= 0.5f) {
+    float edge_px = static_cast<float>(size);
+    for (std::uint32_t x = 1; x < size; ++x) {
+        if (hard[pixel(x - 1, 16)] < 0.5f && hard[pixel(x, 16)] >= 0.5f) {
             edge_px = static_cast<float>(x);
             break;
         }

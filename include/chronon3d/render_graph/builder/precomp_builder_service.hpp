@@ -27,7 +27,7 @@ namespace chronon3d { class Scene; }
 
 namespace chronon3d::graph {
 
-class CompiledSceneProgram;
+struct CompiledSceneProgram;
 struct RenderGraphContext;
 
 /// Interface for building + compiling nested scene programs.

@@ -115,10 +115,15 @@ void apply_camera_ring(Framebuffer& fb, const CameraRingParams& params,
                 const float base_u = u + offset.x * radius_x;
                 const float base_v = v + offset.y * radius_y;
                 const Color green = sample_prefiltered_clamped(source, base_u, base_v);
-                const Color red = sample_prefiltered_clamped(
-                    source, base_u + chroma_x, base_v + chroma_y);
-                const Color blue = sample_prefiltered_clamped(
-                    source, base_u - chroma_x, base_v - chroma_y);
+                // With dispersion disabled, all three channels share the
+                // same sample. Reuse it instead of doing two more 2x2
+                // prefiltered bilinear gathers for every tap.
+                const Color red = chroma_amount == 0.0f ? green
+                    : sample_prefiltered_clamped(
+                        source, base_u + chroma_x, base_v + chroma_y);
+                const Color blue = chroma_amount == 0.0f ? green
+                    : sample_prefiltered_clamped(
+                        source, base_u - chroma_x, base_v - chroma_y);
                 accumulated.r += red.r;
                 accumulated.g += green.g;
                 accumulated.b += blue.b;

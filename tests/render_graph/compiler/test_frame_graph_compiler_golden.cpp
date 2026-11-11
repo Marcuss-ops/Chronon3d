@@ -151,6 +151,7 @@ TEST_CASE("FrameGraphCompiler - compiled frame program is deterministic (golden)
     std::string line;
     std::string expected;
     while (std::getline(golden, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
         if (line.rfind("fnv1a64=", 0) == 0) {
             expected = line.substr(8);
             break;

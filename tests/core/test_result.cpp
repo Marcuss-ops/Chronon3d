@@ -194,22 +194,22 @@ static Result<int, TestError> try_failure(int code) {
 
 // Helper: uses CHRONON_TRY to compose two results.
 static Result<int, TestError> compose_with_try(int a, int b) {
-    auto va = CHRONON_TRY(try_success(a));
-    auto vb = CHRONON_TRY(try_success(b));
+    CHRONON_TRY_ASSIGN(va, try_success(a));
+    CHRONON_TRY_ASSIGN(vb, try_success(b));
     return va + vb;
 }
 
 // Helper: CHRONON_TRY propagates error from first call.
 static Result<int, TestError> compose_with_try_fail_first(int a, int b) {
-    auto va = CHRONON_TRY(try_failure(a));  // should return error
-    auto vb = CHRONON_TRY(try_success(b));  // unreachable
+    CHRONON_TRY_ASSIGN(va, try_failure(a));  // should return error
+    CHRONON_TRY_ASSIGN(vb, try_success(b));  // unreachable
     return va + vb;
 }
 
 // Helper: CHRONON_TRY propagates error from second call.
 static Result<int, TestError> compose_with_try_fail_second(int a, int b) {
-    auto va = CHRONON_TRY(try_success(a));
-    auto vb = CHRONON_TRY(try_failure(b));  // should return error
+    CHRONON_TRY_ASSIGN(va, try_success(a));
+    CHRONON_TRY_ASSIGN(vb, try_failure(b));  // should return error
     return va + vb;
 }
 
@@ -240,8 +240,8 @@ TEST_CASE("CHRONON_TRY — nested error types work") {
     auto make_err = [](int id) -> Result<int, OtherError> { return OtherError{id}; };
 
     auto compose = [&](int a, int b) -> Result<int, OtherError> {
-        auto va = CHRONON_TRY(make_ok(a));
-        auto vb = CHRONON_TRY(make_err(b));
+        CHRONON_TRY_ASSIGN(va, make_ok(a));
+        CHRONON_TRY_ASSIGN(vb, make_err(b));
         return va + vb;
     };
 

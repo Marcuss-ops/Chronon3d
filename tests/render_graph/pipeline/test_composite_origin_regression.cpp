@@ -14,6 +14,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <cmath>
+#include <algorithm>
 using namespace chronon3d;
 
 
@@ -97,9 +98,19 @@ TEST_CASE("GEL composite attenuates backdrop independently per color channel") {
     SoftwareCompositor::composite_layer(dst, src, BlendMode::Normal,
         std::nullopt, CompositeOperator::SourceOver, true, true);
     const auto result = dst.get_pixel(0, 0);
-    CHECK(result.r == doctest::Approx(0.4f));
-    CHECK(result.g == doctest::Approx(0.1f + 0.6f * std::pow(0.5f, 1.0f / 3.0f)));
-    CHECK(result.b == doctest::Approx(0.05f + 0.8f * std::pow(0.5f, 1.0f / 24.0f)));
+    const float backdrop_luma = 0.2126f * 0.4f + 0.7152f * 0.6f + 0.0722f * 0.8f;
+    const float t = std::clamp((backdrop_luma - 0.45f) / 0.45f, 0.0f, 1.0f);
+    const float backlit = t * t * (3.0f - 2.0f * t);
+    const float alpha = 0.5f * (1.0f - 0.45f * backlit);
+    const float wash = 0.85f * backlit;
+    const float body_lift = 0.12f * backlit * alpha;
+    const float transmission = 1.0f - alpha;
+    CHECK(result.r == doctest::Approx(0.2f * (1.0f - wash) + alpha * wash +
+                                       0.4f * transmission + body_lift));
+    CHECK(result.g == doctest::Approx(0.1f * (1.0f - wash) + alpha * wash +
+                                       0.6f * std::pow(transmission, 0.4f / 1.2f) + body_lift));
+    CHECK(result.b == doctest::Approx(0.05f * (1.0f - wash) + alpha * wash +
+                                       0.8f * std::pow(transmission, 0.05f / 1.2f) + body_lift));
     CHECK(result.a == doctest::Approx(1.0f));
 }
 

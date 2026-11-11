@@ -34,13 +34,15 @@ static Camera2_5DRuntime make_cam2_5d(float focus_distance, float f_stop, float 
     return cam;
 }
 
-TEST_CASE("PR2-Unit-DoF: authored iris shaping fails closed, highlight weighting is consumed") {
+TEST_CASE("PR2-Unit-DoF: supported iris shaping and highlight weighting are consumed") {
     DepthOfFieldSettings foundational;
     foundational.enabled = true;
     CHECK_NOTHROW(validate_dof_render_capabilities(foundational));
 
     DepthOfFieldSettings iris = foundational;
     iris.iris_blades = 6;
+    CHECK_NOTHROW(validate_dof_render_capabilities(iris));
+    iris.iris_blades = 1;
     CHECK_THROWS_AS(validate_dof_render_capabilities(iris), std::runtime_error);
 
     // Highlight weighting exists in both kernels (dof_blur.comp
@@ -53,6 +55,8 @@ TEST_CASE("PR2-Unit-DoF: authored iris shaping fails closed, highlight weighting
     DepthOfFieldSettings both = foundational;
     both.iris_blades = 6;
     both.highlight_gain = 1.5f;
+    CHECK_NOTHROW(validate_dof_render_capabilities(both));
+    both.iris_blades = 13;
     CHECK_THROWS_AS(validate_dof_render_capabilities(both), std::runtime_error);
 
     DepthOfFieldSettings unsupported_gain = foundational;

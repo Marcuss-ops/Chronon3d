@@ -4,6 +4,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -15,6 +16,7 @@ EXPECTED_IDS = [
     *(f"GPU_TEXT_{i:02d}" for i in range(1, 6)),
 ]
 RUNNER = ROOT / "tools/benchmark_gpu_baseline.sh"
+RUN_BASH_SCRIPT = ROOT / "tests/support/run_bash_script.py"
 EXPECTED_ACCEPTANCE = {
     "minimum_wall_attribution_percent": 95.0,
     "full_file_reread_count": 0,
@@ -187,7 +189,8 @@ def test_runner_closes_sidecar_contract_fail_closed() -> None:
             })
             completed = subprocess.run(
                 [
-                    "bash", str(RUNNER), "--cli", str(fake_cli),
+                    sys.executable, str(RUN_BASH_SCRIPT), "run", str(RUNNER), "--",
+                    "--cli", str(fake_cli),
                     "--out", str(output_dir), "--case", "TEST=FakeScene",
                     "--frames", "2", "--warmup", "0",
                     "--backend", "vulkan", "--hardware", "nvenc",
@@ -201,7 +204,10 @@ def test_runner_closes_sidecar_contract_fail_closed() -> None:
             report = json.loads(report_path.read_text())
             case = report["cases"][0]
             if expected_error is None:
-                assert completed.returncode == 0, (scenario, completed.stderr)
+                assert completed.returncode == 0, (
+                    scenario, completed.returncode, completed.stdout, completed.stderr,
+                    case,
+                )
                 assert case["error"] is None
                 assert report["case_gate_pass"] is True
                 assert report["certification_eligible"] is False
@@ -220,7 +226,8 @@ def test_runner_closes_sidecar_contract_fail_closed() -> None:
         })
         completed = subprocess.run(
             [
-                "bash", str(RUNNER), "--cli", str(fake_cli),
+                sys.executable, str(RUN_BASH_SCRIPT), "run", str(RUNNER), "--",
+                "--cli", str(fake_cli),
                 "--out", str(output_dir), "--corpus", str(MANIFEST),
                 "--backend", "vulkan", "--hardware", "nvenc",
                 "--encoder-backend", "native",

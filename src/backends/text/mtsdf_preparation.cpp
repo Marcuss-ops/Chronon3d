@@ -16,6 +16,8 @@
 #include <cstddef>
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
+#include <limits>
 #include <optional>
 #include <mutex>
 #include <string>
@@ -29,6 +31,10 @@ namespace {
 #ifdef CHRONON3D_ENABLE_TEXT
 struct FaceEntry {
     FT_Face face{nullptr};
+    // FT_New_Face keeps the font file open on some platforms. Retaining the
+    // bytes instead lets the resolver replace a font at the same path while
+    // an old content-addressed face is still resident in this cache.
+    std::vector<FT_Byte> font_bytes;
     std::mutex mutex;
 
     FaceEntry() = default;
@@ -182,7 +188,22 @@ private:
             std::to_string(em_px) + "\n" + axes;
         return faces_.compute_if_absent(key, [&]() -> std::pair<std::shared_ptr<FaceEntry>, std::size_t> {
             auto face = std::make_shared<FaceEntry>();
-            if (FT_New_Face(library, path.c_str(), 0, &face->face) != 0 ||
+            std::ifstream input(path, std::ios::binary | std::ios::ate);
+            if (!input) return {nullptr, 1};
+            const auto end = input.tellg();
+            if (end <= 0 || end > std::numeric_limits<FT_Long>::max()) {
+                return {nullptr, 1};
+            }
+            face->font_bytes.resize(static_cast<std::size_t>(end));
+            input.seekg(0, std::ios::beg);
+            input.read(reinterpret_cast<char*>(face->font_bytes.data()),
+                       static_cast<std::streamsize>(face->font_bytes.size()));
+            if (!input || assets::sha256_string(std::string_view(
+                              reinterpret_cast<const char*>(face->font_bytes.data()),
+                              face->font_bytes.size())) != font_digest ||
+                FT_New_Memory_Face(library, face->font_bytes.data(),
+                                   static_cast<FT_Long>(face->font_bytes.size()),
+                                   0, &face->face) != 0 ||
                 !face->face || !apply_face_variations(face->face, library, axes) ||
                 FT_Set_Pixel_Sizes(face->face, em_px, em_px) != 0) {
                 if (face->face) FT_Done_Face(face->face);

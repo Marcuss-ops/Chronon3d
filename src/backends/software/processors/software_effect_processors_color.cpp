@@ -639,16 +639,20 @@ public:
                 // band into one horizontal profile, then place it on a soft
                 // vertical Gaussian. This avoids both the glyph comb and the
                 // rectangular clip edge of a full 2D blur.
-                Color column{};
+                Color column = Color::transparent();
                 for (int iy = 0; iy < kColumnSamples; ++iy) {
                     const int sy = std::clamp(static_cast<int>(std::lround(
                         cy - band_y + static_cast<float>(iy) * sample_step)),
                         0, fb.height() - 1);
                     for (int ix = 0; ix < taps_x; ++ix) {
                         const float offset_x = -extent_x + static_cast<float>(ix) * step_x;
-                        const int sx = std::clamp(
-                            static_cast<int>(std::lround(px + offset_x)), 0, fb.width() - 1);
-                        column = column + mask.get_pixel(sx, sy) * wx[ix];
+                        const int sx = static_cast<int>(std::lround(px + offset_x));
+                        // Vulkan's ae_fetch uses transparent addressing for
+                        // the horizontal streak profile. Keep out-of-bounds
+                        // taps transparent here as well; clamping would
+                        // repeat the edge highlight across the whole wing.
+                        if (sx >= 0 && sx < fb.width())
+                            column = column + mask.get_pixel(sx, sy) * wx[ix];
                     }
                 }
                 column = column * (1.0f / static_cast<float>(kColumnSamples));
@@ -663,8 +667,13 @@ public:
             const float alpha = std::clamp(light.a, 0.0f, 1.0f);
             const float scale = alpha / light.a;
             const Color source = fb.get_pixel(x, y);
-            fb.set_pixel(x, y, Color{light.r*scale + source.r*(1.0f-alpha),
-                light.g*scale + source.g*(1.0f-alpha), light.b*scale + source.b*(1.0f-alpha),
+            // A flare is a light contribution: its soft tail must never lower
+            // an existing backdrop channel as source-over can do when the
+            // filtered mask is dimmer than the source pixel.
+            fb.set_pixel(x, y, Color{
+                std::max(source.r, light.r*scale + source.r*(1.0f-alpha)),
+                std::max(source.g, light.g*scale + source.g*(1.0f-alpha)),
+                std::max(source.b, light.b*scale + source.b*(1.0f-alpha)),
                 alpha + source.a*(1.0f-alpha)});
         }
     }

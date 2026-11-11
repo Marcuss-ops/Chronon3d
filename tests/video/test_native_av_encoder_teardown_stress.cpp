@@ -9,6 +9,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <chrono>
 #include <filesystem>
 #include <sstream>
 #include <string>
@@ -16,6 +17,24 @@
 #include <vector>
 
 namespace {
+
+#if defined(_WIN32)
+#define CHRONON3D_POPEN  _popen
+#define CHRONON3D_PCLOSE _pclose
+#else
+#define CHRONON3D_POPEN  popen
+#define CHRONON3D_PCLOSE pclose
+#endif
+
+std::string shell_quote_path(const std::filesystem::path& path) {
+#if defined(_WIN32)
+    // These temporary test paths may contain spaces; the command processor
+    // used by _popen accepts ordinary double-quoted arguments.
+    return "\"" + path.string() + "\"";
+#else
+    return "'" + path.string() + "'";
+#endif
+}
 
 /// Per-frame decode hashes (ffmpeg framemd5 over the raw planes): one line
 /// per frame, the last column being the frame hash. The same convention the
@@ -92,16 +111,16 @@ void paint_frame(chronon3d::Framebuffer& frame, int frame_index, int hold_start)
 double decoded_psnr_min_db(const std::filesystem::path& a,
                            const std::filesystem::path& b) {
     const std::string command =
-        "ffmpeg -v info -i '" + a.string() + "' -i '" + b.string() +
-        "' -lavfi psnr -f null - 2>&1";
+        "ffmpeg -v info -i " + shell_quote_path(a) + " -i " + shell_quote_path(b) +
+        " -lavfi psnr -f null - 2>&1";
     std::string output;
-    if (FILE* pipe = popen(command.c_str(), "r")) {
+    if (FILE* pipe = CHRONON3D_POPEN(command.c_str(), "r")) {
         char buffer[512];
         while (std::fgets(buffer, sizeof(buffer), pipe)) {
             output += buffer;
             if (output.size() > 1024 * 1024) break;  // bound a runaway decode
         }
-        pclose(pipe);
+        CHRONON3D_PCLOSE(pipe);
     }
     const auto psnr_line = output.rfind("PSNR y:");
     if (psnr_line == std::string::npos) return -999.0;
@@ -116,15 +135,13 @@ double decoded_psnr_min_db(const std::filesystem::path& a,
 
 std::string decoded_frame_hashes(const std::filesystem::path& mp4) {
     const std::string command =
-        "ffmpeg -v error -i '" + mp4.string() + "' -map 0:v -f framemd5 - 2>/dev/null";
-    std::string output;
+        "ffmpeg -v error -i " + shell_quote_path(mp4) +
 #if defined(_WIN32)
-#define CHRONON3D_POPEN  _popen
-#define CHRONON3D_PCLOSE _pclose
+        " -map 0:v -f framemd5 - 2>NUL";
 #else
-#define CHRONON3D_POPEN  popen
-#define CHRONON3D_PCLOSE pclose
+        " -map 0:v -f framemd5 - 2>/dev/null";
 #endif
+    std::string output;
     if (FILE* pipe = CHRONON3D_POPEN(command.c_str(), "r")) {
         char buffer[512];
         while (std::fgets(buffer, sizeof(buffer), pipe)) output += buffer;
@@ -603,18 +620,29 @@ TEST_CASE("P1 duplicate runs keep exact pixel parity (resubmit path)") {
 }
 
 TEST_CASE("NativeAvEncoder partial open cleanup is idempotent") {
+    namespace fs = std::filesystem;
+    const auto unopenable_output = fs::temp_directory_path() /
+        ("chronon3d_encoder_output_is_directory_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".mp4");
+    std::error_code path_error;
+    fs::create_directories(unopenable_output, path_error);
+    REQUIRE_FALSE(path_error);
+    chronon3d::cli::NativeAvEncoder encoder;
+    chronon3d::cli::FfmpegPipeOptions options;
+    options.width = 1920;
+    options.height = 1080;
+    options.fps_num = 30;
+    options.fps_den = 1;
+    options.codec = "libx264";
+    // The extension selects the MP4 muxer, while the existing directory
+    // guarantees that AVIO fails after codec setup on both Windows and
+    // POSIX filesystems.
+    options.output_path = unopenable_output.string();
+    REQUIRE_FALSE(encoder.open(options));
     for (int i = 0; i < 1000; ++i) {
-        chronon3d::cli::NativeAvEncoder encoder;
-        chronon3d::cli::FfmpegPipeOptions options;
-        options.width = 1920;
-        options.height = 1080;
-        options.fps_num = 30;
-        options.fps_den = 1;
-        options.codec = "libx264";
-        options.output_path = "/definitely/missing/chronon3d-stress/output.mp4";
-        CHECK_FALSE(encoder.open(options));
         encoder.shutdown_noexcept();
     }
+    fs::remove_all(unopenable_output, path_error);
 }
 
 namespace {

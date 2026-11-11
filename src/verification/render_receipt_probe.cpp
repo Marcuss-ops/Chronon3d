@@ -58,6 +58,27 @@ void warn_ffprobe_failure(const char* stage,
                  output.filename().string(), detail);
 }
 
+std::string quote_shell_path(const std::filesystem::path& path) {
+#ifdef _WIN32
+    return "\"" + path.string() + "\"";
+#else
+    std::string quoted{"'"};
+    for (const char ch : path.string()) {
+        if (ch == '\'') quoted += "'\\''";
+        else quoted += ch;
+    }
+    quoted += '\'';
+    return quoted;
+#endif
+}
+
+constexpr const char* kSuppressStderr =
+#ifdef _WIN32
+    " 2>NUL";
+#else
+    " 2>/dev/null";
+#endif
+
 /// Parse "num/den" into numerator/denominator (denominator defaults to 1).
 void parse_rate(const std::string& value, int& num, int& den) {
     num = 0;
@@ -189,9 +210,8 @@ bool mastering_metadata_matches(
 bool probe_media(const std::filesystem::path& output, MediaContract& media,
                  bool require_exit_ok, double* ms_out) {
     const auto start = std::chrono::steady_clock::now();
-    std::string command =
-        "ffprobe -v error -show_streams -show_format -of json '" +
-        output.string() + "' 2>/dev/null";
+    std::string command = "ffprobe -v error -show_streams -show_format -of json " +
+                          quote_shell_path(output) + kSuppressStderr;
     const CapturedOutput captured = run_capture_checked(command);
     if (ms_out != nullptr) {
         const auto elapsed = std::chrono::steady_clock::now() - start;
@@ -302,10 +322,9 @@ bool probe_media(const std::filesystem::path& output, MediaContract& media,
 std::int64_t count_frames_ffprobe(const std::filesystem::path& output,
                                   double* count_ms_out) {
     const auto start = std::chrono::steady_clock::now();
-    std::string command =
-        "ffprobe -v error -count_frames -select_streams v:0 "
-        "-show_entries stream=nb_read_frames -of json '" +
-        output.string() + "' 2>/dev/null";
+    std::string command = "ffprobe -v error -count_frames -select_streams v:0 "
+                          "-show_entries stream=nb_read_frames -of json " +
+                          quote_shell_path(output) + kSuppressStderr;
     const CapturedOutput captured = run_capture_checked(command);
     if (count_ms_out != nullptr) {
         const auto elapsed = std::chrono::steady_clock::now() - start;

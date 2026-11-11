@@ -21,6 +21,21 @@
         "CHRONON3D_ENABLE_VERIFICATION": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests"
       }
+    },
+    {
+      "name": "win-gpu-release",
+      "inherits": "win-release",
+      "displayName": "Windows Release with Vulkan and CUDA",
+      "description": "Windows Release build with Vulkan, CUDA interop prerequisites, native FFmpeg and the test suite enabled.",
+      "binaryDir": "${sourceDir}/build/chronon/${presetName}",
+      "cacheVariables": {
+        "CHRONON3D_ENABLE_VULKAN": "ON",
+        "CHRONON3D_ENABLE_CUDA_INTEROP": "ON",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
+        "CHRONON3D_BUILD_C_API": "ON",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;tests;native-ffmpeg"
+      }
     }
   ],
   "buildPresets": [
@@ -28,12 +43,24 @@
       "name": "win",
       "configurePreset": "win-release",
       "jobs": 4
+    },
+    {
+      "name": "win-gpu",
+      "configurePreset": "win-gpu-release",
+      "jobs": 14
     }
   ],
   "testPresets": [
     {
       "name": "win-test",
       "configurePreset": "win-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "win-gpu-test",
+      "configurePreset": "win-gpu-release",
       "output": {
         "outputOnFailure": true
       }

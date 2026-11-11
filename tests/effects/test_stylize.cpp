@@ -208,8 +208,10 @@ TEST_CASE("Lens flare anamorphic wing is continuous and ignores dim pixels") {
     dim.set_pixel(128, 128, Color{0.5f, 0.5f, 0.5f, 1.0f});
     apply_effect_stack(dim, stack, context, registry);
     CHECK(dim.get_pixel(128, 128) == Color{0.5f, 0.5f, 0.5f, 1.0f});
-    for (int x = 96; x <= 160; ++x)
+    for (int x = 96; x <= 160; ++x) {
+        if (x == 128) continue; // the center intentionally contains the sub-threshold probe
         CHECK(dim.get_pixel(x, 128) == background);
+    }
 }
 
 TEST_CASE("MinMax square morphology matches known dilation and erosion pixels") {

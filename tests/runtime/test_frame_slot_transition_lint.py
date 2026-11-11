@@ -3,7 +3,6 @@
 
 from pathlib import Path
 import re
-import subprocess
 import sys
 
 
@@ -23,15 +22,14 @@ if "set_state" in POOL_HEADER.read_text() or "set_state" in POOL_SOURCE.read_tex
 
 # Every direct store of FrameExecutionSlot::state must remain inside the pool
 # authority. CAS transitions are intentionally allowed at the same boundary.
-result = subprocess.run(
-    ["rg", "-l", r"\.state\.store\(", "src", "include"],
-    cwd=ROOT,
-    check=False,
-    text=True,
-    capture_output=True,
-)
+writer_pattern = re.compile(r"\.state\.store\(")
+source_suffixes = {".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"}
 writer_files = {
-    Path(line).as_posix() for line in result.stdout.splitlines() if line.strip()
+    path.relative_to(ROOT).as_posix()
+    for tree in (ROOT / "src", ROOT / "include")
+    for path in tree.rglob("*")
+    if path.is_file() and path.suffix in source_suffixes
+    and writer_pattern.search(path.read_text(encoding="utf-8"))
 }
 if writer_files - {POOL_SOURCE.relative_to(ROOT).as_posix()}:
     fail("FrameSlotState::state has a direct writer outside FrameSlotPool: "

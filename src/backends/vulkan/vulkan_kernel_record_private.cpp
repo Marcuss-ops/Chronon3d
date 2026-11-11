@@ -395,14 +395,18 @@ namespace chronon3d::backends::vulkan {
         struct PushConstants {
             float p[5][4];
             float options[4];
+            std::int32_t clip_bounds[4];
         } params{};
-        static_assert(sizeof(PushConstants) == 96);
+        static_assert(sizeof(PushConstants) == 112);
         for (int row = 0; row < 5; ++row)
             for (int lane = 0; lane < 4; ++lane)
                 params.p[row][lane] = transform.p[static_cast<std::size_t>(row)][static_cast<std::size_t>(lane)];
         params.options[0] = static_cast<float>(transform.mode);
         params.options[1] = transform.clamp_unit ? 1.0f : 0.0f;
         params.options[2] = transform.straight_alpha ? 1.0f : 0.0f;
+        params.options[3] = transform.clip_enabled ? 1.0f : 0.0f;
+        for (int lane = 0; lane < 4; ++lane)
+            params.clip_bounds[lane] = transform.clip_bounds[static_cast<std::size_t>(lane)];
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,

@@ -160,7 +160,7 @@ struct DirectYuvLayer {
   float shadow_blur;
 };
 
-__device__ float4 unpack_direct_color(unsigned int color) {
+)CUDA" R"CUDA(__device__ float4 unpack_direct_color(unsigned int color) {
   return make_float4((float)(color & 0xFFu) / 255.0f,
                      (float)((color >> 8u) & 0xFFu) / 255.0f,
                      (float)((color >> 16u) & 0xFFu) / 255.0f,
@@ -285,7 +285,7 @@ __device__ float4 direct_mtsdf_shadow_sample(const DirectYuvLayer& layer,
                      shadow.w * layer.shadow_opacity * coverage);
 }
 
-__device__ inline bool direct_layer_shadow_in_bounds(const DirectYuvLayer& layer,
+)CUDA" R"CUDA(__device__ inline bool direct_layer_shadow_in_bounds(const DirectYuvLayer& layer,
                                                      int x, int y) {
   // The authored radius plus the prepared field's own edge softness, so the
   // faint outer falloff is not clipped by the glyph box.

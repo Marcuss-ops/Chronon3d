@@ -23,6 +23,7 @@
 
 #include <optional>
 
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -139,15 +140,26 @@ TEST_CASE("RuntimeContext isolation: two runtimes do not share state") {
         CHECK(resolver_a.mount_root().empty());
         CHECK(resolver_b.mount_root().empty());
 
-        // Mount different paths — must stay independent
-        resolver_a.mount(fs::path("/tmp"));
-        resolver_b.mount(fs::path("/usr"));
+        // Mount two real, platform-native paths — must stay independent.
+        const auto stamp = std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count());
+        const auto base = fs::temp_directory_path() / ("chronon-runtime-isolation-" + stamp);
+        const auto root_a = base / "assets-a";
+        const auto root_b = base / "assets-b";
+        fs::create_directories(root_a);
+        fs::create_directories(root_b);
+        struct MountCleanup {
+            fs::path path;
+            ~MountCleanup() { std::error_code ec; fs::remove_all(path, ec); }
+        } cleanup{base};
+        resolver_a.mount(root_a);
+        resolver_b.mount(root_b);
 
-        CHECK(resolver_a.mount_root() == "/tmp");
-        CHECK(resolver_b.mount_root() == "/usr");
+        CHECK(resolver_a.mount_root() == root_a);
+        CHECK(resolver_b.mount_root() == root_b);
 
         // Mounting on runtime_a must NOT leak into runtime_b
-        CHECK(resolver_b.mount_root() != "/tmp");
+        CHECK(resolver_b.mount_root() != root_a);
     }
 
     // ── §5: Schedulers are independent instances ───────────────────

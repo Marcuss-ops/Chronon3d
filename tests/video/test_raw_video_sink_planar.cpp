@@ -56,6 +56,7 @@ TEST_CASE("RawVideoSink: submit_planar with tight stride (stride=0)") {
     CHECK(std::memcmp(file_buf.data() + y_size,   u_buf.data(), uv_size) == 0);
     CHECK(std::memcmp(file_buf.data() + y_size + uv_size, v_buf.data(), uv_size) == 0);
 
+    file.close();
     std::filesystem::remove(path);
 }
 
@@ -115,6 +116,7 @@ TEST_CASE("RawVideoSink: submit_planar with non-zero stride") {
         CHECK(std::memcmp(dst, src, W / 2) == 0);
     }
 
+    file.close();
     std::filesystem::remove(path);
 }
 
@@ -160,6 +162,7 @@ TEST_CASE("RawVideoSink: submit_biplanar with tight stride") {
     CHECK(std::memcmp(file_buf.data(),         y_buf.data(), y_size) == 0);
     CHECK(std::memcmp(file_buf.data() + y_size, uv_buf.data(), uv_size) == 0);
 
+    file.close();
     std::filesystem::remove(path);
 }
 
@@ -210,6 +213,7 @@ TEST_CASE("RawVideoSink: submit_biplanar with non-zero stride") {
         CHECK(std::memcmp(dst, src, W) == 0);
     }
 
+    file.close();
     std::filesystem::remove(path);
 }
 

@@ -536,11 +536,13 @@ bool NativeAvEncoder::try_adopt_codec_session() {
     session->codec = nullptr;
     bitstream_contract_ = session->contract;
     bitstream_contract_probed_ = true;
-    // Reset the codec for the new frame/PTS timeline. The first frame of the
-    // new container is forced intra (session_restart_intra_pending_) so this
-    // item's MP4 starts on a keyframe and the adopted codec's previous GOP
-    // cannot leak into the new stream.
-    avcodec_flush_buffers(codec_);
+    // Do not call avcodec_flush_buffers() on an encoder here. FFmpeg's encoder
+    // implementations may treat it as a hard worker/lookahead reset (x264
+    // reports "lookahead thread is already stopped" and rejects the next
+    // frame). This session is deliberately parked unflushed and the supported
+    // zero-latency CQP profile has no delayed frames or adaptive rate state;
+    // each submitted frame carries the new job's PTS, and the first frame is
+    // forced intra so the new container starts on a clean keyframe.
     codec_session_adopted_ = true;
     session_restart_intra_pending_ = true;
     spdlog::info(

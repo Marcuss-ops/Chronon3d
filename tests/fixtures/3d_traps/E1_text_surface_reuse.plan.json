@@ -28,7 +28,7 @@
       "animation": {
         "tracks": [
           {
-            "easing": "out_cubic",
+            "easing": "linear",
             "keyframes": [
               {
                 "frame": 0,
@@ -58,7 +58,7 @@
             "property": "position_z"
           },
           {
-            "easing": "in_out_sine",
+            "easing": "linear",
             "keyframes": [
               {
                 "frame": 0,
@@ -84,7 +84,7 @@
             "property": "rotation_y"
           },
           {
-            "easing": "out_cubic",
+            "easing": "linear",
             "keyframes": [
               {
                 "frame": 0,
@@ -139,7 +139,7 @@
           "id": "text_dolly_orbit_glow_title",
           "properties": [
             {
-              "easing": "out_cubic",
+              "easing": "linear",
               "keyframes": [
                 {
                   "frame": 0,
@@ -161,7 +161,7 @@
               "property": "blur"
             },
             {
-              "easing": "out_cubic",
+              "easing": "linear",
               "keyframes": [
                 {
                   "frame": 0,
@@ -187,7 +187,7 @@
             {
               "combine": "replace",
               "end": {
-                "easing": "out_cubic",
+                "easing": "linear",
                 "keyframes": [
                   {
                     "frame": 0,
@@ -219,7 +219,7 @@
       "animation": {
         "tracks": [
           {
-            "easing": "out_cubic",
+            "easing": "linear",
             "keyframes": [
               {
                 "frame": 12,
@@ -241,7 +241,7 @@
             "property": "position_z"
           },
           {
-            "easing": "in_out_sine",
+            "easing": "linear",
             "keyframes": [
               {
                 "frame": 12,
@@ -263,7 +263,7 @@
             "property": "rotation_y"
           },
           {
-            "easing": "out_cubic",
+            "easing": "linear",
             "keyframes": [
               {
                 "frame": 12,
@@ -318,7 +318,7 @@
           "id": "text_dolly_orbit_glow_subtitle",
           "properties": [
             {
-              "easing": "out_cubic",
+              "easing": "linear",
               "keyframes": [
                 {
                   "frame": 12,
@@ -340,7 +340,7 @@
               "property": "blur"
             },
             {
-              "easing": "out_cubic",
+              "easing": "linear",
               "keyframes": [
                 {
                   "frame": 12,
@@ -366,7 +366,7 @@
             {
               "combine": "replace",
               "end": {
-                "easing": "out_cubic",
+                "easing": "linear",
                 "keyframes": [
                   {
                     "frame": 0,

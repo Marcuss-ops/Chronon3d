@@ -199,6 +199,8 @@ TEST_CASE("Vulkan AE effects match software including endpoints clipping and inv
         auto source = make_source();
         for (const auto clip : {std::optional<raster::BBox>{},
                                std::optional<raster::BBox>{raster::BBox{2, 1, 6, 3}}}) {
+            const auto* min_max = std::get_if<MinMaxParams>(&params);
+            const auto* lens_flare = std::get_if<LensFlareParams>(&params);
             auto expected = *source;
             effects::EffectExecutionContext context;
             context.clip = clip;
@@ -219,9 +221,26 @@ TEST_CASE("Vulkan AE effects match software including endpoints clipping and inv
             for (int y = 0; y < kH; ++y) for (int x = 0; x < kW; ++x) {
                 const auto c = expected.get_pixel(x, y);
                 const float channels[]{c.r, c.g, c.b, c.a};
-                for (int channel = 0; channel < 4; ++channel)
+                for (int channel = 0; channel < 4; ++channel) {
+                    INFO("clip=" << clip.has_value()
+                         << " clip_x0=" << (clip ? clip->x0 : -1)
+                         << " clip_y0=" << (clip ? clip->y0 : -1)
+                         << " clip_x1=" << (clip ? clip->x1 : -1)
+                         << " clip_y1=" << (clip ? clip->y1 : -1)
+                         << " minmax_radius=" << (min_max ? min_max->radius : 999)
+                         << " minmax_maximum=" << (min_max ? min_max->maximum : false)
+                         << " lens_radius=" << (lens_flare ? lens_flare->radius : -1.0f)
+                         << " lens_threshold=" << (lens_flare ? lens_flare->threshold : -1.0f)
+                         << " lens_intensity=" << (lens_flare ? lens_flare->intensity : -1.0f)
+                         << " lens_halo=" << (lens_flare ? lens_flare->halo : -1.0f)
+                         << " lens_ghost=" << (lens_flare ? lens_flare->ghost : -1.0f)
+                         << " lens_streak=" << (lens_flare ? lens_flare->streak : -1.0f));
+                    INFO("pixel=(" << x << ',' << y << ") channel=" << channel
+                         << " expected=" << channels[channel]
+                         << " actual=" << actual.pixels[(y * kW + x) * 4 + channel]);
                     CHECK(actual.pixels[(y * kW + x) * 4 + channel] ==
                           doctest::Approx(channels[channel]).epsilon(kTolerance));
+                }
             }
         }
     };
@@ -245,6 +264,7 @@ TEST_CASE("Vulkan AE effects match software including endpoints clipping and inv
     }
     SUBCASE("LensFlare") {
         check(LensFlareParams{});
+        check(LensFlareParams{.intensity = 2.0f, .streak = 0.0f});
         for (float threshold : {0.0f, 0.8f, 1.0f})
             check(LensFlareParams{.center = {0.25f, 0.75f}, .threshold = threshold, .intensity = 2.0f});
         CHECK_FALSE(run(LensFlareParams{.radius = 0.0f}, {}).ok);

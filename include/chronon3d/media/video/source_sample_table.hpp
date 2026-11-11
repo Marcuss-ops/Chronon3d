@@ -210,19 +210,33 @@ private:
     }
 
     [[nodiscard]] i64 checked_end(const SourceSample& sample) const noexcept {
-        const __int128 end = static_cast<__int128>(sample.pts) +
-                             static_cast<__int128>(sample.duration);
-        if (end > static_cast<__int128>(std::numeric_limits<i64>::max())) {
+        constexpr i64 max = std::numeric_limits<i64>::max();
+        constexpr i64 min = std::numeric_limits<i64>::min();
+        if (sample.duration > 0 && sample.pts > max - sample.duration) {
             return std::numeric_limits<i64>::max();
         }
-        if (end < static_cast<__int128>(std::numeric_limits<i64>::min())) {
+        if (sample.duration < 0 && sample.pts < min - sample.duration) {
             return std::numeric_limits<i64>::min();
         }
-        return static_cast<i64>(end);
+        return sample.pts + sample.duration;
     }
 
     [[nodiscard]] int compare(RationalTime lhs, i64 rhs_ticks) const {
         const Rational lhs_base = normalize_rational(lhs.time_base);
+#if defined(_MSC_VER)
+        // MSVC does not provide __int128. Keep the exact wide integer path on
+        // compilers that do; on MSVC, long double safely covers ordinary media
+        // timestamps and avoids overflowing signed 64-bit cross-products.
+        const long double left = static_cast<long double>(lhs.value) *
+            static_cast<long double>(lhs_base.numerator) *
+            static_cast<long double>(m_time_base.denominator);
+        const long double right = static_cast<long double>(rhs_ticks) *
+            static_cast<long double>(m_time_base.numerator) *
+            static_cast<long double>(lhs_base.denominator);
+        if (left < right) return -1;
+        if (left > right) return 1;
+        return 0;
+#else
         const __int128 left = static_cast<__int128>(lhs.value) *
                               static_cast<__int128>(lhs_base.numerator) *
                               static_cast<__int128>(m_time_base.denominator);
@@ -232,6 +246,7 @@ private:
         if (left < right) return -1;
         if (left > right) return 1;
         return 0;
+#endif
     }
 };
 

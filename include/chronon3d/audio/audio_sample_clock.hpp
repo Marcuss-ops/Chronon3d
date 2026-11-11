@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/types/time.hpp>
 
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 
@@ -56,13 +57,27 @@ public:
     /// Number of samples assigned to one frame. At fractional ratios this is
     /// intentionally not constant; the boundary difference is the authority.
     [[nodiscard]] i64 samples_for_frame(Frame frame) const {
+#if defined(_MSC_VER)
+        const auto first = sample_index_at_wide(static_cast<long double>(frame.integral()));
+        const auto last = sample_index_at_wide(static_cast<long double>(frame.integral()) + 1.0L);
+        return narrow_sample_count(last - first);
+#else
         const __int128 frame_index = static_cast<__int128>(frame.integral());
         const __int128 first = sample_index_at_wide(frame_index);
         const __int128 last = sample_index_at_wide(frame_index + 1);
         return narrow_sample_count(last - first);
+#endif
     }
 
     [[nodiscard]] AudioSampleSpan span_for_frame(Frame frame) const {
+#if defined(_MSC_VER)
+        const auto first = sample_index_at_wide(static_cast<long double>(frame.integral()));
+        const auto last = sample_index_at_wide(static_cast<long double>(frame.integral()) + 1.0L);
+        return AudioSampleSpan{
+            .first_sample = narrow_sample_index(first),
+            .sample_count = narrow_sample_count(last - first),
+        };
+#else
         const __int128 frame_index = static_cast<__int128>(frame.integral());
         const __int128 first = sample_index_at_wide(frame_index);
         const __int128 last = sample_index_at_wide(frame_index + 1);
@@ -70,6 +85,7 @@ public:
             .first_sample = narrow_sample_index(first),
             .sample_count = narrow_sample_count(last - first),
         };
+#endif
     }
 
     /// Exact media timestamp for an integer sample boundary.
@@ -78,6 +94,28 @@ public:
     }
 
 private:
+#if defined(_MSC_VER)
+    [[nodiscard]] long double sample_index_at_wide(long double frame_index) const noexcept {
+        const long double scaled = frame_index * m_sample_rate * m_frame_rate.denominator;
+        return std::floor(scaled / m_frame_rate.numerator);
+    }
+
+    [[nodiscard]] static i64 narrow_sample_index(long double value) {
+        if (value < static_cast<long double>(std::numeric_limits<i64>::min()) ||
+            value > static_cast<long double>(std::numeric_limits<i64>::max())) {
+            throw std::overflow_error("audio sample index overflow");
+        }
+        return static_cast<i64>(value);
+    }
+
+    [[nodiscard]] static i64 narrow_sample_count(long double value) {
+        if (value < 0.0L ||
+            value > static_cast<long double>(std::numeric_limits<i64>::max())) {
+            throw std::overflow_error("audio sample count overflow");
+        }
+        return static_cast<i64>(value);
+    }
+#else
     [[nodiscard]] __int128 sample_index_at_wide(__int128 frame_index) const noexcept {
         // i64 frame * i32 sample-rate * i32 frame denominator fits signed
         // 128-bit range, so the exact product is safe before division.
@@ -110,6 +148,7 @@ private:
         }
         return static_cast<i64>(value);
     }
+#endif
 
     i32 m_sample_rate{48000};
     FrameRate m_frame_rate{30, 1};

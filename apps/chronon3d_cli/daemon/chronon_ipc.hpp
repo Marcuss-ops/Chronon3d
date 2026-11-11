@@ -56,6 +56,8 @@
 #include <cstdint>
 #include <cstring>
 #include <exception>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -71,6 +73,11 @@
 #include <sys/un.h>
 #include <poll.h>
 #include <unistd.h>
+#else
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #endif
 
 #ifndef MSG_NOSIGNAL
@@ -137,8 +144,50 @@ inline void write_be32(std::uint8_t* p, std::uint32_t v) noexcept {
 }
 
 #ifdef _WIN32
-inline bool read_exact(int, std::uint8_t*, std::size_t) noexcept { return false; }
-inline bool write_exact(int, const std::uint8_t*, std::size_t) noexcept { return false; }
+using PipeHandle = HANDLE;
+
+inline bool read_exact(PipeHandle pipe, std::uint8_t* buffer, std::size_t size) noexcept {
+    std::size_t done = 0;
+    while (done < size) {
+        const DWORD request = static_cast<DWORD>(std::min<std::size_t>(size - done, MAXDWORD));
+        DWORD received = 0;
+        if (!::ReadFile(pipe, buffer + done, request, &received, nullptr) || received == 0)
+            return false;
+        done += received;
+    }
+    return true;
+}
+
+inline bool write_exact(PipeHandle pipe, const std::uint8_t* buffer, std::size_t size) noexcept {
+    std::size_t done = 0;
+    while (done < size) {
+        const DWORD request = static_cast<DWORD>(std::min<std::size_t>(size - done, MAXDWORD));
+        DWORD written = 0;
+        if (!::WriteFile(pipe, buffer + done, request, &written, nullptr) || written == 0)
+            return false;
+        done += written;
+    }
+    return true;
+}
+
+inline std::wstring pipe_name(std::string_view path) {
+    std::uint64_t hash = 14695981039346656037ull;
+    for (const unsigned char byte : path) {
+        hash ^= byte;
+        hash *= 1099511628211ull;
+    }
+    wchar_t suffix[17]{};
+    swprintf_s(suffix, L"%016llx", static_cast<unsigned long long>(hash));
+    return std::wstring(L"\\\\.\\pipe\\chronon3d_") + suffix;
+}
+
+inline HANDLE create_pipe_instance(std::string_view path) noexcept {
+    const std::wstring name = pipe_name(path);
+    return ::CreateNamedPipeW(name.c_str(), PIPE_ACCESS_DUPLEX,
+                              PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+                              PIPE_UNLIMITED_INSTANCES,
+                              64u * 1024u, 64u * 1024u, 0, nullptr);
+}
 #else
 /// Read exactly `n` bytes from a stream socket. Handles EINTR and partial reads.
 inline bool read_exact(int fd, std::uint8_t* buf, std::size_t n) noexcept {
@@ -243,8 +292,9 @@ inline Reply dispatch_request_safely(const RequestHandler& handler,
 } // namespace detail
 
 #ifdef _WIN32
-// Windows build stub: the persistent daemon transport currently uses Unix-domain sockets.
-// Direct one-shot CLI rendering remains available; daemon mode reports unsupported.
+// Windows uses a named pipe behind the same public path-based transport API.
+// The filesystem path is hashed into a local pipe name so daemon and client
+// callers keep the existing cross-platform command line and protocol.
 class UnixSocketServer {
 public:
     UnixSocketServer() = default;
@@ -252,16 +302,185 @@ public:
     UnixSocketServer(const UnixSocketServer&) = delete;
     UnixSocketServer& operator=(const UnixSocketServer&) = delete;
     void listen(std::string_view path) {
+        close();
         m_path = std::string(path);
-        throw std::system_error(std::make_error_code(std::errc::operation_not_supported),
-                                "ipc Unix sockets are unsupported on Windows");
+        if (m_path.empty()) {
+            throw std::system_error(std::make_error_code(std::errc::invalid_argument),
+                                    "ipc pipe path is empty");
+        }
+        m_pipe = detail::create_pipe_instance(m_path);
+        if (m_pipe == INVALID_HANDLE_VALUE) {
+            const DWORD error = ::GetLastError();
+            m_path.clear();
+            throw std::system_error(static_cast<int>(error), std::system_category(),
+                                    "ipc::CreateNamedPipe");
+        }
+        std::error_code removeError;
+        std::filesystem::remove(m_path, removeError);
+        std::ofstream endpoint(m_path, std::ios::binary | std::ios::out);
+        if (!endpoint) {
+            close();
+            throw std::system_error(std::make_error_code(std::errc::io_error),
+                                    "ipc::publish endpoint marker");
+        }
     }
-    int serve(const RequestHandler&) noexcept { return -1; }
-    int serve_concurrent(const RequestHandler&) noexcept { return -1; }
+    int serve(const RequestHandler& handler) noexcept {
+        for (;;) {
+            HANDLE pipe = m_pipe;
+            if (pipe == INVALID_HANDLE_VALUE) return ERROR_INVALID_HANDLE;
+            const BOOL connected = ::ConnectNamedPipe(pipe, nullptr);
+            const DWORD connectError = connected ? ERROR_SUCCESS : ::GetLastError();
+            if (!connected && connectError != ERROR_PIPE_CONNECTED) {
+                if (connectError == ERROR_OPERATION_ABORTED || connectError == ERROR_INVALID_HANDLE)
+                    return 0;
+                return static_cast<int>(connectError);
+            }
+
+            bool shutdown = false;
+            while (serve_once(pipe, handler, &shutdown)) {}
+            ::FlushFileBuffers(pipe);
+            ::DisconnectNamedPipe(pipe);
+            ::CloseHandle(pipe);
+            m_pipe = INVALID_HANDLE_VALUE;
+            if (shutdown) return 0;
+
+            pipe = detail::create_pipe_instance(m_path);
+            if (pipe == INVALID_HANDLE_VALUE) return static_cast<int>(::GetLastError());
+            m_pipe = pipe;
+        }
+    }
+    int serve_concurrent(const RequestHandler& handler) noexcept {
+        if (m_path.empty()) return ERROR_INVALID_HANDLE;
+        struct SharedState {
+            std::atomic<bool> stopping{false};
+            std::mutex mutex;
+            std::vector<HANDLE> pipes;
+        };
+        const auto state = std::make_shared<SharedState>();
+        constexpr std::size_t kAcceptors = 8;
+        std::vector<std::thread> workers;
+        try {
+            workers.reserve(kAcceptors);
+            for (std::size_t index = 0; index < kAcceptors; ++index) {
+                workers.emplace_back([this, &handler, state, index] {
+                    HANDLE pipe = INVALID_HANDLE_VALUE;
+                    {
+                        std::lock_guard lock(state->mutex);
+                        if (index == 0 && m_pipe != INVALID_HANDLE_VALUE) {
+                            pipe = m_pipe;
+                            m_pipe = INVALID_HANDLE_VALUE;
+                        } else {
+                            pipe = detail::create_pipe_instance(m_path);
+                        }
+                        if (pipe == INVALID_HANDLE_VALUE) {
+                            state->stopping.store(true, std::memory_order_release);
+                            return;
+                        }
+                        state->pipes.push_back(pipe);
+                    }
+                    while (!state->stopping.load(std::memory_order_acquire)) {
+                        const BOOL connected = ::ConnectNamedPipe(pipe, nullptr);
+                        const DWORD connectError = connected ? ERROR_SUCCESS : ::GetLastError();
+                        if (!connected && connectError != ERROR_PIPE_CONNECTED) {
+                            if (state->stopping.load(std::memory_order_acquire) ||
+                                connectError == ERROR_OPERATION_ABORTED ||
+                                connectError == ERROR_INVALID_HANDLE) break;
+                            state->stopping.store(true, std::memory_order_release);
+                            break;
+                        }
+                        bool shutdown = false;
+                        while (serve_once(pipe, handler, &shutdown)) {}
+                        ::FlushFileBuffers(pipe);
+                        ::DisconnectNamedPipe(pipe);
+                        if (shutdown) {
+                            state->stopping.store(true, std::memory_order_release);
+                            std::lock_guard lock(state->mutex);
+                            for (const HANDLE active : state->pipes) {
+                                ::CancelIoEx(active, nullptr);
+                                ::DisconnectNamedPipe(active);
+                            }
+                        }
+                        if (state->stopping.load(std::memory_order_acquire)) break;
+                        ::CloseHandle(pipe);
+                        {
+                            std::lock_guard lock(state->mutex);
+                            state->pipes.erase(std::remove(state->pipes.begin(), state->pipes.end(), pipe),
+                                               state->pipes.end());
+                            pipe = detail::create_pipe_instance(m_path);
+                            if (pipe == INVALID_HANDLE_VALUE) {
+                                state->stopping.store(true, std::memory_order_release);
+                                break;
+                            }
+                            state->pipes.push_back(pipe);
+                        }
+                    }
+                    if (pipe != INVALID_HANDLE_VALUE) {
+                        ::CancelIoEx(pipe, nullptr);
+                        ::DisconnectNamedPipe(pipe);
+                        ::CloseHandle(pipe);
+                        std::lock_guard lock(state->mutex);
+                        state->pipes.erase(std::remove(state->pipes.begin(), state->pipes.end(), pipe),
+                                           state->pipes.end());
+                    }
+                });
+            }
+        } catch (...) {
+            state->stopping.store(true, std::memory_order_release);
+            std::lock_guard lock(state->mutex);
+            for (const HANDLE active : state->pipes) {
+                ::CancelIoEx(active, nullptr);
+                ::DisconnectNamedPipe(active);
+            }
+        }
+        for (auto& worker : workers) if (worker.joinable()) worker.join();
+        return 0;
+    }
     [[nodiscard]] const std::string& path() const noexcept { return m_path; }
-    void close() noexcept { m_path.clear(); }
+    void close() noexcept {
+        if (m_pipe != INVALID_HANDLE_VALUE) {
+            ::CancelIoEx(m_pipe, nullptr);
+            ::DisconnectNamedPipe(m_pipe);
+            ::CloseHandle(m_pipe);
+            m_pipe = INVALID_HANDLE_VALUE;
+        }
+        if (!m_path.empty()) {
+            std::error_code ignored;
+            std::filesystem::remove(m_path, ignored);
+        }
+        m_path.clear();
+    }
 private:
     std::string m_path;
+    HANDLE m_pipe{INVALID_HANDLE_VALUE};
+
+    static bool serve_once(HANDLE pipe, const RequestHandler& handler, bool* shutdown) noexcept {
+        std::uint8_t header[kHeaderBytes];
+        if (!detail::read_exact(pipe, header, kHeaderBytes)) return false;
+        if (detail::read_be32(header) != kProtocolMagic) {
+            const auto bytes = encode_reply(Status::BadRequest, "bad magic");
+            detail::write_exact(pipe, bytes.data(), bytes.size());
+            return true;
+        }
+        const std::uint32_t command = detail::read_be32(header + 4);
+        const std::uint32_t payloadSize = detail::read_be32(header + 8);
+        if (payloadSize > kMaxPayloadBytes) {
+            const auto bytes = encode_reply(Status::BadRequest, "payload too large");
+            detail::write_exact(pipe, bytes.data(), bytes.size());
+            return true;
+        }
+        std::string payload(payloadSize, '\0');
+        if (payloadSize != 0 && !detail::read_exact(
+                pipe, reinterpret_cast<std::uint8_t*>(payload.data()), payloadSize)) return false;
+        const Request request{static_cast<Command>(command), std::move(payload)};
+        const Reply reply = detail::dispatch_request_safely(handler, request);
+        const auto bytes = encode_reply(reply.status, reply.message);
+        if (!detail::write_exact(pipe, bytes.data(), bytes.size())) return false;
+        if (reply.status == Status::Shutdown) {
+            *shutdown = true;
+            return false;
+        }
+        return true;
+    }
 };
 class UnixSocketClient {
 public:
@@ -269,12 +488,57 @@ public:
     ~UnixSocketClient() { close(); }
     UnixSocketClient(const UnixSocketClient&) = delete;
     UnixSocketClient& operator=(const UnixSocketClient&) = delete;
-    void connect(std::string_view) {
-        throw std::system_error(std::make_error_code(std::errc::operation_not_supported),
-                                "ipc Unix sockets are unsupported on Windows");
+    void connect(std::string_view path) {
+        close();
+        if (path.empty()) {
+            throw std::system_error(std::make_error_code(std::errc::invalid_argument),
+                                    "ipc pipe path is empty");
+        }
+        const std::wstring name = detail::pipe_name(path);
+        const ULONGLONG deadline = ::GetTickCount64() + 10000;
+        for (;;) {
+            m_pipe = ::CreateFileW(name.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                                   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (m_pipe != INVALID_HANDLE_VALUE) break;
+            const DWORD error = ::GetLastError();
+            if (error != ERROR_PIPE_BUSY && error != ERROR_FILE_NOT_FOUND) {
+                throw std::system_error(static_cast<int>(error), std::system_category(),
+                                        "ipc::CreateFile(pipe)");
+            }
+            const DWORD remaining = ::GetTickCount64() >= deadline
+                ? 0u : static_cast<DWORD>(deadline - ::GetTickCount64());
+            if (remaining == 0) {
+                throw std::system_error(static_cast<int>(error), std::system_category(),
+                                        "ipc::connect timeout");
+            }
+            ::WaitNamedPipeW(name.c_str(), std::min<DWORD>(remaining, 100));
+            ::Sleep(10);
+        }
     }
-    std::optional<Reply> request(Command, std::string_view = {}) noexcept { return std::nullopt; }
-    void close() noexcept {}
+    std::optional<Reply> request(Command cmd, std::string_view payload = {}) noexcept {
+        if (m_pipe == INVALID_HANDLE_VALUE || payload.size() > kMaxPayloadBytes) return std::nullopt;
+        const auto frame = encode_request(cmd, payload);
+        if (!detail::write_exact(m_pipe, frame.data(), frame.size())) return std::nullopt;
+        std::uint8_t header[kHeaderBytes];
+        if (!detail::read_exact(m_pipe, header, kHeaderBytes) ||
+            detail::read_be32(header) != kProtocolMagic) return std::nullopt;
+        const std::uint32_t status = detail::read_be32(header + 4);
+        const std::uint32_t messageSize = detail::read_be32(header + 8);
+        if (messageSize > kMaxPayloadBytes) return std::nullopt;
+        std::string message(messageSize, '\0');
+        if (messageSize != 0 && !detail::read_exact(
+                m_pipe, reinterpret_cast<std::uint8_t*>(message.data()), messageSize))
+            return std::nullopt;
+        return Reply{static_cast<Status>(status), std::move(message)};
+    }
+    void close() noexcept {
+        if (m_pipe != INVALID_HANDLE_VALUE) {
+            ::CloseHandle(m_pipe);
+            m_pipe = INVALID_HANDLE_VALUE;
+        }
+    }
+private:
+    HANDLE m_pipe{INVALID_HANDLE_VALUE};
 };
 #else
 

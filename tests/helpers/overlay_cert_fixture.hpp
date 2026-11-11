@@ -60,7 +60,8 @@ inline constexpr Frame kOverlayCertSubtitleFadeFrames = Frame{5};
 
 // ── Watermark (TopRight, 180 px, opacity 0.85, fade-in 8 frames) ─────────
 // RGBA checker pattern — deterministic logo stand-in with alpha.
-inline constexpr char kOverlayCertWatermarkAsset[] = "assets/images/checker.png";
+inline constexpr char kOverlayCertWatermarkAsset[] =
+    "tests/assets/camera_dof_occlusion/checkerboard_generated.png";
 inline constexpr float kOverlayCertWatermarkWidth = 180.0f;
 inline constexpr float kOverlayCertWatermarkMargin = 20.0f;
 inline constexpr float kOverlayCertWatermarkOpacity = 0.85f;

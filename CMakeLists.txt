@@ -20,7 +20,10 @@ endif()
 
 # Deterministic floating-point contraction policy, expressed per compiler.
 if(MSVC)
-    add_compile_options(/fp:strict)
+    # Keep source and execution character sets aligned for Unicode text assets
+    # and dependencies such as fmt, including targets that do not set their
+    # own per-target encoding flags.
+    add_compile_options(/fp:strict /utf-8 /EHsc)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-ffp-contract=off)
 endif()

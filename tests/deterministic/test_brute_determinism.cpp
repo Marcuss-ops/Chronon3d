@@ -449,6 +449,13 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
                 "BruteDeterm-17.d is not applicable with CHRONON3D_BUILD_CONTENT=OFF");
         return;
     }
+    const auto checker_asset =
+        std::filesystem::path(CHRONON3D_SOURCE_DIR) / "assets/images/checker.png";
+    if (!std::filesystem::is_regular_file(checker_asset)) {
+        MESSAGE("Skipping: Motion3DGlowOrbit's content asset corpus is not installed "
+                "(missing assets/images/checker.png)");
+        return;
+    }
     BRUTE_FAIL_LOUD_PRECONDITION(
         ffmpeg_available(),
         "ffmpeg not in PATH \u2014 install via apt install ffmpeg");

@@ -53,6 +53,34 @@ inline std::string filename(const VkPhysicalDeviceProperties& device, std::uint6
 
 inline std::vector<char> read(const std::filesystem::path& file,
                              const VkPhysicalDeviceProperties& device) {
+#ifdef _WIN32
+    const HANDLE handle = ::CreateFileW(file.c_str(), GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) return {};
+    LARGE_INTEGER size{};
+    if (!::GetFileSizeEx(handle, &size) ||
+        size.QuadPart < static_cast<LONGLONG>(kHeaderBytes) ||
+        size.QuadPart > static_cast<LONGLONG>(kMaximumBytes)) {
+        ::CloseHandle(handle);
+        return {};
+    }
+    std::vector<char> bytes(static_cast<std::size_t>(size.QuadPart));
+    std::size_t offset = 0;
+    while (offset < bytes.size()) {
+        const DWORD request = static_cast<DWORD>(std::min<std::size_t>(
+            bytes.size() - offset, MAXDWORD));
+        DWORD received = 0;
+        if (!::ReadFile(handle, bytes.data() + offset, request, &received, nullptr) || received == 0) {
+            ::CloseHandle(handle);
+            return {};
+        }
+        offset += received;
+    }
+    ::CloseHandle(handle);
+    if (!valid(bytes, device)) return {};
+    return bytes;
+#else
     std::ifstream input(file, std::ios::binary | std::ios::ate);
     if (!input) return {};
     const auto size = input.tellg();
@@ -63,6 +91,7 @@ inline std::vector<char> read(const std::filesystem::path& file,
     if (!input.read(bytes.data(), static_cast<std::streamsize>(bytes.size())) ||
         !valid(bytes, device)) return {};
     return bytes;
+#endif
 }
 
 // Unique sibling temporary files plus rename give readers a complete old or
@@ -90,8 +119,14 @@ inline bool write_atomic(const std::filesystem::path& file, std::span<const char
             return false;
         }
     }
-    if (::MoveFileExW(temporary.c_str(), file.c_str(),
-                      MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return true;
+    for (int attempt = 0; attempt < 32; ++attempt) {
+        if (::MoveFileExW(temporary.c_str(), file.c_str(),
+                          MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return true;
+        const DWORD error = ::GetLastError();
+        if (error != ERROR_ACCESS_DENIED && error != ERROR_SHARING_VIOLATION &&
+            error != ERROR_FILE_NOT_FOUND) break;
+        ::Sleep(1);
+    }
     (void)::DeleteFileW(temporary.c_str());
     return false;
 #else

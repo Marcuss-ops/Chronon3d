@@ -12,7 +12,35 @@
 #include <system_error>
 #include <utility>
 
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 namespace chronon3d::assets {
+namespace {
+
+bool canonical_target_is_within(const std::filesystem::path& root,
+                                const std::filesystem::path& target) {
+    auto root_component = root.begin();
+    auto target_component = target.begin();
+    for (; root_component != root.end(); ++root_component, ++target_component) {
+        if (target_component == target.end()) return false;
+#ifdef _WIN32
+        const auto& root_name = root_component->native();
+        const auto& target_name = target_component->native();
+        if (CompareStringOrdinal(root_name.data(), static_cast<int>(root_name.size()),
+                                 target_name.data(), static_cast<int>(target_name.size()),
+                                 TRUE) != CSTR_EQUAL)
+            return false;
+#else
+        if (*root_component != *target_component) return false;
+#endif
+    }
+    return true;
+}
+
+} // namespace
 
 void AssetResolver::mount(std::filesystem::path root_path) {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -117,11 +145,8 @@ AssetResolver::resolve_logical(const std::filesystem::path& path) const {
     if (ec) return std::nullopt;
     const auto canonical_target = std::filesystem::canonical(*candidate, ec);
     if (ec) return std::nullopt;
-    const auto relative = canonical_target.lexically_relative(canonical_root);
-    if (relative.empty() || relative.is_absolute()) return std::nullopt;
-    for (const auto& component : relative) {
-        if (component == "..") return std::nullopt;
-    }
+    if (!canonical_target_is_within(canonical_root, canonical_target))
+        return std::nullopt;
     // Return the resolved target, not the symlink spelling checked above.
     // This is confinement at resolution time, not an atomic sandboxed open:
     // callers must keep the mounted directory immutable while using the path.
