@@ -11,6 +11,11 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace chronon3d::media::video {
 namespace test_raw_sink {
@@ -19,7 +24,15 @@ namespace test_raw_sink {
 inline std::string temp_path(const char* suffix) {
     static std::atomic<int> counter{0};
     int id = counter.fetch_add(1);
-    const auto filename = "chronon3d_raw_sink_" + std::to_string(id) + "_" +
+    const auto process_id = static_cast<unsigned long long>(
+#ifdef _WIN32
+        _getpid()
+#else
+        getpid()
+#endif
+    );
+    const auto filename = "chronon3d_raw_sink_" + std::to_string(process_id) + "_" +
+                          std::to_string(id) + "_" +
                           std::string(suffix) + ".raw";
     return (std::filesystem::temp_directory_path() / filename).string();
 }

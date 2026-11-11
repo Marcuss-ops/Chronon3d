@@ -56,6 +56,7 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
             deterministic/test_determinism_matrix.cpp
             deterministic/test_sequential_graph_cache.cpp
             deterministic/test_brute_determinism.cpp
+            deterministic/test_text_warm_cold.cpp
         UNITY_EXCLUDE_SOURCES
             deterministic/test_tile_determinism.cpp
             deterministic/test_visual_regression_scenarios.cpp
