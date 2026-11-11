@@ -5,8 +5,9 @@
 // per the TICKET-CLI-ISOLATE-RUNTIME-DEV cleanup plan.
 //
 // Subcommands:
-//   bench <comp_id> [--frames N] [--warmup N] [...]         (was: chronon3d_cli bench)
-//   bench-convert <comp_id> [--frame N] [--iterations N]   (was: chronon3d_cli bench-convert)
+//   bench --plan <file.plan.json> [--frames N] [--warmup N] [...]
+//       Compiles the RenderPlan once and benchmarks the typed
+//       SoftwareRenderer::render_program() lane.
 //
 // Gates:
 //   CHRONON3D_BUILD_BENCHMARK_CLI (default OFF, this binary is OFF by default

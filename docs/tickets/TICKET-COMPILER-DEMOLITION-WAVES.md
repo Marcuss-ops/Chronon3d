@@ -1,8 +1,9 @@
 # Compiler Demolition Waves — Wave 1–4
 
-Status: `ACTIVE` (re-verified `d72a4efc2` on 2026-10-10: the 4 snapshot
-residuals are gone, but the compat execution path is still load-bearing —
-Wave 3 demolition NOT complete, previous close was premature)
+Status: `CLOSED — demolition (2026-11-10)`. Wave 3 typed runtime landed and the
+compat execution path no longer exists. Pixel/export equivalence is **NOT RUN**
+because the legacy lane was deleted, and no PASS is claimed. Residual
+measurement/refactor notes are transferred below.
 
 Obiettivo: lasciare una sola authority per execution, job normalization,
 compiler output e graph lowering, senza introdurre una seconda pipeline
@@ -11,7 +12,7 @@ sono coerenti.
 
 ## TODO — cosa manca (agg. 2026-10-31)
 
-- [ ] **Wave 3 — render-plan runtime esegue direttamente topology e parameter** — logica: il path compat è ancora load-bearing per l'esecuzione (la chiusura precedente era prematura); il runtime deve consumare direttamente topology+parameter senza il bridge. Dove: `src/render_graph/` (builder/compiler/optimizer), `src/compiler/compiler.cpp` + `program_sampler.cpp`, `src/render_graph/cache/scene_program_store.cpp`. Gate: le 4 snapshot di equivalenza (`d72a4efc2`) restano identiche e il path compat non è più raggiungibile dal runtime.
+- [x] **Wave 3 — render-plan runtime esegue direttamente topology e parameter** — CHIUSO (2026-11-10): `CompiledProgram` non conserva più `PreparedRenderPlan`/`CompiledComposition`; `Compiler::compile` non chiama `render_plan::compile_render_plan`; `prepare_render_plan` usa `compiler::compile`; zero riferimenti production a `render_compatibility*` e `render_compiled_composition_frame*`. L'equivalenza pixel/export legacy-vs-typed è **NOT RUN** (lane legacy cancellata) e non è dichiarata PASS.
 - [x] **Wave 3 video — eliminare i consumer CLI legacy** — l'intero percorso RenderPlan video (FullGraph, DirectYUV e GOP) consuma `CompiledProgram` e non materializza più `CompiledComposition`. Gli entrypoint CLI legacy non RenderPlan sono stati rimossi; `RenderJob` richiede `CompiledProgram`. Piano, consumer e gate: [`TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md`](TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md).
 Aggiornamento 2026-10-31: il bridge video RenderPlan è stato cancellato dal
 codice e dai test che lo esercitavano; il gate di equivalenza pixel/video resta
@@ -42,18 +43,13 @@ sotto le 1.000 righe. La semantica è invariata; non sono stati eseguiti test.
 - [x] Wave 3 — `ProgramMetadata` owns the output contract, prepared-asset
   manifest, request/content digests and admission budget; its public header
   no longer includes a `render_plan/*` header.
-- [ ] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
+- [x] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
   programs di `CompiledProgram`, senza materializzare `PreparedRenderPlan` /
-  `CompiledComposition` come payload dell’executor. BLOCCATO 2026-10-10:
-  `compiler::compile` accetta solo `RenderPlan`/`RenderJobSource`, nessun
-  lowering `Composition`→`CompiledProgram` esiste; restano live
-  `RenderEngine::render/prepare(Composition)`,
-  `SoftwareRenderer::render(Composition)`, il video exporter FFmpeg
-  (`pipe_export_stages.cpp` chiama diretto
-  `graph::render_compiled_composition_frame_temporal`; `render_plan_preparation`
-  costruisce `video_compatibility_view` per output non-PNG), SDK file methods
-  e 3 test. Rimuovere codice qui richiede prima il bridge + build
-  `linux-fast-dev` come equivalence gate.
+  `CompiledComposition` come payload dell’executor. CHIUSO (2026-11-10): the
+  authoring `Composition` entrypoints, the compatibility render helpers and the
+  SDK/CLI/daemon composition fields were removed with the legacy executor;
+  `CompiledProgram` is the only execution input. The legacy-vs-typed parity is
+  **NOT RUN** and not claimed.
 - [x] Wave 3.1 — il payload dello slot non possiede più
   `EvaluatedCompositionFrame`: scene e camera frame-local sono possedute dal
   lease come stato tipizzato separato.
@@ -134,21 +130,60 @@ sotto le 1.000 righe. La semantica è invariata; non sono stati eseguiti test.
   request parity, targeted render-graph tests e build `linux-fast-dev`.
 - Removal scope: legacy CLI adapter, public graph facade, obsolete CMake
   sources/targets e compatibility payload non più referenziati.
-- Status: `ACTIVE` 2026-10-31. The 4 `be14cbd86` snapshot residuals are
-  verified gone. RenderPlan FullGraph, DirectYUV and GOP now consume
-  `CompiledProgram`; `make_video_compatibility_view` and the CLI materialized
-  view have been removed. What remains is the authoring `Composition` object
-  model and non-RenderPlan legacy entrypoints (`RenderEngine`,
-  `SoftwareRenderer`, SDK and CLI). No `Composition`→`CompiledProgram`
-  lowering exists, so these APIs cannot be deleted without replacing their
-  authoring input contract. Next removal scope: migrate or isolate those
-  entrypoints, then delete `render_compiled_composition_frame*`,
-  `render_compatibility*` and `compatibility_composition`; equivalence and
-  pixel/export gates remain NOT RUN.
+- Status: `CLOSED — demolition (2026-11-10)`. The authoring `Composition`
+  entrypoints, `render_compiled_composition_frame*`, `render_compatibility*`,
+  `compatibility_composition` and the SDK/CLI/daemon composition fields were
+  removed with the legacy executor. `CompiledProgram` is the only execution
+  input. Pixel/export equivalence is **NOT RUN** (legacy lane deleted) and no
+  PASS is claimed. Residual measurement/refactor notes are transferred to
+  `TICKET-HOTSPOT-DECOMPOSITION.md`, `TICKET-COMPILER-BOUNDARY-WAVE7-9.md` and
+  `archive/TICKET-VK-LOCK-SHARDING.md`.
 
-## Verified residual census — `be14cbd86` + delta 2026-09-09
+## Closeout — 2026-11-10
 
-The following are deliberate blockers, not documentation debt:
+Wave 3 demolition is complete; this is a **code-demolition closure**, not a
+pixel/export certification.
+
+Evidence on the current tree:
+
+- `include/chronon3d/compiler/compiled_program.hpp` exposes only typed program
+  data; no `PreparedRenderPlan`/`CompiledComposition` member or bridge remains.
+- `CompiledProgramPlanBridge` and `compiled_program_plan_bridge.hpp` are gone
+  (`eed9d4049`); `tools/architecture_rules_wave2.toml` forbids their return.
+- `Compiler::compile` no longer calls `render_plan::compile_render_plan`;
+  `prepare_render_plan` compiles with `compiler::compile`.
+- Zero production references to `render_compatibility*` and
+  `render_compiled_composition_frame*` in `include/`, `src/`, `apps/`.
+- `RenderPlan` FullGraph, DirectYUV and GOP consume `CompiledProgram`; the CLI,
+  daemon/IPC, SDK and pipe-export composition paths were removed.
+
+Equivalence gate: **NOT RUN**. The legacy execution lane was deleted, so the
+still/sequence/video comparison is no longer executable from this tree; no PASS
+is claimed.
+
+Residual items transferred, not closed by this ticket:
+
+- **D28/D30** (physical graph-builder header moves and reverse include roots)
+  → [`TICKET-COMPILER-BOUNDARY-WAVE7-9.md`](TICKET-COMPILER-BOUNDARY-WAVE7-9.md).
+- **E31/E32/E34** (post-compatibility `RenderGraphContext` collapse and
+  duplicate-pointer removal) → [`TICKET-HOTSPOT-DECOMPOSITION.md`](TICKET-HOTSPOT-DECOMPOSITION.md).
+- **G42/G46/G47** (text-heavy benchmark, `SceneProgramStore` and
+  `DeviceScheduler` contention measurements) → `TICKET-HOTSPOT-DECOMPOSITION.md`.
+- **H49-H53** (Vulkan `recursive_mutex` follow-up) remain owned by
+  [`archive/TICKET-VK-LOCK-SHARDING.md`](archive/TICKET-VK-LOCK-SHARDING.md).
+
+The anti-resurrection caps were tightened on the same date:
+`render_compatibility*` and `render_compiled_composition_frame*` must stay at
+zero; `compile_composition` is capped at 6 (current occurrences: 4, all in the
+retained legacy plan-compiler artifact).
+
+## Verified residual census — `be14cbd86` + delta 2026-09-09 (historical)
+
+> Superseded by the 2026-11-10 closeout above. This census records the state
+> before the legacy executor demolition; its blockers no longer describe the
+> current tree.
+
+The following were deliberate blockers at that checkpoint:
 
 - `src/compiler/compiler.cpp` still calls `render_plan::compile_render_plan`
   and stores `PreparedRenderPlan` in `CompiledProgram`.
@@ -232,8 +267,9 @@ deleted.
 - Build `linux-video-fast-dev`, target `chronon3d_cli`, `-j12`, with
   `CHRONON3D_ENABLE_CUDA_INTEROP=OFF`: `PASS` (2026-10-31). The default video
   preset cannot configure on this host because CUDA headers/library are absent.
-- FullGraph, DirectYUV and GOP RenderPlan routes consume `CompiledProgram`;
-  legacy non-RenderPlan entrypoints retain their compatibility API. Build
+- FullGraph, DirectYUV and GOP RenderPlan routes consume `CompiledProgram`.
+  At the 2026-10-31 checkpoint the non-RenderPlan compatibility API still
+  existed; it was removed on 2026-11-10 (see the closeout above). Build
   `linux-video-fast-dev`, target `chronon3d_cli`, `-j12`: `PASS` (2026-10-31).
   No pixel-equivalence or video runtime test was run in this change.
 - Build `linux-fast-dev` dei target compiler, graph pipeline, CLI render e test

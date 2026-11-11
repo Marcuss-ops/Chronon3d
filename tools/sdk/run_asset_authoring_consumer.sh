@@ -15,9 +15,9 @@ SOURCE="$REPO_ROOT/tests/install_consumer/main_assets.cpp"
 # Compile-contract probes: exact explicit includes and typed asset syntax.
 for include in \
     chronon3d/assets/asset_ref.hpp \
-    chronon3d/scene/builders/layer_builder.hpp \
-    chronon3d/scene/builders/scene_builder.hpp \
-    chronon3d/text/text_definition.hpp \
+    chronon3d/assets/asset_resolver.hpp \
+    chronon3d/backends/image/image_writer.hpp \
+    chronon3d/core/memory/framebuffer.hpp \
     chronon3d/sdk/render_engine.hpp; do
     grep -Fq "#include <$include>" "$SOURCE" \
         || fail "asset consumer missing explicit include <$include>"
@@ -25,8 +25,10 @@ done
 
 grep -Fq 'assets::ImageRef{"images/logo.png"}' "$SOURCE" \
     || fail "asset consumer missing canonical typed image reference syntax"
-grep -Fq 'font_path = "fonts/Inter-Bold.ttf"' "$SOURCE" \
-    || fail "asset consumer missing canonical typed font reference syntax"
+grep -Fq '"asset": "images/logo.png"' "$SOURCE" \
+    || fail "asset consumer missing RenderPlan image asset reference"
+grep -Fq '"font": "fonts/Inter-Bold.ttf"' "$SOURCE" \
+    || fail "asset consumer missing RenderPlan font reference"
 
 if grep -Eq '#include[[:space:]]*<chronon3d/(chronon3d|authoring|render|advanced)\.hpp>' "$SOURCE"; then
     fail "asset consumer uses a retired umbrella header"

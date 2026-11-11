@@ -18,8 +18,12 @@ struct BenchState { std::shared_ptr<BenchArgs> args{std::make_shared<BenchArgs>(
 void register_bench_commands(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<BenchState>();
     auto& args = *state->args;
-    auto* cmd = app.add_subcommand("bench", "Benchmark a composition in-memory");
-    cmd->add_option("id", args.comp_id, "Composition name")->required();
+    auto* cmd = app.add_subcommand("bench", "Benchmark a RenderPlan in-memory");
+    cmd->add_option("--plan", args.plan_file, "RenderPlan JSON file")->required();
+    cmd->add_option("--assets-root", args.assets_root,
+                    "Asset root used to resolve plan paths (default: CWD)");
+    cmd->add_option("--label", args.label,
+                    "Benchmark label (default: plan job_id)");
     cmd->add_option("--frames", args.frames, "Measured frames")->default_val(120);
     cmd->add_option("--warmup", args.warmup, "Warmup frames")->default_val(10);
     cmd->add_flag("--no-dirty-rects", args.no_dirty_rects, "Disable dirty-rectangle invalidation (dirty rects are ON by default)");

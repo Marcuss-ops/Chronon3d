@@ -292,11 +292,11 @@ else
         # (not just the legacy `rect()` proxy).  Source-level audit
         # catches a regression where the image() call site is silently
         # replaced with rect() (the original gate chore gap).
-        if grep -qE '\bimage\s*\(' "$CONSUMER_SRC/main_full.cpp" 2>/dev/null; then
+        if grep -qE '"type"[[:space:]]*:[[:space:]]*"image"' "$CONSUMER_SRC/main_full.cpp" 2>/dev/null; then
             _gate_pass "image_surface (LayerBuilder::image() call site verified in source)"
         else
             _gate_fail "image_surface" \
-                "LayerBuilder::image() call site NOT found in main_full.cpp (rect() proxy still in use)"
+                "RenderPlan image layer NOT found in main_full.cpp (rect() proxy still in use)"
         fi
 
         # Verify the synthetic test_image.png is present at the

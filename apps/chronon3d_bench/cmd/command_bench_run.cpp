@@ -6,8 +6,9 @@
 #include <benchmark/benchmark.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
+#include <chronon3d/compiler/compiler.hpp>
+#include <chronon3d/render_plan/render_plan_core.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -18,6 +19,7 @@
 #include <fstream>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 #endif
@@ -28,10 +30,6 @@ namespace chronon3d::cli {
 using namespace detail;
 
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
-    if (!registry.contains(args.comp_id)) {
-        spdlog::error("Unknown composition: {}", args.comp_id);
-        return 1;
-    }
     if (args.frames <= 0) {
         spdlog::error("--frames must be greater than zero");
         return 1;
@@ -41,35 +39,87 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         return 1;
     }
 
-    auto composition = registry.create(args.comp_id);
-    auto compiled_result = chronon3d::compile_composition(composition, CompositionCompileContext{});
-    if (!compiled_result) {
-        spdlog::error("Composition compilation failed: {}", compiled_result.error().message);
+    // The typed lane is the only production execution input: read a
+    // RenderPlan, compile it once, then benchmark render_program().
+    std::ifstream plan_input(args.plan_file);
+    if (!plan_input.is_open()) {
+        spdlog::error("Failed to open render plan: {}", args.plan_file);
         return 1;
     }
-    auto compiled = std::make_shared<const CompiledComposition>(std::move(compiled_result).value());
+    std::ostringstream plan_contents;
+    plan_contents << plan_input.rdbuf();
+
+    render_plan::RenderPlan plan;
+    try {
+        const auto root = nlohmann::json::parse(plan_contents.str());
+        auto decoded = render_plan::decode_render_plan(root);
+        if (!decoded) {
+            spdlog::error("RenderPlan decode failed at '{}': {}",
+                          decoded.error().path, decoded.error().message);
+            return 1;
+        }
+        plan = std::move(decoded).value();
+    } catch (const std::exception& error) {
+        spdlog::error("RenderPlan JSON parse failed: {}", error.what());
+        return 1;
+    }
+
     RenderSettings settings;
+    if (plan.temporal_motion_blur) {
+        settings.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
+        settings.motion_blur.samples =
+            static_cast<int>(plan.temporal_motion_blur->samples);
+        settings.motion_blur.shutter_angle_deg =
+            plan.temporal_motion_blur->shutter_angle;
+        settings.motion_blur.shutter_phase_deg = -90.0f;
+    }
     if (args.no_dirty_rects) {
         settings.dirty.enabled = false;
         settings.dirty.use_bitmask = false;
         settings.dirty.use_tiles = false;
     }
-    auto renderer = create_renderer(registry, settings);
+
+    const std::filesystem::path assets_root = args.assets_root.empty()
+        ? std::filesystem::current_path()
+        : std::filesystem::path{args.assets_root};
+    auto renderer = create_renderer(
+        registry, settings, std::nullopt, assets_root);
+
+    auto* resolver = renderer->execution_context().text.assets;
+    if (resolver == nullptr) {
+        spdlog::error("Renderer has no asset resolver");
+        return 1;
+    }
+    compiler::CompileOptions compile_options;
+    compile_options.fingerprint.render_settings.width = plan.canvas.width;
+    compile_options.fingerprint.render_settings.height = plan.canvas.height;
+    compile_options.fingerprint.render_settings.motion_blur =
+        plan.temporal_motion_blur.has_value();
+    auto compiled_result = compiler::compile(plan, *resolver, compile_options);
+    if (!compiled_result) {
+        spdlog::error("Program compilation failed: {}",
+                      compiled_result.error().message);
+        return 1;
+    }
+    auto program = std::make_shared<const compiler::CompiledProgram>(
+        std::move(compiled_result).value());
+    const std::string label =
+        args.label.empty() ? plan.job_id : args.label;
 
     std::unique_ptr<ScopedSpdlogLevel> quiet_log_guard;
     if (args.quiet) quiet_log_guard = std::make_unique<ScopedSpdlogLevel>(spdlog::level::off);
     if (!args.quiet) {
-        spdlog::info("Benchmarking {} (warmup: {}, frames: {})", args.comp_id, args.warmup, args.frames);
+        spdlog::info("Benchmarking {} (warmup: {}, frames: {})", label, args.warmup, args.frames);
     }
 
     if (args.warmup_renderer) {
         const auto preparation = runtime::prepare_render(
-            renderer.get(), *compiled,
+            renderer.get(), *program,
             runtime::RenderPreparationOptions{
                 .warmup_renderer = true,
                 .warmup = runtime::RendererWarmupOptions{
-                    .width = composition.width(),
-                    .height = composition.height(),
+                    .width = plan.canvas.width,
+                    .height = plan.canvas.height,
                     .framebuffer_count = args.warmup_framebuffers,
                     .preallocate_framebuffers = true,
                     .touch_memory = true,
@@ -94,7 +144,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     }
 
     for (int i = 0; i < args.warmup; ++i) {
-        renderer->render_compiled(*compiled, static_cast<Frame>(i));
+        renderer->render_program(*program, static_cast<Frame>(i));
     }
 
     uint64_t saved_fb_alloc = 0;
@@ -118,7 +168,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     chronon3d::telemetry::clear_telemetry_stores();
 
     BenchRuntimeContext context;
-    context.compiled = std::move(compiled);
+    context.program = std::move(program);
     context.renderer = std::move(renderer);
     context.frames = args.frames;
     context.warmup = args.warmup;
@@ -126,7 +176,8 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     context.renderer->session().memory_aggregate().reset();
     g_bench_context = &context;
 
-    benchmark::AddCustomContext("comp_id", args.comp_id);
+    benchmark::AddCustomContext("label", label);
+    benchmark::AddCustomContext("plan_file", args.plan_file);
     benchmark::AddCustomContext("frames", std::to_string(args.frames));
     benchmark::AddCustomContext("warmup", std::to_string(args.warmup));
     benchmark::AddCustomContext("dirty_rects_status", context.no_dirty_rects ? "disabled" : "enabled");
@@ -170,7 +221,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     benchmark::JSONReporter file_reporter;
     file_reporter.SetOutputStream(&json_out);
 
-    const std::string benchmark_name = "chronon3d/render/" + args.comp_id;
+    const std::string benchmark_name = "chronon3d/render/" + label;
     benchmark::RegisterBenchmark(benchmark_name.c_str(), run_render_benchmark)->Unit(benchmark::kMillisecond);
     benchmark::RunSpecifiedBenchmarks(&display_reporter, &file_reporter);
     benchmark::Shutdown();
@@ -209,7 +260,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     if (!args.stats_json_file.empty() && context.renderer && context.renderer->counters()) {
         const auto* rc = context.renderer->counters();
         nlohmann::json stats_js;
-        stats_js["comp_id"] = args.comp_id;
+        stats_js["comp_id"] = label;
         stats_js["passes_before_fusion"] = static_cast<std::uint64_t>(
             rc->pixel_fusion_passes_before.load(std::memory_order_relaxed));
         stats_js["passes_after_fusion"] = static_cast<std::uint64_t>(
@@ -237,7 +288,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         nlohmann::json memory_js;
         memory_js["schema"] = "chronon3d.stats.v1";
         memory_js["session_id"] = fmt::format("bench-{}", chronon3d::profiling::timestamp_ns());
-        memory_js["scene_id"] = args.comp_id;
+        memory_js["scene_id"] = label;
         memory_js["frame_count"] = context.frames_rendered.load(std::memory_order_relaxed);
         memory_js["nodes"] = nlohmann::json::array();
         for (const auto& node : report.nodes) {

@@ -148,6 +148,12 @@ caller counts remain 15 / 6 / 9. No executor consumers or arbitrary callback
 contract was migrated in this tranche, and pixel-equivalence gates remain
 unrun; the ticket stays ACTIVE.
 
+> **2026-11-10 supersession:** the executor was demolished later that day.
+> The active gate now requires `render_compatibility*` and
+> `render_compiled_composition_frame*` to stay at **0**, and caps
+> `compile_composition` at the retained legacy plan-compiler artifact (6).
+> The 15 / 6 / 9 census above is historical.
+
 ## Checkout audit — 2026-11-09
 
 The current CLI boundary still has two execution inputs. `RenderRequest` can
@@ -341,6 +347,9 @@ Equivalence gates:
   certification.
 - The optional non-default consumers `apps/chronon3d_bench`
   (`CHRONON3D_BUILD_BENCHMARKS=OFF`) and `tests/install_consumer`
-  (`CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=OFF`) still contain authoring
-  examples that call removed APIs. They are excluded from the verified build
-  and are follow-up cleanup, not production executor callers.
+  (`CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=OFF`) were migrated to the typed
+  lane on 2026-11-10. `chronon3d_bench` compiles a `RenderPlan` file and
+  benchmarks `SoftwareRenderer::render_program`; all six install-consumer
+  executables (five C++ plus the C ABI consumer) build against the installed
+  SDK and run green. This closes the follow-up cleanup noted at demolition
+  time.

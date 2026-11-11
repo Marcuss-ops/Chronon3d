@@ -359,30 +359,30 @@ legacy_soft_cap = 0
 
 [[occurrence_cap]]
 name = "composition_executor_compile_callers_pinned"
-description = "P1 Composition migration: do not add compile_composition production callers"
+description = "Composition demolition: compile_composition is retained only in the legacy plan-compiler artifact"
 pattern = '\bcompile_composition\s*\('
-scan_paths = ["include", "src", "apps"]
-max_count = 15
-skip_comments = true
-hint = "The current Composition callback cannot be lowered generally. Migrate or retire an existing caller; do not add a new production dependency on the compatibility compiler."
-
-[[occurrence_cap]]
-name = "composition_compatibility_executor_callers_pinned"
-description = "P1 Composition migration: do not add render_compatibility production callers"
-pattern = '\brender_compatibility(?:_frames)?\s*\('
 scan_paths = ["include", "src", "apps"]
 max_count = 6
 skip_comments = true
-hint = "Use the typed CompiledProgram route for new production work. Reduce this pinned compatibility call-site count as existing users migrate."
+hint = "The compat executor is demolished. compile_composition may remain only in the legacy render_plan compiler and timeline declarations; production execution must use compiler::compile + CompiledProgram."
+
+[[occurrence_cap]]
+name = "composition_compatibility_executor_callers_pinned"
+description = "Composition demolition: render_compatibility* must stay deleted"
+pattern = '\brender_compatibility(?:_frames)?\s*\('
+scan_paths = ["include", "src", "apps"]
+max_count = 0
+skip_comments = true
+hint = "The compat executor was demolished on 2026-11-10. Any render_compatibility* production reference is a resurrection; use CompiledProgram."
 
 [[occurrence_cap]]
 name = "composition_legacy_frame_executor_callers_pinned"
-description = "P1 Composition migration: do not add legacy composition-frame executor callers"
+description = "Composition demolition: render_compiled_composition_frame* must stay deleted"
 pattern = '\brender_compiled_composition_frame(?:_temporal)?\s*\('
 scan_paths = ["include", "src", "apps"]
-max_count = 9
+max_count = 0
 skip_comments = true
-hint = "This adapter remains needed for current compatibility callers. New production rendering must use CompiledProgram entrypoints."
+hint = "The legacy composition-frame executor was demolished on 2026-11-10. Any production reference is a resurrection; use the typed CompiledProgram route."
 
 [[unique_source_owner]]
 name = "diagnostics_canonical_authority"

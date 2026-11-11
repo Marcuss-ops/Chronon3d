@@ -1,134 +1,86 @@
 // =============================================================================
 // tests/install_consumer/main_camera.cpp
 //
-// Installed SDK consumer using a resolved camera scene state.
-//
-// Camera regie is resolved before rendering and attached to each Scene.
+// Installed-SDK consumer using a resolved camera in a RenderPlan.
 //
 // Contract (P3-H strict):
 //   (a) Includes ONLY headers listed in cmake/Chronon3DPublicHeaders.cmake
-//   (b) Calls ONLY `chronon3d::sdk::RenderEngine::render(...)` +
-//       `chronon3d::save_png(...)` + public Scene/Layer/camera state
-//   (c) Uses resolved Camera2_5D as renderer input
+//   (b) Calls ONLY `sdk::RenderEngine::compile_plan_json()` +
+//       `sdk::RenderEngine::render_program()` + `chronon3d::save_png(...)`
+//   (c) Uses the plan's resolved camera block as renderer input
 //   (d) Output PNG via save_png
-//   (e) Pixel-hash check: fails if every pixel has mean luminance < 5/255
-//   (f) MUST NOT see `CameraSession` or `RenderGraph` — no `#include` of
-//       any internal header path
+//   (e) Pixel-hash check: fails if every pixel is below 5/255
+//   (f) MUST NOT see `CameraSession` or `RenderGraph` — no internal header
 //
 // Output marker: `[CAMERA-OK]` on success (consumed by
 // tools/sdk/run_external_consumer.sh).
 // =============================================================================
 
-#include <chronon3d/sdk/render_settings.hpp>
+#include "consumer_plan.hpp"
+
+#include <chronon3d/backends/image/image_writer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/scene/model/core/scene.hpp>
-#include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>                // save_png
+#include <chronon3d/sdk/render_settings.hpp>
 
-// STATIC ASSERT: the consumer must NOT see CameraSession or RenderGraph.
-// These types live under include/chronon3d/internal/ which is not on the
-// installed SDK's include path.  The presence of these names in the global
-// namespace would be a violation of the P3-H boundary contract — but at the
-// same time, we deliberately do NOT forward-declare them here, because the
-// contract is enforced by the include-path gate in
-// `tools/sdk/run_external_consumer.sh` (BANNED_RX) + the absence of these
-// headers from `cmake/Chronon3DPublicHeaders.cmake`.
-//
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
-#include <utility>
-#include <chronon3d/text/text_definition.hpp>
 
 namespace c3d = chronon3d;
 
+namespace {
+
+constexpr const char* kPlanJson = R"JSON({
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "p3h_camera_consumer",
+  "camera": {
+    "type": "perspective",
+    "position": [0, 0, -1200],
+    "rotation_deg": [0, 180, 0],
+    "focal_length_mm": 50,
+    "sensor_width_mm": 36,
+    "sensor_height_mm": 24,
+    "f_stop": 2.8,
+    "near": 1,
+    "far": 10000
+  },
+  "canvas": { "width": 1920, "height": 1080, "fps_num": 30, "fps_den": 1, "duration_frames": 60 },
+  "output": { "path": "sdk_camera_consumer_output.png", "format": "png" },
+  "layers": [
+    {
+      "id": "background",
+      "type": "shape",
+      "size": [1920, 1080],
+      "position": [960, 540],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": { "type": "rect", "fill": [0.05, 0.05, 0.07, 1.0] }
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "text": "PERSPECTIVE OK",
+      "size": [1920, 1080],
+      "position": [960, 540],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "style": { "font": "fonts/Inter-Bold.ttf", "font_size": 64, "fill": "#FFFFFF" }
+    }
+  ]
+})JSON";
+
+} // namespace
+
 int main(int argc, char* argv[]) {
     const char* assets_root = (argc > 1) ? argv[1] : "assets";
-    // ── 2. Composition spec (1920x1080 landscape) ─────────────────────
-    const c3d::CompositionSpec spec{
-        /* .name         */ "p3h_camera_consumer",
-        /* .width        */ 1920,
-        /* .height       */ 1080,
-        /* .frame_rate   */ c3d::FrameRate{30, 1},
-        /* .duration     */ 60,
-    };
 
-    // ── 3. Composition with resolved camera scene state ───────────────
-    auto comp = c3d::composition(
-        spec,
-        [&](const c3d::FrameContext& ctx) -> c3d::Scene {
-            c3d::SceneBuilder s(ctx);
-            c3d::Camera2_5D camera;
-            camera.enabled = true;
-            camera.position = {0.0f, 0.0f, -1200.0f};
-            camera.optics_mode = c3d::CameraOpticsMode::PhysicalLens;
-            camera.lens.focal_length = 50.0f;
-            camera.lens.f_stop = 2.8f;
-            camera.lens.close_focus = 450.0f;
-            camera.lens.sensor_width = 36.0f;
-            camera.lens.sensor_height = 24.0f;
-            camera.lens.gate_fit = c3d::GateFit::Fill;
-            s.set_evaluated_camera(std::move(camera));
-            // Background layer: GridBackground (built-in, no font needed)
-            s.layer("background", [&ctx](c3d::LayerBuilder& l) {
-                l.kind(c3d::LayerKind::Shape);
-                l.enable_3d();
-                l.accepts_lights(false);
-                l.grid_background("grid_bg", c3d::GridBackgroundParams{
-                    .size = {static_cast<c3d::f32>(ctx.width),
-                             static_cast<c3d::f32>(ctx.height)},
-                    .offset = {0.0f, 0.0f},
-                    .bg_color = c3d::Color{0.05f, 0.05f, 0.07f, 1.0f},
-                    .grid_color = c3d::Color{0.30f, 0.30f, 0.40f, 1.0f},
-                    .spacing = 80.0f,
-                    .minor_thickness = 1.0f,
-                    .major_thickness = 2.0f,
-                    .major_every = 4,
-                    .centered = true,
-                });
-            });
-
-            // Text layer — sanity for the perspective.
-            s.layer("title", [&ctx](c3d::LayerBuilder& l) {
-                l.kind(c3d::LayerKind::Text);
-                l.enable_3d();
-                l.accepts_lights(false);
-                l.text("title_text", c3d::TextDefinition{
-    .content = {.value = "PERSPECTIVE OK"},
-    .style = {
-        .font = {.font_path = "fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 64.0f},
-        .color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}
-    },
-    .frame = {
-        .size = {static_cast<c3d::f32>(ctx.width),
-                                       static_cast<c3d::f32>(ctx.height)},
-        .align = c3d::TextAlign::Center,
-        .vertical_align = c3d::VerticalAlign::Middle
-    }
-});
-            });
-
-            c3d::Scene scene = s.build();
-
-            return scene;
-        });
-
-
-    // ── 5. Render settings + engine ──────────────────────────────────
     c3d::sdk::RenderSettings settings{};
-    settings.width = spec.width;
-    settings.height = spec.height;
+    settings.width = 1920;
+    settings.height = 1080;
     settings.antialiasing_samples = 1;
     settings.deterministic = true;
     settings.dirty_rects = false;
@@ -137,11 +89,15 @@ int main(int argc, char* argv[]) {
     c3d::sdk::RenderEngine engine{settings};
     engine.set_assets_root(std::filesystem::path{assets_root});
 
-    // ── 6. Render frame 30 (the spec example) ─────────────────────────
-    auto result = engine.render(comp, c3d::sdk::Frame{30});
+    auto program = consumer::compile_plan(engine, kPlanJson, "camera");
+    if (!program) {
+        return 1;
+    }
+
+    auto result = engine.render_program(*program, c3d::sdk::Frame{30});
     if (!result.has_value()) {
         std::fprintf(stderr,
-                     "[CAMERA-FAIL] sdk::RenderEngine::render failed: "
+                     "[CAMERA-FAIL] sdk::RenderEngine::render_program failed: "
                      "code=%s message=%s\n",
                      c3d::sdk::render_error_code_name(result.error().code),
                      result.error().message.c_str());
@@ -154,33 +110,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // ── 7. Bridge: RenderOutput → Framebuffer ─────────────────────────
     c3d::Framebuffer fb{out.width, out.height};
-    const std::uint8_t* src = out.pixels;
-    // SDK only reports canonical RGBA8 (Bgra8 spelling retired).
-    const bool is_bgra = false;
-    const std::size_t row_stride =
-        (out.bytes_per_row > 0)
-            ? static_cast<std::size_t>(out.bytes_per_row)
-            : static_cast<std::size_t>(out.width) * 4u;
-    constexpr float inv = 1.0f / 255.0f;
+    consumer::copy_pixels(out, fb);
 
-    for (std::int32_t y = 0; y < out.height; ++y) {
-        for (std::int32_t x = 0; x < out.width; ++x) {
-            const std::size_t idx =
-                static_cast<std::size_t>(y) * row_stride
-                + static_cast<std::size_t>(x) * 4u;
-            c3d::Color c;
-            if (is_bgra) {
-                c = c3d::Color{src[idx+2]*inv, src[idx+1]*inv, src[idx+0]*inv, 1.0f};
-            } else {
-                c = c3d::Color{src[idx+0]*inv, src[idx+1]*inv, src[idx+2]*inv, 1.0f};
-            }
-            fb.set_pixel(x, y, c);
-        }
-    }
-
-    // ── 8. Pixel-hash check (≥ 5/255 on ≥ 1 pixel) ───────────────────
     constexpr float kThreshold = 5.0f / 255.0f;
     std::size_t nonzero_count = 0;
     const c3d::Color* fdata = fb.data();
@@ -198,7 +130,6 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // ── 9. Save PNG ──────────────────────────────────────────────────
     const std::filesystem::path output_path = "sdk_camera_consumer_output.png";
     if (!c3d::save_png(fb, output_path.string())) {
         std::fprintf(stderr, "[CAMERA-FAIL] save_png failed for %s\n",
@@ -212,15 +143,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // ── 10. Boundary marker ──────────────────────────────────────────
     const auto file_size = std::filesystem::file_size(output_path);
     std::printf("[CAMERA-OK] public camera facade consumer rendered %dx%d "
                 "PNG (%zu bytes, %zu/%zu pixels >5/255, "
-                "scene=set_evaluated_camera(resolved_camera), "
-                "format=%s)\n",
+                "scene=plan camera perspective, format=Rgba8)\n",
                 out.width, out.height,
                 static_cast<std::size_t>(file_size),
-                nonzero_count, fb.pixel_count(),
-                (is_bgra ? "Bgra8" : "Rgba8"));
+                nonzero_count, fb.pixel_count());
     return 0;
 }

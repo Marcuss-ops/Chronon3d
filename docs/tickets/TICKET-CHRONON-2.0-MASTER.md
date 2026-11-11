@@ -125,7 +125,7 @@ certificato.
 | ID | Repo | Azione atomica | Gate / evidenza | Stato |
 |---|---|---|---|---|
 | P3-01 | Template/RenderingGen | Import timeline OpenTimelineIO (clip, cut, range, media refs) | `.otio`→scena→MP4; errore esplicito su effetti non traducibili | **OPEN** |
-| P3-02 | C3D/Template | Censire/migrare `CompiledComposition` legacy | Consumer zero o adapter opzionale, corpus 8/8 | **PARTIAL** — DirectYUV legacy overloads removed 2026-11-10; SDK/registry/RenderEngine/renderer/daemon consumers and corpus 8/8 remain |
+| P3-02 | C3D/Template | Censire/migrare `CompiledComposition` legacy | Consumer zero o adapter opzionale, corpus 8/8 | **PARTIAL (consumer zero)** — 2026-11-10: DirectYUV overloads, SDK/registry/RenderEngine/renderer/daemon composition consumers removed with the legacy executor. Corpus 8/8 **NOT RUN** (legacy lane deleted), no PASS. |
 | P3-03 | C3D | Eliminare `Fill` duplicati dopo decisione ABI | Ratchet eccezioni + test visuali | **PARTIAL** |
 | P3-04 | C3D | SDK installabile (`find_package`), CLI release, consumer esterno | Clean install Linux/Windows in CI, example 5 s | **OPEN** |
 | P3-05 | CM3D | Bundle CM3D→RenderPlan senza renderer nel producer | Test ABI e dependency boundaries | **PARTIAL** |

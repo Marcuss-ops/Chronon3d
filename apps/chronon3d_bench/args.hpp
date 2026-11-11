@@ -12,7 +12,9 @@
 namespace chronon3d::cli {
 
 struct BenchArgs {
-    std::string comp_id;
+    std::string plan_file;
+    std::string assets_root;
+    std::string label;
     int frames{100};
     int warmup{10};
     bool no_dirty_rects{false};

@@ -8,7 +8,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <atomic>
 #include <cstdint>
-#include <chronon3d/timeline/compiled_composition.hpp>
+#include <chronon3d/compiler/compiled_program.hpp>
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
@@ -30,7 +30,7 @@ private:
 };
 
 struct BenchRuntimeContext {
-    std::shared_ptr<const CompiledComposition> compiled;
+    std::shared_ptr<const compiler::CompiledProgram> program;
     std::shared_ptr<SoftwareRenderer> renderer;
     int frames{0};
     int warmup{0};

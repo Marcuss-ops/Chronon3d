@@ -80,7 +80,7 @@ CLIENT (Go / Rust / Node)
 | `src/ipc/unix_socket_transport.hpp` | Unix-domain socket implementation |
 | `src/ipc/ipc_codec.hpp` | Typed request/reply types |
 | `src/ipc/ipc_codec.cpp` | FlatBuffers ↔ WireFrame encoding/decoding |
-| `src/ipc/composition_session.hpp` | Session-scoped compiled composition cache |
+| `src/ipc/composition_session.hpp` | Session-scoped compiled composition cache — removed 2026-11-10 with the legacy executor |
 | `src/ipc/ipc_command_dispatcher.hpp` | IpcRequest → Chronon Runtime dispatch |
 | `apps/chronon3d_daemon/main.cpp` | Daemon entry point |
 | `apps/chronon3d_daemon/CMakeLists.txt` | Daemon build targets |

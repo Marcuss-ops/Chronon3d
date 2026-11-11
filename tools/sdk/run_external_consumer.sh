@@ -13,7 +13,8 @@
 #   2. `check_text` — text rendering certifier (Text Export V1):
 #      (a) stdout/stderr contains [TEXT-OK] marker
 #      (b) sdk_text_consumer_output.png non-empty
-#      (c) text shaped and rendered via SceneBuilder + l.text() API
+#      (c) text rendered from a RenderPlan text layer via
+#          compile_plan_json() + render_program()
 #   3. `check_c_api` — C ABI release gate (CABI_01..CABI_13) against the
 #      installed Chronon3D::C shared library (libchronon3d_c.so.2);
 #      emits C_ABI_CONSUMER_PASS only when every non-skipped test passed.
@@ -73,22 +74,30 @@ if [[ -n "$banned_hits" ]]; then
     fail "phase4 strict: consumer source contains banned-path includes"
 fi
 
-# (3a) Productive text run present.
-text_hits="$(grep -cE 'TextShape|LayerKind::Text' "$CONSUMER_SRC" 2>/dev/null || echo 0)"
+# (3a) Productive text layer present in the RenderPlan document.
+text_hits="$(grep -cE '"type"[[:space:]]*:[[:space:]]*"text"' "$CONSUMER_SRC" 2>/dev/null || echo 0)"
 text_hits="${text_hits//[[:space:]]/}"   # strip whitespace
 if [[ "${text_hits:-0}" -lt 1 ]]; then
-    fail "phase4 strict: consumer source missing TextShape / LayerKind::Text (productive text run required)"
+    fail "phase4 strict: consumer source missing a RenderPlan text layer"
 fi
 log "  - text layer markers: $text_hits hit(s)"
 
-# (3b) A resolved camera is supplied to the renderer. Camera authoring is
-# upstream; the SDK consumer passes Camera2_5D renderer state to the Scene.
-camera_hits="$(grep -cE 'Camera2_5D|set_evaluated_camera' "$CONSUMER_SRC" 2>/dev/null || echo 0)"
+# (3b) A resolved camera is supplied by the camera consumer's RenderPlan.
+CAMERA_SRC="$REPO_ROOT/tests/install_consumer/main_camera.cpp"
+camera_hits="$(grep -cE '"camera"[[:space:]]*:' "$CAMERA_SRC" 2>/dev/null || echo 0)"
 camera_hits="${camera_hits//[[:space:]]/}"
 if [[ "${camera_hits:-0}" -lt 1 ]]; then
-    fail "phase4 strict: consumer source must supply resolved Camera2_5D state via set_evaluated_camera"
+    fail "phase4 strict: main_camera.cpp must supply a RenderPlan camera block"
 fi
 log "  - resolved camera markers: $camera_hits hit(s)"
+
+# (3c) The consumers must use the canonical typed render lane.
+typed_hits="$(grep -cE 'compile_plan_json|render_program' "$CONSUMER_SRC" 2>/dev/null || echo 0)"
+typed_hits="${typed_hits//[[:space:]]/}"
+if [[ "${typed_hits:-0}" -lt 1 ]]; then
+    fail "phase4 strict: consumer source does not use the typed RenderPlan lane"
+fi
+log "  - typed lane markers: $typed_hits hit(s)"
 
 # (4a) sdk::RenderEngine used ≥ 1 (P3-H productive engine path).
 sdk_hits="$(grep -cE '(^|[^A-Za-z0-9_])(chronon3d|c3d)::sdk::RenderEngine' "$CONSUMER_SRC" 2>/dev/null || echo 0)"

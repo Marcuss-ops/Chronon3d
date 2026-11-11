@@ -47,7 +47,7 @@ ticket and the audit wave table (ephemeral, not stored in-tree).
 10. `NodeMemoryTracker` / `RenderErrorSlot` current owner → `JobSession`; Wave 7 pending seams unchanged.
 11. `prepared_composition` row: DONE — JobSession holds `CompiledProgram` only (no authoring composition).
 12. authoring name/identity + authoring compiled composition rows: current owner → `CompiledProgram`; compatibility view now routed through the Wave-2 internal plan bridge.
-13. evaluated frame / rendered surface rows: status updated to slot-lease model (non-nullable slot refs, `PreparedRenderJob` no longer owns a second lease/queue protocol).
+13. evaluated frame / rendered surface rows: slot-lease model (non-nullable slot refs); `PreparedRenderJob` was removed with the legacy executor on 2026-11-10, so no job object owns a second lease/queue protocol.
 
 ## Invariants
 
@@ -59,8 +59,8 @@ ticket and the audit wave table (ephemeral, not stored in-tree).
 3. `RuntimeContext` is process/engine lifetime and is borrowed by jobs.
 4. A compatibility bridge may forward to the canonical owner, but may not keep
    a second mutable copy.
-5. `PreparedRenderJob` orchestrates `FrameSlotPool`, `FrameQueue` and
-   `GpuCompletionTracker`; it does not create another lifecycle protocol.
+5. `FrameSlotPool`, `FrameQueue` and `GpuCompletionTracker` form the single
+   lifecycle protocol; the removed `PreparedRenderJob` did not own a second one.
 
 ## Exit criteria
 

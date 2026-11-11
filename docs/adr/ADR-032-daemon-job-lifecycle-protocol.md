@@ -17,15 +17,17 @@ whole-video export.
 
 Add backward-compatible FlatBuffers union variants for `PrepareJob`,
 `RenderJob`, `ReleaseJob`, `GetJobStatus`, and `Health`. In this increment,
-`RenderJob` renders one frame of a prepared composition through the existing
-`PreparedRenderJob`; its status is retained for `GetJobStatus`. States are
+`RenderJob` rendered one frame of a prepared composition through
+`PreparedRenderJob` (removed 2026-11-10 with the legacy executor; the typed
+lane is `CompiledProgram`); its status was retained for `GetJobStatus`. States are
 `Unknown`, `Prepared`, `Running`, `Completed`, `Failed`, and `Released`.
 `Health` reports daemon readiness independently of render counters.
 The frame result is currently consumed in-process and no image/video artifact
 is emitted by this API increment.
 
-The existing per-session `CompositionSession` remains the lifecycle owner; no
-second composition or job registry is introduced. The commands are additive to
+The per-session `CompositionSession` was the lifecycle owner at the time of
+this decision (removed 2026-11-10 with the legacy executor); no second
+composition or job registry is introduced. The commands are additive to
 `CreateComposition` and `RenderFrame`. Whole-video plan execution, scheduling,
 encoding, and prepared-job eviction remain outside this protocol increment.
 The session retains at most 256 released or prepare-failed status tombstones;

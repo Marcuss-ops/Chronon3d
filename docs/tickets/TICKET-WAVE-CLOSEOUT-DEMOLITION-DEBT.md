@@ -1,8 +1,11 @@
 # TICKET — Wave closeout demolition debt
 
-**Stato (2026-11-02): ACTIVE** — resta l'edge runtime in `SoftwareRenderSession`
-e il closeout C20/C22/C23 della composition compatibility, entrambi con
-condizioni di uscita esplicite sotto.
+**Stato (2026-11-10): ACTIVE (narrowed)** — the C20/C22/C23 composition
+compatibility chain was demolished on 2026-11-10 (see
+`TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md`); the legacy-vs-typed pixel
+equivalence corpus is **NOT RUN** and no PASS is claimed; the feature-absent
+gate is closed by the physical deletion. The remaining open item is the
+`SoftwareRenderSession` → `runtime/job/job_session.hpp` header decision below.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
@@ -11,11 +14,11 @@ condizioni di uscita esplicite sotto.
       dei tipi, commento originale dello header: "tiny header... not installed
       con lo SDK") e 7 includer aggiornati; nessuna referenza residua.
 - [ ] **Edge `software_render_session.hpp` → `runtime/job/job_session.hpp`** — logica: è l'ultimo edge sulla superficie pubblica software; `SoftwareRenderSession` embedde `runtime::JobSession` **by value**, quindi serve la migrazione “Spostare e separare runtime::JobSession” (ridisegno, non un taglio include): spostare il cluster di stato in una casa neutra (es. `chronon3d/session/`) senza shim. Dove: cluster `job_session.hpp` + `dirty_history.hpp`, `frame_history.hpp`, `frame/{frame_queue,frame_slot_pool,frame_error_slot,gpu_completion_tracker}.hpp`, `resource_plan.hpp`, `render_surface.hpp`, `internal/runtime/history_state.hpp` (~33 includer). Gate: build software senza `#include <chronon3d/runtime/...>`.
-- [ ] **Catena C20/C22/C23 (compatibility composition)** — logica: C22 (equivalence corpus a 8 casi: animated transform, opacity, text, camera, visibility, frame-varying callbacks, assets, batch ordering) è l'unico bloccante; a C22 verde, C23 demolisce `compatibility_composition`, `render_compatibility*`, l'adapter di preparation e la timeline compatibility includes. Dove: `render_engine*.cpp/hpp`, `render_pipeline_batch.cpp`. Gate: hash frame-by-frame identici fra `compatibility_composition` e `CompiledProgram` → demolizione.
+- [x] **Catena C20/C22/C23 (compatibility composition)** — CHIUSA (2026-11-10): `compatibility_composition`, `render_compatibility*`, l'adapter di preparation e la timeline compatibility sono stati rimossi con il legacy executor. L'equivalenza pixel legacy-vs-typed NON è stata eseguita (la lane legacy non esiste più) e non viene dichiarata PASS; vedi `TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md`.
 
 ## Assorbimenti 2026-11-05
 
-- [ ] **Gate “feature assente = costo fisico zero”** — assorbito da `archive/TICKET-LOCAL-ACCEPTANCE-CLOSEOUT-2026-09-16.md`; va chiuso insieme alla catena C20–C23.
+- [x] **Gate “feature assente = costo fisico zero”** — CHIUSO (2026-11-10) con la catena C20–C23: la lane compatibility non esiste più fisicamente, quindi il costo del feature assente è zero per costruzione. Evidenza: zero riferimenti production a `render_compatibility*` e `render_compiled_composition_frame*`; adapter ed executor sono stati cancellati, non solo disattivati. Il gate non è una misura di performance: è l'assenza fisica della feature.
 
 ## DOF graph node consolidation
 
@@ -46,7 +49,11 @@ compiler/runtime and final video-plan contracts replace older entry points.
   frame-varying callbacks, camera evaluation, assets, and batch ordering.
 - **Removal scope:** `compatibility_composition`, the Composition preparation
   overload/adapter, compatibility render methods, and their timeline includes.
-- **Status:** `ACTIVE`
+- **Status:** `REMOVED` (2026-11-10) — the adapter described above no longer
+exists in the tree; the record is retained for history. Pixel/sequence/video
+parity was **NOT RUN** and is not claimed.
+
+> Historical census below; superseded by the 2026-11-10 demolition.
 
 ### FASE C20-C25 — census 2026-09-09 (typed Composition lowering)
 
