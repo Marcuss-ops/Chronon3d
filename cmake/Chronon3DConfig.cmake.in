@@ -49,7 +49,7 @@ endif()
 # pipeline's exported interface when the build host used EVP. Resolve it
 # opportunistically here: fallback builds export a concrete crypto library
 # path instead, so OpenSSL must not become a hard dependency of those builds.
-find_dependency(OpenSSL QUIET COMPONENTS Crypto)
+find_package(OpenSSL QUIET COMPONENTS Crypto)
 #
 # The block between the AUTO-GENERATED markers is regenerated from
 # CHRONON3D_SDK_PUBLIC_DEPS (single source of truth in
@@ -124,6 +124,13 @@ if(@CHRONON3D_ENABLE_TEXT@ AND @CHRONON3D_USE_BLEND2D@)
 endif()
 if(@CHRONON3D_ENABLE_EXR@)
     find_dependency(OpenEXR CONFIG)
+endif()
+if(@CHRONON3D_ENABLE_VULKAN@)
+    # chronon3d_backend_vulkan is exported with Vulkan::Vulkan and
+    # GPUOpen::VulkanMemoryAllocator in its link interface; resolve both
+    # packages before importing targets.
+    find_dependency(Vulkan)
+    find_dependency(VulkanMemoryAllocator CONFIG)
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/Chronon3DTargets.cmake")

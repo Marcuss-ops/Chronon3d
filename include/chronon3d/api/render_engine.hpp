@@ -203,11 +203,12 @@ public:
     // ── Note (Pass D — V0.1 freeze) ────────────────────────────────────
     // The legacy accessors `renderer()`, `runtime()`, `create_session()`,
     // and their OPP-side `advanced::RenderEngineAccess` escape hatch have
-    // all been REMOVED from the public V0.1 SDK surface.  The only entry
-    // through the public facade is `RenderEngine::render(Composition, Frame)`
-    // (above) which forwards into the OPP-side RenderPipeline.  Telemetry
-    // requires linking the OPP-internal headers directly (none of the
-    // counters surface is part of the V0.1 SDK — by design).
+    // all been REMOVED from the public V0.1 SDK surface.  The public entry
+    // points are `render_program(CompiledProgram, Frame)` and
+    // `render_to_file()`; `render(Composition, Frame)` was removed together
+    // with the legacy executor on 2026-11-10.  Telemetry requires linking the
+    // OPP-internal headers directly (none of the counters surface is part of
+    // the V0.1 SDK — by design).
 
     /// Access the per-instance engine configuration.
     [[nodiscard]] const Config& config() const noexcept;

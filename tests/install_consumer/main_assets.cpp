@@ -1,5 +1,11 @@
 // Standalone installed-SDK consumer for the focused typed asset surface.
 // Includes are explicit by design: no umbrella header is permitted.
+//
+// The render half uses the canonical typed lane: the same RenderPlan document
+// is compiled by two engines with different asset roots, and the resolved
+// image pixel must follow each engine's root.
+
+#include "consumer_plan.hpp"
 
 #include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
@@ -8,10 +14,6 @@
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/sdk/render_output.hpp>
 #include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/text/text_definition.hpp>
-#include <chronon3d/timeline/composition.hpp>
 
 #include <cstdint>
 #include <cstdio>
@@ -27,6 +29,37 @@ constexpr int kWidth = 128;
 constexpr int kHeight = 128;
 constexpr int kImageProbeX = 50;
 constexpr int kImageProbeY = 70;
+
+constexpr const char* kPlanJson = R"JSON({
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "installed_typed_assets",
+  "canvas": { "width": 128, "height": 128, "fps_num": 30, "fps_den": 1, "duration_frames": 1 },
+  "output": { "path": "sdk_assets_consumer_output.png", "format": "png" },
+  "layers": [
+    {
+      "id": "logo",
+      "type": "image",
+      "asset": "images/logo.png",
+      "size": [64, 64],
+      "position": [0, 0, 0],
+      "enable_3d": true,
+      "fit": "stretch",
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "headline",
+      "type": "text",
+      "text": "HELLO",
+      "size": [112, 24],
+      "position": [64, 20],
+      "start_frame": 0,
+      "duration_frames": 1,
+      "style": { "font": "fonts/Inter-Bold.ttf", "font_size": 16, "fill": "#FFFFFF" }
+    }
+  ]
+})JSON";
 
 struct Rgb8 {
     std::uint8_t r{};
@@ -65,54 +98,8 @@ Rgb8 pixel_at(const c3d::sdk::RenderOutput& output, int x, int y) {
     const std::size_t offset = static_cast<std::size_t>(y) * stride
         + static_cast<std::size_t>(x) * 4u;
 
-    // SDK only reports canonical RGBA8 (Bgra8 spelling retired with the
-    // duplicate sdk enum); no byte-swap branch needed.
     return {output.pixels[offset + 0], output.pixels[offset + 1],
             output.pixels[offset + 2]};
-}
-
-c3d::Composition make_composition() {
-    const c3d::CompositionSpec spec{
-        .name = "installed_typed_assets",
-        .width = kWidth,
-        .height = kHeight,
-        .frame_rate = c3d::FrameRate{30, 1},
-        .duration = c3d::Frame{1},
-    };
-
-    return c3d::composition(
-        spec,
-        [](const c3d::FrameContext& ctx) -> c3d::Scene {
-            c3d::SceneBuilder scene(ctx);
-            scene.layer("logo", [](c3d::LayerBuilder& layer) {
-                layer.kind(c3d::LayerKind::Shape);
-                layer.image("logo", c3d::ImageParams{
-                    .source = c3d::assets::ImageRef{"images/logo.png"},
-                    .size = {64.0f, 64.0f},
-                });
-            });
-            scene.layer("headline", [](c3d::LayerBuilder& layer) {
-                layer.kind(c3d::LayerKind::Text);
-                layer.text("headline", c3d::TextDefinition{
-                    .content = {.value = "HELLO"},
-                    .style = {
-                        .font = {.font_path = "fonts/Inter-Bold.ttf",
-                                 .font_family = "Inter",
-                                 .font_weight = 700,
-                                 .font_size = 28.0f},
-                        .color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f},
-                    },
-                    .frame = {
-                        .size = {kWidth, kHeight},
-                        .placement = c3d::TextPlacement{
-                            c3d::TextPlacementKind::Absolute, {8.0f, 8.0f}},
-                        .align = c3d::TextAlign::Left,
-                        .vertical_align = c3d::VerticalAlign::Top,
-                    },
-                });
-            });
-            return scene.build();
-        });
 }
 
 c3d::sdk::RenderSettings make_settings() {
@@ -180,16 +167,22 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const c3d::Composition composition = make_composition();
     const auto settings = make_settings();
     c3d::sdk::RenderEngine engine_a{settings};
     c3d::sdk::RenderEngine engine_b{settings};
     engine_a.set_assets_root(root_a);
     engine_b.set_assets_root(root_b);
 
-    auto output_a = engine_a.render(composition, c3d::sdk::Frame{0});
-    auto output_b = engine_b.render(composition, c3d::sdk::Frame{0});
-    auto output_a_again = engine_a.render(composition, c3d::sdk::Frame{0});
+    auto program_a = consumer::compile_plan(engine_a, kPlanJson, "assets-a");
+    auto program_b = consumer::compile_plan(engine_b, kPlanJson, "assets-b");
+    if (!program_a || !program_b) {
+        fs::current_path(original_cwd, error);
+        return 1;
+    }
+
+    auto output_a = engine_a.render_program(*program_a, c3d::sdk::Frame{0});
+    auto output_b = engine_b.render_program(*program_b, c3d::sdk::Frame{0});
+    auto output_a_again = engine_a.render_program(*program_a, c3d::sdk::Frame{0});
 
     fs::current_path(original_cwd, error);
     if (error || !output_a || !output_b || !output_a_again) {

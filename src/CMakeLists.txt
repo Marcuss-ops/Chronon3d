@@ -45,11 +45,16 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     add_library(chronon3d_ffmpeg_full INTERFACE)
     target_include_directories(chronon3d_ffmpeg_full INTERFACE
         $<BUILD_INTERFACE:${CHRONON3D_FFMPEG_INCLUDE_DIR}>)
+    # Static-archive order matters: libavformat references symbols defined
+    # in libavcodec, so avformat must be scanned BEFORE avcodec on the final
+    # executable link.  The previous avcodec-first order only worked for the
+    # shared library (ELF allows unresolved symbols there) and broke external
+    # consumers that link the static SDK archive.
     target_link_libraries(chronon3d_ffmpeg_full INTERFACE
         "${CHRONON3D_FFMPEG_SWSCALE_LIBRARY}"
         "${CHRONON3D_FFMPEG_SWRESAMPLE_LIBRARY}"
-        "${CHRONON3D_FFMPEG_AVCODEC_LIBRARY}"
         "${CHRONON3D_FFMPEG_AVFORMAT_LIBRARY}"
+        "${CHRONON3D_FFMPEG_AVCODEC_LIBRARY}"
         "${CHRONON3D_FFMPEG_AVUTIL_LIBRARY}")
     foreach(_chronon3d_ffmpeg_codec_library IN ITEMS
             CHRONON3D_FFMPEG_X264_LIBRARY

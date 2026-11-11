@@ -8,24 +8,30 @@ whole-video `RENDER_JOB` and now exposes its lifecycle over IPC when a client
 supplies `job_id`. The FlatBuffers job API currently tracks one prepared frame
 and does not yet implement plan-backed whole-video execution.
 
+> **2026-11-10 update:** the composition-session path described below
+> (`CompositionSession`, `PreparedRenderJob`) was removed with the legacy
+> executor. The typed `RenderPlan` lane is now the only execution input; the
+> remaining plan-backed daemon work below needs to be re-scoped against it.
+> See `TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md`.
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] **Factory plan-backed al posto del composition descriptor placeholder** — logica: il FlatBuffers API oggi traccia un prepared frame con descrittore placeholder; serve una factory che condivida la semantica del piano CLI canonico (stesso `RenderPlan` → prepared job). Dove: `src/daemon/` (`DaemonRuntime`/`CompositionSession`), factory composizione del protocollo FlatBuffers. Gate: `PrepareJob` accetta un piano reale e prepara lo stesso artefatto della CLI.
-- [ ] **Scheduler/worker bounded + encoder ownership per piani completi** — logica: `RenderJob` oggi è sincrono e renderizza un frame senza encoderizzare; per il whole-video servono worker limitati con ownership dell'encoder e preservazione delle risorse Vulkan/CUDA/NVENC per la vita del daemon. Dove: `CompositionSession` + pipeline encoder (NativeAvSink). Gate: job whole-video completato via IPC con video codificato consegnato.
-- [ ] **LRU di prepared-plan fingerprinted** — logica: riuso dei piani preparati con invalidazione per fingerprint, senza duplicare il registry. Dove: cache preparati dentro `CompositionSession` (nessun nuovo singleton — vedi regola AGENTS.md). Gate: test di riuso/eviction + bounded memory.
+- [ ] **Factory plan-backed al posto del composition descriptor placeholder** — logica: il FlatBuffers API oggi traccia un prepared frame con descrittore placeholder; serve una factory che condivida la semantica del piano CLI canonico (stesso `RenderPlan` → prepared job). Dove: `src/daemon/` (`DaemonRuntime`), factory del protocollo FlatBuffers. Gate: `PrepareJob` accetta un piano reale e prepara lo stesso artefatto della CLI.
+- [ ] **Scheduler/worker bounded + encoder ownership per piani completi** — logica: `RenderJob` oggi è sincrono e renderizza un frame senza encoderizzare; per il whole-video servono worker limitati con ownership dell'encoder e preservazione delle risorse Vulkan/CUDA/NVENC per la vita del daemon. Dove: `DaemonRuntime` + pipeline encoder (NativeAvSink). Gate: job whole-video completato via IPC con video codificato consegnato.
+- [ ] **LRU di prepared-plan fingerprinted** — logica: riuso dei piani preparati con invalidazione per fingerprint, senza duplicare il registry. Dove: cache preparati dentro `DaemonRuntime` (nessun nuovo singleton — vedi regola AGENTS.md). Gate: test di riuso/eviction + bounded memory.
 
 ## Implementato
 
-- `DaemonRuntime` owns the persistent `RenderEngine` and `CompositionSession`.
+- `DaemonRuntime` owns the persistent `RenderEngine`; the per-composition
+  `CompositionSession` was removed on 2026-11-10 with the legacy executor.
 - IPC handlers are serialized at the runtime boundary before touching GPU
   state; transport concurrency cannot create accidental concurrent engine use.
 - Explicit lifecycle states: `starting`, `warming`, `ready`, `draining`,
   `poisoned`.
 - Daemon warmup gate runs before the service announces readiness.
 - Default Unix socket is `/run/chronon3d/chronon.sock`.
-- `CompositionSession` owns a `PreparedRenderJob` per composition; prepare,
-  resource warm-up and slot/pool setup happen once at create time, and frame
-  calls reuse the prepared handle.
+- `CompositionSession`/`PreparedRenderJob` per-composition ownership was
+  removed on 2026-11-10; the daemon now uses the typed `RenderPlan` lane.
 
 ## Protocollo job aggiunto
 
@@ -38,8 +44,9 @@ and does not yet implement plan-backed whole-video execution.
   not yet encoded, persisted, or delivered to the client.
 - Released and prepare-failed status tombstones are bounded to the latest 256
   entries; prepared resources are not evicted by this status-history bound.
-- `CompositionSession` remains the lifecycle owner; no duplicate job registry
-  was introduced. The wire-contract decision is Proposed in
+- `DaemonRuntime` is the lifecycle owner; the former `CompositionSession` was
+  removed on 2026-11-10 with the legacy executor. No duplicate job registry was
+  introduced. The wire-contract decision is Proposed in
   `docs/adr/ADR-032-daemon-job-lifecycle-protocol.md` pending CI validation.
 
 ## Prossimo blocco

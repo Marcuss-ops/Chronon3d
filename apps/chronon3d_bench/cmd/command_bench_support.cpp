@@ -106,7 +106,7 @@ void run_render_benchmark(benchmark::State& state) {
     for (auto _ : state) {
         for (int i = 0; i < ctx.frames; ++i) {
             const auto frame = static_cast<Frame>(ctx.warmup + i);
-            ctx.renderer->render_compiled(*ctx.compiled, frame);
+            ctx.renderer->render_program(*ctx.program, frame);
             ctx.frames_rendered.fetch_add(1, std::memory_order_relaxed);
         }
         benchmark::DoNotOptimize(counters);

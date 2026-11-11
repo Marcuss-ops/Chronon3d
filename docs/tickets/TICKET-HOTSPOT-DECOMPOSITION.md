@@ -399,3 +399,20 @@ item 3 of the definition of done.
   globale e i limiti per classe sono ancora sotto un solo mutex; richiedono una
   wave di sharding dedicata con misure prima/dopo e preservazione di tali
   invarianti. Nessuno sharding del pool è stato applicato in questa tranche.
+
+## Assorbimenti 2026-11-10 (da TICKET-COMPILER-DEMOLITION-WAVES)
+
+La chiusura della demolizione del compat executor non chiude queste misure e
+refactor; sono trasferiti qui con il loro stato originale.
+
+- **E31/E32/E34 — `RenderGraphContext` collapse:** il blocco
+  `render_compatibility*` è scomparso, quindi E32/E34 sono sbloccati. Resta il
+  collasso dei 19 campi e la rimozione dei pointer duplicati
+  post-compatibility. Gate: contratto `GraphBuildDependencies` invariato +
+  build e render-graph tests.
+- **G42 — benchmark text-heavy:** corpus B00–B11 esiste; metriche
+  `allocations/frame`, `bytes/frame`, `text ms/frame`, FPS ancora **NOT RUN**.
+- **G46 — `SceneProgramStore` contention:** **NOT MEASURED**; misurare
+  lock wait/hold prima di un eventuale per-entry locking o sharding.
+- **G47 — `DeviceScheduler` contention:** **NOT MEASURED**; profilare
+  `reserve()` prima di qualsiasi refactor.

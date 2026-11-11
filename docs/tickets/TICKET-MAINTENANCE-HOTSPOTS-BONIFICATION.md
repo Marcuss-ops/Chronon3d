@@ -252,9 +252,9 @@ ricopia).
  5. W1.2 contratto lifetime → W1.3 stress gate        ← il grosso di W1
  6. W3.3 layout contract generalizzato
  7. W4 (B.1, B.2, B.4-F.2, 3.2)
- 8. W2 C22 (dopo che W1 non tocca le stesse file)
+ 8. W2 C22 — CHIUSO 2026-11-10 (compat chain deleted; corpus NOT RUN)
  9. W5 gate effetti
-10. W2 C23 demolition (a C22 verde)
+10. W2 C23 — CHIUSO 2026-11-10 (executor removed; no PASS claimed)
 ```
 
 **Regola trasversale (ogni PR di questo ticket):** documentazione aggiornata nella
@@ -268,5 +268,5 @@ evidence sotto `docs/evidence/`.
 - [ ] W3.1 / W3.2 / W3.3 applicati con gate
 - [ ] W4: item applicati o decisi; nessun gate con literal-duplicati
 - [ ] W5: regola effetti attiva come gate arch
-- [ ] W2: C22 corpus verde 8/8; C23 demolition landed (owner ticket)
+- [x] W2: C22/C23 compatibility chain removed 2026-11-10; corpus NOT RUN (legacy lane deleted), no PASS claimed
 - [ ] Indice aggiornato: riga in `FOLLOWUP_TICKETS.md` + una riga di sintesi in `CURRENT_STATUS.md`
