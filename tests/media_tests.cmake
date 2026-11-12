@@ -27,6 +27,7 @@ set(_media_video_sources
             video/test_raw_video_sink_edge.cpp
             video/test_media_probe.cpp
             video/test_frame_rate_video_validation.cpp
+            video/test_video_source_window.cpp
             video/reference_yuv_converter.cpp
             video/test_yuv_conversion_params.cpp
             video/test_native_frame_importer.cpp)
