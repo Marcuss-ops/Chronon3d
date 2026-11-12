@@ -28,6 +28,16 @@ void append_path_shape(chronon3d::LayerBuilder& builder,
                        const std::optional<graphics::GradientDefinition>& active_gradient,
                        const std::optional<graphics::Field2D>& sampled_field,
                        const graphics::StrokeStyle& stroke) {
+    const bool animated_operators = std::any_of(
+        shape.operators.begin(), shape.operators.end(),
+        [](const PathOperatorPlan& op) {
+            return op.trim_animation.has_value() ||
+                   op.morph_animation.has_value() ||
+                   op.repeater_animation.has_value();
+        });
+    if (animated_operators) {
+        builder.animated_path_operators();
+    }
     if (!shape.imported_subpaths.empty()) {
         append_imported_svg_paths(builder, plan, ctx, shape, base_color);
         return;
@@ -223,6 +233,9 @@ void append_path_shape(chronon3d::LayerBuilder& builder,
         copy.fill = std::move(expanded[i].fill);
         copy.color.a *= expanded[i].opacity;
         builder.path("shape_repeater_" + std::to_string(i), std::move(copy));
+    }
+    if (animated_operators) {
+        builder.cache_static(false);
     }
 }
 

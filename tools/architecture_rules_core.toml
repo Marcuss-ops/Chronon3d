@@ -600,4 +600,4 @@ file_patterns = [
 build_globs = ["build-tmp", "build-debug", "build-release", "build-asan", "build-*"]
 tmp_gate_globs = [".tmp_gate*"]
 
-absolute_path_pattern = '/home/[A-Za-z]+/Pyt/Chronon3d'
+absolute_path_pattern = '/home/[A-Za-z]+/Pyt/chronons/Chronon3d'

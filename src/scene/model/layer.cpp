@@ -49,6 +49,7 @@ Layer::Layer(const Layer& other)
       screen_space(other.screen_space),
       hierarchy_resolved(other.hierarchy_resolved),
       cache_static(other.cache_static),
+      animated_path_operators(other.animated_path_operators),
       mask(other.mask),
       m_effects(std::make_unique<EffectStack>(*other.m_effects)),
       blend_mode(other.blend_mode),
@@ -94,6 +95,7 @@ Layer& Layer::operator=(const Layer& other) {
     screen_space = other.screen_space;
     hierarchy_resolved = other.hierarchy_resolved;
     cache_static = other.cache_static;
+    animated_path_operators = other.animated_path_operators;
     mask = other.mask;
     *m_effects = *other.m_effects;
     blend_mode = other.blend_mode;
@@ -143,6 +145,7 @@ uint64_t Layer::get_static_hash() const {
     h = hash_combine(h, uses_2_5d_projection ? 1 : 0);
     h = hash_combine(h, screen_space ? 1 : 0);
     h = hash_combine(h, cache_static ? 1 : 0);
+    h = hash_combine(h, animated_path_operators ? 1 : 0);
     h = hash_combine(h, static_cast<u64>(blend_mode));
     h = hash_combine(h, static_cast<u64>(composite_operator));
     h = hash_combine(h, hash_transform_v2(transform));

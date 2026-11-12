@@ -80,6 +80,10 @@ public:
     LayerBuilder& visible(bool value);
     LayerBuilder& kind(LayerKind value);
     LayerBuilder& cache_static(bool value = true);
+    /// Marks a layer whose path operators (trim/morph/repeater) are animated.
+    /// Static analysis reads this and keeps the layer out of the frame-zero
+    /// cache so the compiler re-evaluates the operator on every frame.
+    LayerBuilder& animated_path_operators(bool value = true);
 
     // Layer transform.
     LayerBuilder& position(Vec3 position);
