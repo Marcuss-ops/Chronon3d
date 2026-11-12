@@ -140,6 +140,10 @@ struct Layer {
     bool      screen_space{false};
     bool      hierarchy_resolved{false};
     bool      cache_static{false};
+    // True when a path carries operator animation (trim/morph/repeater) that
+    // the compiler evaluates per frame. Such a layer must never enter the
+    // frame-zero static cache, or the operator freezes at its frame-0 value.
+    bool      animated_path_operators{false};
     Mask      mask{};
     std::unique_ptr<EffectStack> m_effects;     // ordered effect stack
     BlendMode blend_mode{BlendMode::Normal};

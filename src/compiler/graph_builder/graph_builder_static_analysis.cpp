@@ -41,7 +41,8 @@ bool check_static_recursive_impl(
         l.lottie_precomp_groups.begin(), l.lottie_precomp_groups.end(),
         [](const auto& group) { return group.opacity_animated; });
     bool static_flag = false;
-    if (l.cache_static && !has_animated_mesh && !has_animated_lottie_group) {
+    if (l.cache_static && !has_animated_mesh && !has_animated_lottie_group &&
+        !l.animated_path_operators) {
         static_flag = true;
     } else {
         // Effect payloads can be updated by RenderPlan parameter tracks at
@@ -49,6 +50,7 @@ bool check_static_recursive_impl(
         // have distinct cache metadata, conservatively keep effect-bearing
         // layers out of the frame-zero static cache.
         bool is_local_static = !has_animated_mesh && !has_animated_lottie_group &&
+                               !l.animated_path_operators &&
                                l.effects().empty() &&
                                !l.time_remap.active();
         if (l.kind == LayerKind::Video || l.kind == LayerKind::Precomp) {

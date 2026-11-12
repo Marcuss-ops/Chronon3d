@@ -98,6 +98,11 @@ LayerBuilder& LayerBuilder::cache_static(bool value) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::animated_path_operators(bool value) {
+    m_layer.animated_path_operators = value;
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::position(Vec3 p) {
     m_layer.transform.position = p;
     // Keep the animated transform's static baseline in sync so a subsequent

@@ -302,6 +302,7 @@ uint64_t SceneHasher::hash_layer(const Layer& layer) {
     h = hash_combine(h, layer.uses_2_5d_projection ? 1 : 0);
     h = hash_combine(h, layer.screen_space ? 1 : 0);
     h = hash_combine(h, layer.cache_static ? 1 : 0);
+    h = hash_combine(h, layer.animated_path_operators ? 1 : 0);
     h = hash_combine(h, static_cast<u64>(layer.blend_mode));
     for (const auto& group : layer.lottie_precomp_groups) {
         h = hash_combine(h, hash_string(group.id));
@@ -382,6 +383,7 @@ uint64_t SceneHasher::hash_layer_structure(const Layer& layer) {
     h = hash_combine(h, static_cast<u64>(layer.kind));
     h = hash_combine(h, layer.uses_2_5d_projection ? 1 : 0);
     h = hash_combine(h, layer.screen_space ? 1 : 0);
+    h = hash_combine(h, layer.animated_path_operators ? 1ULL : 0ULL);
     // Cache policy is compile-time graph metadata (it changes the node
     // cache policy captured by Source/Transform/Effect nodes), not a
     // per-frame render value.

@@ -1,6 +1,6 @@
 # Windows RTX 4060 Ti build cache
 
-Prepared on 2026-10-26 in `C:\Users\pater\Pyt\Chronon3d-shadow-windows`.
+Prepared on 2026-10-26 in `C:\Users\pater\Pyt\chronons\Chronon3d-shadow-windows`.
 This worktree and its build directory are deliberately persistent; reuse them
 for follow-up hardware checks instead of creating a fresh checkout or reinstalling
 dependencies.
@@ -12,7 +12,7 @@ dependencies.
 - Last complete CLI build log: `build/win-shadow-clang-build.log`
 - Strict native NVENC attempt: `build/win-shadow-clang/t05-run-native.log`
 - Shared preinstalled vcpkg tree:
-  `C:/Users/pater/Pyt/Chronon3d-windows-latest/vcpkg_installed/win-release`
+  `C:/Users/pater/Pyt/chronons/Chronon3d-windows-latest/vcpkg_installed/win-release`
 - Compiler: `C:/Program Files/LLVM/bin/clang-cl.exe`
 - CUDA toolkit: `C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6`
 
