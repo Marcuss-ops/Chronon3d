@@ -85,6 +85,12 @@
             "light.bloom",
             "distort.fake_3d_wave",
             "light.sdf_bevel",
+            "light.light_sweep",
+            "distort.cc_cylinder",
+            "distort.cc_sphere",
+            "light.inner_glow",
+            "light.glow_advanced",
+            "distort.optics_compensation",
             "color.saturation",
             "color.hue_rotate",
             "color.invert",
@@ -109,6 +115,8 @@
             "temporal.echo",
             "matte.luma_chroma_key",
             "stylize.threshold",
+            "alpha.threshold",
+            "stylize.contour_palette",
             "stylize.mosaic",
             "distort.corner_pin",
             "distort.twirl",
@@ -291,6 +299,12 @@
             "light.bloom",
             "distort.fake_3d_wave",
             "light.sdf_bevel",
+            "light.light_sweep",
+            "distort.cc_cylinder",
+            "distort.cc_sphere",
+            "light.inner_glow",
+            "light.glow_advanced",
+            "distort.optics_compensation",
             "color.saturation",
             "color.hue_rotate",
             "color.invert",
@@ -314,6 +328,8 @@
             "temporal.echo",
             "matte.luma_chroma_key",
             "stylize.threshold",
+            "alpha.threshold",
+            "stylize.contour_palette",
             "stylize.mosaic",
             "distort.corner_pin",
             "distort.twirl",
@@ -2750,6 +2766,63 @@
           "minimum": 0,
           "maximum": 4294967295
         },
+        "range_units": {
+          "enum": [
+            "percentage",
+            "index"
+          ],
+          "default": "percentage"
+        },
+        "smoothness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "wiggles_per_second": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "correlation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "temporal_phase": {
+          "type": "number",
+          "minimum": -36000,
+          "maximum": 36000
+        },
+        "spatial_phase": {
+          "type": "number",
+          "minimum": -36000,
+          "maximum": 36000
+        },
+        "min_amount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "max_amount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "lock_dimensions": {
+          "type": "boolean"
+        },
+        "wiggly_mode": {
+          "enum": [
+            "smooth",
+            "corner",
+            "jagged"
+          ]
+        },
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
         "ease_low": {
           "type": "number",
           "minimum": 0,
@@ -2910,6 +2983,65 @@
             "not": {
               "required": [
                 "index_step"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "shape": {
+                "const": "wiggly"
+              }
+            },
+            "required": [
+              "shape"
+            ]
+          },
+          "then": {},
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "wiggles_per_second"
+                  ]
+                },
+                {
+                  "required": [
+                    "correlation"
+                  ]
+                },
+                {
+                  "required": [
+                    "temporal_phase"
+                  ]
+                },
+                {
+                  "required": [
+                    "spatial_phase"
+                  ]
+                },
+                {
+                  "required": [
+                    "min_amount"
+                  ]
+                },
+                {
+                  "required": [
+                    "max_amount"
+                  ]
+                },
+                {
+                  "required": [
+                    "lock_dimensions"
+                  ]
+                },
+                {
+                  "required": [
+                    "wiggly_mode"
+                  ]
+                }
               ]
             }
           }
@@ -5311,6 +5443,43 @@
                 "type": "number",
                 "minimum": 0
               },
+              "air_drag": {
+                "type": "number",
+                "minimum": 0
+              },
+              "emissive": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 64
+              },
+              "emitter_velocity": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": { "type": "number" }
+              },
+              "size_over_life": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 64,
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": { "type": "number", "minimum": 0 }
+                }
+              },
+              "opacity_over_life": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 64,
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": { "type": "number", "minimum": 0 }
+                }
+              },
               "environment": { "type": "boolean" },
               "depth_range": {
                 "type": "array", "minItems": 2, "maxItems": 2,
@@ -7651,6 +7820,42 @@
                       "maximum": 4
                     },
                     "map_channel": {
+                      "enum": [
+                        "luma",
+                        "red",
+                        "green",
+                        "blue",
+                        "alpha"
+                      ]
+                    },
+                    "map_channel_x": {
+                      "enum": [
+                        "luma",
+                        "red",
+                        "green",
+                        "blue",
+                        "alpha"
+                      ]
+                    },
+                    "map_channel_y": {
+                      "enum": [
+                        "luma",
+                        "red",
+                        "green",
+                        "blue",
+                        "alpha"
+                      ]
+                    },
+                    "channel_x": {
+                      "enum": [
+                        "luma",
+                        "red",
+                        "green",
+                        "blue",
+                        "alpha"
+                      ]
+                    },
+                    "channel_y": {
                       "enum": [
                         "luma",
                         "red",

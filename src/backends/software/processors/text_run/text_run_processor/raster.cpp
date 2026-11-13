@@ -363,6 +363,34 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
         };
         make_pattern_image(shape.paint.fill_pattern, fill_pattern_image);
         make_pattern_image(shape.paint.stroke_pattern, stroke_pattern_image);
+        const auto pattern_matrix = [&](const graphics::PatternTile& tile,
+                                        const PlacedGlyph& glyph) {
+            float a = tile.transform[0];
+            float b = tile.transform[1];
+            float c = tile.transform[2];
+            float d = tile.transform[3];
+            float e = tile.transform[4];
+            float f = tile.transform[5];
+            if (tile.object_bounding_box && tile.raster_scale > 0.0f) {
+                const float bounds_width = layout.bounds.x > 0.0f
+                    ? layout.bounds.x : 1.0f;
+                const float bounds_height = layout.bounds.y > 0.0f
+                    ? layout.bounds.y : std::max(1.0f, layout.line_height);
+                const float sx = bounds_width / tile.raster_scale;
+                const float sy = bounds_height / tile.raster_scale;
+                const float tx = tile.object_x * bounds_width;
+                const float ty = tile.object_y * bounds_height;
+                a = tile.transform[0] * sx;
+                b = tile.transform[1] * sx;
+                c = tile.transform[2] * sy;
+                d = tile.transform[3] * sy;
+                e = tile.transform[0] * tx + tile.transform[2] * ty +
+                    tile.transform[4];
+                f = tile.transform[1] * tx + tile.transform[3] * ty +
+                    tile.transform[5];
+            }
+            return BLMatrix2D(a, b, c, d, e - glyph.x, f - glyph.y);
+        };
 
         std::vector<std::uint8_t> highlight_background_done(source_glyphs.size(), 0);
         for (std::uint32_t gi : tier_glyphs) {
@@ -538,10 +566,8 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                         ctx.setStrokeStyle(*text_stroke_gradient);
                     } else if (!override_color && !stroke_pattern_image.empty()) {
                         const auto& tile = *shape.paint.stroke_pattern;
-                        const auto& m = tile.transform;
-                        BLMatrix2D pattern_transform(m[0], m[1], m[2], m[3],
-                            m[4] - source_placed.glyphs[gi].x,
-                            m[5] - source_placed.glyphs[gi].y);
+                        const BLMatrix2D pattern_transform = pattern_matrix(
+                            tile, source_placed.glyphs[gi]);
                         BLPattern pattern(stroke_pattern_image, BL_EXTEND_MODE_REPEAT,
                                           pattern_transform);
                         ctx.setGlobalAlpha(static_cast<double>(g.opacity));
@@ -629,10 +655,8 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                 }
                 if (!override_color && !fill_pattern_image.empty()) {
                     const auto& tile = *shape.paint.fill_pattern;
-                    const auto& m = tile.transform;
-                    BLMatrix2D pattern_transform(m[0], m[1], m[2], m[3],
-                        m[4] - source_placed.glyphs[gi].x,
-                        m[5] - source_placed.glyphs[gi].y);
+                    const BLMatrix2D pattern_transform = pattern_matrix(
+                        tile, source_placed.glyphs[gi]);
                     BLPattern pattern(fill_pattern_image, BL_EXTEND_MODE_REPEAT,
                                       pattern_transform);
                     ctx.setGlobalAlpha(static_cast<double>(op_alpha * shape.paint.fill.a));

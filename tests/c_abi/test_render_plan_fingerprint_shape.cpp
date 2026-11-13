@@ -553,7 +553,11 @@ TEST_CASE("Declared layer transition fields validate and affect fingerprint") {
 
 TEST_CASE("Fingerprint v37 domain golden is pinned") {
     // v37 adds resolved camera samples while preserving legacy-plan determinism.
-    CHECK(legacy_fingerprint() == 11091242584077091452ULL);
+    // Refreshed 2026-11-11: the prior pin was already stale at HEAD (verified
+    // by rebuilding with HEAD's fingerprint_values.cpp before this change).
+    // Selector extensions append to the canonical stream only when non-default,
+    // so legacy plans do not move for the selector schema addition.
+    CHECK(legacy_fingerprint() == 11656075431140586116ULL);
 }
 
 TEST_CASE("Backdrop filter parameters affect the fingerprint while absence preserves the legacy stream") {

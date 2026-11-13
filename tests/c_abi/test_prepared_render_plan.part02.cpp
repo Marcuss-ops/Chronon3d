@@ -1,5 +1,9 @@
 #include "test_prepared_render_plan_test_support.hpp"
 
+#include <algorithm>
+#include <limits>
+#include <optional>
+
 TEST_CASE("render plan lowers animated Lottie layer transforms to native tracks") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
@@ -201,6 +205,102 @@ TEST_CASE("render plan lowers SVG text and tspan into canonical text layers") {
     CHECK(before_edge_y > after_edge_y);
 }
 
+TEST_CASE("render plan resolves nested SVG textLength scopes") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    std::filesystem::create_directories(directory.path / "fonts");
+    const auto source_root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
+    std::filesystem::copy_file(source_root / "assets/fonts/Inter-Regular.ttf",
+        directory.path / "fonts/Inter-Regular.ttf", std::filesystem::copy_options::overwrite_existing);
+    const auto rightmost_text_x = [&](const std::string& name,
+                                      const std::string& text_attrs)
+        -> std::optional<float> {
+        {
+            std::ofstream svg(directory.path / ("art/" + name + ".svg"));
+            svg << "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"400\" height=\"100\">"
+                << "<text x=\"10\" y=\"60\" font-family=\"Inter\" font-size=\"24\" "
+                << text_attrs << ">AB<tspan>CD</tspan></text></svg>";
+        }
+        assets::AssetResolver resolver;
+        resolver.mount(directory.path);
+        const std::string plan_text =
+            "{\"schema\":\"chronon.render-plan.v3\",\"version\":3,"
+            "\"canvas\":{\"width\":400,\"height\":100,\"fps_num\":30,\"fps_den\":1,"
+            "\"duration_frames\":1},\"layers\":[{\"id\":\"svg\",\"type\":\"shape\","
+            "\"size\":[400,100],\"shape\":{\"type\":\"path\",\"asset\":\"art/" + name +
+            ".svg\"}}],\"output\":{\"path\":\"out.png\"}}";
+        const auto decoded = decode_render_plan(nlohmann::json::parse(plan_text));
+        if (!decoded) return std::nullopt;
+        const auto prepared = compile_render_plan(*decoded, resolver);
+        if (!prepared) return std::nullopt;
+        const auto evaluated = evaluate(prepared->compiled_composition,
+                                        CompositionEvaluateContext{}, Frame{0});
+        if (!evaluated) return std::nullopt;
+        float rightmost = -std::numeric_limits<float>::infinity();
+        for (std::size_t index = 1; index < evaluated->scene.layers().size(); ++index) {
+            const auto& scene_layer = evaluated->scene.layers()[index];
+            for (const auto& node : scene_layer.nodes)
+                rightmost = std::max(rightmost,
+                    scene_layer.transform.position.x +
+                        node.world_transform.position.x);
+        }
+        return rightmost;
+    };
+    const auto short_width = rightmost_text_x("nested_short", "textLength=\"120\"");
+    const auto long_width = rightmost_text_x("nested_long", "textLength=\"300\"");
+    REQUIRE(short_width.has_value());
+    REQUIRE(long_width.has_value());
+    CHECK(*long_width > *short_width + 100.0f);
+}
+
+TEST_CASE("render plan rejects SVG textLength coordinate and cluster splits") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    std::filesystem::create_directories(directory.path / "fonts");
+    const auto source_root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
+    std::filesystem::copy_file(source_root / "assets/fonts/Inter-Regular.ttf",
+        directory.path / "fonts/Inter-Regular.ttf", std::filesystem::copy_options::overwrite_existing);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto compile_error = [&](const std::string& name,
+                                   const std::string& svg_source) -> std::string {
+        {
+            std::ofstream svg(directory.path / ("art/" + name + ".svg"));
+            svg << svg_source;
+        }
+        const std::string plan_text =
+            "{\"schema\":\"chronon.render-plan.v3\",\"version\":3,"
+            "\"canvas\":{\"width\":400,\"height\":100,\"fps_num\":30,\"fps_den\":1,"
+            "\"duration_frames\":1},\"layers\":[{\"id\":\"svg\",\"type\":\"shape\","
+            "\"size\":[400,100],\"shape\":{\"type\":\"path\",\"asset\":\"art/" + name +
+            ".svg\"}}],\"output\":{\"path\":\"out.png\"}}";
+        const auto decoded = decode_render_plan(nlohmann::json::parse(plan_text));
+        if (!decoded) return "decode";
+        const auto prepared = compile_render_plan(*decoded, resolver);
+        if (prepared) return "ok";
+        return prepared.error().code;
+    };
+    CHECK(compile_error("positioned_length",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"400\" height=\"100\">"
+        "<text x=\"10 20\" y=\"60\" font-family=\"Inter\" font-size=\"24\" "
+        "textLength=\"100\">AB</text></svg>")
+        == "svg_text_length_positioning_unsupported");
+    CHECK(compile_error("textpath_length",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"400\" height=\"100\">"
+        "<defs><path id=\"route\" d=\"M 10 60 L 300 60\"/></defs>"
+        "<text font-family=\"Inter\" font-size=\"24\" textLength=\"100\">"
+        "<textPath href=\"#route\">AB</textPath></text></svg>")
+        == "svg_text_length_text_path_unsupported");
+    CHECK(compile_error("cluster_split",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"400\" height=\"100\">"
+        "<text x=\"10 20\" y=\"60\" font-family=\"Inter\" font-size=\"32\">e\xCC\x81</text></svg>")
+        == "svg_text_coordinate_cluster_unsupported");
+}
+
 TEST_CASE("render plan lays out SVG textPath clusters on an addressable path") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
@@ -242,6 +342,115 @@ TEST_CASE("render plan lays out SVG textPath clusters on an addressable path") {
     }
     CHECK(glyph_x[0] < glyph_x[1]);
     CHECK(glyph_x[1] < glyph_x[2]);
+}
+
+TEST_CASE("render plan keeps textPath shaping across paint chunks") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    std::filesystem::create_directories(directory.path / "fonts");
+    const auto source_root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
+    std::filesystem::copy_file(source_root / "assets/fonts/Inter-Regular.ttf",
+        directory.path / "fonts/Inter-Regular.ttf", std::filesystem::copy_options::overwrite_existing);
+    {
+        std::ofstream svg(directory.path / "art/text_path_paint.svg");
+        svg << R"svg(<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80">
+          <defs><path id="route" d="M 20 40 L 180 40"/></defs>
+          <text font-family="Inter" font-size="22">
+            <textPath href="#route" startOffset="10"><tspan fill="#ff0000">A</tspan><tspan fill="#0000ff">B</tspan></textPath>
+          </text></svg>)svg";
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":200,"height":80,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"svg","type":"shape","size":[200,80],"position":[0,0],
+        "shape":{"type":"path","asset":"art/text_path_paint.svg"}}],
+      "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE_MESSAGE(prepared, prepared.error().code << ": " << prepared.error().message);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+                                    CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 3);
+    const auto first = evaluated->scene.layers()[1].nodes[0]
+        .shape.text_run_shape_handle().value;
+    const auto second = evaluated->scene.layers()[2].nodes[0]
+        .shape.text_run_shape_handle().value;
+    REQUIRE(first);
+    REQUIRE(second);
+    CHECK(first->paint.fill.r == doctest::Approx(1.0f));
+    CHECK(first->paint.fill.b == doctest::Approx(0.0f));
+    CHECK(second->paint.fill.r == doctest::Approx(0.0f));
+    CHECK(second->paint.fill.b == doctest::Approx(1.0f));
+}
+
+TEST_CASE("render plan carries extended SVG text pattern paint into TextPaint") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    std::filesystem::create_directories(directory.path / "fonts");
+    const auto source_root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
+    std::filesystem::copy_file(source_root / "assets/fonts/Inter-Regular.ttf",
+        directory.path / "fonts/Inter-Regular.ttf", std::filesystem::copy_options::overwrite_existing);
+    {
+        std::ofstream svg(directory.path / "art/pattern.svg");
+        svg << R"svg(<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80">
+          <defs>
+            <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="8" y2="0">
+              <stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/>
+            </linearGradient>
+            <pattern id="base" patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse" width="8" height="8">
+              <g transform="translate(1 0)">
+                <rect width="4" height="8" fill="url(#ink)"/>
+                <path d="M 0 0 L 2 4" fill="none" stroke="#00ff00" stroke-width="1.5"/>
+              </g>
+            </pattern>
+            <pattern id="derived" href="#base" patternTransform="translate(2 0)"/>
+            <pattern id="obb" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="0.5" height="0.5">
+              <rect width="1" height="1" fill="#ff00ff"/>
+            </pattern>
+          </defs>
+          <text x="10" y="40" font-family="Inter" font-size="20" fill="url(#derived)" stroke="url(#base)" stroke-width="2">A</text>
+          <text x="10" y="68" font-family="Inter" font-size="20" fill="url(#obb)">B</text>
+        </svg>)svg";
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":200,"height":80,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"svg","type":"shape","size":[200,80],"position":[0,0],
+        "shape":{"type":"path","asset":"art/pattern.svg"}}],
+      "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE_MESSAGE(prepared, prepared.error().code << ": " << prepared.error().message);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+                                    CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 3);
+    const auto first = evaluated->scene.layers()[1].nodes[0]
+        .shape.text_run_shape_handle().value;
+    REQUIRE(first);
+    REQUIRE(first->paint.fill_pattern);
+    CHECK(first->paint.fill_pattern->width == 8);
+    CHECK(first->paint.fill_pattern->height == 8);
+    CHECK(first->paint.fill_pattern->transform[4] == doctest::Approx(2.0f));
+    REQUIRE(first->paint.stroke_pattern);
+    CHECK(first->paint.stroke_pattern->width == 8);
+    const auto second = evaluated->scene.layers()[2].nodes[0]
+        .shape.text_run_shape_handle().value;
+    REQUIRE(second);
+    REQUIRE(second->paint.fill_pattern);
+    CHECK(second->paint.fill_pattern->object_bounding_box);
+    CHECK(second->paint.fill_pattern->object_width == doctest::Approx(0.5f));
+    CHECK(second->paint.fill_pattern->object_height == doctest::Approx(0.5f));
+    CHECK(second->paint.fill_pattern->raster_scale == doctest::Approx(256.0f));
 }
 
 TEST_CASE("render plan imports a resolver-backed SVG before composition compile") {
@@ -343,7 +552,7 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
     missing.layers[0].shape->svg_asset = "art/not-found.svg";
     CHECK_FALSE(compile_render_plan(missing, resolver));
 
-    const std::array<std::string, 13> unsupported_svg{
+    const std::array<std::string, 12> unsupported_svg{
         "<svg><path d=\"M0 0L1 1\" fill=\"url(#gradient)\"/></svg>",
         "<svg><path d=\"M0 0L1 1\"/><g><use href=\"#shape\"/></g></svg>",
         "<svg><defs><linearGradient id=\"g\"/></defs><path d=\"M0 0L1 1\"/></svg>",
@@ -353,7 +562,6 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
         "<svg><g><animate attributeName=\"fill\" from=\"red\" to=\"blue\" dur=\"1s\"/><path d=\"M0 0L1 1\"/></g></svg>",
         "<svg><path d=\"M0 0L1 1\"><animateTransform attributeName=\"transform\" type=\"scale\" from=\"1 2\" to=\"3 4\" dur=\"1s\"/></path></svg>",
         "<svg><path d=\"M0 0L1 1\"><animate attributeName=\"opacity\" from=\"0\" to=\"1\" dur=\"1.01s\"/></path></svg>",
-        "<svg><g transform=\"translate(2 3)\"><path d=\"M0 0L1 1\"><animateTransform attributeName=\"transform\" type=\"translate\" from=\"0 0\" to=\"1 1\" dur=\"1s\"/></path></g></svg>",
         "<svg><use href=\"#missing\"/></svg>",
         "<svg><defs><g id=\"cycle\"><use href=\"#cycle\"/></g></defs><use href=\"#cycle\"/></svg>",
         "<svg><path d=\"M0 0L1 0\"><animate attributeName=\"d\" values=\"M0 0L1 0;M0 0L1 1L2 2\" dur=\"1s\"/></path></svg>"};
@@ -372,6 +580,35 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
             CHECK(expected_error);
         }
     }
+
+    // Fixture 9 from the former rejection list is supported: a path-level
+    // translate animation composes with its static translated group.
+    {
+        std::ofstream svg(directory.path / "art/group-child-animation.svg");
+        svg << R"svg(<svg><g transform="translate(2 3)"><path d="M0 0L10 0">
+          <animateTransform attributeName="transform" type="translate"
+            from="0 0" to="10 0" dur="1s" fill="freeze"/>
+        </path></g></svg>)svg";
+    }
+    auto animated_child = *decoded;
+    animated_child.layers[0].shape->svg_asset = "art/group-child-animation.svg";
+    const auto accepted = compile_render_plan(animated_child, resolver);
+    REQUIRE(accepted);
+    const auto start = evaluate(accepted->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    const auto end = evaluate(accepted->compiled_composition,
+        CompositionEvaluateContext{}, Frame{30});
+    REQUIRE(start); REQUIRE(end);
+    REQUIRE(start->scene.layers()[0].nodes.size() == 1);
+    REQUIRE(end->scene.layers()[0].nodes.size() == 1);
+    CHECK(start->scene.layers()[0].nodes[0].shape.path().commands[1].p0.x ==
+          doctest::Approx(12.0f));
+    CHECK(start->scene.layers()[0].nodes[0].shape.path().commands[1].p0.y ==
+          doctest::Approx(3.0f));
+    CHECK(end->scene.layers()[0].nodes[0].shape.path().commands[1].p0.x ==
+          doctest::Approx(22.0f));
+    CHECK(end->scene.layers()[0].nodes[0].shape.path().commands[1].p0.y ==
+          doctest::Approx(3.0f));
 }
 
 TEST_CASE("render plan lowers root SVG Gaussian blur through the native effect stack") {

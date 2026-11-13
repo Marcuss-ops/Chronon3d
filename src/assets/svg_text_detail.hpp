@@ -2,6 +2,7 @@
 
 #include "svg_gradient_detail.hpp"
 #include <chronon3d/assets/svg_path_loader.hpp>
+#include <chronon3d/assets/svg_styled_element.hpp>
 #include <boost/property_tree/ptree.hpp>
 
 #include <map>
@@ -58,6 +59,7 @@ struct SvgTextStyleState {
     float word_spacing{0.0f};
     std::optional<float> text_length;
     std::string length_adjust{"spacing"};
+    std::vector<SvgTextLengthScope> text_length_scopes;
     std::string text_anchor_scope_id;
     std::vector<std::string> group_ids;
     std::vector<std::string> coordinate_scope_ids;

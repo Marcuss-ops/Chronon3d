@@ -126,6 +126,34 @@ void decode_particle_fields(LayerPlan& layer, const nlohmann::json& value) {
     params.flow.speed = raw.value("flow_speed", 0.35f);
     params.twinkle.amount = raw.value("twinkle", 0.0f);
     params.twinkle.speed = raw.value("twinkle_speed", 0.75f);
+    params.air_drag = raw.value("air_drag", 0.0f);
+    params.emissive = raw.value("emissive", 1.0f);
+    if (raw.contains("emitter_velocity"))
+        params.emitter_velocity = read_vec2(raw, "emitter_velocity");
+    const auto decode_life_curve = [](const nlohmann::json& input, const char* key) {
+        if (!input.is_array() || input.size() < 2 || input.size() > 64)
+            throw std::runtime_error(std::string("particle ") + key +
+                " must be an array of 2..64 [time, value] stops");
+        std::vector<graphics::GradientStop> stops;
+        for (const auto& stop : input) {
+            if (!stop.is_array() || stop.size() != 2)
+                throw std::runtime_error(std::string("particle ") + key +
+                    " stops require [time, value]");
+            const float position = stop[0].get<float>();
+            const float value = stop[1].get<float>();
+            if (!std::isfinite(position) || position < 0.0f || position > 1.0f ||
+                !std::isfinite(value) || value < 0.0f)
+                throw std::runtime_error(std::string("particle ") + key +
+                    " stops must be finite with time in [0, 1] and value >= 0");
+            stops.push_back({position, Color{value, value, value, 1.0f}});
+        }
+        return graphics::GradientDefinition::linear(
+            {0.0f, 0.0f}, {1.0f, 0.0f}, std::move(stops));
+    };
+    if (raw.contains("size_over_life"))
+        params.size_over_life = decode_life_curve(raw.at("size_over_life"), "size_over_life");
+    if (raw.contains("opacity_over_life"))
+        params.opacity_over_life = decode_life_curve(raw.at("opacity_over_life"), "opacity_over_life");
     params.environment = raw.value("environment", false);
     params.bokeh = raw.value("bokeh", false);
     if (raw.contains("depth_range")) {

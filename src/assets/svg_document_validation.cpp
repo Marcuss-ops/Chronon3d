@@ -92,8 +92,9 @@ std::optional<std::string> validate_svg_subset(
                     return "SVG gradient stops support only stop-color and stop-opacity animation";
                 continue;
             }
-            if (name == "tspan" && parent_name != "text" && parent_name != "tspan")
-                return "SVG <tspan> must be nested inside <text> or <tspan>";
+            if (name == "tspan" && parent_name != "text" && parent_name != "tspan" &&
+                parent_name != "textPath")
+                return "SVG <tspan> must be nested inside <text>, <tspan>, or <textPath>";
             if (name == "textPath" && parent_name != "text" && parent_name != "tspan")
                 return "SVG <textPath> must be nested inside <text> or <tspan>";
             if (name == "textPath") {
@@ -233,10 +234,10 @@ std::optional<std::string> validate_svg_subset(
             }
             if (name == "pattern" && parent_name != "defs")
                 return "SVG pattern definitions must be children of <defs>";
-            if (parent_name == "pattern" && name != "rect" && name != "path" &&
-                name != "circle" && name != "ellipse" && name != "line" &&
-                name != "polyline" && name != "polygon")
-                return "SVG text patterns support only path and primitive tile content";
+            if (parent_name == "pattern" && name != "g" && name != "rect" &&
+                name != "path" && name != "circle" && name != "ellipse" &&
+                name != "line" && name != "polyline" && name != "polygon")
+                return "SVG text patterns support only path, primitive, and group tile content";
             if (name == "filter" && parent_name != "defs")
                 return "SVG filter definitions must be children of <defs>";
             if (name == "feGaussianBlur" && parent_name != "filter")
@@ -370,8 +371,8 @@ std::optional<std::string> inspect_svg_xml_tree(
                 if (href || xlink_href) {
                     const auto reference = href ? href : xlink_href;
                     const bool local_reference =
-                        (name == "use" || name == "textPath") && reference->size() >= 2 &&
-                        reference->front() == '#' &&
+                        (name == "use" || name == "textPath" || name == "pattern") &&
+                        reference->size() >= 2 && reference->front() == '#' &&
                         reference->find_first_of(" \t\r\n", 1) == std::string::npos;
                     const bool embedded_image =
                         name == "image" && reference->starts_with("data:image/");

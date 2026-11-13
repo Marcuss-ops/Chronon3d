@@ -189,6 +189,34 @@ TEST_CASE("displacement map is a true two-input effect") {
     CHECK_THROWS(run_effect(input,params));
 }
 
+TEST_CASE("displacement map uses independent X and Y channels") {
+    const auto input = make_gradient(16, 16);
+    Framebuffer map(16, 16);
+    for (int y = 0; y < 16; ++y)
+        for (int x = 0; x < 16; ++x)
+            map.set_pixel(x, y, Color{0.75f, 0.25f, 0.5f, 1.0f});
+
+    DisplacementMapParams params;
+    params.map_layer = "map";
+    params.intensity_x = 0.5f;
+    params.intensity_y = 0.5f;
+    params.channel = DisplacementMapParams::Channel::Luma;
+    params.channel_x = DisplacementMapParams::Channel::Red;
+    params.channel_y = DisplacementMapParams::Channel::Green;
+    const auto split = run_effect(input, params, 0.0f, &map);
+    // Red 0.75 gives +2 px on X; green 0.25 gives -2 px on Y.
+    CHECK(colors_close(split.get_pixel(8, 8), input.get_pixel(6, 10), 2.0e-3f));
+    CHECK(colors_close(split.get_pixel(9, 9), input.get_pixel(7, 11), 2.0e-3f));
+
+    // With neither axis override, the legacy single channel drives both axes.
+    DisplacementMapParams legacy = params;
+    legacy.channel = DisplacementMapParams::Channel::Red;
+    legacy.channel_x.reset();
+    legacy.channel_y.reset();
+    const auto both = run_effect(input, legacy, 0.0f, &map);
+    CHECK(colors_close(both.get_pixel(8, 8), input.get_pixel(6, 6), 2.0e-3f));
+}
+
 TEST_CASE("Field2D displacement needs no external map framebuffer") {
     const auto input = make_gradient(16, 12);
     DisplacementMapParams params;

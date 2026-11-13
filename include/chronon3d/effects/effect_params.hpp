@@ -348,6 +348,74 @@ struct ThresholdParams {
     float softness{0.0f};
 };
 
+// Alpha-domain threshold for Gooey/Metaball-style compositing. The input is
+// canonical premultiplied RGBA; the mask is computed from alpha, then the
+// output is recolored (or the original straight RGB is retained) and
+// premultiplied by the new alpha. This is deliberately separate from the
+// luma Threshold effect.
+struct AlphaThresholdParams {
+    f32 threshold{0.47f};
+    f32 softness{0.02f};
+    Color fill_color{1.0f, 1.0f, 1.0f, 1.0f};
+    bool recolor{true};
+
+    void validate() const {
+        if (!std::isfinite(threshold) || threshold < 0.0f || threshold > 1.0f ||
+            !std::isfinite(softness) || softness < 0.0f || softness > 1.0f)
+            throw std::invalid_argument("AlphaThreshold threshold/softness must be finite in [0, 1]");
+        if (!std::isfinite(fill_color.r) || !std::isfinite(fill_color.g) ||
+            !std::isfinite(fill_color.b) || !std::isfinite(fill_color.a))
+            throw std::invalid_argument("AlphaThreshold fill_color must be finite");
+    }
+};
+
+// Topographic contour rings derived from the shared alpha SDF. Each ring is
+// selected from a four-colour palette; the effect only recolors inside the
+// existing alpha coverage, so it never expands the layer bounds.
+struct ContourPaletteParams {
+    f32 width{2.5f};       // ring width in pixels [0, 64]
+    f32 spacing{14.0f};    // distance between rings in pixels [1, 512]
+    f32 offset{0.0f};      // phase offset in ring units [-512, 512]
+    f32 softness{0.75f};   // edge feather in pixels [0, 64]
+    f32 opacity{1.0f};     // [0, 1]
+    f32 palette_0_r{0.95f}, palette_0_g{0.30f}, palette_0_b{0.10f};
+    f32 palette_1_r{0.98f}, palette_1_g{0.72f}, palette_1_b{0.18f};
+    f32 palette_2_r{0.20f}, palette_2_g{0.78f}, palette_2_b{0.95f};
+    f32 palette_3_r{0.72f}, palette_3_g{0.28f}, palette_3_b{0.95f};
+
+    [[nodiscard]] std::array<Color, 4> palette_colors() const {
+        return {{
+            Color{palette_0_r, palette_0_g, palette_0_b, 1.0f},
+            Color{palette_1_r, palette_1_g, palette_1_b, 1.0f},
+            Color{palette_2_r, palette_2_g, palette_2_b, 1.0f},
+            Color{palette_3_r, palette_3_g, palette_3_b, 1.0f},
+        }};
+    }
+
+    void validate() const {
+        const std::array<float, 17> values{
+            width, spacing, offset, softness, opacity,
+            palette_0_r, palette_0_g, palette_0_b,
+            palette_1_r, palette_1_g, palette_1_b,
+            palette_2_r, palette_2_g, palette_2_b,
+            palette_3_r, palette_3_g, palette_3_b};
+        for (float value : values) {
+            if (!std::isfinite(value))
+                throw std::invalid_argument("ContourPalette parameters must be finite");
+        }
+        if (width < 0.0f || width > 64.0f || spacing < 1.0f || spacing > 512.0f ||
+            offset < -512.0f || offset > 512.0f || softness < 0.0f ||
+            softness > 64.0f || opacity < 0.0f || opacity > 1.0f)
+            throw std::invalid_argument("ContourPalette width/spacing/offset/softness/opacity are outside their ranges");
+        const auto colors = palette_colors();
+        for (const Color& color : colors) {
+            if (color.r < 0.0f || color.r > 1.0f || color.g < 0.0f ||
+                color.g > 1.0f || color.b < 0.0f || color.b > 1.0f)
+                throw std::invalid_argument("ContourPalette palette colors must be in [0, 1]");
+        }
+    }
+};
+
 struct MosaicParams {
     std::uint32_t block_size{8};
 };
@@ -504,6 +572,10 @@ struct DisplacementMapParams {
     Channel channel{Channel::Luma};
     std::optional<graphics::Field2D> field;
     sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+    // Optional per-axis channels. When unset, that axis inherits `channel`,
+    // preserving the original single-channel authoring contract.
+    std::optional<Channel> channel_x;
+    std::optional<Channel> channel_y;
 };
 enum class FoldAxis : std::uint8_t {
     Vertical,
@@ -679,6 +751,127 @@ struct SdfBevelParams {
     Color shadow_color{0.0f, 0.0f, 0.0f, 1.0f};
 };
 
+// ── AE gap closure parameters ──────────────────────────────────────────────
+// Inner glow: an inset band of width `size` (pixels) starting `choke`
+// (fraction of size) inside the alpha edge, blurred and screen-composited
+// inside the original coverage. Scalar colour fields keep every component
+// addressable by the canonical catalog parameter animation path.
+struct InnerGlowParams {
+    f32 size{6.0f};       // band width in pixels [0, 256]
+    f32 choke{0.0f};      // inset fraction of size [0, 1]
+    f32 intensity{1.0f};  // [0, 4]
+    f32 color_r{1.0f}, color_g{1.0f}, color_b{1.0f}, color_a{1.0f};
+};
+
+// Thresholded two-colour glow. `color` is used at the threshold edge and
+// `color_b` at full trigger; `falloff` > 1 sharpens the halo decay.
+struct GlowAdvancedParams {
+    f32 threshold{0.0f};  // [0, 1]
+    f32 radius{24.0f};    // [0, 256] pixels
+    f32 intensity{0.25f}; // [0, 4]
+    f32 color_r{1.0f}, color_g{1.0f}, color_b{1.0f}, color_a{1.0f};
+    f32 color_b_r{1.0f}, color_b_g{1.0f}, color_b_b{1.0f}, color_b_a{1.0f};
+    f32 falloff{1.0f};    // [1, 8]
+};
+
+// AE Optics Compensation shape: FOV drives a radial curvature; `reverse`
+// flips pincushion (0) to barrel (1) without a separate effect instance.
+struct OpticsCompensationParams {
+    f32 fov_degrees{0.0f}; // [0, 120]; 0 is identity
+    f32 reverse{0.0f};     // [0, 1]; >= 0.5 enables reverse distortion
+    f32 center_x{0.5f}, center_y{0.5f};
+    f32 scale{1.0f};       // [0.1, 4]
+};
+
+// CC Light Sweep-style moving band. `center` is the band center in normalized
+// layer coordinates; `angle_degrees` is the band normal (0 = vertical band
+// sweeping horizontally). The band is additive and only affects existing
+// coverage, so alpha and the layer silhouette are preserved.
+struct LightSweepParams {
+    f32 center_x{0.5f}, center_y{0.5f};
+    f32 angle_degrees{45.0f}; // [-3600, 3600]
+    f32 width{120.0f};        // full band width in pixels [0, 4096]
+    f32 softness{30.0f};      // outer feather in pixels [0, 2048]
+    f32 intensity{0.8f};      // [0, 8]
+    f32 edge_intensity{0.6f}; // hot edge strength [0, 8]
+    f32 edge_width{6.0f};     // hot edge Gaussian width in pixels [0, 1024]
+    f32 color_r{1.0f}, color_g{1.0f}, color_b{1.0f};
+
+    void validate() const {
+        const std::array<float, 12> values{
+            center_x, center_y, angle_degrees, width, softness, intensity,
+            edge_intensity, edge_width, color_r, color_g, color_b, 0.0f};
+        for (const float value : values) {
+            if (!std::isfinite(value))
+                throw std::invalid_argument("LightSweep parameters must be finite");
+        }
+        if (center_x < 0.0f || center_x > 1.0f || center_y < 0.0f || center_y > 1.0f ||
+            angle_degrees < -3600.0f || angle_degrees > 3600.0f ||
+            width < 0.0f || width > 4096.0f || softness < 0.0f || softness > 2048.0f ||
+            intensity < 0.0f || intensity > 8.0f ||
+            edge_intensity < 0.0f || edge_intensity > 8.0f ||
+            edge_width < 0.0f || edge_width > 1024.0f ||
+            color_r < 0.0f || color_r > 1.0f || color_g < 0.0f || color_g > 1.0f ||
+            color_b < 0.0f || color_b > 1.0f)
+            throw std::invalid_argument("LightSweep parameters are outside their ranges");
+    }
+};
+
+// CC Cylinder-style 2D wrap. The layer is mapped to the visible front of a
+// cylinder: horizontal positions become asin(dx), vertical positions stay
+// linear, and a Lambert term shades the curved surface. `inside` mirrors the
+// horizontal wrap to expose the inner surface.
+struct CylinderWrapParams {
+    f32 center_x{0.5f}, center_y{0.5f};
+    f32 width{0.55f};          // radius as a fraction of width (0, 1]
+    f32 height{1.0f};          // visible height as a fraction of height (0, 2]
+    f32 rotation_degrees{0.0f};
+    f32 ambient{0.35f};        // [0, 1]
+    f32 diffuse{0.65f};        // [0, 2]
+    bool inside{false};
+
+    void validate() const {
+        const std::array<float, 7> values{center_x, center_y, width, height,
+                                         rotation_degrees, ambient, diffuse};
+        for (const float value : values) {
+            if (!std::isfinite(value))
+                throw std::invalid_argument("CylinderWrap parameters must be finite");
+        }
+        if (center_x < 0.0f || center_x > 1.0f || center_y < 0.0f || center_y > 1.0f ||
+            width <= 0.0f || width > 1.0f || height <= 0.0f || height > 2.0f ||
+            rotation_degrees < -360.0f || rotation_degrees > 360.0f ||
+            ambient < 0.0f || ambient > 1.0f || diffuse < 0.0f || diffuse > 2.0f)
+            throw std::invalid_argument("CylinderWrap parameters are outside their ranges");
+    }
+};
+
+// CC Sphere-style 2D wrap. The layer is mapped onto the visible hemisphere of
+// a sphere with a Lambert term plus a tight specular lobe.
+struct SphereWrapParams {
+    f32 center_x{0.5f}, center_y{0.5f};
+    f32 radius{0.45f};         // fraction of min(width, height) (0, 1]
+    f32 rotation_degrees{0.0f};
+    f32 ambient{0.30f};        // [0, 1]
+    f32 diffuse{0.70f};        // [0, 2]
+    f32 specular{0.20f};       // [0, 2]
+    bool inside{false};
+
+    void validate() const {
+        const std::array<float, 7> values{center_x, center_y, radius,
+                                         rotation_degrees, ambient, diffuse, specular};
+        for (const float value : values) {
+            if (!std::isfinite(value))
+                throw std::invalid_argument("SphereWrap parameters must be finite");
+        }
+        if (center_x < 0.0f || center_x > 1.0f || center_y < 0.0f || center_y > 1.0f ||
+            radius <= 0.0f || radius > 1.0f ||
+            rotation_degrees < -360.0f || rotation_degrees > 360.0f ||
+            ambient < 0.0f || ambient > 1.0f || diffuse < 0.0f || diffuse > 2.0f ||
+            specular < 0.0f || specular > 2.0f)
+            throw std::invalid_argument("SphereWrap parameters are outside their ranges");
+    }
+};
+
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info
 // comparison — strictly faster than std::any_cast's runtime type check.
@@ -711,6 +904,8 @@ using EffectParams = std::variant<
     EchoParams,
     KeyingParams,
     ThresholdParams,
+    AlphaThresholdParams,
+    ContourPaletteParams,
     MosaicParams,
     LightRaysParams,
     OffsetParams,
@@ -725,7 +920,9 @@ using EffectParams = std::variant<
     SharpenParams, RoughenEdgesParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
     ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
     LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams,
-    LiftGammaGainParams, ColorMatrixParams, PosterizeParams, ColorMapParams, LinearWipeParams, MinMaxParams, StretchWarpParams, LensFlareParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams, CameraRingParams
+    LiftGammaGainParams, ColorMatrixParams, PosterizeParams, ColorMapParams, LinearWipeParams,    MinMaxParams, StretchWarpParams, LensFlareParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams, CameraRingParams,
+    InnerGlowParams, GlowAdvancedParams, OpticsCompensationParams, LightSweepParams,
+    CylinderWrapParams, SphereWrapParams
 >;
 
 } // namespace chronon3d

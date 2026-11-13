@@ -296,7 +296,7 @@ void VulkanBackend::Impl::warp_bulk(runtime::RenderSurfaceHandle destination,
                                     runtime::RenderSurfaceHandle source,
                                     runtime::RenderSurfaceHandle aux,
                                     const graph::WarpBulkParams& params) {
-    if (params.mode < 0 || params.mode > 12 ||
+    if (params.mode < 0 || params.mode > 15 ||
         (params.edge_mode != 0 && params.edge_mode != 1)) {
         throw std::invalid_argument(
             "Vulkan warp bulk parameters are outside supported ranges");

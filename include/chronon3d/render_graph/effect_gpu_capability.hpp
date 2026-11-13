@@ -27,7 +27,7 @@ struct NativeRoute {
 
 // Effects with a certified native Vulkan implementation.  Everything else in
 // the catalog is Unsupported and fails closed under strict native-GPU policy.
-inline constexpr std::array<NativeRoute, 57> kNativeRoutes{{
+inline constexpr std::array<NativeRoute, 64> kNativeRoutes{{
     {effects::EffectType::Blur, "Vulkan separable blur dispatch"},
     {effects::EffectType::DropShadow,
      "Vulkan alpha-mask, offset, dual-blur and source-over shadow dispatch"},
@@ -83,6 +83,12 @@ inline constexpr std::array<NativeRoute, 57> kNativeRoutes{{
      "Vulkan aux-image displacement-map resample"},
     {effects::EffectType::LensDistortion,
      "Vulkan radial lens-distortion resample"},
+    {effects::EffectType::OpticsCompensation,
+     "Vulkan FOV-driven barrel/pincushion resample via warp mode 7"},
+    {effects::EffectType::GlowAdvanced,
+     "Vulkan thresholded A/B glow prepare with separable Gaussian halo (falloff=1, radius<=96)"},
+    {effects::EffectType::InnerGlow,
+     "Vulkan alpha-erosion band, separable Gaussian blur and screen-inside-alpha (choke=0, size<=16)"},
     {effects::EffectType::FoldWarp, "Vulkan crease fold-warp resample"},
     {effects::EffectType::RoughenEdges,
      "Vulkan boundary-band fBm roughen-edges resample"},
@@ -116,6 +122,14 @@ inline constexpr std::array<NativeRoute, 57> kNativeRoutes{{
     {effects::EffectType::LensFlare, "Vulkan thresholded halo/ghost/streak dispatch"},
     {effects::EffectType::CameraRing,
      "Vulkan elliptical Petzval CoC gather with Poisson-disc bokeh and CoC² chromatic dispersion"},
+    {effects::EffectType::AlphaThreshold,
+     "Vulkan premultiplied alpha-threshold color-matrix dispatch"},
+    {effects::EffectType::LightSweep,
+     "Vulkan additive moving-band color-matrix dispatch"},
+    {effects::EffectType::CylinderWrap,
+     "Vulkan inverse-cylindrical layer wrap with Lambert shading"},
+    {effects::EffectType::SphereWrap,
+     "Vulkan inverse-spherical layer wrap with Lambert and specular shading"},
 }};
 
 [[nodiscard]] constexpr GpuEffectCapabilityRow make_row(effects::EffectType effect) {

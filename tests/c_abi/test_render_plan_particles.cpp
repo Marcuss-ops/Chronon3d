@@ -193,6 +193,43 @@ TEST_CASE("V3 particle flow and twinkle fields decode and fail closed") {
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(rejected));
 }
 
+TEST_CASE("V3 particle life curves, drag and emissive decode and fail closed") {
+    auto emitter = box_emitter();
+    emitter["air_drag"] = 1.25;
+    emitter["emissive"] = 2.5;
+    emitter["emitter_velocity"] = {40.0, -10.0};
+    emitter["size_over_life"] = {{0.0, 0.2}, {0.15, 1.0}, {1.0, 0.0}};
+    emitter["opacity_over_life"] = {{0.0, 0.0}, {0.1, 1.0}, {1.0, 0.0}};
+    const auto plan = render_plan_test::base_plan(
+        nlohmann::json::array({particles_layer(emitter)}));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    if (!decoded) MESSAGE("particle life decode failed: " << decoded.error().message);
+    REQUIRE(decoded);
+    const auto& parsed = *decoded->layers[0].particle_emitter;
+    CHECK(parsed.air_drag == doctest::Approx(1.25f));
+    CHECK(parsed.emissive == doctest::Approx(2.5f));
+    CHECK(parsed.emitter_velocity.x == doctest::Approx(40.0f));
+    CHECK(parsed.emitter_velocity.y == doctest::Approx(-10.0f));
+    REQUIRE(parsed.size_over_life.color_stops.size() == 3U);
+    REQUIRE(parsed.opacity_over_life.color_stops.size() == 3U);
+    CHECK(parsed.size_over_life.color_stops[1].color.r == doctest::Approx(1.0f));
+
+    auto negative_drag = emitter;
+    negative_drag["air_drag"] = -1.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(
+        render_plan_test::base_plan(nlohmann::json::array({particles_layer(negative_drag)}))));
+
+    auto bad_curve = emitter;
+    bad_curve["size_over_life"] = {{0.0, 0.2}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(
+        render_plan_test::base_plan(nlohmann::json::array({particles_layer(bad_curve)}))));
+
+    auto out_of_range = emitter;
+    out_of_range["emissive"] = 65.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(
+        render_plan_test::base_plan(nlohmann::json::array({particles_layer(out_of_range)}))));
+}
+
 TEST_CASE("environment bokeh emitters decode and stay inside the particle budget") {
     auto emitter = box_emitter();
     emitter["environment"] = true;

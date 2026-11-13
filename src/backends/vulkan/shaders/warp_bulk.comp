@@ -22,7 +22,8 @@
 //   10 RoughenEdges: p = (amount,scale,octaves,evol,seed).
 //   11 Stroke: p = (color.r,color.g,color.b,mode,outer_r,inner_r).
 //     (stroke color alpha is unused, matching the CPU compose).
-//   12 DisplacementMap via aux: p = (ix,iy,channel,_), p[3..4] = map origin
+//   12 DisplacementMap via aux: p = (ix,iy,channel_x,_), p[3..4] = map origin,
+//      p[5] = channel_y
 // Sampling matches sampling::Sampler2D bilinear in texel-center convention
 // with Transparent (OOB -> vec4(0)) or Clamp edges (edge_mode 0/1).
 // Certified windows are bounded per mode; anything outside fails closed at
@@ -59,6 +60,14 @@ vec4 sample_src(vec2 s, ivec2 size) {
     vec4 c01 = fetch_src(p0 + ivec2(0, 1), size);
     vec4 c11 = fetch_src(p0 + ivec2(1, 1), size);
     return mix(mix(c00, c10, t.x), mix(c01, c11, t.x), t.y);
+}
+
+float channel_value(vec4 c, int channel) {
+    if (channel == 1) return c.r;
+    if (channel == 2) return c.g;
+    if (channel == 3) return c.b;
+    if (channel == 4) return c.a;
+    return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
 }
 
 vec4 sample_aux_clamp(vec2 s, ivec2 size) {
@@ -465,20 +474,82 @@ void main() {
 
     if (mode == 12) {
         float ix = params.p[0], iy = params.p[1];
-        int channel = int(params.p[2] + 0.5);
+        int channel_x = int(params.p[2] + 0.5);
+        int channel_y = int(params.p[5] + 0.5);
         vec2 morigin = vec2(params.p[3], params.p[4]);
         ivec2 aux_size = imageSize(aux_image);
         vec4 m = sample_aux_clamp(vec2(px + morigin.x, py + morigin.y), aux_size);
-        float ch = 0.2126 * m.r + 0.7152 * m.g + 0.0722 * m.b;
-        if (channel == 1) ch = m.r;
-        else if (channel == 2) ch = m.g;
-        else if (channel == 3) ch = m.b;
-        else if (channel == 4) ch = m.a;
+        float chx = channel_value(m, channel_x);
+        float chy = channel_value(m, channel_y);
         float sc = min(w, h);
-        float dx = (ch - 0.5) * ix * sc;
-        float dy = (ch - 0.5) * iy * sc;
+        float dx = (chx - 0.5) * ix * sc;
+        float dy = (chy - 0.5) * iy * sc;
         imageStore(destination_image, pixel,
                    sample_src(vec2(px - dx, py - dy), size));
+        return;
+    }
+
+    if (mode == 13) {
+        // Inner glow certified window: choke == 0. The CPU oracle erodes the
+        // alpha with clamped edge fetches; keep the same convention here.
+        int inner_r = int(params.p[0] + 0.5);
+        vec4 src_px = imageLoad(source_image, pixel);
+        float ero_a = src_px.a;
+        if (inner_r > 0) {
+            ero_a = 1.0;
+            for (int oy = -inner_r; oy <= inner_r; ++oy)
+                for (int ox = -inner_r; ox <= inner_r; ++ox) {
+                    ivec2 q = clamp(pixel + ivec2(ox, oy), ivec2(0), size - ivec2(1));
+                    ero_a = min(ero_a, imageLoad(source_image, q).a);
+                }
+        }
+        float band = clamp(src_px.a - ero_a, 0.0, 1.0);
+        imageStore(destination_image, pixel, vec4(vec3(band), band));
+        return;
+    }
+
+    if (mode == 14) {
+        float cx = params.p[0], cy = params.p[1];
+        float radius = params.p[2], half_height = params.p[3];
+        float phase = params.p[4] / kTau;
+        bool inside = params.p[7] > 0.5;
+        float dx = (px - cx) / radius;
+        float dy = py - cy;
+        if (abs(dx) > 1.0 || abs(dy) > half_height) {
+            imageStore(destination_image, pixel, vec4(0.0));
+            return;
+        }
+        float angle = asin(clamp(dx, -1.0, 1.0));
+        float normal_z = sqrt(max(0.0, 1.0 - dx * dx));
+        float u = 0.5 + (inside ? -1.0 : 1.0) * angle / 3.14159265358979323846 + phase;
+        u = fract(u);
+        float v = (dy + half_height) / (2.0 * half_height);
+        vec4 c = sample_src(vec2(u * w, v * h), size);
+        float shade = max(0.0, params.p[5] + params.p[6] * normal_z);
+        imageStore(destination_image, pixel, vec4(c.rgb * shade, c.a));
+        return;
+    }
+
+    if (mode == 15) {
+        float cx = params.p[0], cy = params.p[1], radius = params.p[2];
+        float phase = params.p[3] / kTau;
+        bool inside = params.p[7] > 0.5;
+        float nx = (px - cx) / radius;
+        float ny = (py - cy) / radius;
+        float r2 = nx * nx + ny * ny;
+        if (r2 > 1.0) {
+            imageStore(destination_image, pixel, vec4(0.0));
+            return;
+        }
+        float normal_z = sqrt(max(0.0, 1.0 - r2));
+        float angle = atan(nx, normal_z);
+        float u = 0.5 + (inside ? -1.0 : 1.0) * angle / 3.14159265358979323846 + phase;
+        u = fract(u);
+        float v = 0.5 + asin(clamp(ny, -1.0, 1.0)) / 3.14159265358979323846;
+        vec4 c = sample_src(vec2(u * w, v * h), size);
+        float shade = max(0.0, params.p[4] + params.p[5] * normal_z +
+                          params.p[6] * pow(normal_z, 16.0));
+        imageStore(destination_image, pixel, vec4(c.rgb * shade, c.a));
         return;
     }
 

@@ -45,7 +45,9 @@ namespace chronon3d::cli {
 /// JSON layer) reads `audit` for measurement data + `status` for the
 /// exit-code mapping.
 struct InspectionRecord {
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
     TextVisibilityAudit audit;     // audit-computed bboxes + invariants
+#endif
     std::string         node_name; // the graph-builder snapshot's name
     std::string         font_path; // "<unknown>" when layout absent
     std::size_t         glyph_count{0};
@@ -66,8 +68,13 @@ struct StatusMapping {
 /// → `(json_status_string, exit_code)` mapping. Public so the JSON layer
 /// can format the per-snapshot JSON entry
 /// without duplicating the mapping logic.
+///
+/// Gated with the audit types: `TextVisibilityStatus` only exists when
+/// `CHRONON3D_BUILD_DIAGNOSTICS` is defined.
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 StatusMapping map_status_for_node(TextVisibilityStatus s,
                                   bool predicted_contains_world) noexcept;
+#endif
 
 /// `audit_for_snapshot()` — audit a single graph-builder snapshot.
 ///
@@ -95,7 +102,7 @@ InspectionRecord audit_for_snapshot(
 /// returns a hard-coded {"FAIL", 1} mapping.
 struct StatusRecordPair {
     StatusMapping    mapping;
-    InspectionRecord record;  // audit is zero-initialised when diagnostics=OFF
+    InspectionRecord record;  // audit member is compiled out when diagnostics=OFF
 };
 
 StatusRecordPair map_to_status(

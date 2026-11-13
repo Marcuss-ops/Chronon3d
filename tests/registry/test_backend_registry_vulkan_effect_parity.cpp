@@ -135,6 +135,13 @@ TEST_CASE("Vulkan native color effects match the software processors") {
         check_parity(*p, ThresholdParams{.threshold = 0.0f, .softness = 0.0f});
         check_parity(*p, ThresholdParams{.threshold = 1.0f, .softness = 1.0f});
     }
+    SUBCASE("AlphaThreshold") {
+        auto p = renderer::create_alpha_threshold_effect_processor();
+        check_parity(*p, AlphaThresholdParams{.threshold = 0.47f, .softness = 0.0f,
+            .fill_color = Color{1.0f, 0.2f, 0.4f, 1.0f}, .recolor = true});
+        check_parity(*p, AlphaThresholdParams{.threshold = 0.35f, .softness = 0.25f,
+            .recolor = false});
+    }
     SUBCASE("Vignette") {
         auto p = renderer::create_vignette_effect_processor();
         check_parity(*p, VignetteParams{.radius = 0.27f, .softness = 0.38f,
@@ -403,6 +410,9 @@ TEST_CASE("Vulkan native color effects honor the software clip contract") {
     check_parity(*invert, InvertParams{.amount = 0.8f}, clip);
     auto threshold = renderer::create_threshold_effect_processor();
     check_parity(*threshold, ThresholdParams{.threshold = 0.4f, .softness = 0.15f}, clip);
+    auto alpha_threshold = renderer::create_alpha_threshold_effect_processor();
+    check_parity(*alpha_threshold, AlphaThresholdParams{.threshold = 0.45f, .softness = 0.1f,
+        .fill_color = Color{0.1f, 0.9f, 0.3f, 1.0f}, .recolor = true}, clip);
     auto vignette = renderer::create_vignette_effect_processor();
     check_parity(*vignette, VignetteParams{.radius = 0.25f, .softness = 0.45f,
                                            .amount = 0.9f}, clip);

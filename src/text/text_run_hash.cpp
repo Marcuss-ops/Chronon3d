@@ -225,6 +225,10 @@ u64 hash_text_run_shape_v2(const TextRunShape& s) {
         builder.add(tile->width).add(tile->height).add(tile->rgba.size())
             .add_bytes(tile->rgba.data(), tile->rgba.size());
         for (const auto value : tile->transform) f(value);
+        builder.add(tile->object_bounding_box);
+        f(tile->object_x); f(tile->object_y);
+        f(tile->object_width); f(tile->object_height);
+        f(tile->raster_scale);
     };
     const auto glyphs = [&](const std::vector<GlyphInstanceState>& values) {
         builder.add(values.size());

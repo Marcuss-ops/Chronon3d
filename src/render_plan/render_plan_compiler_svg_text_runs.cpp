@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -23,11 +24,240 @@
 
 namespace chronon3d::render_plan::detail {
 
+namespace {
+
+struct SvgTextLengthRunLayout {
+    float base_advance{0.0f};
+    float base_ink_width{0.0f};
+    std::size_t cluster_count{0};
+    std::size_t word_gap_count{0};
+    float scale{1.0f};
+    float gap{0.0f};
+    float trailing_gap{0.0f};
+};
+
+struct SvgTextLengthScopeNode {
+    float target{0.0f};
+    std::string length_adjust{"spacing"};
+    std::string parent;
+    std::size_t run_count{0};
+    std::size_t first_run{0};
+    std::size_t last_run{0};
+    int depth{0};
+};
+
+bool svg_text_cluster_is_space(std::string_view value) {
+    return value == " " || value == "\t" || value == "\n" || value == "\r";
+}
+
+bool svg_text_run_has_length_scope(
+    const chronon3d::assets::SvgTextRun& run, const std::string& scope_id) {
+    return std::any_of(run.text_length_scopes.begin(), run.text_length_scopes.end(),
+        [&](const chronon3d::assets::SvgTextLengthScope& scope) {
+            return scope.id == scope_id;
+        });
+}
+
+std::optional<PlanDecodeError> resolve_svg_text_length_scopes(
+    std::vector<chronon3d::assets::SvgTextRun>& runs,
+    std::vector<SvgTextMetrics>& text_metrics,
+    chronon3d::assets::AssetResolver& resolver,
+    std::unique_ptr<chronon3d::FontEngine>& font_engine,
+    std::size_t layer_index) {
+    std::map<std::string, std::vector<std::size_t>> groups;
+    for (std::size_t index = 0; index < runs.size(); ++index) {
+        if (!runs[index].text_length_scopes.empty())
+            groups[runs[index].text_element_id].push_back(index);
+    }
+    if (!font_engine && !groups.empty())
+        return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+            "].shape.asset", "SVG textLength requires a text font engine",
+            "svg_text_invalid", "render-plan-svg"};
+    for (auto& [element_id, run_indices] : groups) {
+        (void)element_id;
+        std::map<std::string, SvgTextLengthScopeNode> scopes;
+        for (const std::size_t run_index : run_indices) {
+            const auto& chain = runs[run_index].text_length_scopes;
+            std::string parent;
+            for (std::size_t depth = 0; depth < chain.size(); ++depth) {
+                const auto& scope = chain[depth];
+                auto [it, inserted] = scopes.try_emplace(scope.id);
+                auto& node = it->second;
+                if (inserted) {
+                    node.target = scope.target;
+                    node.length_adjust = scope.length_adjust;
+                    node.parent = parent;
+                    node.first_run = run_index;
+                    node.last_run = run_index;
+                    node.depth = static_cast<int>(depth);
+                } else {
+                    if (std::abs(node.target - scope.target) > 1.0e-3f ||
+                        node.length_adjust != scope.length_adjust ||
+                        node.parent != parent)
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                            "].shape.asset", "SVG nested textLength scopes are inconsistent",
+                            "svg_text_length_scope_invalid", "render-plan-svg"};
+                    node.first_run = std::min(node.first_run, run_index);
+                    node.last_run = std::max(node.last_run, run_index);
+                }
+                ++node.run_count;
+                parent = scope.id;
+            }
+        }
+
+        std::map<std::size_t, SvgTextLengthRunLayout> layouts;
+        for (const std::size_t run_index : run_indices) {
+            const auto& run = runs[run_index];
+            chronon3d::FontSpec font_spec;
+            font_spec.font_path = text_metrics[run_index].font_asset;
+            if (const auto path = resolver.resolve_logical(font_spec.font_path))
+                font_spec.font_path = path->string();
+            font_spec.font_family = run.font_family;
+            font_spec.font_weight = run.font_weight;
+            font_spec.font_style = run.font_style;
+            font_spec.font_size = run.font_size;
+            const auto shaped = font_engine->shape_text(
+                run.text, font_spec, run.font_size);
+            if (!shaped)
+                return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                    "].shape.asset", "SVG textLength text could not be shaped",
+                    "svg_text_invalid", "render-plan-svg"};
+            const auto placed = chronon3d::resolve_placed_glyph_run(
+                *shaped, 0.0f, run.text);
+            auto& layout = layouts[run_index];
+            layout.base_advance = placed.total_width;
+            layout.base_ink_width = text_metrics[run_index].ink_width;
+            std::size_t last_nonempty_cluster = 0;
+            for (std::size_t cluster_index = 0;
+                 cluster_index < placed.clusters.size(); ++cluster_index) {
+                const auto& cluster = placed.clusters[cluster_index];
+                if (cluster.byte_len == 0 ||
+                    cluster.byte_offset + cluster.byte_len > run.text.size())
+                    continue;
+                ++layout.cluster_count;
+                last_nonempty_cluster = cluster_index;
+            }
+            for (std::size_t cluster_index = 0;
+                 cluster_index < placed.clusters.size(); ++cluster_index) {
+                const auto& cluster = placed.clusters[cluster_index];
+                if (cluster.byte_len == 0 ||
+                    cluster.byte_offset + cluster.byte_len > run.text.size())
+                    continue;
+                const auto cluster_text = run.text.substr(
+                    cluster.byte_offset, cluster.byte_len);
+                if (svg_text_cluster_is_space(cluster_text) &&
+                    cluster_index != last_nonempty_cluster)
+                    ++layout.word_gap_count;
+            }
+        }
+
+        std::vector<std::string> scope_order;
+        scope_order.reserve(scopes.size());
+        for (const auto& [scope_id, node] : scopes) {
+            (void)node;
+            scope_order.push_back(scope_id);
+        }
+        std::sort(scope_order.begin(), scope_order.end(),
+            [&](const std::string& left, const std::string& right) {
+                return scopes.at(left).depth > scopes.at(right).depth;
+            });
+        for (const auto& scope_id : scope_order) {
+            const auto& node = scopes.at(scope_id);
+            float total = 0.0f;
+            std::size_t total_clusters = 0;
+            for (std::size_t run_index = node.first_run;
+                 run_index <= node.last_run; ++run_index) {
+                if (!svg_text_run_has_length_scope(runs[run_index], scope_id))
+                    continue;
+                const auto& run = runs[run_index];
+                const auto& layout = layouts[run_index];
+                if (layout.cluster_count == 0) continue;
+                const float base_spacing =
+                    run.letter_spacing * static_cast<float>(layout.cluster_count - 1) +
+                    run.word_spacing * static_cast<float>(layout.word_gap_count);
+                total += layout.base_advance * layout.scale +
+                    base_spacing * layout.scale +
+                    layout.gap * static_cast<float>(layout.cluster_count - 1) +
+                    layout.trailing_gap;
+                total_clusters += layout.cluster_count;
+            }
+            if (total_clusters == 0) continue;
+            const std::size_t total_gaps = total_clusters - 1;
+            if (!std::isfinite(total))
+                return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                    "].shape.asset", "SVG textLength produced a non-finite advance",
+                    "svg_text_length_scope_invalid", "render-plan-svg"};
+            if (node.length_adjust == "spacingAndGlyphs") {
+                if (!(total > 0.0f))
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.asset", "SVG textLength spacingAndGlyphs needs a positive advance",
+                        "svg_text_length_scope_invalid", "render-plan-svg"};
+                const float factor = node.target / total;
+                if (!std::isfinite(factor) || factor <= 0.0f)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.asset", "SVG textLength produced an invalid glyph scale",
+                        "svg_text_length_scope_invalid", "render-plan-svg"};
+                for (std::size_t run_index = node.first_run;
+                     run_index <= node.last_run; ++run_index) {
+                    if (!svg_text_run_has_length_scope(runs[run_index], scope_id))
+                        continue;
+                    auto& layout = layouts[run_index];
+                    layout.scale *= factor;
+                    layout.gap *= factor;
+                    layout.trailing_gap *= factor;
+                }
+            } else {
+                if (total_gaps == 0) continue;
+                const float gap = (node.target - total) /
+                    static_cast<float>(total_gaps);
+                if (!std::isfinite(gap))
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.asset", "SVG textLength produced an invalid spacing gap",
+                        "svg_text_length_scope_invalid", "render-plan-svg"};
+                for (std::size_t run_index = node.first_run;
+                     run_index <= node.last_run; ++run_index) {
+                    if (!svg_text_run_has_length_scope(runs[run_index], scope_id))
+                        continue;
+                    auto& layout = layouts[run_index];
+                    layout.gap += gap;
+                    if (run_index != node.last_run &&
+                        run_index + 1 < runs.size() &&
+                        svg_text_run_has_length_scope(runs[run_index + 1], scope_id))
+                        layout.trailing_gap += gap;
+                }
+            }
+        }
+        for (const std::size_t run_index : run_indices) {
+            const auto& layout = layouts[run_index];
+            if (layout.cluster_count == 0) continue;
+            const auto& run = runs[run_index];
+            const float base_spacing =
+                run.letter_spacing * static_cast<float>(layout.cluster_count - 1) +
+                run.word_spacing * static_cast<float>(layout.word_gap_count);
+            auto& resolved = runs[run_index];
+            resolved.text_length_resolved = true;
+            resolved.resolved_text_length_scale = layout.scale;
+            resolved.resolved_text_length_gap = layout.gap;
+            resolved.resolved_text_length_trailing_gap = layout.trailing_gap;
+            text_metrics[run_index].advance =
+                layout.base_advance * layout.scale +
+                base_spacing * layout.scale +
+                layout.gap * static_cast<float>(layout.cluster_count - 1) +
+                layout.trailing_gap;
+            text_metrics[run_index].ink_width =
+                layout.base_ink_width * layout.scale;
+        }
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
 std::optional<PlanDecodeError> append_svg_text_runs(
     LayerPlan& layer, const RenderPlan& plan,
     chronon3d::assets::AssetResolver& resolver, std::size_t layer_index,
     ShapeContentPlan& shape,
-    const std::vector<chronon3d::assets::SvgTextRun>& text_runs,
+    const std::vector<chronon3d::assets::SvgTextRun>& text_runs_input,
     const std::vector<chronon3d::assets::SvgStyledElement>& elements,
     std::unique_ptr<chronon3d::FontEngine>& font_engine,
     std::vector<SvgTextMetrics>& text_metrics,
@@ -36,6 +266,11 @@ std::optional<PlanDecodeError> append_svg_text_runs(
     std::vector<std::pair<chronon3d::assets::SvgTextRun, LayerPlan>>& pending_svg_text_layers,
     std::vector<SvgTextMetrics>& pending_svg_text_metrics,
     std::vector<bool>& pending_svg_text_boundary_before) {
+    std::vector<chronon3d::assets::SvgTextRun> resolved_runs = text_runs_input;
+    if (auto error = resolve_svg_text_length_scopes(
+            resolved_runs, text_metrics, resolver, font_engine, layer_index))
+        return error;
+    const auto& text_runs = resolved_runs;
     const auto group_key_for = [&](const chronon3d::assets::SvgTextRun& run,
                                    std::size_t index) {
         return layer.id + "#" + (run.text_element_id.empty()
@@ -90,9 +325,13 @@ std::optional<PlanDecodeError> append_svg_text_runs(
             const auto anchor_scope = run.text_anchor_scope_id.empty()
                 ? group_key : layer.id + "#anchor#" + run.text_anchor_scope_id;
             const bool first_anchor_run = started_text_anchor_scopes.insert(anchor_scope).second;
-            if (first_anchor_run || run.x_explicit) {
-                const float anchor_advance = run.x_explicit
-                    ? text_metrics[text_index].advance : text_anchor_advances[anchor_scope];
+            const bool apply_anchor = run.text_length_resolved
+                ? first_anchor_run : (first_anchor_run || run.x_explicit);
+            if (apply_anchor) {
+                const float anchor_advance = run.text_length_resolved
+                    ? text_anchor_advances[anchor_scope]
+                    : (run.x_explicit ? text_metrics[text_index].advance
+                                      : text_anchor_advances[anchor_scope]);
                 if (run.text_anchor == "middle") run_x -= anchor_advance * 0.5f;
                 else if (run.text_anchor == "end") run_x -= anchor_advance;
             }
@@ -106,9 +345,11 @@ std::optional<PlanDecodeError> append_svg_text_runs(
             text_layer.type = LayerType::Text;
             text_layer.text = run.text;
             text_layer.position_dimensions = 3;
-            text_layer.position[0] = layer.position[0] + run_x;
+            text_layer.position[0] = layer.position[0] + run_x +
+                text_metrics[text_index].advance * 0.5f;
             text_layer.position[1] = layer.position[1] + baseline_y -
-                text_metrics[text_index].ascent;
+                text_metrics[text_index].ascent +
+                text_metrics[text_index].line_height * 0.5f;
             text_layer.position[2] = layer.position[2];
             text_layer.size_dimensions = 2;
             text_layer.size = {std::max(1.0f,
@@ -186,18 +427,50 @@ std::optional<PlanDecodeError> append_svg_text_runs(
                             "svg_text_invalid", "render-plan-svg"};
                     const auto placed = chronon3d::resolve_placed_glyph_run(
                         *shaped, 0.0f, run.text);
-                    float cursor_x = run_x - run.dx;
-                    float cursor_y = baseline_y - run.dy;
-                    const float text_length_scale = run.text_length &&
-                        run.length_adjust == "spacingAndGlyphs" && placed.total_width > 0.0f
-                        ? *run.text_length / placed.total_width : 1.0f;
-                    const std::size_t nonempty_cluster_count = static_cast<std::size_t>(
-                        std::count_if(placed.clusters.begin(), placed.clusters.end(),
-                            [](const auto& cluster) { return cluster.byte_len > 0; }));
-                    const float text_length_gap = run.text_length &&
-                        run.length_adjust == "spacing" && nonempty_cluster_count > 1
-                        ? (*run.text_length - placed.total_width) /
-                            static_cast<float>(nonempty_cluster_count - 1) : 0.0f;
+                    float cursor_x = run_x;
+                    float cursor_y = baseline_y;
+                    std::size_t nonempty_cluster_count = 0;
+                    std::size_t word_gap_count = 0;
+                    std::size_t last_nonempty_cluster = 0;
+                    for (std::size_t cluster_index = 0;
+                         cluster_index < placed.clusters.size(); ++cluster_index) {
+                        const auto& cluster = placed.clusters[cluster_index];
+                        if (cluster.byte_len == 0 ||
+                            cluster.byte_offset + cluster.byte_len > run.text.size())
+                            continue;
+                        ++nonempty_cluster_count;
+                        last_nonempty_cluster = cluster_index;
+                    }
+                    for (std::size_t cluster_index = 0;
+                         cluster_index < placed.clusters.size(); ++cluster_index) {
+                        const auto& cluster = placed.clusters[cluster_index];
+                        if (cluster.byte_len == 0 ||
+                            cluster.byte_offset + cluster.byte_len > run.text.size())
+                            continue;
+                        const auto cluster_text = run.text.substr(
+                            cluster.byte_offset, cluster.byte_len);
+                        if ((cluster_text == " " || cluster_text == "\t" ||
+                             cluster_text == "\n" || cluster_text == "\r") &&
+                            cluster_index != last_nonempty_cluster)
+                            ++word_gap_count;
+                    }
+                    const float base_spacing = nonempty_cluster_count > 1
+                        ? run.letter_spacing * static_cast<float>(nonempty_cluster_count - 1) +
+                            run.word_spacing * static_cast<float>(word_gap_count)
+                        : 0.0f;
+                    const float text_length_scale = run.text_length_resolved
+                        ? run.resolved_text_length_scale
+                        : (run.text_length && run.length_adjust == "spacingAndGlyphs" &&
+                           placed.total_width + base_spacing > 0.0f
+                            ? *run.text_length / (placed.total_width + base_spacing)
+                            : 1.0f);
+                    const float text_length_gap = run.text_length_resolved
+                        ? run.resolved_text_length_gap
+                        : (run.text_length && run.length_adjust == "spacing" &&
+                           nonempty_cluster_count > 1
+                            ? (*run.text_length - placed.total_width - base_spacing) /
+                                static_cast<float>(nonempty_cluster_count - 1)
+                            : 0.0f);
                     std::size_t character_index = 0;
                     const auto utf8_count = [](std::string_view value) {
                         std::size_t count = 0;
@@ -270,7 +543,8 @@ std::optional<PlanDecodeError> append_svg_text_runs(
                             character_index < run.x_coordinates.size() ||
                             character_index < run.y_coordinates.size() ||
                             character_index < run.transformed_position_coordinates.size() ||
-                            (run.text_length.has_value() && character_index == 0);
+                            (!run.text_length_resolved && run.text_length.has_value() &&
+                             character_index == 0);
                         if (starts_positioned_chunk) {
                             const float cluster_advance = cluster.advance * text_length_scale;
                             float chunk_advance = cluster_advance;
@@ -292,12 +566,25 @@ std::optional<PlanDecodeError> append_svg_text_runs(
                             if (run.text_anchor == "middle") anchored_x -= chunk_advance * 0.5f;
                             else if (run.text_anchor == "end") anchored_x -= chunk_advance;
                         }
-                        cluster_layer.position[0] = layer.position[0] + anchored_x;
+                        const float cluster_advance =
+                            cluster.advance * text_length_scale;
+                        // The cluster frame is left-aligned inside a box whose
+                        // centre is layer.position, and the layer scale expands
+                        // around that centre. Compensate the half-box growth so
+                        // the visual left edge stays at anchored_x.
+                        const float glyph_scale_compensation =
+                            (text_length_scale - 1.0f) * cluster_advance * 0.5f;
+                        cluster_layer.position[0] = layer.position[0] + anchored_x +
+                            cluster_advance * 0.5f + glyph_scale_compensation;
                         cluster_layer.position[1] = layer.position[1] + cursor_y -
-                            text_metrics[text_index].ascent;
-                        const float cluster_advance = cluster.advance * text_length_scale;
+                            text_metrics[text_index].ascent +
+                            text_metrics[text_index].line_height * 0.5f;
                         cluster_layer.size[0] = std::max(1.0f, cluster_advance + 1.0f);
-                        if (run.text_length && run.length_adjust == "spacingAndGlyphs") {
+                        const bool scale_text_length_glyphs = run.text_length_resolved
+                            ? run.resolved_text_length_scale != 1.0f
+                            : (run.text_length &&
+                               run.length_adjust == "spacingAndGlyphs");
+                        if (scale_text_length_glyphs) {
                             cluster_layer.scale[0] *= text_length_scale;
                             cluster_layer.scale_dimensions = std::max<std::size_t>(
                                 cluster_layer.scale_dimensions, 2);
@@ -317,10 +604,11 @@ std::optional<PlanDecodeError> append_svg_text_runs(
                             text_index == 0 || text_chunk_boundary_safe[text_index]);
                         float spacing = 0.0f;
                         if (cluster_index + 1 < placed.clusters.size()) {
-                            spacing += run.letter_spacing + text_length_gap;
+                            spacing += run.letter_spacing * text_length_scale +
+                                text_length_gap;
                             if (cluster_text == " " || cluster_text == "\t" ||
                                 cluster_text == "\n" || cluster_text == "\r")
-                                spacing += run.word_spacing;
+                                spacing += run.word_spacing * text_length_scale;
                         }
                         cursor_x += cluster_advance + spacing;
                         character_index += cluster_characters;
@@ -378,8 +666,14 @@ std::optional<PlanDecodeError> append_svg_text_runs(
             path_font.font_weight = run.font_weight;
             path_font.font_style = run.font_style;
             path_font.font_size = run.font_size;
+            chronon3d::TextShaping path_shaping;
+            path_shaping.direction = run.direction == "rtl"
+                ? chronon3d::TextDirection::RTL
+                : run.direction == "ltr"
+                    ? chronon3d::TextDirection::LTR
+                    : chronon3d::TextDirection::Auto;
             const auto shaped = font_engine->shape_text(
-                run.text, path_font, run.font_size);
+                run.text, path_font, run.font_size, path_shaping);
             if (!shaped)
                 return PlanDecodeError{"layers[" + std::to_string(layer_index) +
                     "].shape.asset", "SVG textPath text could not be shaped",
@@ -388,6 +682,8 @@ std::optional<PlanDecodeError> append_svg_text_runs(
                 *shaped, 0.0f, run.text);
             const auto sampler = chronon3d::PathSampler::compile(text_path_geometry);
             chronon3d::TextPathSpec path_spec;
+            path_spec.direction = run.direction == "rtl" ? 2
+                : run.direction == "ltr" ? 1 : 0;
             const float start_offset = run.text_path_start_offset_percent
                 ? run.text_path_start_offset * sampler.total_length() * 0.01f
                 : run.text_path_start_offset;
@@ -473,6 +769,14 @@ std::optional<PlanDecodeError> append_svg_text_runs(
                     if ((byte & 0xc0u) != 0x80u) ++count;
                 return count;
             };
+            const auto path_paint_for = [&](std::size_t byte_offset)
+                -> const chronon3d::assets::SvgTextPaintRange* {
+                for (const auto& range : run.paint_ranges)
+                    if (byte_offset >= range.byte_start &&
+                        byte_offset < range.byte_end)
+                        return &range;
+                return nullptr;
+            };
             for (std::size_t cluster_index = 0;
                  cluster_index < placed.clusters.size(); ++cluster_index) {
                 const auto& cluster = placed.clusters[cluster_index];
@@ -532,6 +836,39 @@ std::optional<PlanDecodeError> append_svg_text_runs(
                 auto cluster_layer = text_layer;
                 cluster_layer.id += "_cluster_" + std::to_string(cluster_index);
                 cluster_layer.text = cluster_text;
+                if (const auto* paint = path_paint_for(cluster.byte_offset)) {
+                    cluster_run.fill = paint->fill;
+                    cluster_run.fill_gradient = paint->fill_gradient;
+                    cluster_run.fill_pattern = paint->fill_pattern;
+                    cluster_run.fill_opacity = paint->fill_opacity;
+                    cluster_run.stroke = paint->stroke;
+                    cluster_run.stroke_gradient = paint->stroke_gradient;
+                    cluster_run.stroke_pattern = paint->stroke_pattern;
+                    cluster_run.stroke_width = paint->stroke_width;
+                    cluster_run.stroke_opacity = paint->stroke_opacity;
+                    cluster_run.opacity = paint->opacity;
+                    cluster_layer.opacity = std::clamp(
+                        paint->opacity * layer.opacity.value_or(1.0f), 0.0f, 1.0f);
+                    if (cluster_layer.style) {
+                        cluster_layer.style->fill = paint->fill;
+                        cluster_layer.style->fill_gradient = paint->fill_gradient;
+                        cluster_layer.style->fill_pattern = paint->fill_pattern;
+                        cluster_layer.style->fill_opacity = paint->fill_opacity;
+                        if (paint->stroke && paint->stroke_width > 0.0f) {
+                            StrokeStyle stroke = cluster_layer.style->stroke.value_or(
+                                StrokeStyle{});
+                            stroke.color = *paint->stroke;
+                            stroke.width = paint->stroke_width;
+                            stroke.gradient = paint->stroke_gradient;
+                            stroke.opacity = paint->stroke_opacity;
+                            cluster_layer.style->stroke = std::move(stroke);
+                            cluster_layer.style->stroke_pattern = paint->stroke_pattern;
+                        } else {
+                            cluster_layer.style->stroke.reset();
+                            cluster_layer.style->stroke_pattern.reset();
+                        }
+                    }
+                }
                 cluster_layer.position[0] = layer.position[0] + placement.position.x -
                     cluster.advance * 0.5f;
                 cluster_layer.position[1] = layer.position[1] + placement.position.y -

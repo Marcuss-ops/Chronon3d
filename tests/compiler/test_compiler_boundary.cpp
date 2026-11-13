@@ -247,6 +247,35 @@ TEST_CASE("CompiledProgram lowers text_transitions into the materialized scene")
     REQUIRE(shape->layout);
 }
 
+TEST_CASE("SceneMaterializer rejects a text layer without a text style") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+
+    auto plan = test_plan();
+    plan.job_id = "compiler-text-without-style";
+    LayerPlan text;
+    text.id = "unstyled";
+    text.type = LayerType::Text;
+    text.text = "NO STYLE";
+    text.font = "tests/fixtures/Inter-Bold.ttf";
+    plan.layers.push_back(std::move(text));
+
+    assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::current_path());
+    auto compiled = compiler::compile(plan, resolver);
+    REQUIRE(compiled);
+    const auto program = std::move(compiled).value();
+    REQUIRE(program.layers().size() == 2);
+    REQUIRE_FALSE(program.layers()[1].text_style);
+
+    // A log line is not a failure: materialization must refuse the scene so a
+    // job cannot report success while every text layer renders empty.
+    CHECK_THROWS_AS(
+        compiler::SceneMaterializer{}.materialize_scene(
+            program, std::pmr::get_default_resource(), nullptr),
+        std::runtime_error);
+}
+
 TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge") {
     auto plan = test_plan();
     plan.layers.front().position = {10.0f, 20.0f, 0.0f};

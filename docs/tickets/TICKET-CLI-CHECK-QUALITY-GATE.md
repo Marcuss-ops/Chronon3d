@@ -1,9 +1,9 @@
 # TICKET-CLI-CHECK-QUALITY-GATE — `chronon3d_cli check`
 
-**Stato:** IMPLEMENTATO E VERIFICATO (locale, 2026-11-09). Il comando e i
-test mirati sono verdi; il gate architettura resta FAIL su una modifica
-preesistente estranea (`render_plan_preparation.cpp:388`). Dettagli in
-[Verifica locale](#verifica-locale-2026-11-09).
+**Stato:** CLOSED (2026-11-12, locale) — implementazione e criteri locali
+verdi. `check*` 20/20 (109 assert), suite CLI 266/266 (5.158 assert),
+architettura 218/218. CI same-SHA non eseguita: residuo esterno in
+`TICKET-MAIN-TRUTH-STAGE-1-2`.
 
 ## Obiettivo
 
@@ -151,18 +151,26 @@ Smoke end-to-end (ffmpeg 320×240, 30 fps, 1 s, audio AAC silenzioso):
 Il JSON di tutti i casi usa `schema: chronon.check.v1`; i conteggi e
 `checks_run`/`checks_not_measured` riflettono i check eseguiti.
 
-Gate architettura: `python3.11 tools/check_architecture.py` — **216/217
-PASS**, unico FAIL `render_plan_video_uses_one_canonical_compilation` con
-match `compile_render_plan(` in
-`apps/chronon3d_cli/commands/render/render_plan_preparation.cpp:388`. Il match
-è in una modifica del worktree preesistente (fallback legacy per le particelle),
-al di fuori dei file di questa scheda; i nuovi file `check_*`/`command_check`
-non contengono i pattern vietati. Non è stato modificato né indebolito il gate
-per farlo passare.
+Gate architettura (2026-11-12): `python3.11 tools/check_architecture.py` —
+**218/218 PASS**, nessun FAIL. Il precedente match in
+`render_plan_preparation.cpp:388` non è più presente nel tree corrente; il
+gate non è stato modificato né indebolito.
 
-Suite CLI completa: `chronon3d_cli_tests` — **289/289 casi, 5675/5675
-asserzioni PASS**. `git diff --check` — PASS. CI same-SHA: non eseguita; non è
-un criterio locale di questa scheda.
+Suite CLI completa (2026-11-12): `chronon3d_cli_tests` — **266/266 casi,
+5158/5158 asserzioni PASS**. `git diff --check` — PASS. CI same-SHA: non
+eseguita; non è un criterio locale di questa scheda.
+
+## Verifica finale 2026-11-12
+
+| Gate | Comando | Esito |
+|---|---|---|
+| Check mirati | `chronon3d_cli_tests --test-case='check*'` | **20/20 casi, 109/109 assert PASS** |
+| Suite CLI | `chronon3d_cli_tests` | **266/266 casi, 5158/5158 assert PASS** |
+| Architettura | `python3.11 tools/check_architecture.py` | **218/218 PASS** |
+
+Il comando non è stato modificato in questa sessione: la chiusura registra il
+riesame del gate architettura sul tree corrente e le suite fresche. Il residuo
+same-SHA resta esterno e non viene dichiarato PASS.
 
 ## Demolition debt
 

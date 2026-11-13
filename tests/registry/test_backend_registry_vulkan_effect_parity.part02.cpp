@@ -387,6 +387,25 @@ TEST_CASE("Strict Vulkan DisplacementMap matches software with a map input") {
             }
         check_parity_pixels(expected, vulkan_strict_two_inputs(red, *source, *map));
     }
+    DisplacementMapParams split{.map_layer = "map",
+                                .intensity_x = 0.5f, .intensity_y = -0.25f,
+                                .channel = DisplacementMapParams::Channel::Luma};
+    split.channel_x = DisplacementMapParams::Channel::Red;
+    split.channel_y = DisplacementMapParams::Channel::Green;
+    {
+        effects::EffectExecutionContext ctx{};
+        ctx.effect_scratch = &scratch;
+        ctx.second_input = map.get();
+        auto fb = std::make_shared<Framebuffer>(*source);
+        displace->apply(*fb, split, ctx);
+        std::vector<float> expected;
+        for (int y = 0; y < kH; ++y)
+            for (int x = 0; x < kW; ++x) {
+                const Color c = fb->get_pixel(x, y);
+                expected.insert(expected.end(), {c.r, c.g, c.b, c.a});
+            }
+        check_parity_pixels(expected, vulkan_strict_two_inputs(split, *source, *map));
+    }
     // Procedural fields, empty map layers and oversized intensities fail closed.
     DisplacementMapParams field = params;
     field.field = graphics::Field2D{};

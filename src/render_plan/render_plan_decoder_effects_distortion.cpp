@@ -85,10 +85,26 @@ void decode_displacement_map_effect(LayerPlan::EffectPlan& effect,
                     effect.map_field = decode_field2d_plan(raw_effect.at("field"));
                 effect.map_intensity_x=raw_effect.value("intensity_x",0.05f);
                 effect.map_intensity_y=raw_effect.value("intensity_y",0.05f);
-                const auto channel=raw_effect.value("map_channel",std::string{"luma"});
-                if(channel=="red") effect.map_channel=1; else if(channel=="green") effect.map_channel=2;
-                else if(channel=="blue") effect.map_channel=3; else if(channel=="alpha") effect.map_channel=4;
-                else if(channel!="luma") throw std::runtime_error("Unsupported displacement map channel");
+                const auto parse_channel = [](const std::string& channel) -> std::uint8_t {
+                    if(channel=="luma") return 0;
+                    if(channel=="red") return 1;
+                    if(channel=="green") return 2;
+                    if(channel=="blue") return 3;
+                    if(channel=="alpha") return 4;
+                    throw std::runtime_error("Unsupported displacement map channel");
+                };
+                effect.map_channel=parse_channel(raw_effect.value("map_channel",std::string{"luma"}));
+                const auto read_axis_channel = [&](const char* canonical,
+                                                   const char* alias)
+                    -> std::optional<std::uint8_t> {
+                    if(raw_effect.contains(canonical))
+                        return parse_channel(raw_effect.at(canonical).get<std::string>());
+                    if(raw_effect.contains(alias))
+                        return parse_channel(raw_effect.at(alias).get<std::string>());
+                    return std::nullopt;
+                };
+                effect.map_channel_x=read_axis_channel("map_channel_x","channel_x");
+                effect.map_channel_y=read_axis_channel("map_channel_y","channel_y");
                 if((effect.map_layer.empty() == !effect.map_field.has_value())||
                    !std::isfinite(effect.map_intensity_x)||!std::isfinite(effect.map_intensity_y)||
                    std::abs(effect.map_intensity_x)>4.0f||std::abs(effect.map_intensity_y)>4.0f)

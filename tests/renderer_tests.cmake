@@ -174,6 +174,7 @@ chronon3d_add_test_suite(
         effects/test_camera_ring.cpp
         effects/test_sdf_bevel.cpp
         effects/test_stroke.cpp
+        effects/test_ae_gap_effects.cpp
         renderer/effects/test_adjustment_layer.cpp
         renderer/effects/test_advanced_effects.cpp
         renderer/effects/test_effect_stack.cpp

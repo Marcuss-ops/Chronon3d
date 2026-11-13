@@ -6,8 +6,6 @@
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>
-#include <chronon3d/graphics/shape_style/fill_style.hpp>
-#include <chronon3d/graphics/shape_style/stroke_style.hpp>
 #include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/text/text_run_builder.hpp>
@@ -17,11 +15,8 @@
 // keeping a second copy of the typography mapping.
 #include "../render_plan/render_plan_compiler_detail.hpp"
 
-#include <spdlog/spdlog.h>
-
-#include <cmath>
 #include <optional>
-#include <string>
+#include <stdexcept>
 
 namespace chronon3d::compiler {
 
@@ -102,11 +97,32 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
             if (layer.blend_mode) builder.blend(*layer.blend_mode);
             switch (layer.kind) {
                 case NodeKind::Color: {
-                    RectParams params;
-                    params.size = layer.size_dimensions == 2
+                    const Vec2 solid_size = layer.size_dimensions == 2
                         ? Vec2{layer.size[0], layer.size[1]}
                         : Vec2{static_cast<float>(meta.width), static_cast<float>(meta.height)};
-                    params.color = {layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
+                    const Color solid_color{layer.color[0], layer.color[1],
+                                            layer.color[2], layer.color[3]};
+                    if (layer.radius > 0.0f) {
+                        // A flat colour plate may be rounded: `radius` is the
+                        // top-level layer corner contract, so media frame
+                        // plates must not be forced to square corners.
+                        RoundedRectParams params;
+                        params.size = solid_size;
+                        params.radius = std::min(
+                            layer.radius,
+                            std::min(solid_size.x, solid_size.y) * 0.5f);
+                        params.color = solid_color;
+                        params.fill = graphics::FillStyle::solid(solid_color);
+                        if (layer.position_dimensions < 2) {
+                            builder.pin_to(Anchor::Center);
+                            params.pos = {0.0f, 0.0f, 0.0f};
+                        }
+                        builder.rounded_rect("color", std::move(params));
+                        break;
+                    }
+                    RectParams params;
+                    params.size = solid_size;
+                    params.color = solid_color;
                     if (layer.position_dimensions < 2) {
                         builder.pin_to(Anchor::Center);
                         // The typed source route adds the canvas-centre matrix
@@ -146,7 +162,12 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         const float scale = std::min(sx, sy);
                         Mask rounded;
                         rounded.type = MaskType::RoundedRect;
-                        rounded.size = {width / sx, height / sy};
+                        // The decoded surface is the authored box (source.size
+                        // == layer.size); the TransformNode applies the scale
+                        // afterwards. Masking the pre-scale box left the
+                        // rounded-rect corners outside the surface, so the
+                        // clip rendered with square corners.
+                        rounded.size = {width, height};
                         rounded.radius = std::min(
                             layer.radius / scale,
                             std::min(rounded.size.x, rounded.size.y) * 0.5f);
@@ -161,12 +182,12 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     // the layer into a ClearNode: the job stays green while
                     // every frame is the background alone.
                     if (!layer.text_style) {
-                        spdlog::error(
-                            "materialize_scene: compiled text layer '{}' carries no "
-                            "text style; it cannot produce glyphs and would render "
-                            "as an empty layer", name);
-                        builder.kind(LayerKind::Text);
-                        break;
+                        // A green job that renders an empty layer is worse than
+                        // a failed materialization: refuse the scene instead of
+                        // letting the source pass turn the layer into a ClearNode.
+                        throw std::runtime_error(
+                            "materialize_scene: compiled text layer '" + name +
+                            "' carries no text style; it cannot produce glyphs");
                     }
                     const auto canvas = CanvasInfo::from_dimensions(
                         static_cast<float>(meta.width),
@@ -821,6 +842,15 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                 Vec2{effect.chromatic_blue_transform[0], effect.chromatic_blue_transform[1]},
                                 Vec2{effect.chromatic_blue_transform[2], effect.chromatic_blue_transform[3]},
                                 effect.chromatic_blue_transform[4], effect.chromatic_blue_transform[5]}});
+                        break;
+                    case EffectKind::RoughenEdges:
+                        builder.effect(RoughenEdgesParams{
+                            .amount = effect.amount,
+                            .scale = effect.roughen_scale,
+                            .complexity = effect.roughen_complexity,
+                            .evolution = effect.warp_evolution,
+                            .evolution_speed = effect.warp_speed,
+                            .seed = effect.roughen_seed});
                         break;
                     case EffectKind::Catalog: {
                         if (auto params = effects::make_default_animatable_effect_params(

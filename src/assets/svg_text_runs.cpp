@@ -55,18 +55,30 @@ void collect_svg_text_runs(
             text_style.text_anchor_scope_id = text_group_id;
             bool root_x_pending = node.get_optional<std::string>("<xmlattr>.x").has_value();
             bool root_y_pending = node.get_optional<std::string>("<xmlattr>.y").has_value();
+            std::size_t text_length_scope_index = 0;
             std::function<void(const boost::property_tree::ptree&, SvgTextStyleState,
                                std::string, bool, bool, bool)> visit_text;
             visit_text = [&](const auto& text_node, SvgTextStyleState current,
                              std::string own_id, bool x_explicit, bool y_explicit,
                              bool shaping_mergeable) {
-                if (current.text_length || !current.rotate_degrees.empty()) {
+                if (!current.rotate_degrees.empty()) {
                     for (const auto& [child_name, child] : text_node) {
                         (void)child;
                         if (child_name == "tspan" || child_name == "textPath")
                             throw std::invalid_argument(
-                                "bounded SVG textLength/rotate currently requires a direct text run without nested spans or textPath");
+                                "bounded SVG per-character rotate currently requires a direct text run without nested spans or textPath");
                     }
+                }
+                if (text_node.template get_optional<std::string>("<xmlattr>.textLength")) {
+                    if (!current.text_length)
+                        throw std::invalid_argument(
+                            "SVG textLength was not parsed for this element");
+                    SvgTextLengthScope scope;
+                    scope.id = text_group_id + "#textlength#" +
+                        std::to_string(text_length_scope_index++);
+                    scope.target = *current.text_length;
+                    scope.length_adjust = current.length_adjust;
+                    current.text_length_scopes.push_back(std::move(scope));
                 }
                 bool local_x_pending = x_explicit;
                 bool local_y_pending = y_explicit;
@@ -158,8 +170,14 @@ void collect_svg_text_runs(
                     }
                     run.letter_spacing = run_style.letter_spacing;
                     run.word_spacing = run_style.word_spacing;
-                    run.text_length = run_style.text_length;
-                    run.length_adjust = run_style.length_adjust;
+                    run.text_length_scopes = run_style.text_length_scopes;
+                    if (!run.text_length_scopes.empty()) {
+                        run.text_length = run.text_length_scopes.back().target;
+                        run.length_adjust = run.text_length_scopes.back().length_adjust;
+                    } else {
+                        run.text_length.reset();
+                        run.length_adjust = "spacing";
+                    }
                     run.font_family = run_style.font_family;
                     run.font_size = run_style.font_size;
                     run.font_weight = run_style.font_weight;
@@ -201,12 +219,67 @@ void collect_svg_text_runs(
                             candidate.x_coordinates.empty() && candidate.y_coordinates.empty() &&
                             candidate.dx_coordinates.empty() && candidate.dy_coordinates.empty() &&
                             candidate.transformed_position_coordinates.empty() &&
-                            candidate.transformed_delta_coordinates.empty() &&
-                            !candidate.text_path_id;
+                            candidate.transformed_delta_coordinates.empty();
                     };
-                    if (!runs.empty() && run.shaping_mergeable &&
+                    const auto paint_range_for = [](const SvgTextRun& source) {
+                        SvgTextPaintRange range;
+                        range.fill = source.fill;
+                        range.fill_gradient = source.fill_gradient;
+                        range.fill_pattern = source.fill_pattern;
+                        range.fill_opacity = source.fill_opacity;
+                        range.stroke = source.stroke;
+                        range.stroke_gradient = source.stroke_gradient;
+                        range.stroke_pattern = source.stroke_pattern;
+                        range.stroke_width = source.stroke
+                            ? source.stroke_width : 0.0f;
+                        range.stroke_opacity = source.stroke_opacity;
+                        range.opacity = source.opacity;
+                        return range;
+                    };
+                    const bool same_path_shaping =
+                        !runs.empty() && run.shaping_mergeable &&
+                        runs.back().shaping_mergeable &&
+                        runs.back().text_path_id.has_value() &&
+                        run.text_path_id.has_value() &&
+                        runs.back().text_path_id == run.text_path_id &&
+                        runs.back().text_path_start_offset ==
+                            run.text_path_start_offset &&
+                        runs.back().text_path_start_offset_percent ==
+                            run.text_path_start_offset_percent &&
+                        runs.back().text_element_id == run.text_element_id &&
+                        runs.back().group_ids == run.group_ids &&
+                        runs.back().coordinate_scope_ids == run.coordinate_scope_ids &&
+                        runs.back().text_anchor_scope_id == run.text_anchor_scope_id &&
+                        runs.back().font_family == run.font_family &&
+                        runs.back().font_size == run.font_size &&
+                        runs.back().font_weight == run.font_weight &&
+                        runs.back().font_style == run.font_style &&
+                        runs.back().direction == run.direction &&
+                        runs.back().text_anchor == run.text_anchor &&
+                        runs.back().dominant_baseline == run.dominant_baseline &&
+                        runs.back().baseline_shift == run.baseline_shift &&
+                        runs.back().letter_spacing == run.letter_spacing &&
+                        runs.back().word_spacing == run.word_spacing &&
+                        no_positioning(run) && no_positioning(runs.back());
+                    if (same_path_shaping) {
+                        if (runs.back().paint_ranges.empty()) {
+                            auto base = paint_range_for(runs.back());
+                            base.byte_start = 0;
+                            base.byte_end = runs.back().text.size();
+                            runs.back().paint_ranges.push_back(std::move(base));
+                        }
+                        auto range = paint_range_for(run);
+                        range.byte_start = runs.back().text.size();
+                        range.byte_end = range.byte_start + run.text.size();
+                        runs.back().paint_ranges.push_back(std::move(range));
+                        runs.back().text += run.text;
+                    } else if (!runs.empty() && run.shaping_mergeable &&
                         runs.back().shaping_mergeable && no_positioning(run) &&
                         no_positioning(runs.back()) &&
+                        runs.back().text_path_id == run.text_path_id &&
+                        runs.back().text_path_start_offset == run.text_path_start_offset &&
+                        runs.back().text_path_start_offset_percent ==
+                            run.text_path_start_offset_percent &&
                         runs.back().text_element_id == run.text_element_id &&
                         runs.back().group_ids == run.group_ids &&
                         runs.back().coordinate_scope_ids == run.coordinate_scope_ids &&
@@ -224,6 +297,7 @@ void collect_svg_text_runs(
                         runs.back().word_spacing == run.word_spacing &&
                         runs.back().text_length == run.text_length &&
                         runs.back().length_adjust == run.length_adjust &&
+                        runs.back().text_length_scopes == run.text_length_scopes &&
                         runs.back().fill == run.fill &&
                         !runs.back().fill_gradient && !run.fill_gradient &&
                         !runs.back().fill_pattern && !run.fill_pattern &&
@@ -267,7 +341,9 @@ void collect_svg_text_runs(
                         visit_text(child, std::move(nested), span_id.empty() ? own_id : span_id,
                             child.template get_optional<std::string>("<xmlattr>.x").has_value(),
                             child.template get_optional<std::string>("<xmlattr>.y").has_value(),
-                            span_id.empty() && span_properties.empty());
+                            shaping_mergeable &&
+                                (span_properties.empty() ||
+                                 nested.text_path_id.has_value()));
                     } else if (child_name == "textPath") {
                         auto nested = current;
                         nested.dx = 0.0f;
@@ -295,7 +371,7 @@ void collect_svg_text_runs(
                         visit_text(child, std::move(nested), path_id.empty() ? own_id : path_id,
                             child.template get_optional<std::string>("<xmlattr>.x").has_value(),
                             child.template get_optional<std::string>("<xmlattr>.y").has_value(),
-                            false);
+                            shaping_mergeable);
                     }
                 }
             };

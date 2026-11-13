@@ -129,7 +129,6 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
     const bool forward_gap = same_continuity &&
         target_index > last_index &&
         (target_index - last_index) <= kMaxForwardDecodeFrames;
-
     // Requests that fall inside the recently-decoded retained window (a
     // duplicate sample index from FPS mapping, or a slightly-out-of-order
     // request when two layers share one source path) are replayed from the
@@ -169,6 +168,30 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
         // The retained frame is no longer usable (surface retired); fall
         // through to the seek path and decode the sample again for real.
         session.captured_native_frame.reset();
+    }
+
+    // A loop restart is a backward seek. Reusing the cuvid context after two
+    // seek+flush cycles makes the third cuvidCreateDecoder fail with
+    // CUDA_ERROR_INVALID_VALUE, which the strict GPU path correctly treats as
+    // fatal. Recreate the hardware decoder before seeking instead: the old
+    // context and its retained surfaces are released, so a long source loop
+    // does not accumulate decoder state across cycles. This runs after the
+    // retained-window replay so duplicate/out-of-order frames still avoid a
+    // seek.
+    const bool backward_seek = session.last_sample_index >= 0 &&
+        target_index < last_index;
+    if (backward_seek) {
+        DecodeDiagnostic reopen_diagnostic;
+        if (!open_codec_locked(session, &reopen_diagnostic)) {
+            if (!reopen_diagnostic.failed()) {
+                reopen_diagnostic = DecodeDiagnostic{DecodeFailureReason::DecoderUnavailable, 0,
+                    target_sample.pts, target_sample.dts, target_sample.source_order,
+                    "failed to recreate the video decoder for a backward seek"};
+            }
+            return make_decode_failure(std::move(reopen_diagnostic));
+        }
+        spdlog::debug("[native-decoder] recreated decoder for backward seek sample={} -> {}",
+                      last_index, target_index);
     }
 
     std::size_t matches_remaining = 1;

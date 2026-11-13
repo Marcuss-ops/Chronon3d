@@ -1,6 +1,29 @@
 #include "test_backend_registry_vulkan_effect_parity_test_support.hpp"
 
 #ifdef CHRONON3D_ENABLE_VULKAN
+TEST_CASE("Strict Vulkan CC Cylinder and CC Sphere match software and fail closed") {
+    auto cylinder = renderer::create_cylinder_wrap_effect_processor();
+    auto sphere = renderer::create_sphere_wrap_effect_processor();
+    EffectScratchResources scratch;
+    check_parity(*cylinder, CylinderWrapParams{.width = 0.6f, .height = 1.0f},
+                 std::nullopt, 0, 0, &scratch);
+    check_parity(*cylinder, CylinderWrapParams{.center_x = 0.3f, .center_y = 0.6f,
+                                               .width = 0.8f, .height = 0.8f,
+                                               .rotation_degrees = 25.0f,
+                                               .ambient = 0.2f, .diffuse = 0.9f,
+                                               .inside = true},
+                 std::nullopt, 0, 0, &scratch);
+    check_parity(*sphere, SphereWrapParams{.radius = 0.4f}, std::nullopt, 0, 0, &scratch);
+    check_parity(*sphere, SphereWrapParams{.center_x = 0.3f, .center_y = 0.6f,
+                                           .radius = 0.45f, .rotation_degrees = -30.0f,
+                                           .ambient = 0.1f, .diffuse = 0.8f,
+                                           .specular = 0.4f, .inside = true},
+                 std::nullopt, 0, 0, &scratch);
+
+    CHECK_FALSE(vulkan_strict(CylinderWrapParams{.width = 0.0f}, std::nullopt).ok);
+    CHECK_FALSE(vulkan_strict(SphereWrapParams{.radius = 1.1f}, std::nullopt).ok);
+}
+
 TEST_CASE("Strict Vulkan DropShadow matches software and invalid parameters fail closed") {
     auto drop_shadow = renderer::create_drop_shadow_effect_processor();
     const std::array<DropShadowParams, 4> cases{{
@@ -80,6 +103,28 @@ TEST_CASE("Strict Vulkan DirectionalBlur matches software and invalid parameters
     // Partial clips are not certified: fail closed to the software processor.
     const std::optional<raster::BBox> partial_clip{raster::BBox{2, 1, 6, 3}};
     CHECK_FALSE(vulkan_strict(DirectionalBlurParams{.angle = 20.0f, .length = 6.0f, .samples = 0}, partial_clip).ok);
+}
+
+TEST_CASE("Strict Vulkan LightSweep matches software and invalid parameters fail closed") {
+    auto light_sweep = renderer::create_light_sweep_effect_processor();
+    const std::array<LightSweepParams, 3> cases{{
+        {.center_x = 0.5f, .center_y = 0.5f, .angle_degrees = 0.0f,
+         .width = 3.0f, .softness = 1.0f, .intensity = 0.8f,
+         .edge_intensity = 0.4f, .edge_width = 2.0f},
+        {.center_x = 0.25f, .center_y = 0.75f, .angle_degrees = 37.0f,
+         .width = 1.0f, .softness = 2.0f, .intensity = 1.5f,
+         .edge_intensity = 0.0f, .edge_width = 0.0f,
+         .color_r = 0.8f, .color_g = 0.9f, .color_b = 1.0f},
+        {.center_x = 0.8f, .center_y = 0.2f, .angle_degrees = -45.0f,
+         .width = 0.0f, .softness = 0.0f, .intensity = 0.2f,
+         .edge_intensity = 0.0f, .edge_width = 0.0f},
+    }};
+    for (std::size_t case_index = 0; case_index < cases.size(); ++case_index) {
+        CAPTURE(case_index);
+        check_parity(*light_sweep, cases[case_index]);
+    }
+    CHECK_FALSE(vulkan_strict(LightSweepParams{.width = 4097.0f}, std::nullopt).ok);
+    CHECK_FALSE(vulkan_strict(LightSweepParams{.center_x = std::nanf("")}, std::nullopt).ok);
 }
 
 TEST_CASE("Strict Vulkan SdfBevel matches software shading and fails closed outside the window") {

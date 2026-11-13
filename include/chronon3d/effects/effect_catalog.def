@@ -472,3 +472,58 @@ CHRONON_EFFECT(63, SdfBevel, SdfBevelParams, ids::LightSdfBevel,
     "SDF Bevel", EffectCategory::Light, EffectStage::LayerPostTransform,
     EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Expand,
     BoundsPolicy::Expand, false, false)
+
+// Alpha-domain threshold used as the Gooey/Metaball compositing step after a
+// Gaussian blur. It must modify alpha, so it is intentionally not fusible into
+// the RGB ColorPipeline.
+CHRONON_EFFECT(64, AlphaThreshold, AlphaThresholdParams, ids::AlphaThreshold,
+    "Alpha Threshold", EffectCategory::Stylize, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)
+
+// ── AE gap closure: inner edge glow, thresholded A/B glow, FOV optics ─────
+CHRONON_EFFECT(65, InnerGlow, InnerGlowParams, ids::LightInnerGlow,
+    "Inner Glow", EffectCategory::Light, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(66, GlowAdvanced, GlowAdvancedParams, ids::LightGlowAdvanced,
+    "Glow Advanced", EffectCategory::Light, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Expand,
+    BoundsPolicy::Expand, false, false)
+
+CHRONON_EFFECT(67, OpticsCompensation, OpticsCompensationParams,
+    ids::DistortOpticsCompensation, "Optics Compensation",
+    EffectCategory::Distort, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)
+
+// Topographic palette rings from the shared SDF field. CPU-authoritative for
+// now; no Vulkan capability row is declared until a dedicated SDF contour
+// kernel exists, so strict-native fails closed instead of silently claiming a
+// route.
+CHRONON_EFFECT(68, ContourPalette, ContourPaletteParams,
+    ids::StylizeContourPalette, "Contour Palette",
+    EffectCategory::Stylize, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)
+
+// CC Light Sweep-style additive band. It recolors only the existing alpha
+// coverage, so it neither expands bounds nor changes the silhouette.
+CHRONON_EFFECT(69, LightSweep, LightSweepParams, ids::LightLightSweep,
+    "Light Sweep", EffectCategory::Light, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)
+
+// CC-style 2D layer wraps. Both produce a visible-front curved surface and
+// keep the source layer's alpha footprint; the 3D mesh primitives remain a
+// separate geometry path, not a substitute for these effects.
+CHRONON_EFFECT(70, CylinderWrap, CylinderWrapParams, ids::DistortCcCylinder,
+    "CC Cylinder", EffectCategory::Distort, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(71, SphereWrap, SphereWrapParams, ids::DistortCcSphere,
+    "CC Sphere", EffectCategory::Distort, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)

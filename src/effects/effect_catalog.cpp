@@ -17,6 +17,16 @@ std::unique_ptr<graph::RenderGraphNode> generic_effect_factory(const EffectInsta
     if (effect.effect_type == EffectType::Echo)
         return std::make_unique<graph::EffectStackNode>(
             std::move(stack), Frame{-1}, graph::frame_variant_cache("echo"));
+    // Roughen Edges advances its noise field from EffectExecutionContext time
+    // when evolution_speed is non-zero. A static cache would freeze frame 0,
+    // so the node must be frame-variant for the whole animated window.
+    if (effect.effect_type == EffectType::RoughenEdges) {
+        const auto* params = std::get_if<RoughenEdgesParams>(&effect.params);
+        if (params && params->evolution_speed != 0.0f)
+            return std::make_unique<graph::EffectStackNode>(
+                std::move(stack), Frame{-1},
+                graph::frame_variant_cache("roughen_edges"));
+    }
     if (!effect.parameter_tracks.empty())
         return std::make_unique<graph::EffectStackNode>(
             std::move(stack), Frame{-1},

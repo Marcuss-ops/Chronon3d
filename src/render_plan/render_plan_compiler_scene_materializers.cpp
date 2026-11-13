@@ -135,22 +135,19 @@ void append_video_layer_for_scene(
         source.ocio_input_space = video_input_space;
         source.ocio_working_space = plan.color_management->working_space;
     }
-    // Render-plan video geometry is expressed as a
-    // top-left canvas box.  The canonical scene
-    // transform, consumed by both the graph and
-    // DirectYUV, is centre-relative.  Preserve the
-    // effective displayed size by making the source
-    // size the pre-scale box; this also prevents the
-    // DirectYUV path from applying `size` and
-    // `scale` twice.
+    // Render-plan video geometry names the top-left of the
+    // unscaled layer box in canvas-centred coordinates.
+    // The source surface is exactly that box: the video
+    // node resamples the native stream to it, the rounded
+    // mask is authored in the same pixel space, and the
+    // scene transform applies the authored scale/position
+    // once. Dividing the box by the scale here made the
+    // node resample to the pre-scale box while the scene
+    // transform still scaled it, applying `scale` twice.
     if (layer.size_dimensions == 2) {
-        const float sx = std::abs(layer.scale[0]) > 1e-6f
-            ? std::abs(layer.scale[0]) : 1.0f;
-        const float sy = std::abs(layer.scale[1]) > 1e-6f
-            ? std::abs(layer.scale[1]) : 1.0f;
         source.size = {
-            layer.size[0] / sx,
-            layer.size[1] / sy};
+            layer.size[0],
+            layer.size[1]};
     }
     if (layer.loop)
         source.loop_mode = video::VideoLoopMode::Loop;
@@ -198,7 +195,13 @@ void append_video_layer_for_scene(
             // before the layer transform, so divide the
             // one-pixel coverage ramp by the smaller scale.
             rounded.feather = 1.0f / std::min(scale_x, scale_y);
-            rounded.pos = Vec3{0.0f, 0.0f, 0.0f};
+            // The source surface is the pre-scale box; the mask is the
+            // displayed layer box and must share its centre so the rounded
+            // corners land on the visible clip, not the source origin.
+            rounded.pos = Vec3{
+                (source.size.x - box_w) * 0.5f,
+                (source.size.y - box_h) * 0.5f,
+                0.0f};
             builder.mask_composite(std::move(rounded));
         }
     }

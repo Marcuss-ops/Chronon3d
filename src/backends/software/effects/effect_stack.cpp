@@ -3,6 +3,7 @@
 #include "render_effects_processor.hpp"
 #include <chronon3d/backends/software/effect_processor.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/effects/color_pipeline.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/effects/curves.hpp>
@@ -179,7 +180,13 @@ void apply_effect_stack(
         const auto effect_started = effect_context.effect_usage
             ? std::chrono::steady_clock::now()
             : std::chrono::steady_clock::time_point{};
-        processor->apply(fb, effect.params, effect_context);
+        if (effect_context.effect_scratch) {
+            std::lock_guard scratch_lock(
+                *effect_context.effect_scratch->apply_mutex);
+            processor->apply(fb, effect.params, effect_context);
+        } else {
+            processor->apply(fb, effect.params, effect_context);
+        }
         if (effect_context.effect_usage) {
             const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - effect_started).count();

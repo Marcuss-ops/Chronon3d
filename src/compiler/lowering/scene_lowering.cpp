@@ -60,27 +60,25 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.size = layer.size;
         lowered.color = layer.color;
         lowered.position = layer.position;
-        // Native phrase style positions and video box positions are authored
-        // in top-left canvas space, while the scene graph uses a canvas-centred
-        // basis. Text positions are already box centers; video positions are
-        // box origins, so video receives its half-size offset below as well.
-        if ((layer.type == render_plan::LayerType::Text ||
-             layer.type == render_plan::LayerType::Video) &&
+        // Native phrase style positions are authored in top-left canvas
+        // space, while the scene graph uses a canvas-centred basis. Video box
+        // positions name the top-left of the unscaled layer box in
+        // canvas-centred coordinates, so they only need the half-box shift to
+        // become the box centre. Dividing the box by the scale here applied
+        // the pre-scale correction a second time and shifted every video by
+        // (size/scale - size)/2.
+        if (layer.type == render_plan::LayerType::Video &&
             layer.position_dimensions >= 2) {
+            const float box_w = layer.size_dimensions == 2
+                ? layer.size[0] : static_cast<float>(plan.canvas.width);
+            const float box_h = layer.size_dimensions == 2
+                ? layer.size[1] : static_cast<float>(plan.canvas.height);
+            lowered.position[0] += box_w * 0.5f;
+            lowered.position[1] += box_h * 0.5f;
+        } else if (layer.type == render_plan::LayerType::Text &&
+                   layer.position_dimensions >= 2) {
             lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
             lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
-            if (layer.type == render_plan::LayerType::Video) {
-                const float sx = std::abs(layer.scale[0]) > 1e-6f
-                    ? std::abs(layer.scale[0]) : 1.0f;
-                const float sy = std::abs(layer.scale[1]) > 1e-6f
-                    ? std::abs(layer.scale[1]) : 1.0f;
-                const float box_w = layer.size_dimensions == 2
-                    ? layer.size[0] / sx : static_cast<float>(plan.canvas.width);
-                const float box_h = layer.size_dimensions == 2
-                    ? layer.size[1] / sy : static_cast<float>(plan.canvas.height);
-                lowered.position[0] += box_w * 0.5f;
-                lowered.position[1] += box_h * 0.5f;
-            }
         } else if (layer.type == render_plan::LayerType::Particles &&
                    layer.position_dimensions >= 2) {
             // Particle samples are emitter-local around (0, 0), so the authored

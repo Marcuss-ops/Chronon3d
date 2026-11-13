@@ -40,6 +40,17 @@ bool is_full_run_selector(const TextRunShape& shape,
             selector.shape == TextSelectorShape::Smooth) &&
            selector.order == TextSelectorOrder::Forward &&
            selector.combine == SelectorCombineMode::Replace &&
+           selector.range_units == TextSelectorRangeUnits::Percentage &&
+           std::abs(selector.smoothness) <= 1e-6f &&
+           !selector.expression &&
+           std::abs(selector.wiggly.wiggles_per_second) <= 1e-6f &&
+           std::abs(selector.wiggly.correlation) <= 1e-6f &&
+           std::abs(selector.wiggly.temporal_phase) <= 1e-6f &&
+           std::abs(selector.wiggly.spatial_phase) <= 1e-6f &&
+           std::abs(selector.wiggly.min_amount) <= 1e-6f &&
+           std::abs(selector.wiggly.max_amount - 100.0f) <= 1e-6f &&
+           selector.wiggly.lock_dimensions &&
+           selector.wiggly.mode == WigglySelectorMode::Smooth &&
            !selector.randomize_order && !selector.offset.is_time_dependent() &&
            !selector.start.has_expression() &&
            !selector.end.has_expression() &&

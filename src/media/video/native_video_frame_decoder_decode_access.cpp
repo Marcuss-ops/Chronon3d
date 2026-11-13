@@ -50,6 +50,14 @@ HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
     if (!lookup.found()) {
         if (lookup.disposition == SampleLookupDisposition::AfterEnd && !session->sample_table.empty()) {
             lookup.sample_index = session->sample_table.size() - 1;
+        } else if (lookup.disposition == SampleLookupDisposition::BeforeStart && !session->sample_table.empty()) {
+            // A stream-copy cut can leave the first sample a few milliseconds
+            // after the container origin (live case: 24 fps source starting at
+            // 0.020020). Frame 0 of the output timeline has no exact source
+            // sample, but the first available sample IS its texture; failing
+            // here made every such source unrenderable at frame 0. Clamp only
+            // the pre-roll, never a gap or an arbitrary later frame.
+            lookup.sample_index = 0;
         } else {
             return {};
         }

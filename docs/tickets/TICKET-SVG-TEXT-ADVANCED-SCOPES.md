@@ -1,16 +1,28 @@
 # Ticket — SVG text advanced scopes and writing modes
 
-**Status:** In progress
+**Status:** PARTIAL — nested `textLength` with both adjustment modes is closed
+locally under P0 of the parent parity ticket; nested per-character rotate,
+`textLength` on `textPath`, and dedicated pixel gates remain open.
 **Parent:** [TICKET-SVG-RENDER-PLAN.md](TICKET-SVG-RENDER-PLAN.md)
 **Owner:** Chronon3D C++ renderer
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] **`textLength` annidati (parent/child) + `spacing`/`spacingAndGlyphs`** — logica: risolvere i vincoli parent/child sull'intero testo shaped (inner-to-outer), incluse run styled separate; preservare anchor e coordinate list o rifiutare le combinazioni non rappresentabili. Dove: importer SVG text + shaping/layout HarfBuzz esistente. Gate: misura raw-pixel separata per target parent e child entro tolleranza documentata.
+- [x] **`textLength` annidati (parent/child) + `spacing`/`spacingAndGlyphs`** — logica: risolvere i vincoli parent/child sull'intero testo shaped (inner-to-outer), incluse run styled separate; preservare anchor e coordinate list o rifiutare le combinazioni non rappresentabili. Dove: importer SVG text + shaping/layout HarfBuzz esistente. Gate: misura raw-pixel separata per target parent e child entro tolleranza documentata.
 - [ ] **`rotate` per-carattere continuo attraverso `<tspan>` annidati** — logica: indicizzazione continua dei caratteri + comportamento definito sotto antenati ruotati/skew. Gate: pixel gate su run ruotati annidati.
 - [ ] **`textLength` su `textPath`** — logica: applicare il vincolo anche sul path e certificare letter/word spacing con pixel coverage, preservando lo shaping attraverso cluster compatibili dove il posizionamento lo consente. Gate: pixel gate spaziatura textPath.
 - [ ] **Writing-mode verticale bounded oppure reject tipizzato** — logica: scegliere una delle due semantiche dichiarate; mai accettazione silenziosa. Gate: test positivo verticale oppure diagnostica tipizzata stabile.
 - [ ] **Pixel gate separati** — logica: target parent/child indipendenti, run ruotati annidati, spaziatura textPath, repeat deterministici. Gate: tutti i gate verdi sulla stessa build (loader + C ABI + software raw-pixel).
+
+## Reconciliation — 2026-11-13
+
+Nested `textLength` is implemented and covered by the parent ticket's raw
+spacing gate, so it is no longer open work here. Vertical writing currently
+fails closed with the stable importer diagnostic
+`vertical SVG text writing modes are not supported by the bounded importer`;
+the loader regression must assert this exact diagnostic before that bounded
+alternative can be considered closed. Positive vertical layout and its
+text-orientation/baseline semantics remain outside this reconciled ticket.
 
 ## Goal
 

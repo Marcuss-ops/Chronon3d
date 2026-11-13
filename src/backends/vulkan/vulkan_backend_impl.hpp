@@ -604,6 +604,9 @@ struct VulkanBackend::Impl {
     void record_sharpen_combine(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& destination, const Image& source,
                                 const Image& blurred, float amount, float threshold);
+    void record_glow_prepare_advanced(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                      const Image& destination, const Image& source,
+                                      const GlowAdvancedParams& params);
     void record_bloom_threshold(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& destination, const Image& source,
                                 float threshold);
@@ -775,6 +778,14 @@ struct VulkanBackend::Impl {
               runtime::RenderSurfaceHandle scratch_horizontal,
               runtime::RenderSurfaceHandle scratch_vertical,
               float radius, float intensity, const Color& tint);
+    void glow_advanced(runtime::RenderSurfaceHandle destination,
+                       runtime::RenderSurfaceHandle source,
+                       runtime::RenderSurfaceHandle scratch_horizontal,
+                       runtime::RenderSurfaceHandle scratch_vertical,
+                       const GlowAdvancedParams& params);
+    void inner_glow_composite(runtime::RenderSurfaceHandle destination,
+                              runtime::RenderSurfaceHandle source,
+                              const Color& tint, float intensity);
     void bloom(runtime::RenderSurfaceHandle destination,
                runtime::RenderSurfaceHandle source,
                runtime::RenderSurfaceHandle scratch_horizontal,

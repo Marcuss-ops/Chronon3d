@@ -23,18 +23,30 @@
 
 namespace chronon3d::math {
 
+/// Expression execution profiles.
+/// Full keeps the historical AE-host surface (`thisComp`, `thisLayer`,
+/// `layer()`, keyframe loop/value helpers). Selector is the closed per-glyph
+/// selector profile: only the selector variables and host-free built-ins are
+/// valid, so unsupported host access fails instead of silently reading 0.
+enum class ExpressionProfile {
+    Full = 0,
+    Selector = 1,
+};
+
 /// Recursive-descent expression parser for AE-style expressions.
 class ExpressionParser {
 public:
     ExpressionParser(std::string_view expr,
                      const std::unordered_map<std::string, double>& vars,
                      const ExpressionContext* ctx = nullptr,
-                     ExpressionState* state = nullptr)
+                     ExpressionState* state = nullptr,
+                     ExpressionProfile profile = ExpressionProfile::Full)
         : m_expr(expr)
         , m_vars(vars)
         , m_ctx(ctx)
         , m_state(state)
-        , m_has_context(ctx != nullptr) {}
+        , m_has_context(ctx != nullptr)
+        , m_profile(profile) {}
 
     double parse() {
         m_pos = 0;
@@ -262,6 +274,10 @@ private:
         while (!m_error) {
             skip_ws();
             if (match('.')) {
+                if (m_profile == ExpressionProfile::Selector) {
+                    m_error = true;
+                    return lhs;
+                }
                 std::string member = parse_identifier();
                 skip_ws();
                 if (match('(')) {
@@ -280,6 +296,10 @@ private:
                     lhs = resolve_member_access(lhs, member);
                 }
             } else if (match('[')) {
+                if (m_profile == ExpressionProfile::Selector) {
+                    m_error = true;
+                    return lhs;
+                }
                 // Bracket access — e.g. position[0], value[1]
                 double idx = parse_ternary();
                 expect(']');
@@ -297,6 +317,19 @@ private:
         if (ident == "false") return 0.0;
         if (ident == "PI")    return 3.14159265358979323846;
         if (ident == "E")     return 2.71828182845904523536;
+
+        if (m_profile == ExpressionProfile::Selector) {
+            // Closed selector profile: only per-glyph selector inputs and the
+            // three sample-clock variables are available. Host objects such
+            // as thisComp/thisLayer/thisProperty are deliberately rejected.
+            if (ident == "time")  return m_ctx ? m_ctx->time : 0.0;
+            if (ident == "frame") return m_ctx ? m_ctx->frame : 0.0;
+            if (ident == "fps")   return m_ctx ? m_ctx->fps : 0.0;
+            auto it = m_vars.find(ident);
+            if (it != m_vars.end()) return it->second;
+            m_error = true;
+            return 0.0;
+        }
 
         if (m_has_context) {
             // AE-standard variables
@@ -339,6 +372,11 @@ private:
     }
 
     double resolve_member_access(double lhs, const std::string& member) {
+        if (m_profile == ExpressionProfile::Selector) {
+            m_error = true;
+            return 0.0;
+        }
+
         // thisComp.width / thisComp.height / thisComp.numLayers
         if (m_current_object == "thisComp") {
             m_current_object.clear();
@@ -424,6 +462,11 @@ private:
     }
 
     double resolve_bracket_access(double lhs, double idx) {
+        if (m_profile == ExpressionProfile::Selector) {
+            m_error = true;
+            return 0.0;
+        }
+
         // For Vec3 values: [0]=x, [1]=y, [2]=z
         // If we're accessing a layer property, include the index in the path
         if (!m_current_layer_name.empty()) {
@@ -527,6 +570,7 @@ private:
     const ExpressionContext* m_ctx;
     ExpressionState* m_state;
     bool m_has_context;
+    ExpressionProfile m_profile{ExpressionProfile::Full};
 
     size_t m_pos{0};
     bool m_error{false};
@@ -545,6 +589,19 @@ private:
     std::string m_current_property_path; // Accumulated property path for nested dot access
 };
 
+/// Validate syntax and profile support without executing the expression.
+/// Selector callers use this to reject host-dependent AE expressions at
+/// decode/compile time instead of silently evaluating them as 0.
+inline bool validate_expression(std::string_view expr,
+                                const ExpressionContext& ctx,
+                                const std::unordered_map<std::string, double>& vars,
+                                ExpressionProfile profile = ExpressionProfile::Full) {
+    ExpressionState state;
+    ExpressionParser parser(expr, vars, &ctx, &state, profile);
+    (void)parser.parse();
+    return !parser.error();
+}
+
 /// Legacy API — backward compatible.
 inline double evaluate_expression(std::string_view expr,
                                   const std::unordered_map<std::string, double>& vars,
@@ -558,9 +615,10 @@ inline double evaluate_expression(std::string_view expr,
 inline double evaluate_expression(std::string_view expr,
                                   const ExpressionContext& ctx,
                                   const std::unordered_map<std::string, double>& extra_vars,
-                                  double fallback) {
+                                  double fallback,
+                                  ExpressionProfile profile = ExpressionProfile::Full) {
     ExpressionState state;
-    ExpressionParser parser(expr, extra_vars, &ctx, &state);
+    ExpressionParser parser(expr, extra_vars, &ctx, &state, profile);
     double value = parser.parse();
     return parser.error() ? fallback : value;
 }
@@ -570,8 +628,9 @@ inline double evaluate_expression(std::string_view expr,
                                   const ExpressionContext& ctx,
                                   const std::unordered_map<std::string, double>& extra_vars,
                                   ExpressionState& state,
-                                  double fallback) {
-    ExpressionParser parser(expr, extra_vars, &ctx, &state);
+                                  double fallback,
+                                  ExpressionProfile profile = ExpressionProfile::Full) {
+    ExpressionParser parser(expr, extra_vars, &ctx, &state, profile);
     double value = parser.parse();
     return parser.error() ? fallback : value;
 }

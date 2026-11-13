@@ -292,8 +292,58 @@ public:
     }
 };
 
+class SoftwareOpticsCompensationEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<OpticsCompensationParams>(&params);
+        if (!p) throw std::runtime_error("OpticsCompensation processor received invalid parameters");
+        LensDistortionParams lens;
+        lens.center = {std::clamp(p->center_x, 0.0f, 1.0f),
+                       std::clamp(p->center_y, 0.0f, 1.0f)};
+        lens.scale = std::clamp(p->scale, 0.1f, 4.0f);
+        const float strength = std::clamp(p->fov_degrees / 120.0f, 0.0f, 1.0f);
+        // Reverse off compensates barrel (pincushion); reverse on applies the
+        // barrel distortion itself.
+        lens.curvature = (p->reverse >= 0.5f ? 1.0f : -1.0f) * strength;
+        apply_lens_distortion(fb, lens, *context.effect_scratch, context.clip);
+    }
+};
+
+class SoftwareCylinderWrapEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<CylinderWrapParams>(&params);
+        if (!p) throw std::runtime_error("CylinderWrap processor received invalid parameters");
+        apply_cylinder_wrap(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
+class SoftwareSphereWrapEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<SphereWrapParams>(&params);
+        if (!p) throw std::runtime_error("SphereWrap processor received invalid parameters");
+        apply_sphere_wrap(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
 std::unique_ptr<EffectProcessor> create_lens_distortion_effect_processor() {
     return std::make_unique<SoftwareLensDistortionEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_cylinder_wrap_effect_processor() {
+    return std::make_unique<SoftwareCylinderWrapEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_sphere_wrap_effect_processor() {
+    return std::make_unique<SoftwareSphereWrapEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_optics_compensation_effect_processor() {
+    return std::make_unique<SoftwareOpticsCompensationEffectProcessor>();
 }
 
 std::unique_ptr<EffectProcessor> create_fold_warp_effect_processor() {

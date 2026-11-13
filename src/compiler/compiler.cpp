@@ -8,6 +8,7 @@
 #include <chronon3d/render_plan/temporal_rate_analysis.hpp>
 #include "compiler_stages.hpp"
 #include "../render_plan/render_plan_camera_adapter.hpp"
+#include "../render_plan/render_plan_compiler_detail.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -127,9 +128,32 @@ Result<CompiledProgram, CompileError> Compiler::compile(
 }
 
 Result<CompiledProgram, CompileError> Compiler::compile(
-    const render_plan::RenderPlan& plan,
+    const render_plan::RenderPlan& input_plan,
     assets::AssetResolver& resolver,
     const CompileOptions& options) const {
+    // The CLI compiles through this stage pipeline rather than through
+    // render_plan::compile_render_plan, so the media frame plate pass must run
+    // here too: without it a media layer's style.background never becomes a
+    // real plate and the clip renders without its border/padding.
+    render_plan::RenderPlan expanded_plan = input_plan;
+    try {
+        render_plan::detail::materialize_media_background_cards(expanded_plan);
+    } catch (const std::exception& error) {
+        return make_compile_error(CompileErrorCode::InvalidInput, "layers",
+            error.what(), "render-plan-style");
+    }
+    // The CLI compiles through this stage pipeline rather than through
+    // render_plan::compile_render_plan, so SVG asset expansion must run here
+    // too: otherwise SVG path/text layers reach the scene with no geometry.
+    try {
+        if (auto svg_error = render_plan::detail::prepare_svg_layers(expanded_plan, resolver))
+            return make_compile_error(CompileErrorCode::InvalidInput,
+                svg_error->path, svg_error->message, svg_error->component);
+    } catch (const std::exception& error) {
+        return make_compile_error(CompileErrorCode::InvalidInput, "layers",
+            error.what(), "render-plan-svg");
+    }
+    const render_plan::RenderPlan& plan = expanded_plan;
     if (options.runtime_camera != nullptr) {
         if (!plan.camera || plan.camera_samples || !options.runtime_camera->sample || options.runtime_camera->fingerprint.empty())
             return make_compile_error(CompileErrorCode::InvalidInput, "camera_sample_provider",

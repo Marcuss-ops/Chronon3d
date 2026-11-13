@@ -402,6 +402,26 @@ RenderOpResult RenderBackendSurfaceApi::glow_surfaces(
             "RenderBackend::glow_surfaces: native surfaces are not supported"));
     }
 
+RenderOpResult RenderBackendSurfaceApi::glow_advanced_surfaces(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*scratch_horizontal*/,
+        runtime::RenderSurfaceHandle /*scratch_vertical*/,
+        const GlowAdvancedParams& /*params*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::glow_advanced_surfaces: native surfaces are not supported"));
+    }
+
+RenderOpResult RenderBackendSurfaceApi::inner_glow_composite_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        const Color& /*tint*/, float /*intensity*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::inner_glow_composite_surface: native surfaces are not supported"));
+    }
+
 RenderOpResult RenderBackendSurfaceApi::bloom_surfaces(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,

@@ -64,8 +64,17 @@ public:
             return result;
         }
 
-        // If result has a native GPU surface but no CPU data, download it for CPU raster masking
-        if (!result->data() && result->surface_handle() != runtime::kInvalidRenderSurfaceHandle && ctx.backend) {
+        // A video frame can carry a stale CPU shadow next to the decoded
+        // native surface. The shadow is a half-resolution placeholder (and its
+        // authority flag is not reliable), so a video mask must always read the
+        // surface that owns the decoded pixels. Other layers keep the cheap CPU
+        // path unless the surface is explicitly GPU-authoritative.
+        const bool needs_native_download =
+            result->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+            (m_source_surface_coordinates || !result->data() ||
+             !result->is_cpu_authoritative());
+        if (needs_native_download && ctx.backend) {
+            bool downloaded = false;
             auto cpu_fb = ctx.acquire_owned_fb(result->width(), result->height(), false);
             if (cpu_fb && cpu_fb->data()) {
                 const auto scratch = ctx.download_scratch(result->width(), result->height());
@@ -79,8 +88,10 @@ public:
                     cpu_fb->set_origin(result->origin_x(), result->origin_y());
                     cpu_fb->set_opaque(result->is_opaque());
                     result = std::move(cpu_fb);
+                    downloaded = true;
                 }
             }
+            if (!downloaded) return result;
         }
 
         if (!result->data() || result->width() <= 0 || result->height() <= 0) {
@@ -149,6 +160,10 @@ public:
         }
 
         result->set_opaque(false);
+        // The masked pixels are now the authority. Drop the input's native
+        // surface handle so the compositor uploads the masked CPU result
+        // instead of sampling the unmasked decoded surface.
+        result->clear_surface_handle();
         result->mark_cpu_authoritative();
 
         return result;

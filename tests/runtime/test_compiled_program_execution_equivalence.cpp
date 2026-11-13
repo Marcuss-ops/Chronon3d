@@ -320,6 +320,47 @@ TEST_CASE("animated image overlay keeps its prepared box centred across motion f
     CHECK((b4.y0 + b4.y1) / 2.0 == doctest::Approx(64.0).epsilon(1.0));
 }
 
+TEST_CASE("typed-program samples vector rotation tracks on the layer transform") {
+    auto plan = make_plan("typed-vector-rotation", 64, 64, chronon3d::Frame{20}, {});
+    LayerPlan card;
+    card.id = "card";
+    card.type = LayerType::Color;
+    card.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    card.size = {32.0f, 32.0f};
+    card.size_dimensions = 2;
+    card.position = {0.0f, 0.0f, 0.0f};
+    card.position_dimensions = 2;
+    card.rotation = {0.0f, 0.0f, 0.0f};
+    card.rotation_dimensions = 3;
+    card.enable_3d = true;
+    card.animation = chronon3d::render_plan::AnimationPlan{};
+    card.animation->tracks.push_back({
+        "rotation",
+        {{chronon3d::Frame{0}, {0.0f, 0.0f, 0.0f}},
+         {chronon3d::Frame{10}, {0.0f, 60.0f, 0.0f}}},
+        "linear"});
+    plan.layers.push_back(std::move(card));
+
+    chronon3d::assets::AssetResolver resolver;
+    auto compiled = chronon3d::compiler::compile(plan, resolver);
+    REQUIRE(compiled);
+    const auto program = std::move(compiled).value();
+
+    const chronon3d::compiler::TypedProgramSampler sampler;
+    const auto frame0 = sampler.sample(program, chronon3d::Frame{0});
+    const auto frame5 = sampler.sample(program, chronon3d::Frame{5});
+    const auto frame10 = sampler.sample(program, chronon3d::Frame{10});
+    REQUIRE(frame0.layers.size() == 1);
+    REQUIRE(frame5.layers.size() == 1);
+    REQUIRE(frame10.layers.size() == 1);
+
+    // Yaw rotates local X into Z; the sampled matrix must follow the track
+    // instead of retaining the static layer matrix.
+    CHECK(frame0.layers.front().matrix[0][0] == doctest::Approx(1.0f));
+    CHECK(frame5.layers.front().matrix[0][0] == doctest::Approx(0.8660254f).epsilon(0.001f));
+    CHECK(frame10.layers.front().matrix[0][0] == doctest::Approx(0.5f).epsilon(0.001f));
+}
+
 TEST_CASE("temporal accumulation renders shutter samples on shared engine state") {
     // Regression: TemporalAccumulation sub-samples deferred the native frame
     // batch without a downstream batch owner when no encode surface was bound

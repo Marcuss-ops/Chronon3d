@@ -361,6 +361,68 @@ bool try_native_full_frame_warp_bulk(RenderGraphContext& ctx,
         bulk.p[3] = std::clamp(p->scale, 0.1f, 4.0f);
         break;
     }
+    case effects::EffectType::OpticsCompensation: {
+        const auto* p = std::get_if<OpticsCompensationParams>(&instance.params);
+        if (!p) return false;
+        if (!bulk_finite_list({p->fov_degrees, p->reverse, p->center_x,
+                               p->center_y, p->scale}) ||
+            p->fov_degrees < 0.0f || p->fov_degrees > 120.0f ||
+            p->reverse < 0.0f || p->reverse > 1.0f ||
+            p->center_x < 0.0f || p->center_x > 1.0f ||
+            p->center_y < 0.0f || p->center_y > 1.0f ||
+            p->scale < 0.1f || p->scale > 4.0f)
+            return false;
+        bulk.edge_mode = bulk_edge_to_int(sampling::EdgeMode::Transparent, edge_ok);
+        if (!edge_ok) return false;
+        bulk.mode = 7;
+        const float strength = p->fov_degrees / 120.0f;
+        bulk.p[0] = (p->reverse >= 0.5f ? 1.0f : -1.0f) * strength;
+        bulk.p[1] = p->center_x * w; bulk.p[2] = p->center_y * h;
+        bulk.p[3] = std::clamp(p->scale, 0.1f, 4.0f);
+        break;
+    }
+    case effects::EffectType::CylinderWrap: {
+        const auto* p = std::get_if<CylinderWrapParams>(&instance.params);
+        if (!p) return false;
+        try {
+            p->validate();
+        } catch (const std::invalid_argument&) {
+            return false;
+        }
+        bulk.edge_mode = bulk_edge_to_int(sampling::EdgeMode::Transparent, edge_ok);
+        if (!edge_ok) return false;
+        bulk.mode = 14;
+        bulk.p[0] = p->center_x * w;
+        bulk.p[1] = p->center_y * h;
+        bulk.p[2] = p->width * w;
+        bulk.p[3] = p->height * h * 0.5f;
+        bulk.p[4] = p->rotation_degrees * 3.14159265358979323846f / 180.0f;
+        bulk.p[5] = p->ambient;
+        bulk.p[6] = p->diffuse;
+        bulk.p[7] = p->inside ? 1.0f : 0.0f;
+        break;
+    }
+    case effects::EffectType::SphereWrap: {
+        const auto* p = std::get_if<SphereWrapParams>(&instance.params);
+        if (!p) return false;
+        try {
+            p->validate();
+        } catch (const std::invalid_argument&) {
+            return false;
+        }
+        bulk.edge_mode = bulk_edge_to_int(sampling::EdgeMode::Transparent, edge_ok);
+        if (!edge_ok) return false;
+        bulk.mode = 15;
+        bulk.p[0] = p->center_x * w;
+        bulk.p[1] = p->center_y * h;
+        bulk.p[2] = p->radius * std::min(w, h);
+        bulk.p[3] = p->rotation_degrees * 3.14159265358979323846f / 180.0f;
+        bulk.p[4] = p->ambient;
+        bulk.p[5] = p->diffuse;
+        bulk.p[6] = p->specular;
+        bulk.p[7] = p->inside ? 1.0f : 0.0f;
+        break;
+    }
     case effects::EffectType::FoldWarp: {
         const auto* p = std::get_if<FoldWarpParams>(&instance.params);
         if (!p) return false;
@@ -478,11 +540,14 @@ bool try_native_full_frame_warp_bulk(RenderGraphContext& ctx,
         if (!edge_ok) return false;
         bulk.mode = 12;
         bulk.p[0] = p->intensity_x; bulk.p[1] = p->intensity_y;
-        bulk.p[2] = static_cast<float>(static_cast<std::uint8_t>(p->channel));
+        bulk.p[2] = static_cast<float>(static_cast<std::uint8_t>(
+            p->channel_x.value_or(p->channel)));
         bulk.p[3] = static_cast<float>(src_framebuffer->origin_x() -
                                        map_framebuffer->origin_x());
         bulk.p[4] = static_cast<float>(src_framebuffer->origin_y() -
                                        map_framebuffer->origin_y());
+        bulk.p[5] = static_cast<float>(static_cast<std::uint8_t>(
+            p->channel_y.value_or(p->channel)));
         break;
     }
     default:

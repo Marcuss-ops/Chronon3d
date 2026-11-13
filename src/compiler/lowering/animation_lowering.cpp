@@ -1,7 +1,9 @@
 #include "../compiler_stages.hpp"
 
+#include <string>
 #include <string_view>
 #include <stdexcept>
+#include <utility>
 
 namespace chronon3d::compiler::stages {
 namespace {
@@ -59,7 +61,59 @@ void lower_animation(const render_plan::RenderPlan& plan, CompiledProgramData& o
             (layer.time_remap && layer.time_remap->animation)) {
             const auto first_track = static_cast<std::uint32_t>(out.animation_tracks.size());
             if (layer.animation) {
+                // The typed program stores scalar curve channels. A vector
+                // `rotation` track was previously flattened into one channel,
+                // then ignored by TypedProgramSampler (RotationVector), so the
+                // layer kept its static matrix. Split it into the three
+                // absolute component tracks the sampler already evaluates.
+                const auto append_scalar_track = [&](std::string property,
+                                                     AnimationProperty kind,
+                                                     const auto& source,
+                                                     std::size_t component) {
+                    const auto first_keyframe =
+                        static_cast<std::uint32_t>(out.curve_keyframes.size());
+                    for (const auto& keyframe : source.keyframes)
+                        out.curve_keyframes.push_back(
+                            {keyframe.frame.integral(), keyframe.value[component]});
+                    out.animation_tracks.push_back({
+                        static_cast<std::uint32_t>(out.animation_tracks.size()),
+                        std::move(property),
+                        first_keyframe,
+                        static_cast<std::uint32_t>(
+                            out.curve_keyframes.size() - first_keyframe),
+                        kind,
+                        source.easing});
+                };
+
                 for (const auto& track : layer.animation->tracks) {
+                    const auto kind = animation_property_kind(track.property);
+                    if (kind == chronon3d::AnimationPropertyKind::RotationVector) {
+                        if (track.keyframes.empty())
+                            throw std::runtime_error(
+                                "rotation animation requires at least one keyframe");
+                        const auto components = track.keyframes.front().value.size();
+                        if (components != 1 && components != 3)
+                            throw std::runtime_error(
+                                "rotation animation requires scalar or 3-component keyframes");
+                        for (const auto& keyframe : track.keyframes) {
+                            if (keyframe.value.size() != components)
+                                throw std::runtime_error(
+                                    "rotation animation keyframes must use a consistent component count");
+                        }
+                        if (components == 1) {
+                            append_scalar_track("rotation.z", AnimationProperty::RotationZ,
+                                                track, 0);
+                        } else {
+                            append_scalar_track("rotation.x", AnimationProperty::RotationX,
+                                                track, 0);
+                            append_scalar_track("rotation.y", AnimationProperty::RotationY,
+                                                track, 1);
+                            append_scalar_track("rotation.z", AnimationProperty::RotationZ,
+                                                track, 2);
+                        }
+                        continue;
+                    }
+
                     const auto first_keyframe = static_cast<std::uint32_t>(out.curve_keyframes.size());
                     for (const auto& keyframe : track.keyframes) {
                         for (const float value : keyframe.value) {

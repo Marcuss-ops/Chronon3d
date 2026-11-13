@@ -257,6 +257,24 @@ inline Mat4 strip_implicit_canvas_centering(
     return matrix;
 }
 
+/// A video source layer renders its box at the local surface origin and is
+/// placed by TransformNode, which scales around the surface centre. Its
+/// world matrix always carries the implicit canvas-centre translation, and
+/// the compositor adds that centre itself: keeping it would shift the clip by
+/// half a canvas (a centred 92% card rendered at 142%).
+inline bool is_video_source_layer(const LayerGraphItem& item) {
+    return item.layer && item.layer->kind == LayerKind::Video &&
+           !item.native_3d && !item.projected;
+}
+
+inline Mat4 strip_canvas_center_translation(const Mat4& matrix,
+                                            const RenderGraphContext& ctx) {
+    Mat4 result = matrix;
+    result[3][0] -= static_cast<f32>(ctx.frame_input.width) * 0.5f;
+    result[3][1] -= static_cast<f32>(ctx.frame_input.height) * 0.5f;
+    return result;
+}
+
 inline Transform calculate_centered_transform(const Transform& t, const RenderGraphContext&) {
     return t;
 }

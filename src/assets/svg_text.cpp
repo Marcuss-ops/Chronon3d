@@ -255,6 +255,12 @@ void apply_svg_text_style(const boost::property_tree::ptree& node,
         state.length_adjust = node.get<std::string>("<xmlattr>.lengthAdjust", "spacing");
         if (state.length_adjust != "spacing" && state.length_adjust != "spacingAndGlyphs")
             throw std::invalid_argument("SVG lengthAdjust supports spacing or spacingAndGlyphs");
+    } else {
+        // textLength is not inherited: only the element that declares it owns
+        // the innermost authored scope. Enclosing scopes stay in
+        // `text_length_scopes` for the inner-to-outer resolver.
+        state.text_length.reset();
+        state.length_adjust = "spacing";
     }
     if (const auto it = properties.find("font-weight"); it != properties.end()) {
         if (it->second == "normal") state.font_weight = 400;

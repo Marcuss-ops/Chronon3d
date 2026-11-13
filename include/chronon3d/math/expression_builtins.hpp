@@ -4,6 +4,10 @@
 
     double parse_function(std::string name) {
         if (name == "layer") {
+            if (m_profile == ExpressionProfile::Selector) {
+                m_error = true;
+                return 0.0;
+            }
             return parse_layer_ref();
         }
 
@@ -25,6 +29,18 @@
         }
 
         if (m_error) return 0.0;
+
+        // Host/keyframe helpers are only meaningful in the Full profile. The
+        // selector profile rejects them instead of returning a placeholder
+        // value that would silently change the authored animation.
+        if (m_profile == ExpressionProfile::Selector &&
+            (name == "loopOut" || name == "loopIn" ||
+             name == "valueAtTime" || name == "toComp" ||
+             name == "fromComp" || name == "posterizeTime" ||
+             name == "posterize")) {
+            m_error = true;
+            return 0.0;
+        }
 
         if (name == "sin")    return std::sin(a);
         if (name == "cos")    return std::cos(a);

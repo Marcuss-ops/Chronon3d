@@ -84,12 +84,17 @@ struct GlowPipelineOutput {
 };
 
 struct GlowPipeline {
-    // A glow is one tinted Gaussian halo.
+    // A glow is one tinted Gaussian halo.  The defaults preserve the legacy
+    // Glow contract; GlowAdvanced opts into a threshold and an A/B ramp.
     Color color{1, 1, 1, 1};
+    Color color_b{1, 1, 1, 1};
+    f32 threshold{0.0f};
     f32 radius{24.0f};
     f32 intensity{0.25f};
+    f32 falloff{1.0f};
 
     static GlowPipeline from(const GlowParams& p);
+    static GlowPipeline from(const GlowAdvancedParams& p);
 
     /// Unified entry point (Item 17).  Renders glow for a source
     /// framebuffer and returns the composited result (source + glow

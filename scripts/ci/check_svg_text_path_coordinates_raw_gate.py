@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 FONT = ROOT / "tests" / "fixtures" / "Inter-Bold.ttf"
+ARABIC_FONT = ROOT / "assets" / "fonts" / "NotoNaskhArabic-Regular.ttf"
 WIDTH, HEIGHT = 256, 128
 FRAME_BYTES = WIDTH * HEIGHT * 4
 
@@ -70,6 +71,33 @@ def render_transformed_lists(cli: Path, root: Path, name: str, rotated: bool) ->
     return pixels
 
 
+def render_rtl(cli: Path, root: Path, name: str, direction: str) -> bytes:
+    attr = f' direction="{direction}"' if direction else ""
+    (root / f"{name}.svg").write_text(f'''<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}">
+      <defs><path id="route" d="M 16 64 L 240 64"/></defs>
+      <text{attr} font-family="Noto Naskh Arabic" font-size="32"><textPath href="#route" startOffset="8">ابج</textPath></text>
+    </svg>''')
+    plan_path = root / f"{name}.plan.json"
+    plan_path.write_text(json.dumps({
+        "schema": "chronon.render-plan.v3", "version": 3,
+        "job_id": name, "canvas": {"width": WIDTH, "height": HEIGHT,
+        "fps_num": 30, "fps_den": 1, "duration_frames": 1},
+        "layers": [{"id": "svg_text", "type": "shape", "position": [0, 0],
+                    "size": [WIDTH, HEIGHT], "shape": {"type": "path", "asset": f"{name}.svg"}}],
+        "output": {"path": f"{name}.mp4", "format": "mp4"},
+    }))
+    raw_path = root / f"{name}.rgba"
+    result = subprocess.run([str(cli), "render", "--plan", str(plan_path),
+        "--assets-root", str(root), "--backend", "software", "--video-sink", "raw",
+        "--output", str(raw_path)], capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError((result.stdout + "\n" + result.stderr)[-6000:])
+    pixels = raw_path.read_bytes()
+    if len(pixels) != FRAME_BYTES:
+        raise RuntimeError(f"RTL textPath render returned {len(pixels)} bytes, expected {FRAME_BYTES}")
+    return pixels
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli", default=os.environ.get("CHRONON_CLI"))
@@ -77,12 +105,13 @@ def main() -> int:
     if not args.cli:
         parser.error("pass --cli or set CHRONON_CLI to an SVG-enabled chronon3d_cli")
     cli = Path(args.cli).resolve()
-    if not cli.is_file() or not FONT.is_file():
-        parser.error(f"CLI or bundled Inter test font is missing: {cli}, {FONT}")
+    if not cli.is_file() or not FONT.is_file() or not ARABIC_FONT.is_file():
+        parser.error(f"CLI or bundled text fonts are missing: {cli}, {FONT}, {ARABIC_FONT}")
     with tempfile.TemporaryDirectory(prefix="svg_text_path_coordinates_") as tmp:
         root = Path(tmp)
         (root / "fonts").mkdir()
         shutil.copyfile(FONT, root / "fonts" / "Inter-Bold.ttf")
+        shutil.copyfile(ARABIC_FONT, root / "fonts" / "Noto-Naskh-Arabic-Regular.ttf")
         plain = render(cli, root, "plain", False)
         positioned = render(cli, root, "positioned", True)
         repeat = render(cli, root, "positioned_repeat", True)
@@ -95,6 +124,10 @@ def main() -> int:
         axis_aligned = render_transformed_lists(cli, root, "axis_aligned_lists", False)
         rotated_lists = render_transformed_lists(cli, root, "rotated_lists", True)
         rotated_repeat = render_transformed_lists(cli, root, "rotated_lists_repeat", True)
+        rtl_explicit = render_rtl(cli, root, "rtl_explicit", "rtl")
+        rtl_repeat = render_rtl(cli, root, "rtl_repeat", "rtl")
+        ltr_explicit = render_rtl(cli, root, "ltr_explicit", "ltr")
+        rtl_auto = render_rtl(cli, root, "rtl_auto", "")
     visible = lambda frame: sum(frame[index] > 32 for index in range(3, len(frame), 4))
     if visible(plain) < 200 or visible(positioned) < 200:
         raise RuntimeError(f"textPath output is not visible: plain={visible(plain)}, positioned={visible(positioned)}")
@@ -117,6 +150,17 @@ def main() -> int:
     if rotated_lists != rotated_repeat:
         raise RuntimeError("repeated rotated-coordinate text raster differs pixel-for-pixel")
     print("SVG rotated x/y coordinate lists: PASS (positions transform and repeat deterministically)")
+    if visible(rtl_explicit) < 100 or visible(ltr_explicit) < 100:
+        raise RuntimeError(
+            f"RTL textPath output is not visible: rtl={visible(rtl_explicit)}, ltr={visible(ltr_explicit)}")
+    if sum(a != b for a, b in zip(rtl_explicit, ltr_explicit)) < 100:
+        raise RuntimeError("RTL textPath did not change glyph progression along the path")
+    if rtl_explicit != rtl_repeat:
+        raise RuntimeError("repeated RTL textPath raster differs pixel-for-pixel")
+    if rtl_explicit != rtl_auto:
+        raise RuntimeError("direction:auto did not detect the Arabic RTL run")
+    print(f"SVG textPath RTL progression: PASS (rtl={visible(rtl_explicit)} ltr={visible(ltr_explicit)} visible pixels)")
+    print("SVG textPath RTL determinism: PASS (explicit and auto frames match exactly)")
     return 0
 
 

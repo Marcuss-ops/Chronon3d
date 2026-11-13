@@ -1,4 +1,5 @@
 #include <chronon3d/render_plan/easing_contract.hpp>
+#include <chronon3d/text/selector_expression.hpp>
 #include "render_plan_decoder_detail.hpp"
 
 #include <nlohmann/json.hpp>
@@ -60,7 +61,9 @@ TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
     reject_unknown_fields(value, {"id", "semantic_id", "unit", "shape", "order", "combine",
         "start", "end", "offset", "amount", "exclude_spaces", "end_inclusive", "randomize_order", "random_seed",
         "wiggly_frequency", "wiggly_amplitude", "wiggly_seed", "ease_low", "ease_high", "noise_frequency",
-        "noise_amplitude", "noise_seed", "index_step"}, "text selector");
+        "noise_amplitude", "noise_seed", "index_step", "range_units", "smoothness",
+        "wiggles_per_second", "correlation", "temporal_phase", "spatial_phase",
+        "min_amount", "max_amount", "lock_dimensions", "wiggly_mode", "expression"}, "text selector");
     if (value.contains("id") && (!value.at("id").is_string() || value.at("id").get<std::string>().size() > 256))
         throw std::runtime_error("text selector id must be a string of at most 256 bytes");
     TextSelectorPlan selector;
@@ -101,8 +104,9 @@ TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
     }
     if ((value.contains("exclude_spaces") && !value.at("exclude_spaces").is_boolean()) ||
         (value.contains("end_inclusive") && !value.at("end_inclusive").is_boolean()) ||
-        (value.contains("randomize_order") && !value.at("randomize_order").is_boolean()))
-        throw std::runtime_error("text selector exclude_spaces, end_inclusive, and randomize_order must be booleans");
+        (value.contains("randomize_order") && !value.at("randomize_order").is_boolean()) ||
+        (value.contains("lock_dimensions") && !value.at("lock_dimensions").is_boolean()))
+        throw std::runtime_error("text selector boolean fields must be booleans");
     selector.exclude_spaces = value.value("exclude_spaces", true);
     selector.end_inclusive = value.value("end_inclusive", false);
     selector.randomize_order = value.value("randomize_order", false);
@@ -151,6 +155,70 @@ TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
             selector.index_step = static_cast<std::uint32_t>(step);
         }
     }
+    selector.range_units = value.value("range_units", std::string{"percentage"});
+    static constexpr std::array<std::string_view, 2> range_unit_names{
+        "percentage", "index"};
+    if (std::find(range_unit_names.begin(), range_unit_names.end(),
+                  selector.range_units) == range_unit_names.end())
+        throw std::runtime_error(
+            "text selector range_units must be 'percentage' or 'index'");
+    selector.smoothness = value.value("smoothness", 0.0f);
+    if (!std::isfinite(selector.smoothness) || selector.smoothness < 0.0f ||
+        selector.smoothness > 100.0f)
+        throw std::runtime_error(
+            "text selector smoothness must be a percentage in [0, 100]");
+
+    selector.wiggles_per_second = value.value("wiggles_per_second", 0.0f);
+    selector.correlation = value.value("correlation", 0.0f);
+    selector.temporal_phase = value.value("temporal_phase", 0.0f);
+    selector.spatial_phase = value.value("spatial_phase", 0.0f);
+    selector.min_amount = value.value("min_amount", 0.0f);
+    selector.max_amount = value.value("max_amount", 100.0f);
+    selector.lock_dimensions = value.value("lock_dimensions", true);
+    selector.wiggly_mode = value.value("wiggly_mode", std::string{"smooth"});
+    if (!std::isfinite(selector.wiggles_per_second) ||
+        selector.wiggles_per_second < 0.0f || selector.wiggles_per_second > 1000.0f ||
+        !std::isfinite(selector.correlation) || selector.correlation < 0.0f ||
+        selector.correlation > 100.0f ||
+        !std::isfinite(selector.temporal_phase) ||
+        std::abs(selector.temporal_phase) > 36000.0f ||
+        !std::isfinite(selector.spatial_phase) ||
+        std::abs(selector.spatial_phase) > 36000.0f ||
+        !std::isfinite(selector.min_amount) || selector.min_amount < 0.0f ||
+        selector.min_amount > 100.0f ||
+        !std::isfinite(selector.max_amount) || selector.max_amount < 0.0f ||
+        selector.max_amount > 100.0f || selector.min_amount > selector.max_amount)
+        throw std::runtime_error(
+            "text selector wiggly temporal parameters are outside their supported ranges");
+    static constexpr std::array<std::string_view, 3> wiggly_modes{
+        "smooth", "corner", "jagged"};
+    if (std::find(wiggly_modes.begin(), wiggly_modes.end(),
+                  selector.wiggly_mode) == wiggly_modes.end())
+        throw std::runtime_error(
+            "text selector wiggly_mode must be 'smooth', 'corner', or 'jagged'");
+
+    const bool has_wiggly_temporal =
+        value.contains("wiggles_per_second") || value.contains("correlation") ||
+        value.contains("temporal_phase") || value.contains("spatial_phase") ||
+        value.contains("min_amount") || value.contains("max_amount") ||
+        value.contains("lock_dimensions") || value.contains("wiggly_mode");
+    if (selector.shape != "wiggly" && has_wiggly_temporal)
+        throw std::runtime_error(
+            "wiggly temporal parameters require shape='wiggly'");
+
+    if (value.contains("expression")) {
+        if (!value.at("expression").is_string())
+            throw std::runtime_error("text selector expression must be a string");
+        auto expression = value.at("expression").get<std::string>();
+        if (expression.empty() || expression.size() > 4096)
+            throw std::runtime_error(
+                "text selector expression must contain 1..4096 bytes");
+        if (!validate_selector_expression(expression))
+            throw std::runtime_error(
+                "text selector expression uses an unsupported AE host variable or function");
+        selector.expression = std::move(expression);
+    }
+
     const float modulation_frequency = selector.shape == "noise"
         ? selector.noise_frequency : selector.wiggly_frequency;
     const float modulation_amplitude = selector.shape == "noise"

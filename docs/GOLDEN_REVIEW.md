@@ -37,4 +37,4 @@ as verified correct.
 
 | Fixture | Review state |
 |---|---|
-| `tests/render_graph/compiler/frame_graph_program.golden` | pending — value regenerated 2026-10-08 (0x1ec334584fada888); reproducible, correctness not reviewed |
+| `tests/render_graph/compiler/frame_graph_program.golden` | pending — value regenerated 2026-11-12 (0x65488369a8e6128d); reproducible, correctness not independently reviewed |

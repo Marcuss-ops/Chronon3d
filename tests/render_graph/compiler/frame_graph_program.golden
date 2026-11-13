@@ -14,7 +14,6 @@
 # 2026-10-08 — regenerated after the PixelProgram CPU fusion and fusion-path
 # stabilization commits (159d38775, 46ba63654); previous value 0x65304b41dbf40d8f.
 # The new value is stable across repeated runs of the fixture.
-# Review: pending — reproducible; correctness of the 2026-10-08 fusion output not yet reviewed.
 #
 # 2026-10-20 — regenerated after the static-bake cacheability fix (80119a1b9);
 # previous value 0x1ec334584fada888. Composite nodes are now excluded from
@@ -25,4 +24,16 @@
 # 2026-10-23 — updated after the render-graph compiler produced a new stable
 # normalized program. Two independent compilations match; full node/operation
 # parity remains asserted above. Previous golden: 0xaccd5b842ed2c6a2.
-fnv1a64=0x3b196a95fae3f89e
+#
+# 2026-11-12 — INTENTIONAL contract change, previously 0x3b196a95fae3f89e.
+# The physical-slot planner now treats composite resources as frame-dependent
+# (87c3761b9), so composites are aliasable and receive planned output slots
+# instead of being excluded as persistent. The normalized program therefore
+# carries new P entries. The fixture's topology and stable-node IDs are
+# unchanged: its nodes carry no layer_id, and the compiler pipeline is
+# otherwise unchanged since 5229e2605. Reproducible across two independent
+# compilations of make_determinism_fixture.
+# Evidence: 87c3761b9; "FrameGraphCompiler - compiled frame program is
+# deterministic (golden)".
+# Review: pending — value regenerated 2026-11-12; correctness not independently reviewed.
+fnv1a64=0x65488369a8e6128d

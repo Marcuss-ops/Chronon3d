@@ -249,6 +249,19 @@ TEST_CASE("Text health / missing OpenType BASE script records use fallback") {
     CHECK_FALSE(latin_script.has_value());
 }
 
+TEST_CASE("Text health / OpenType BASE records supply a hanging baseline") {
+    TextHealthEnvironment env;
+    FontSpec font{"tests/fixtures/svg_base_font/DejaVuSans-BASE.ttf",
+                  "DejaVu Sans", 400, "normal", 48.0f};
+    REQUIRE(env.font_engine.can_load(font));
+    const auto hanging = env.font_engine.get_open_type_baseline_offset(
+        font, 48.0f, "hanging", "Latn", TextDirection::LTR);
+    REQUIRE(hanging.has_value());
+    CHECK(*hanging == doctest::Approx(48.0f * 700.0f / 2048.0f).epsilon(0.01));
+    CHECK_FALSE(env.font_engine.get_open_type_baseline_offset(
+        font, 48.0f, "hanging", "Arab", TextDirection::RTL).has_value());
+}
+
 TEST_CASE("Text health / relative font path without engine fails closed") {
     auto spec = make_health_spec(
         "FAIL CLOSED",

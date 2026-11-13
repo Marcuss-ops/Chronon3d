@@ -60,6 +60,14 @@ void apply_lens_distortion(Framebuffer& fb, const LensDistortionParams& params,
                           ::chronon3d::EffectScratchResources& scratch,
                           const std::optional<raster::BBox>& clip = std::nullopt);
 
+// ── CC Cylinder / CC Sphere — 2D layer wraps ───────────────────────────────
+void apply_cylinder_wrap(Framebuffer& fb, const CylinderWrapParams& params,
+                         ::chronon3d::EffectScratchResources& scratch,
+                         const std::optional<raster::BBox>& clip = std::nullopt);
+void apply_sphere_wrap(Framebuffer& fb, const SphereWrapParams& params,
+                       ::chronon3d::EffectScratchResources& scratch,
+                       const std::optional<raster::BBox>& clip = std::nullopt);
+
 void apply_fold_warp(Framebuffer& fb, const FoldWarpParams& params,
                      ::chronon3d::EffectScratchResources& scratch,
                      const std::optional<raster::BBox>& clip = std::nullopt);

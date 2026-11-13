@@ -4,25 +4,40 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/media/frame_source_provider.hpp>
+#include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <spdlog/spdlog.h>
 #include <cmath>
+#include <memory>
 #include <span>
 
 namespace chronon3d::graph {
 
 class VideoNode final : public RenderGraphNode {
 public:
-    VideoNode(video::VideoSource source, media::MediaFrameProvider* decoder, Frame layer_start)
+    VideoNode(video::VideoSource source, media::MediaFrameProvider* decoder, Frame layer_start,
+              bool cpu_decode_for_mask = false, Vec2 display_size = {})
         : RenderGraphNode(RenderNodeCachePolicy{
             .mode = CacheMode::Disabled,
             .invalidation = CacheInvalidation::Always,
             .reason = "video",
             .temporal_class = TemporalClass::ExternalDynamic,
         })
-        , m_source(std::move(source)),
-          m_decoder(decoder),
-          m_layer_start(layer_start),
-          m_full_name("Video:" + m_source.path) {}
+        , m_source(std::move(source))
+        , m_full_name("Video:" + m_source.path)
+        , m_decoder(decoder)
+        , m_layer_start(layer_start)
+        , m_cpu_decode_for_mask(cpu_decode_for_mask)
+        , m_display_size(display_size) {
+        // A rounded/masked video must be masked on the CPU. The native
+        // decoder's GPU surface is not the frame's CPU shadow, so masking that
+        // shadow produced an all-black frame. The reference/software lane
+        // returns the decoded pixels; mask, transform, border and GPU encode
+        // remain the normal graph path.
+        if (m_cpu_decode_for_mask) {
+            m_cpu_decoder = std::make_unique<media::NativeVideoFrameDecoder>();
+            m_cpu_decoder->set_software_only(true);
+        }
+    }
 
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override {
         return RenderGraphNodeKind::Video;
@@ -80,6 +95,12 @@ public:
         std::span<const std::optional<raster::BBox>>
     ) override {
         auto* decoder = m_decoder ? m_decoder : ctx.video_decoder;
+        if (m_cpu_decoder) {
+            decoder = m_cpu_decoder.get();
+            if (ctx.node_exec.counters) {
+                m_cpu_decoder->set_counters(ctx.node_exec.counters);
+            }
+        }
         if (!decoder) {
             if (ctx.policy.is_gpu_native_required()) {
                 spdlog::error("[video-node] GPU_NATIVE_REQUIRED: no decoder wired for source='{}'", m_source.path);
@@ -154,7 +175,7 @@ public:
                           static_cast<int>(source_frame));
             return ctx.acquire_owned_fb(render_w, render_h);
         }
-        if (ctx.policy.is_gpu_native_required() &&
+        if (ctx.policy.is_gpu_native_required() && !m_cpu_decode_for_mask &&
             decoded_frame->framebuffer->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
             spdlog::error("[video-node] GPU_NATIVE_REQUIRED: decoder returned CPU frame without native GPU surface: path='{}'",
                           m_source.path);
@@ -167,6 +188,35 @@ public:
         // shared_ptr overload avoids an unnecessary CPU copy for GPU-backed
         // video frames; CPU providers retain the existing copy behavior.
         auto framebuffer = decoded_frame->framebuffer;
+        // The native decoder returns the source's coded resolution. A card
+        // layer authored for the output canvas (e.g. a 960x540 source shown in
+        // a 1920x1080 card) must be resampled to the layer's display box before
+        // the scene transform, otherwise only the top-left quarter is filled.
+        const i32 target_w = m_display_size.x > 0.0f
+            ? static_cast<i32>(std::llround(m_display_size.x)) : render_w;
+        const i32 target_h = m_display_size.y > 0.0f
+            ? static_cast<i32>(std::llround(m_display_size.y)) : render_h;
+        // A CPU-resident decode (always true for the software lane and for
+        // masked layers) must be resampled to the layer box here; a GPU-native
+        // surface is scaled by the compositor. The native decoder returns the
+        // coded resolution and ignores the requested render size.
+        const bool cpu_resident = !framebuffer || m_cpu_decode_for_mask ||
+            framebuffer->surface_handle() == runtime::kInvalidRenderSurfaceHandle;
+        if (cpu_resident && framebuffer && target_w > 0 && target_h > 0 &&
+            (framebuffer->width() != target_w || framebuffer->height() != target_h)) {
+            auto scaled = std::make_shared<Framebuffer>(target_w, target_h, true);
+            const f32 sx = static_cast<f32>(framebuffer->width()) / static_cast<f32>(target_w);
+            const f32 sy = static_cast<f32>(framebuffer->height()) / static_cast<f32>(target_h);
+            for (i32 y = 0; y < target_h; ++y) {
+                for (i32 x = 0; x < target_w; ++x) {
+                    scaled->set_pixel(x, y, framebuffer->sample_bilinear(
+                        (static_cast<f32>(x) + 0.5f) * sx - 0.5f,
+                        (static_cast<f32>(y) + 0.5f) * sy - 0.5f));
+                }
+            }
+            scaled->mark_cpu_authoritative();
+            framebuffer = std::move(scaled);
+        }
         return ctx.acquire_owned_fb(std::move(framebuffer));
     }
 
@@ -177,6 +227,12 @@ private:
     std::string m_full_name;  // "Video:" + path, stored for string_view
     media::MediaFrameProvider* m_decoder{};
     Frame m_layer_start{0};
+    // Masked video layers are decoded through the reference lane so the mask
+    // reads the real decoded pixels instead of the native decoder's empty
+    // CPU shadow.
+    bool m_cpu_decode_for_mask{false};
+    Vec2 m_display_size{};
+    std::unique_ptr<media::NativeVideoFrameDecoder> m_cpu_decoder;
 };
 
 } // namespace chronon3d::graph

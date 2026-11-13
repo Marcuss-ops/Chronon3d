@@ -84,6 +84,14 @@ void main() {
         result.a = effective_alpha + clamp(dst.a, 0.0, 1.0) *
             (1.0 - effective_alpha);
     }
+    else if (params.blend_mode == 10) {
+        // Inner glow: screen the tinted rim inside the source alpha without
+        // changing that alpha. dst is the premultiplied source surface.
+        float dst_alpha = clamp(dst.a, 0.0, 1.0);
+        float coverage = clamp(src.a * params.source_scale, 0.0, 1.0) * dst_alpha;
+        result.rgb = dst.rgb + params.tint.rgb * coverage * (dst_alpha - dst.rgb);
+        result.a = dst.a;
+    }
     else if (params.blend_mode == 1) result = src * params.tint * params.source_scale + dst;
     else if (params.blend_mode == 6) {
         result.rgb = dst.rgb + src.rgb * params.source_scale;

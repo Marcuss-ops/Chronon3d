@@ -11,92 +11,15 @@
 
 #include "render_effects_processor.hpp"
 #include "effect_helpers.hpp"
+#include "sdf_field.hpp"
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <numbers>
 #include <vector>
 
 namespace chronon3d {
 namespace renderer {
 namespace {
-
-constexpr float k_distance_inf = 1.0e20f;
-
-// 1D squared Euclidean distance transform (Felzenszwalb & Huttenlocher).
-// Infinite sites are skipped so rows/columns that contain no seed contribute
-// no candidates instead of producing NaNs.
-void distance_transform_1d(const float* f, float* d, int n) {
-    if (n <= 0) return;
-    std::vector<int> v(static_cast<size_t>(n));
-    std::vector<float> z(static_cast<size_t>(n) + 1);
-    int k = -1;
-
-    for (int q = 0; q < n; ++q) {
-        if (!std::isfinite(f[q])) continue;
-        if (k < 0) {
-            k = 0;
-            v[0] = q;
-            z[0] = -k_distance_inf;
-            z[1] = k_distance_inf;
-            continue;
-        }
-        float s = ((f[q] + static_cast<float>(q) * q) -
-                   (f[v[k]] + static_cast<float>(v[k]) * v[k])) /
-                  (2.0f * static_cast<float>(q - v[k]));
-        while (s <= z[k]) {
-            --k;
-            if (k < 0) break;
-            s = ((f[q] + static_cast<float>(q) * q) -
-                 (f[v[k]] + static_cast<float>(v[k]) * v[k])) /
-                (2.0f * static_cast<float>(q - v[k]));
-        }
-        if (k < 0) {
-            k = 0;
-            v[0] = q;
-            z[0] = -k_distance_inf;
-            z[1] = k_distance_inf;
-        } else {
-            ++k;
-            v[k] = q;
-            z[k] = s;
-            z[k + 1] = k_distance_inf;
-        }
-    }
-
-    if (k < 0) {
-        for (int q = 0; q < n; ++q) d[q] = k_distance_inf;
-        return;
-    }
-
-    k = 0;
-    for (int q = 0; q < n; ++q) {
-        while (z[k + 1] < static_cast<float>(q)) ++k;
-        const float dq = static_cast<float>(q - v[k]);
-        d[q] = dq * dq + f[v[k]];
-    }
-}
-
-void distance_transform_2d(std::vector<float>& field, int w, int h) {
-    std::vector<float> line(static_cast<size_t>(std::max(w, h)));
-    std::vector<float> out(static_cast<size_t>(std::max(w, h)));
-
-    for (int y = 0; y < h; ++y) {
-        float* row = field.data() + static_cast<size_t>(y) * w;
-        distance_transform_1d(row, out.data(), w);
-        std::copy(out.begin(), out.begin() + w, row);
-    }
-
-    for (int x = 0; x < w; ++x) {
-        for (int y = 0; y < h; ++y) {
-            line[y] = field[static_cast<size_t>(y) * w + x];
-        }
-        distance_transform_1d(line.data(), out.data(), h);
-        for (int y = 0; y < h; ++y) {
-            field[static_cast<size_t>(y) * w + x] = out[y];
-        }
-    }
-}
 
 inline float smoothstep01(float x) {
     const float t = std::clamp(x, 0.0f, 1.0f);
@@ -115,32 +38,11 @@ void apply_sdf_bevel_effect(
     const i32 h = fb.height();
     if (w <= 0 || h <= 0) return;
 
-    const size_t count = static_cast<size_t>(w) * static_cast<size_t>(h);
-    std::vector<float> to_inside(count, k_distance_inf);
-    std::vector<float> to_outside(count, k_distance_inf);
-
-    bool has_content = false;
-    for (i32 y = 0; y < h; ++y) {
-        const Color* row = fb.pixels_row(y);
-        for (i32 x = 0; x < w; ++x) {
-            const size_t i = static_cast<size_t>(y) * w + x;
-            if (row[x].a > 0.5f) {
-                to_inside[i] = 0.0f;
-                has_content = true;
-            } else {
-                to_outside[i] = 0.0f;
-            }
-        }
-    }
-    if (!has_content) return;
-
-    // Negative inside the silhouette, positive outside.
-    distance_transform_2d(to_inside, w, h);
-    distance_transform_2d(to_outside, w, h);
-    std::vector<float> sdf(count);
-    for (size_t i = 0; i < count; ++i) {
-        sdf[i] = std::sqrt(to_inside[i]) - std::sqrt(to_outside[i]);
-    }
+    // One shared field builder for every SDF-based effect. Negative inside
+    // the silhouette, positive outside.
+    const auto field = sdf_field::build_from_alpha(fb);
+    if (!field.has_content) return;
+    const auto& sdf = field.values;
 
     const float azimuth = (p.light_angle +
                            p.light_orbit_speed * time_seconds) *
@@ -188,9 +90,9 @@ void apply_sdf_bevel_effect(
             // Gradient of the SDF points outward.  The bevel normal rotates
             // from horizontal at the silhouette to straight up on the face.
             const float gx = (x > 0 && x + 1 < w)
-                ? (sdf[i + 1] - sdf[i - 1]) * 0.5f : 0.0f;
+                ? (field.at(x + 1, y) - field.at(x - 1, y)) * 0.5f : 0.0f;
             const float gy = (y > 0 && y + 1 < h)
-                ? (sdf[i + w] - sdf[i - w]) * 0.5f : 0.0f;
+                ? (field.at(x, y + 1) - field.at(x, y - 1)) * 0.5f : 0.0f;
             const float glen = std::sqrt(gx * gx + gy * gy);
             const float nx = glen > 1.0e-5f ? gx / glen : 0.0f;
             const float ny = glen > 1.0e-5f ? gy / glen : 0.0f;

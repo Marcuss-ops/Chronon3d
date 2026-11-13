@@ -25,7 +25,7 @@ layout(binding = 0, std430) writeonly buffer ParticleInstances {
     GpuLayerInstance instances[];
 };
 
-// 128 bytes of scalar fields followed by a 256-entry linear-colour LUT.
+// 144 bytes of scalar fields followed by the colour LUT and the over-life LUT.
 // std140 gives every vec4 a 16-byte stride, matching the C++ struct.
 layout(binding = 1, std140) uniform ParticleEmitter {
     uvec4 header;          // count, seed, shape, flags
@@ -36,7 +36,9 @@ layout(binding = 1, std140) uniform ParticleEmitter {
     vec4 motion;           // twinkle.speed, depth_min, depth_max, seconds
     vec4 sprite;           // sprite_scale_min, sprite_scale_max, rotation_min, rotation_max
     vec4 angular;          // angular_velocity_min, angular_velocity_max, blend_mode, reserved
+    vec4 dynamics;         // air_drag, emitter_velocity.xy, emissive
     vec4 color_lut[256];
+    vec4 over_life_lut[256]; // r = size multiplier, g = opacity multiplier
 } u;
 
 const float kTau = 6.2831853071795864769;
@@ -135,16 +137,30 @@ vec4 sample_ramp(float t) {
     return mix(u.color_lut[i], u.color_lut[j], x - floor(x));
 }
 
-vec2 flow_displacement(vec2 origin, float age, float phase) {
+vec2 flow_displacement(vec2 origin, float age, float phase, float depth) {
     const float strength = u.flow_twinkle.x;
     if (strength == 0.0) return vec2(0.0);
     const float k = u.flow_twinkle.y;
     const float t = age * u.flow_twinkle.z + phase;
-    const float ax = k * origin.x + t;
-    const float ay = k * 0.83 * origin.y - t * 0.7 + phase * 1.7;
-    const float az = k * 0.6 * (origin.x + origin.y) + t * 1.3 + phase * 0.61;
-    return vec2(strength * (0.83 * cos(ay) + 0.3 * cos(az)),
-                -strength * (cos(ax) + 0.3 * cos(az)));
+    const float z = depth * 3.0 + phase * 0.37;
+    const float ax = k * (0.90 * origin.y + 0.35 * z) + 0.87 * t + phase;
+    const float ay = k * (0.80 * z - 0.45 * origin.x) + 1.13 * t + 1.70 * phase;
+    const float az = k * (0.70 * origin.x - 0.55 * origin.y) + 1.03 * t + 0.61 * phase;
+    const float curl_x = -0.55 * cos(az) - 0.80 * cos(ay);
+    const float curl_y = 0.35 * cos(ax) - 0.70 * cos(az);
+    return vec2(strength * curl_x, strength * curl_y);
+}
+
+vec4 sample_over_life(float t) {
+    const float x = clamp(t, 0.0, 1.0) * 255.0;
+    const uint i = uint(min(floor(x), 255.0));
+    const uint j = min(i + 1u, 255u);
+    return mix(u.over_life_lut[i], u.over_life_lut[j], x - floor(x));
+}
+
+float drag_axis(float value, float k, float time) {
+    if (k <= 0.0 || value == 0.0) return value * time;
+    return sign(value) * log(1.0 + k * abs(value) * time) / k;
 }
 
 void emit_empty(uint index) {
@@ -215,10 +231,15 @@ void main() {
                              (distance - 2.0 * u.emitter.x - u.emitter.y));
         }
     }
+    // Sub-frame emission: the particle was born earlier in the frame, when a
+    // moving emitter was at `spawn - emitter_velocity * age`.
+    spawn -= u.dynamics.yz * age;
 
     const vec2 velocity = vec2(
         random_range(index, cycle, 4u, u.velocity_size.x, u.velocity_gravity.x),
         random_range(index, cycle, 5u, u.velocity_size.y, u.velocity_gravity.y));
+    const vec2 drag_velocity = velocity /
+        (vec2(1.0) + u.dynamics.x * abs(velocity) * age);
     const float turbulence_phase_x = random_at(index, cycle, 6u) * kTau;
     const float turbulence_phase_y = random_at(index, cycle, 7u) * kTau;
     const float turbulence_time = age * kTau;
@@ -228,17 +249,23 @@ void main() {
             sin(turbulence_time * 0.73 + turbulence_phase_y));
     const float depth = random_range(index, cycle, 12u,
                                      u.motion.y, u.motion.z);
-    vec2 position = spawn + velocity * age +
+    vec2 position = spawn +
+        vec2(drag_axis(velocity.x, u.dynamics.x, age),
+             drag_axis(velocity.y, u.dynamics.x, age)) +
         vec2(0.0, 0.5 * u.velocity_gravity.z * age * age) + turbulence;
     if (u.flow_twinkle.x > 0.0) {
         const float flow_phase = random_at(index, cycle, 13u) * kTau;
         const float parallax = environment ? 1.0 - 0.25 * depth : 1.0;
-        position += flow_displacement(spawn, age, flow_phase) * parallax;
+        position += flow_displacement(spawn, age, flow_phase, depth) * parallax;
     }
 
+    const vec4 over_life = sample_over_life(life_fraction);
     float size = random_range(index, cycle, 8u,
-                              u.velocity_size.z, u.velocity_size.w);
+                              u.velocity_size.z, u.velocity_size.w) *
+                 over_life.r;
     vec4 color = sample_ramp(life_fraction);
+    color.rgb *= u.dynamics.w;
+    color.a *= over_life.g;
     if (u.flow_twinkle.w > 0.0) {
         const float twinkle_phase = random_at(index, cycle, 14u) * kTau;
         const float shimmer = 0.5 + 0.5 * sin(kTau * u.motion.x * age +
@@ -246,9 +273,12 @@ void main() {
         color.a *= 1.0 - u.flow_twinkle.w * shimmer;
     }
     if (bokeh) {
-        size *= 1.35 - depth * 0.7;
-        color.a *= 1.0 - depth * 0.35;
+        const float depth_scale = 1.35 - depth * 0.7;
+        size *= depth_scale;
+        // Conserve luminous flux when the bokeh disc grows.
+        color.a = clamp(color.a / (depth_scale * depth_scale), 0.0, 1.0);
     }
+    color.a = clamp(color.a, 0.0, 1.0);
 
     if (!(size > 0.0) || !(lifetime > 0.0) || !finite(size) ||
         !finite(position.x) || !finite(position.y) ||
@@ -274,7 +304,7 @@ void main() {
     // Mirror SourceNode's CPU exposure: motion * seconds, bounded by both a
     // size-relative and an absolute pixel cap. layer_batch.comp renders this
     // as the capsule from the head to the previous exposure position.
-    vec2 trail = velocity * max(u.angular.w, 0.0);
+    vec2 trail = drag_velocity * max(u.angular.w, 0.0);
     float trail_limit = max(size * 6.0, 24.0);
     float trail_length = length(trail);
     if (trail_length > trail_limit && trail_length > 0.0)

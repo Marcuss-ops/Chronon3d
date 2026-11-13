@@ -45,6 +45,8 @@ void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params,
 // This replaces the removed process-wide `detail::g_debug_config`.
 void apply_shadow_effect(Framebuffer& fb, const DropShadowParams& p, const std::optional<raster::BBox>& clip, bool diagnostics_enabled = false);
 void apply_sdf_bevel_effect(Framebuffer& fb, const SdfBevelParams& p, float time_seconds, bool diagnostics_enabled = false);
+void apply_contour_palette(Framebuffer& fb, const ContourPaletteParams& p,
+                           const std::optional<raster::BBox>& clip = std::nullopt);
 
 // ── Adjustment-layer color correction (AE-5) ──
 void apply_saturation(Framebuffer& fb, f32 sat, const std::optional<raster::BBox>& clip = std::nullopt);

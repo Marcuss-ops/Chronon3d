@@ -2,6 +2,7 @@
 #include "graph_builder_coordinates.hpp"
 #include "evaluated_layer_placement.hpp"
 #include "../extruded_text_mesh.hpp"
+#include "../../pipeline/refresh/particle_sample.hpp"
 
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 
@@ -324,6 +325,11 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         if (layer.nodes.size() == 1 && !single_node_needs_svg_compositing) {
             const auto& authored_node = layer.nodes[0];
             auto node = materialize_mesh_node(authored_node, ctx);
+            if (sampled_particle_layer &&
+                sampled_particle_layer->kind == compiler::NodeKind::Particles &&
+                !sampled_particle_layer->elements.empty()) {
+                apply_particle_sample(node, sampled_particle_layer->elements.front());
+            }
             if (node.shape.type() == ShapeType::TextRun) {
                 const auto run = node.shape.text_run_shape_handle().value;
                 if (run && run->material.extruded_text) {
@@ -517,8 +523,14 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
         std::vector<RenderNode> materialized_nodes;
         materialized_nodes.reserve(layer.nodes.size());
-        for (const auto& authored_node : layer.nodes) {
-            materialized_nodes.push_back(materialize_mesh_node(authored_node, ctx));
+        for (std::size_t node_index = 0; node_index < layer.nodes.size(); ++node_index) {
+            materialized_nodes.push_back(materialize_mesh_node(layer.nodes[node_index], ctx));
+            if (sampled_particle_layer &&
+                sampled_particle_layer->kind == compiler::NodeKind::Particles &&
+                node_index < sampled_particle_layer->elements.size()) {
+                apply_particle_sample(materialized_nodes.back(),
+                                      sampled_particle_layer->elements[node_index]);
+            }
         }
         std::vector<MultiSourceItem> items;
         items.reserve(materialized_nodes.size());
@@ -651,8 +663,16 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
     if (layer.kind == LayerKind::Video && layer.video_source) {
         // PR2-cleanup: VideoNode is intrinsically frame-variant per its ctor;
         // the cache policy is baked in by the factory.
+        //
+        // A rounded video is masked on the CPU. The native decoder's GPU
+        // surface is not the decoded CPU shadow, so masking that shadow
+        // produced an all-black frame. Decode this one layer through the
+        // reference/software lane; mask, transform, border and GPU encode
+        // keep the normal graph path.
+        const bool cpu_decode_for_mask = layer.mask.enabled();
         return graph.add_node(std::make_unique<VideoNode>(
-            *layer.video_source, ctx.video_decoder, layer.from
+            *layer.video_source, ctx.video_decoder, layer.from, cpu_decode_for_mask,
+            Vec2{layer.video_source->size.x, layer.video_source->size.y}
         ), node_ctx);
     }
 
