@@ -322,6 +322,22 @@ void apply_ripple(Framebuffer& fb, const RippleParams& p, float time,
     }}
 }
 
+namespace {
+
+float displacement_channel_value(const Color& c, DisplacementMapParams::Channel channel) {
+    switch (channel) {
+    case DisplacementMapParams::Channel::Red: return c.r;
+    case DisplacementMapParams::Channel::Green: return c.g;
+    case DisplacementMapParams::Channel::Blue: return c.b;
+    case DisplacementMapParams::Channel::Alpha: return c.a;
+    case DisplacementMapParams::Channel::Luma:
+        return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+    }
+    return 0.0f;
+}
+
+} // namespace
+
 void apply_displacement_map(Framebuffer& fb,const DisplacementMapParams& p,const Framebuffer& map,
                             ::chronon3d::EffectScratchResources& scratch,
                             const std::optional<raster::BBox>& clip) {
@@ -333,18 +349,14 @@ void apply_displacement_map(Framebuffer& fb,const DisplacementMapParams& p,const
     const float map_origin_x=static_cast<float>(fb.origin_x()-map.origin_x());
     const float map_origin_y=static_cast<float>(fb.origin_y()-map.origin_y());
     const float scale=static_cast<float>(std::min(fb.width(),fb.height()));
+    const auto channel_x=p.channel_x.value_or(p.channel);
+    const auto channel_y=p.channel_y.value_or(p.channel);
     for(int y=c.y0;y<c.y1;++y) { Color* row=fb.pixels_row(y); for(int x=c.x0;x<c.x1;++x) {
         const Color m=map_sampler.bilinear(map_origin_x+x+0.5f,map_origin_y+y+0.5f);
-        float channel=0.0f;
-        switch(p.channel) {
-            case DisplacementMapParams::Channel::Red: channel=m.r; break;
-            case DisplacementMapParams::Channel::Green: channel=m.g; break;
-            case DisplacementMapParams::Channel::Blue: channel=m.b; break;
-            case DisplacementMapParams::Channel::Alpha: channel=m.a; break;
-            case DisplacementMapParams::Channel::Luma: channel=0.2126f*m.r+0.7152f*m.g+0.0722f*m.b; break;
-        }
-        const float dx=(channel-0.5f)*p.intensity_x*scale;
-        const float dy=(channel-0.5f)*p.intensity_y*scale;
+        const float value_x=displacement_channel_value(m,channel_x);
+        const float value_y=displacement_channel_value(m,channel_y);
+        const float dx=(value_x-0.5f)*p.intensity_x*scale;
+        const float dy=(value_y-0.5f)*p.intensity_y*scale;
         row[x]=c.sampler.bilinear(x+0.5f-dx,y+0.5f-dy);
     }}
 }
@@ -399,6 +411,81 @@ void apply_lens_distortion(Framebuffer& fb, const LensDistortionParams& params,
             const float factor = (1.0f + k * r2) / s;
             const Vec2 src_pos = center_px + d * (factor * diag);
             row[x] = c.sampler.bilinear(src_pos.x, src_pos.y);
+        }
+    }
+}
+
+void apply_cylinder_wrap(Framebuffer& fb, const CylinderWrapParams& params,
+                         ::chronon3d::EffectScratchResources& scratch,
+                         const std::optional<raster::BBox>& clip) {
+    params.validate();
+    auto c = make_warp_context(fb, sampling::EdgeMode::Transparent, scratch, clip);
+    constexpr float kPi = 3.14159265358979323846f;
+    const float w = static_cast<float>(fb.width());
+    const float h = static_cast<float>(fb.height());
+    const float cx = params.center_x * w;
+    const float cy = params.center_y * h;
+    const float radius_px = params.width * w;
+    const float half_height = params.height * h * 0.5f;
+    const float phase = params.rotation_degrees * (kPi / 180.0f) / (2.0f * kPi);
+    for (int y = c.y0; y < c.y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (int x = c.x0; x < c.x1; ++x) {
+            const float dx = (static_cast<float>(x) + 0.5f - cx) / radius_px;
+            const float dy = static_cast<float>(y) + 0.5f - cy;
+            if (std::abs(dx) > 1.0f || std::abs(dy) > half_height) {
+                row[x] = Color::transparent();
+                continue;
+            }
+            const float angle = std::asin(std::clamp(dx, -1.0f, 1.0f));
+            const float normal_z = std::sqrt(std::max(0.0f, 1.0f - dx * dx));
+            float u = 0.5f + (params.inside ? -1.0f : 1.0f) * angle / kPi + phase;
+            u -= std::floor(u);
+            const float v = (dy + half_height) / (2.0f * half_height);
+            Color sample = c.sampler.bilinear(u * w, v * h);
+            const float shade = std::max(0.0f, params.ambient + params.diffuse * normal_z);
+            sample.r *= shade;
+            sample.g *= shade;
+            sample.b *= shade;
+            row[x] = sample;
+        }
+    }
+}
+
+void apply_sphere_wrap(Framebuffer& fb, const SphereWrapParams& params,
+                       ::chronon3d::EffectScratchResources& scratch,
+                       const std::optional<raster::BBox>& clip) {
+    params.validate();
+    auto c = make_warp_context(fb, sampling::EdgeMode::Transparent, scratch, clip);
+    constexpr float kPi = 3.14159265358979323846f;
+    const float w = static_cast<float>(fb.width());
+    const float h = static_cast<float>(fb.height());
+    const float cx = params.center_x * w;
+    const float cy = params.center_y * h;
+    const float radius_px = params.radius * std::min(w, h);
+    const float phase = params.rotation_degrees * (kPi / 180.0f) / (2.0f * kPi);
+    for (int y = c.y0; y < c.y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (int x = c.x0; x < c.x1; ++x) {
+            const float nx = (static_cast<float>(x) + 0.5f - cx) / radius_px;
+            const float ny = (static_cast<float>(y) + 0.5f - cy) / radius_px;
+            const float r2 = nx * nx + ny * ny;
+            if (r2 > 1.0f) {
+                row[x] = Color::transparent();
+                continue;
+            }
+            const float normal_z = std::sqrt(std::max(0.0f, 1.0f - r2));
+            const float angle = std::atan2(nx, normal_z);
+            float u = 0.5f + (params.inside ? -1.0f : 1.0f) * angle / kPi + phase;
+            u -= std::floor(u);
+            const float v = 0.5f + std::asin(std::clamp(ny, -1.0f, 1.0f)) / kPi;
+            Color sample = c.sampler.bilinear(u * w, v * h);
+            const float shade = std::max(0.0f, params.ambient + params.diffuse * normal_z +
+                params.specular * std::pow(normal_z, 16.0f));
+            sample.r *= shade;
+            sample.g *= shade;
+            sample.b *= shade;
+            row[x] = sample;
         }
     }
 }

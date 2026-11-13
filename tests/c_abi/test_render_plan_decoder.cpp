@@ -144,7 +144,13 @@ TEST_CASE("AE parity effects decode through the canonical catalog and fingerprin
             std::tuple{"transition.linear_wipe", "progress", 0.5f},
             std::tuple{"stylize.min_max", "radius", 2.0f},
             std::tuple{"distort.stretch_warp", "stretch", 0.5f},
-            std::tuple{"light.lens_flare", "intensity", 1.0f}}) {
+            std::tuple{"light.lens_flare", "intensity", 1.0f},
+            std::tuple{"light.inner_glow", "size", 6.0f},
+            std::tuple{"light.glow_advanced", "threshold", 0.5f},
+            std::tuple{"distort.optics_compensation", "fov_degrees", 30.0f},
+            std::tuple{"light.light_sweep", "width", 40.0f},
+            std::tuple{"distort.cc_cylinder", "width", 0.5f},
+            std::tuple{"distort.cc_sphere", "radius", 0.45f}}) {
         auto source=render_plan_test::base_plan(nlohmann::json::array({
             render_plan_test::shape_layer({{"type","rect"}})}));
         source["layers"][0]["effects"]=nlohmann::json::array({{
@@ -173,9 +179,11 @@ TEST_CASE("effect parameter setters round animated integer parameters determinis
 
 TEST_CASE("premium effect catalog entries expose working scalar animation parameters") {
     using namespace chronon3d::effects;
-    constexpr std::array<std::string_view, 4> effect_ids{
+    constexpr std::array<std::string_view, 7> effect_ids{
         ids::DistortLensDistortion, ids::LightLuminanceResponse,
-        ids::DistortFoldWarp, ids::LightCreaseShading};
+        ids::DistortFoldWarp, ids::LightCreaseShading,
+        ids::LightInnerGlow, ids::LightGlowAdvanced,
+        ids::DistortOpticsCompensation};
     for (const auto effect_id : effect_ids) {
         auto params = make_default_animatable_effect_params(effect_id);
         REQUIRE(params);

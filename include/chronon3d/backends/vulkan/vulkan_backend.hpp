@@ -538,6 +538,13 @@ public:
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, const Color&) override;
+    graph::RenderOpResult glow_advanced_surfaces(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        const GlowAdvancedParams&) override;
+    graph::RenderOpResult inner_glow_composite_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        const Color&, float) override;
     graph::RenderOpResult bloom_surfaces(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,

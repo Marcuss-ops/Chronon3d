@@ -111,6 +111,31 @@ TEST_CASE("V3 Field2D can drive displacement without a layer map") {
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(missing_source));
 }
 
+TEST_CASE("V3 displacement map decodes independent axis channels") {
+    using nlohmann::json;
+    auto layer = render_plan_test::shape_layer({{"type", "rect"}});
+    layer["effects"] = json::array({{{"type", "displacement_map"},
+        {"field", {{"generator", "simplex"}, {"seed", 12}, {"frequency", 3.0}}},
+        {"intensity_x", 0.1}, {"intensity_y", -0.2},
+        {"map_channel_x", "red"}, {"map_channel_y", "green"}}});
+    auto input = render_plan_test::base_plan({layer});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(input);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].effects.size() == 1);
+    const auto& effect = decoded->layers[0].effects[0];
+    REQUIRE(effect.map_channel_x);
+    REQUIRE(effect.map_channel_y);
+    CHECK(*effect.map_channel_x == 1);
+    CHECK(*effect.map_channel_y == 2);
+
+    auto changed = input;
+    changed["layers"][0]["effects"][0]["map_channel_y"] = "blue";
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan);
+    CHECK(decoded->content_fingerprint != changed_plan->content_fingerprint);
+}
+
 TEST_CASE("V3 Field2D configures the fractal-noise effect sampler") {
     using nlohmann::json;
     auto layer = render_plan_test::shape_layer({{"type", "rect"}});

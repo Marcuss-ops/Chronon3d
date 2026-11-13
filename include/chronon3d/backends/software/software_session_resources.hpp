@@ -64,8 +64,9 @@
 
 namespace chronon3d {
 
-/// One shared transient workspace for scalar effect processors. Sequential
-/// effects reuse these buffers; no effect-specific pool is introduced.
+/// One shared transient workspace for scalar effect processors. Effects
+/// within one stack reuse these buffers; no effect-specific pool is
+/// introduced.
 struct EffectScratchResources {
     struct EchoFrame {
         std::int64_t frame{0};
@@ -147,6 +148,14 @@ struct EffectScratchResources {
             if (oldest_map->second.empty()) echo_history.erase(oldest_map);
         }
     }
+
+    // TBB executes independent layer effect stacks concurrently, and every
+    // processor receives this same session scratch. Without this guard one
+    // stack's ensure_size() can free framebuffer/framebuffer_b while another
+    // stack still samples them (observed as a SIGSEGV in MinMax when all AE
+    // effects were combined in one plan). Held only around one non-fused
+    // processor apply; fused color stages and non-effect nodes stay parallel.
+    std::shared_ptr<std::mutex> apply_mutex{std::make_shared<std::mutex>()};
 
     std::unique_ptr<Framebuffer> framebuffer;
     std::unique_ptr<Framebuffer> framebuffer_b;

@@ -37,12 +37,23 @@ namespace {
 
 // ── Layer-mode helpers ──────────────────────────────────────────────
 
-[[nodiscard]] float glow_trigger_from_pixel(const Color& c, const GlowPipeline&) {
-    return std::clamp(c.a, 0.0f, 1.0f);
+[[nodiscard]] float glow_trigger_from_pixel(const Color& c, const GlowPipeline& p) {
+    const float alpha = std::clamp(c.a, 0.0f, 1.0f);
+    if (p.threshold <= 0.0f) return alpha;
+    return std::clamp((alpha - p.threshold) / std::max(1.0f - p.threshold, 1.0e-6f),
+                      0.0f, 1.0f);
 }
 
 [[nodiscard]] Color glow_color_from_trigger(float trigger, const GlowPipeline& p, float intensity_scale, const Color& tint = {0,0,0,0}) {
-    const Color& src = (tint.a > 0.0f) ? tint : p.color;
+    const Color& base = (tint.a > 0.0f) ? tint : p.color;
+    const Color& peak = (tint.a > 0.0f) ? tint : p.color_b;
+    const float t = std::clamp(trigger, 0.0f, 1.0f);
+    const Color src{
+        base.r + (peak.r - base.r) * t,
+        base.g + (peak.g - base.g) * t,
+        base.b + (peak.b - base.b) * t,
+        base.a + (peak.a - base.a) * t,
+    };
     const float amount = trigger * p.intensity * intensity_scale;
     return {
         src.r * amount,
@@ -387,7 +398,7 @@ void run_bloom_effect_impl(Framebuffer& fb, const BloomParams& p,
 
 // ── Public accumulation helper used by the pipeline and microbenchmark ────
 void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
-                          const GlowPipeline& /*p*/) {
+                          const GlowPipeline& p) {
     const int w = dst.width();
     const int h = dst.height();
     tbb::parallel_for(tbb::blocked_range<int>(0, h, kGlowTbbGrain),
@@ -399,12 +410,17 @@ void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
                 Color g = src_row[x];
                 if (g.a <= 0.0f) continue;
 
+                // `falloff` > 1 suppresses the wide low-coverage tail, giving
+                // the tighter exponential-like decay expected from Deep Glow.
+                const float decay = p.falloff > 1.0f
+                    ? std::pow(std::clamp(g.a, 0.0f, 1.0f), p.falloff - 1.0f)
+                    : 1.0f;
                 Color& acc = dst_row[x];
-                acc.r += g.r;
-                acc.g += g.g;
-                acc.b += g.b;
+                acc.r += g.r * decay;
+                acc.g += g.g * decay;
+                acc.b += g.b * decay;
                 // RGB and coverage accumulate additively for the single halo.
-                acc.a = std::clamp(acc.a + g.a, 0.0f, 1.0f);
+                acc.a = std::clamp(acc.a + g.a * decay, 0.0f, 1.0f);
             }
         }
     });

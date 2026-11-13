@@ -345,15 +345,40 @@ namespace chronon3d::backends::vulkan {
         VkCommandBuffer command, VkDescriptorSet descriptors,
         const Image& destination, const Image& source,
         float intensity, const Color& tint) {
+        GlowAdvancedParams params;
+        params.radius = 0.0f;
+        params.intensity = intensity;
+        params.color_r = tint.r;
+        params.color_g = tint.g;
+        params.color_b = tint.b;
+        params.color_a = tint.a;
+        params.color_b_r = tint.r;
+        params.color_b_g = tint.g;
+        params.color_b_b = tint.b;
+        params.color_b_a = tint.a;
+        params.threshold = 0.0f;
+        params.falloff = 1.0f;
+        record_glow_prepare_advanced(command, descriptors, destination, source, params);
+    }
+
+    void VulkanBackend::Impl::record_glow_prepare_advanced(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& source,
+        const GlowAdvancedParams& params) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::GlowPrepare)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                                 kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
-            float tint[4];
+            float color_a[4];
+            float color_b[4];
+            float threshold;
             float intensity;
-            float padding[3];
-        } push{{tint.r, tint.g, tint.b, tint.a}, intensity, {0.0f, 0.0f, 0.0f}};
+            float padding[2];
+        } push{{params.color_r, params.color_g, params.color_b, params.color_a},
+               {params.color_b_r, params.color_b_g, params.color_b_b, params.color_b_a},
+               params.threshold, params.intensity, {0.0f, 0.0f}};
+        static_assert(sizeof(push) == 48, "Glow prepare push must be 48 bytes");
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(push), &push);
         vkCmdDispatch(command, (destination.width + 15) / 16,

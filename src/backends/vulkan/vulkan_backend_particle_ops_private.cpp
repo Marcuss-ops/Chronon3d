@@ -105,6 +105,10 @@ GpuParticleEmitterUniform make_particle_uniform(
     uniform.angular[1] = emitter.angular_velocity_max;
     uniform.angular[2] = static_cast<float>(layer_blend_mode(emitter.blend_mode));
     uniform.angular[3] = runtime::kParticleTrailSeconds;
+    uniform.dynamics[0] = emitter.air_drag;
+    uniform.dynamics[1] = emitter.emitter_velocity.x;
+    uniform.dynamics[2] = emitter.emitter_velocity.y;
+    uniform.dynamics[3] = emitter.emissive;
 
     if (emitter.color_ramp.color_stops.empty()) {
         for (std::size_t i = 0; i < kGpuParticleLutEntries; ++i) {
@@ -123,6 +127,18 @@ GpuParticleEmitterUniform make_particle_uniform(
             uniform.color_lut[i][2] = color.b;
             uniform.color_lut[i][3] = color.a;
         }
+    }
+    const auto sample_life = [](const graphics::GradientDefinition& curve, float t) {
+        if (curve.color_stops.empty()) return 1.0f;
+        return graphics::sample_gradient(curve, t).r;
+    };
+    for (std::size_t i = 0; i < kGpuParticleLutEntries; ++i) {
+        const float t = static_cast<float>(i) /
+            static_cast<float>(kGpuParticleLutEntries - 1U);
+        uniform.over_life_lut[i][0] = sample_life(emitter.size_over_life, t);
+        uniform.over_life_lut[i][1] = sample_life(emitter.opacity_over_life, t);
+        uniform.over_life_lut[i][2] = 0.0f;
+        uniform.over_life_lut[i][3] = 1.0f;
     }
     return uniform;
 }
@@ -254,6 +270,23 @@ void VulkanBackend::Impl::execute_gpu_particle_batch(
             static_cast<std::int32_t>(chunk), instance_buffer, false,
             0, 0, static_cast<std::int32_t>(dst_image.width),
             static_cast<std::int32_t>(dst_image.height));
+        if (first + chunk < count) {
+            runtime::ResourceTransition transition;
+            transition.range = runtime::image_range(runtime::ResourceAspect::Color);
+            transition.before = runtime::ResourceState{
+                .stages = runtime::PipelineStage::ComputeShader,
+                .access = runtime::AccessMask::ShaderWrite,
+                .layout = runtime::ResourceLayout::General,
+                .queue = runtime::QueueClass::Compute,
+            };
+            transition.after = runtime::ResourceState{
+                .stages = runtime::PipelineStage::ComputeShader,
+                .access = runtime::AccessMask::ShaderRead | runtime::AccessMask::ShaderWrite,
+                .layout = runtime::ResourceLayout::General,
+                .queue = runtime::QueueClass::Compute,
+            };
+            emit_resource_transition(command, dst_image.image, transition);
+        }
     }
 
     dst_image.initialized = true;

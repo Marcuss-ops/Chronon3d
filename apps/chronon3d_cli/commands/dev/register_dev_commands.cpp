@@ -2,7 +2,8 @@
 #include "../../commands.hpp"
 #include "../../utils/common/cli_utils.hpp"
 #include <chronon3d/cache/cache_diagnostics.hpp>
-#include <fmt/format.h>
+#include <chronon3d/core/config.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -84,6 +85,8 @@ void register_batch(CLI::App& app, CliContext& ctx) {
     });
 }
 
+}  // namespace
+
 // Top-level dispatcher — Mirrors the flat-mount
 // convention used by register_render_commands / register_video_commands:
 // each helper adds its subcommand directly to the provided `app`.  Must live
@@ -106,11 +109,25 @@ void register_bench_convert(CLI::App& app, CliContext& ctx) {
 }
 
 void register_cache_stats(CLI::App& app, CliContext& ctx) {
-    auto* cmd = app.add_subcommand("cache-stats", "Print live cache diagnostics snapshot");
+    auto* cmd = app.add_subcommand(
+        "cache-stats",
+        "Print the cache diagnostics registry owned by a canonical RuntimeContext");
     cmd->callback([&ctx]() {
-        (void)ctx;
-        chronon3d::cache::CacheDiagnostics diag;
-        fmt::print("{}", chronon3d::cache::format_cache_snapshot(diag));
+        // CacheDiagnostics has no singleton (P1-10): it is owned by the
+        // RuntimeContext that also owns the caches. Build the runtime through
+        // the canonical factory so the snapshot reads that registry instead
+        // of a detached, always-empty local instance.
+        auto runtime = chronon3d::runtime::RuntimeContext::create(
+            chronon3d::runtime::RuntimeConfig{
+                .config = chronon3d::Config::from_environment(ctx.cpu_budget)});
+        if (!runtime) {
+            std::cerr << "cache-stats: RuntimeContext::create failed: "
+                      << runtime.error().message << '\n';
+            ctx.exit_code = 1;
+            return;
+        }
+        auto& diagnostics = (*runtime)->diagnostics();
+        std::cout << chronon3d::cache::format_cache_snapshot(diagnostics);
         ctx.exit_code = 0;
     });
 }

@@ -15,6 +15,11 @@ env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+  # Pinned sibling checkout for the offline motion-adapter interoperability
+  # gate. The preset resolves `${sourceDir}/../ChrononMotion3D`, which is
+  # outside $GITHUB_WORKSPACE, so the job checks the revision out inside the
+  # workspace and overrides CHRONONMOTION_SOURCE_DIR on the configure command.
+  CHRONONMOTION_COMMIT: 'e6d06874ef9f2f95fd7b6c2b893ba027da1ee5a7'
   # Hosted runners ran out of disk during the full Debug build: the runner
   # process itself died with "No space left on device" while compiling
   # chronon3d_tests. Drop each port's build tree as soon as it is installed and
@@ -124,10 +129,23 @@ jobs:
           ctest --preset ${{ matrix.config.test_preset }} \
             -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_render_job_contract_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests|chronon3d_motion_plan_adapter_tests|chronon3d_backend_registry_tests" \
             --output-on-failure --output-junit "${{ github.workspace }}/test-results-${{ matrix.config.slug }}.xml"
+      - name: Checkout ChrononMotion3D for the adapter gate
+        if: runner.os == 'Linux'
+        uses: actions/checkout@v4
+        with:
+          repository: Marcuss-ops/ChrononMotion3D
+          ref: ${{ env.CHRONONMOTION_COMMIT }}
+          path: ChrononMotion3D
+
+      - name: Verify ChrononMotion3D checkout
+        if: runner.os == 'Linux'
+        run: test -f "$GITHUB_WORKSPACE/ChrononMotion3D/CMakeLists.txt"
+
       - name: Run RenderPlan v2/v3 adapter interoperability gate
         if: runner.os == 'Linux'
         run: |
-          cmake --preset linux-ci-motion-adapter
+          cmake --preset linux-ci-motion-adapter \
+            -DCHRONONMOTION_SOURCE_DIR="$GITHUB_WORKSPACE/ChrononMotion3D"
           cmake --build --preset linux-ci-motion-adapter --target chronon3d_motion_plan_adapter_tests
           ctest --preset linux-ci-motion-adapter-test -R '^chronon3d_motion_plan_adapter_tests$' --output-on-failure
 

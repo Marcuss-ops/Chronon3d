@@ -31,8 +31,47 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
                                runtime::RenderSurfaceHandle scratch_vertical,
                                float radius, float intensity,
                                const Color& tint) {
-    if (!(radius >= 0.0f) || radius > 96.0f) {
+    GlowAdvancedParams params;
+    params.radius = radius;
+    params.intensity = intensity;
+    params.color_r = tint.r;
+    params.color_g = tint.g;
+    params.color_b = tint.b;
+    params.color_a = tint.a;
+    params.color_b_r = tint.r;
+    params.color_b_g = tint.g;
+    params.color_b_b = tint.b;
+    params.color_b_a = tint.a;
+    params.threshold = 0.0f;
+    params.falloff = 1.0f;
+    glow_advanced(destination, source, scratch_horizontal, scratch_vertical, params);
+}
+
+void VulkanBackend::Impl::glow_advanced(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle scratch_horizontal,
+    runtime::RenderSurfaceHandle scratch_vertical,
+    const GlowAdvancedParams& params) {
+    if (!std::isfinite(params.radius) || params.radius < 0.0f || params.radius > 96.0f) {
         throw std::invalid_argument("Vulkan glow radius must be within [0, 96]");
+    }
+    if (!std::isfinite(params.intensity) || params.intensity < 0.0f ||
+        params.intensity > 4.0f) {
+        throw std::invalid_argument("Vulkan glow intensity must be within [0, 4]");
+    }
+    if (!std::isfinite(params.threshold) || params.threshold < 0.0f ||
+        params.threshold > 1.0f || !std::isfinite(params.falloff) ||
+        std::abs(params.falloff - 1.0f) > 1.0e-6f) {
+        throw std::invalid_argument(
+            "Vulkan glow advanced requires threshold in [0,1] and falloff == 1");
+    }
+    for (float value : {params.color_r, params.color_g, params.color_b, params.color_a,
+                        params.color_b_r, params.color_b_g, params.color_b_b,
+                        params.color_b_a}) {
+        if (!std::isfinite(value)) {
+            throw std::invalid_argument("Vulkan glow advanced colors must be finite");
+        }
     }
     auto& dst = resolve_image(destination);
     auto& src_image = resolve_image(source);
@@ -45,7 +84,7 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
         horizontal.width > src_image.width || horizontal.height > src_image.height) {
         throw std::invalid_argument("Vulkan glow surfaces have incompatible dimensions");
     }
-    if (radius < 0.5f || intensity <= 0.0f) return;
+    if (params.radius < 0.5f || params.intensity <= 0.0f) return;
 
     if (frame_batch.active) {
         const auto prepare_descriptor = allocate_pass_descriptor_set();
@@ -62,8 +101,8 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
         // exactly once. Internal dispatch dependencies use the same
         // ResourceTransition -> Sync2 translator.
         emit_pass_sync(cmd, {&dst, &src_image, &horizontal, &vertical}, runtime::GpuPassKind::Glow);
-        record_glow_prepare(cmd, prepare_descriptor, horizontal, src_image,
-                            intensity, tint);
+        record_glow_prepare_advanced(cmd, prepare_descriptor, horizontal, src_image,
+                                     params);
         horizontal.initialized = true;
 
         runtime::ResourceTransition writable_to_readable;
@@ -87,7 +126,7 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
         const float scale_y = static_cast<float>(src_image.height) /
                               static_cast<float>(horizontal.height);
         const float sigma = std::max(
-            0.5f, radius / (3.0f * std::max(scale_x, scale_y)));
+            0.5f, params.radius / (3.0f * std::max(scale_x, scale_y)));
         record_blur(cmd, horizontal_blur_descriptor, vertical, horizontal,
                     sigma, true, false, true);
         vertical.initialized = true;
@@ -121,6 +160,37 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
     }
 
     throw std::logic_error("Vulkan glow requires an active frame batch");
+}
+
+void VulkanBackend::Impl::inner_glow_composite(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const Color& tint, float intensity) {
+    if (!std::isfinite(intensity) || intensity < 0.0f || intensity > 4.0f) {
+        throw std::invalid_argument("Vulkan inner glow intensity must be within [0, 4]");
+    }
+    for (float value : {tint.r, tint.g, tint.b, tint.a}) {
+        if (!std::isfinite(value)) {
+            throw std::invalid_argument("Vulkan inner glow tint must be finite");
+        }
+    }
+    auto& dst = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    if (!src_image.initialized || !dst.initialized ||
+        dst.width != src_image.width || dst.height != src_image.height) {
+        throw std::invalid_argument("Vulkan inner glow references incompatible surfaces");
+    }
+    if (!frame_batch.active)
+        throw std::logic_error("Vulkan inner glow requires an active frame batch");
+    const auto descriptors = allocate_pass_descriptor_set();
+    write_descriptors(descriptors, dst, src_image);
+    const auto cmd = active_command_buffer();
+    emit_pass_sync(cmd, {&dst, &src_image}, runtime::GpuPassKind::Composite);
+    const float color[4]{tint.r, tint.g, tint.b, tint.a};
+    record_composite(cmd, descriptors, dst, src_image, 10, intensity, color);
+    dst.initialized = true;
+    ++frame_batch.pass_count;
+    ++stats.passes_executed;
 }
 
 void VulkanBackend::Impl::bloom(runtime::RenderSurfaceHandle destination,

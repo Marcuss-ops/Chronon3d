@@ -20,13 +20,17 @@ struct alignas(16) GpuParticleEmitterUniform {
     float motion[4]{};                  // twinkle.speed, depth_min, depth_max, seconds
     float sprite[4]{};                  // sprite scale/rotation ranges
     float angular[4]{};                 // angular velocity ranges, blend mode
+    float dynamics[4]{};                // air_drag, emitter_velocity.xy, emissive
     float color_lut[kGpuParticleLutEntries][4]{};
+    float over_life_lut[kGpuParticleLutEntries][4]{}; // r=size, g=opacity
 };
 
-static_assert(sizeof(GpuParticleEmitterUniform) == 4224,
+static_assert(sizeof(GpuParticleEmitterUniform) == 8336,
               "particle emitter UBO must match particle_emitter.comp std140 ABI");
-static_assert(offsetof(GpuParticleEmitterUniform, color_lut) == 128,
-              "particle emitter scalar prefix must stay 128 bytes");
+static_assert(offsetof(GpuParticleEmitterUniform, color_lut) == 144,
+              "particle emitter scalar prefix must stay 144 bytes");
+static_assert(offsetof(GpuParticleEmitterUniform, over_life_lut) == 4240,
+              "particle over-life LUT must follow the color LUT");
 
 // Keep the instance storage 256-byte aligned so the same buffer can back both
 // the uniform descriptor (offset 0) and the storage descriptor (offset N).

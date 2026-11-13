@@ -180,7 +180,13 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
                                      const BuilderContext& node_ctx) {
     const Layer& layer = *item.layer;
 
-    const bool needs_transform = layer_needs_render_transform(item, ctx);
+    // The non-modular video source already carries its decoded surface, but
+    // its authored placement/scale lives in the layer transform. Without this
+    // stage a 92% card renders at 100% in the canvas origin.
+    const bool video_placement_transform =
+        layer.kind == LayerKind::Video && item.transform.any();
+    const bool needs_transform =
+        layer_needs_render_transform(item, ctx) || video_placement_transform;
 
     if (!needs_transform) return;
 

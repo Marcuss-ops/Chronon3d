@@ -69,5 +69,13 @@ sources. Do not edit by hand.
 | 61 | Lens Flare | `LensFlareParams` | yes | native | no |
 | 62 | Camera Ring Defocus | `CameraRingParams` | yes | native | no |
 | 63 | SDF Bevel | `SdfBevelParams` | yes | native | no |
+| 64 | Alpha Threshold | `AlphaThresholdParams` | yes | native | no |
+| 65 | Inner Glow | `InnerGlowParams` | yes | native | no |
+| 66 | Glow Advanced | `GlowAdvancedParams` | yes | native | no |
+| 67 | Optics Compensation | `OpticsCompensationParams` | yes | native | no |
+| 68 | Contour Palette | `ContourPaletteParams` | yes | unsupported | no |
+| 69 | Light Sweep | `LightSweepParams` | yes | native | no |
+| 70 | CC Cylinder | `CylinderWrapParams` | yes | native | no |
+| 71 | CC Sphere | `SphereWrapParams` | yes | native | no |
 
-Totals: 63 catalog effects, 57 with native Vulkan routes.
+Totals: 71 catalog effects, 64 with native Vulkan routes.

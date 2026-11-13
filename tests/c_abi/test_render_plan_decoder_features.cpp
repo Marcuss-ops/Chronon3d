@@ -584,6 +584,108 @@ TEST_CASE("render plan V3 decodes per-glyph rotation and fill_color animator tra
     CHECK(properties[1].keyframes.back().value == std::vector<float>{45.0f});
 }
 
+TEST_CASE("render plan V3 decodes AE range, smoothness, wiggly, and expression selectors") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {
+            "id": "ae_selector",
+            "selectors": [
+                {
+                    "unit": "word",
+                    "shape": "wiggly",
+                    "order": "forward",
+                    "range_units": "index",
+                    "smoothness": 42.5,
+                    "wiggles_per_second": 3.5,
+                    "correlation": 75.0,
+                    "temporal_phase": 90.0,
+                    "spatial_phase": -45.0,
+                    "min_amount": 10.0,
+                    "max_amount": 90.0,
+                    "lock_dimensions": false,
+                    "wiggly_mode": "corner",
+                    "expression": "100 * textIndex / textTotal",
+                    "start": {"keyframes": [{"frame": 0, "value": 0}]},
+                    "end": {"keyframes": [{"frame": 0, "value": 3}]}
+                }
+            ],
+            "properties": [
+                {"property": "opacity", "keyframes": [{"frame": 0, "value": 1}]}
+            ]
+        }
+    ])JSON");
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->layers[0].text_animators.size() == 1);
+    const auto& selector = decoded->layers[0].text_animators[0].selectors[0];
+    CHECK(selector.range_units == "index");
+    CHECK(selector.smoothness == doctest::Approx(42.5f));
+    CHECK(selector.wiggles_per_second == doctest::Approx(3.5f));
+    CHECK(selector.correlation == doctest::Approx(75.0f));
+    CHECK(selector.temporal_phase == doctest::Approx(90.0f));
+    CHECK(selector.spatial_phase == doctest::Approx(-45.0f));
+    CHECK(selector.min_amount == doctest::Approx(10.0f));
+    CHECK(selector.max_amount == doctest::Approx(90.0f));
+    CHECK_FALSE(selector.lock_dimensions);
+    CHECK(selector.wiggly_mode == "corner");
+    REQUIRE(selector.expression.has_value());
+    CHECK(*selector.expression == "100 * textIndex / textTotal");
+
+    const auto fingerprint = decoded->content_fingerprint;
+    source["layers"][0]["text_animators"][0]["selectors"][0]["expression"] =
+        "selectorValue";
+    const auto changed = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(changed.has_value());
+    CHECK(changed->content_fingerprint != fingerprint);
+
+    source["layers"][0]["text_animators"][0]["selectors"][0]["smoothness"] = 101.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+
+    auto invalid = v3_text_plan();
+    invalid["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"selectors":[{"unit":"glyph","shape":"wiggly","wiggles_per_second":1001.0}],
+         "properties":[{"property":"opacity","keyframes":[{"frame":0,"value":1}]}]}
+    ])JSON");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid).has_value());
+
+    invalid = v3_text_plan();
+    invalid["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"selectors":[{"unit":"glyph","shape":"wiggly","min_amount":90.0,"max_amount":10.0}],
+         "properties":[{"property":"opacity","keyframes":[{"frame":0,"value":1}]}]}
+    ])JSON");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid).has_value());
+
+    invalid = v3_text_plan();
+    invalid["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"selectors":[{"unit":"glyph","shape":"square","wiggles_per_second":2.0}],
+         "properties":[{"property":"opacity","keyframes":[{"frame":0,"value":1}]}]}
+    ])JSON");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid).has_value());
+
+    invalid = v3_text_plan();
+    invalid["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"selectors":[{"unit":"glyph","expression":""}],
+         "properties":[{"property":"opacity","keyframes":[{"frame":0,"value":1}]}]}
+    ])JSON");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid).has_value());
+
+    invalid = v3_text_plan();
+    invalid["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"selectors":[{"unit":"glyph","expression":"thisComp.width"}],
+         "properties":[{"property":"opacity","keyframes":[{"frame":0,"value":1}]}]}
+    ])JSON");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid).has_value());
+
+    invalid = v3_text_plan();
+    invalid["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"selectors":[{"unit":"glyph","shape":"wiggly","wiggly_mode":"round"}],
+         "properties":[{"property":"opacity","keyframes":[{"frame":0,"value":1}]}]}
+    ])JSON");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid).has_value());
+}
+
 TEST_CASE("render plan V3 decodes the remaining animated text style properties") {
     auto source = v3_text_plan();
     source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
@@ -1315,4 +1417,35 @@ TEST_CASE("render plan decodes bounded Chromatic Aberration and Halftone") {
     plan["layers"][0]["effects"][1]["amount"] = 0.8;
     plan["layers"][0]["effects"][0]["green_transform"] = {{"scale", {0.0, 1.0}}};
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+}
+
+TEST_CASE("V3 catalog decodes ContourPalette scalar params and fingerprints them") {
+    using nlohmann::json;
+    auto layer = render_plan_test::shape_layer({{"type", "rect"}});
+    layer["effects"] = json::array({{{"type", "catalog"},
+        {"effect_id", "stylize.contour_palette"},
+        {"params", json::array({
+            {{"param", "spacing"}, {"value", 9.0}},
+            {{"param", "palette_0_r"}, {"value", 0.8}}})}}});
+    auto plan = render_plan_test::base_plan({layer});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].effects.size() == 1);
+    const auto& effect = decoded->layers[0].effects[0];
+    CHECK(effect.kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Catalog);
+    CHECK(effect.canonical_effect_id == "stylize.contour_palette");
+    REQUIRE(effect.canonical_params.size() == 2);
+    CHECK(effect.canonical_params[0].param == "spacing");
+    CHECK(effect.canonical_params[0].value == doctest::Approx(9.0f));
+
+    auto changed = plan;
+    changed["layers"][0]["effects"][0]["params"][0]["value"] = 10.0;
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan);
+    CHECK(decoded->content_fingerprint != changed_plan->content_fingerprint);
+
+    auto invalid = plan;
+    invalid["layers"][0]["effects"][0]["params"][0]["value"] = 0.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
 }

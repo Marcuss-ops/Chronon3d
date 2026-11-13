@@ -105,14 +105,24 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_at_impl(
         return make_decode_failure(std::move(open_diagnostic));
     }
 
-    const auto lookup = session->sample_table.lookup(presentation_time);
+    auto lookup = session->sample_table.lookup(presentation_time);
     if (lookup.disposition == SampleLookupDisposition::AfterEnd) {
         return DecodeEndOfStream{presentation_time};
     }
-    if (!lookup.found()) {
+    // A stream-copy cut can leave the first sample a few milliseconds after
+    // the container origin (live case: 24 fps source starting at 0.020020).
+    // Frame 0 of the output timeline has no exact source sample, but the first
+    // available sample IS its texture; failing here made every such source
+    // unrenderable at frame 0. Clamp only the pre-roll, never a gap or an
+    // arbitrary later frame. found() is keyed on the disposition, so select
+    // sample 0 directly instead of re-testing it.
+    const bool pre_roll = !lookup.found() &&
+        lookup.disposition == SampleLookupDisposition::BeforeStart &&
+        !session->sample_table.empty();
+    if (!lookup.found() && !pre_roll) {
         return lookup_failure(lookup.disposition, presentation_time);
     }
-    const auto selected = *lookup.sample_index;
+    const auto selected = pre_roll ? std::size_t{0} : *lookup.sample_index;
     const int64_t target = static_cast<int64_t>(selected);
     const auto& sample = session->sample_table[selected];
 

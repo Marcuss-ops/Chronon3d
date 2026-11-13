@@ -43,6 +43,23 @@ void add_layer_effects_and_masks(CanonicalPlanWriter& out, const LayerPlan& laye
             out.add_float(particles.twinkle.amount);
             out.add_float(particles.twinkle.speed);
         }
+        if (particles.air_drag != 0.0f || particles.emissive != 1.0f ||
+            particles.emitter_velocity.x != 0.0f ||
+            particles.emitter_velocity.y != 0.0f ||
+            !particles.size_over_life.color_stops.empty() ||
+            !particles.opacity_over_life.color_stops.empty()) {
+            out.add_bool(true);
+            out.add_float(particles.air_drag);
+            out.add_float(particles.emissive);
+            out.add_float(particles.emitter_velocity.x);
+            out.add_float(particles.emitter_velocity.y);
+            out.add_bool(!particles.size_over_life.color_stops.empty());
+            if (!particles.size_over_life.color_stops.empty())
+                add_gradient(out, particles.size_over_life);
+            out.add_bool(!particles.opacity_over_life.color_stops.empty());
+            if (!particles.opacity_over_life.color_stops.empty())
+                add_gradient(out, particles.opacity_over_life);
+        }
         out.add_size(particles.path_points.size());
         for (const auto point : particles.path_points) { out.add_float(point.x); out.add_float(point.y); }
         add_gradient(out, particles.color_ramp);
@@ -272,6 +289,10 @@ void add_layer_effects_and_masks(CanonicalPlanWriter& out, const LayerPlan& laye
             case LayerPlan::EffectKindPlan::DisplacementMap: {
                 out.add_string(effect.map_layer); out.add_float(effect.map_intensity_x);
                 out.add_float(effect.map_intensity_y); out.add_uint64(effect.map_channel);
+                out.add_uint64(effect.map_channel_x.has_value());
+                if (effect.map_channel_x) out.add_uint64(*effect.map_channel_x);
+                out.add_uint64(effect.map_channel_y.has_value());
+                if (effect.map_channel_y) out.add_uint64(*effect.map_channel_y);
                 add_optional(out, effect.map_field,
                     [](auto& writer, const graphics::Field2D& field) { add_field2d(writer, field); });
             } break;

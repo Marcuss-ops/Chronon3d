@@ -38,3 +38,8 @@ skip_file INDEX.md
 # IDs (TICKET-TEXT-CLOSURE-20261109, TICKET-TEXT-ANIMATOR-PARITY-20261107), not
 # a commit SHA. One legitimate pair, exempted instead of dropping a ticket cite.
 exempt_file_sha ADR-039-text-transition-residuals.md:2026110
+
+# ADR-041: the sha7 scan matches the shared date prefix "2026111" of the
+# TICKET-AE-SELECTOR-PARITY-20261112 references, not a commit SHA. Keep the
+# legitimate ticket citations instead of removing them to satisfy the scanner.
+exempt_file_sha ADR-041-selector-expression-and-smoothness-contract.md:2026111

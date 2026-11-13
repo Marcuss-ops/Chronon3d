@@ -52,6 +52,12 @@ namespace chronon3d::graph::detail {
                     effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
             break;
         }
+        case GlowAdvanced: {
+            if (auto* p = std::get_if<GlowAdvancedParams>(&inst.params))
+                max_spread = std::max(max_spread,
+                    effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
+            break;
+        }
         case Bloom: {
             if (auto* p = std::get_if<BloomParams>(&inst.params))
                 max_spread = std::max(max_spread,
@@ -138,6 +144,15 @@ LayerSpatialHalo compute_layer_spatial_halo(const Layer& layer) {
             break;
         case Glow:
             if (const auto* p = std::get_if<GlowParams>(&inst.params)) {
+                const auto effect_halo = effects::effect_spatial_halo(*p);
+                halo.left = std::max(halo.left, effect_halo.left);
+                halo.top = std::max(halo.top, effect_halo.top);
+                halo.right = std::max(halo.right, effect_halo.right);
+                halo.bottom = std::max(halo.bottom, effect_halo.bottom);
+            }
+            break;
+        case GlowAdvanced:
+            if (const auto* p = std::get_if<GlowAdvancedParams>(&inst.params)) {
                 const auto effect_halo = effects::effect_spatial_halo(*p);
                 halo.left = std::max(halo.left, effect_halo.left);
                 halo.top = std::max(halo.top, effect_halo.top);

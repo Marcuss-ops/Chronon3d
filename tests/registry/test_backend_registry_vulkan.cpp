@@ -840,6 +840,122 @@ TEST_CASE("Vulkan GPU particle emitter matches the CPU sampler oracle") {
     (void)backend.release_surface(transparent_source);
 }
 
+TEST_CASE("Vulkan GPU particle emitter full budget clipped bokeh matches CPU sampler") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+    backends::vulkan::VulkanBackend backend;
+    constexpr RenderSurfaceHandle cpu_destination = 485;
+    constexpr RenderSurfaceHandle gpu_destination = 486;
+    constexpr RenderSurfaceHandle transparent_source = 487;
+    const auto canvas = SurfaceDesc::make(
+        64, 64, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    const auto source = SurfaceDesc::make(
+        1, 1, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    REQUIRE(backend.create_surface(cpu_destination, canvas).ok());
+    REQUIRE(backend.create_surface(gpu_destination, canvas).ok());
+    REQUIRE(backend.create_surface(transparent_source, source).ok());
+    REQUIRE(backend.initialize_transparent_surface(cpu_destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(gpu_destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(transparent_source).ok());
+
+    ParticleEmitterParams emitter;
+    emitter.count = 4096;
+    SUBCASE("64 particles") { emitter.count = 64; }
+    SUBCASE("512 particles") { emitter.count = 512; }
+    SUBCASE("4096 particles") { emitter.count = 4096; }
+    emitter.environment = true;
+    emitter.depth_min = 0.1f;
+    emitter.depth_max = 1.0f;
+    emitter.bokeh = true;
+    emitter.seed = 90210;
+    emitter.emitter_size = {100.0f, 100.0f};
+    emitter.velocity_min = {0.0f, 0.0f};
+    emitter.velocity_max = {0.0f, 0.0f};
+    emitter.lifetime_min = 10.0f;
+    emitter.lifetime_max = 10.0f;
+    emitter.size_min = 2.0f;
+    emitter.size_max = 6.0f;
+    emitter.gravity = 0.0f;
+    emitter.turbulence = 0.0f;
+    emitter.shape = EmitterShape::Box;
+    emitter.blend_mode = BlendMode::Normal;
+    emitter.color_ramp = graphics::GradientDefinition::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f},
+        {{0.0f, Color{1.0f, 0.35f, 0.1f, 1.0f}},
+         {1.0f, Color{0.2f, 0.6f, 1.0f, 1.0f}}});
+
+    const auto sampled = sample_particles(emitter, 1.0);
+    REQUIRE(sampled.ok());
+    std::vector<LayerInstance> oracle;
+    oracle.reserve(sampled.particles.size());
+    for (const auto& particle : sampled.particles) {
+        const float alpha = std::clamp(particle.color.a, 0.0f, 1.0f);
+        LayerInstance instance;
+        instance.kind = PrimitiveKind::Particle;
+        instance.resource_index = 0;
+        instance.dst_x0 = particle.position.x - particle.size * 0.5f;
+        instance.dst_y0 = particle.position.y - particle.size * 0.5f;
+        instance.dst_x1 = particle.position.x + particle.size * 0.5f;
+        instance.dst_y1 = particle.position.y + particle.size * 0.5f;
+        instance.tint = Color{particle.color.r * alpha,
+                              particle.color.g * alpha,
+                              particle.color.b * alpha, alpha};
+        instance.corner_radius = emitter.bokeh ? 1.0f : 0.0f;
+        instance.blend = emitter.blend_mode;
+        // The CPU oracle now owns the same bounded exposure as the GPU
+        // emitter; without this the parity test compares a dot against a
+        // trailing capsule and fails on the newly covered pixels.
+        Vec2 trail = particle.velocity * kParticleTrailSeconds;
+        const float trail_limit = std::max(
+            particle.size * kParticleTrailMaxSizeFactor,
+            kParticleTrailMinPixels);
+        const float trail_length =
+            std::sqrt(trail.x * trail.x + trail.y * trail.y);
+        if (trail_length > trail_limit && trail_length > 0.0f)
+            trail *= trail_limit / trail_length;
+        instance.motion_x = trail.x;
+        instance.motion_y = trail.y;
+        oracle.push_back(instance);
+    }
+    const std::array<RenderSurfaceHandle, 1> resources{transparent_source};
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_layer_batch(
+        cpu_destination, oracle, resources, {}, {}).ok());
+    backend.end_frame_batch();
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_gpu_particle_batch(
+        gpu_destination, transparent_source, emitter, 1.0).ok());
+    backend.end_frame_batch();
+
+    std::vector<float> cpu_pixels(64U * 64U * 4U, 0.0f);
+    std::vector<float> gpu_pixels(64U * 64U * 4U, 0.0f);
+    REQUIRE(backend.download_surface(cpu_destination, cpu_pixels).ok());
+    REQUIRE(backend.download_surface(gpu_destination, gpu_pixels).ok());
+
+    float max_difference = 0.0f;
+    float cpu_energy = 0.0f;
+    float gpu_energy = 0.0f;
+    for (std::size_t i = 0; i < cpu_pixels.size(); ++i) {
+        max_difference = std::max(
+            max_difference, std::abs(cpu_pixels[i] - gpu_pixels[i]));
+        cpu_energy += cpu_pixels[i];
+        gpu_energy += gpu_pixels[i];
+    }
+    CHECK(cpu_energy > 0.0f);
+    CHECK(gpu_energy > 0.0f);
+    CHECK(max_difference < 2.0e-4f);
+    CHECK(backend.kernel_registry().contains(
+        backends::vulkan::GpuKernelId::ParticleEmitter));
+
+    (void)backend.release_surface(cpu_destination);
+    (void)backend.release_surface(gpu_destination);
+    (void)backend.release_surface(transparent_source);
+}
+
 TEST_CASE("Vulkan GPU particle flow and twinkle match the CPU sampler oracle") {
     using namespace chronon3d;
     using namespace chronon3d::runtime;

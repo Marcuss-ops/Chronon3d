@@ -37,7 +37,9 @@
 // ============================================================================
 
 #include <chronon3d/text/glyph_selector.hpp>
+#include <chronon3d/text/selector_expression.hpp>
 #include <chronon3d/core/random/deterministic_random.hpp>
+#include <chronon3d/math/expression.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -45,9 +47,106 @@
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace chronon3d {
+
+namespace {
+
+[[nodiscard]] f32 smoothstep_unit(f32 value) noexcept {
+    value = std::clamp(value, 0.0f, 1.0f);
+    return value * value * (3.0f - 2.0f * value);
+}
+
+[[nodiscard]] f32 wiggly_lattice_sample(const WigglySelectorParams& params,
+                                        i64 spatial_lattice,
+                                        i64 temporal_lattice,
+                                        u32 channel) noexcept {
+    const u64 mixed = static_cast<u64>(spatial_lattice) ^
+        (static_cast<u64>(temporal_lattice) * 0x9E3779B97F4A7C15ull) ^
+        (static_cast<u64>(channel) * 0xBF58476D1CE4E5B9ull);
+    return random::unit(random::Seed{params.seed}, mixed);
+}
+
+[[nodiscard]] f32 wiggly_noise_1d(const WigglySelectorParams& params,
+                                  f32 spatial, f32 temporal,
+                                  u32 channel) noexcept {
+    const f32 spatial_position = spatial + params.spatial_phase / 360.0f;
+    const f32 temporal_position = temporal + params.temporal_phase / 360.0f;
+
+    if (params.mode == WigglySelectorMode::Jagged) {
+        const auto sx = static_cast<i64>(std::llround(static_cast<double>(spatial_position)));
+        const auto tx = static_cast<i64>(std::llround(static_cast<double>(temporal_position)));
+        return wiggly_lattice_sample(params, sx, tx, channel);
+    }
+
+    const f32 spatial_floor = std::floor(spatial_position);
+    const f32 temporal_floor = std::floor(temporal_position);
+    f32 u = spatial_position - spatial_floor;
+    f32 v = temporal_position - temporal_floor;
+    if (params.mode == WigglySelectorMode::Smooth) {
+        u = smoothstep_unit(u);
+        v = smoothstep_unit(v);
+    }
+
+    const auto sx = static_cast<i64>(spatial_floor);
+    const auto tx = static_cast<i64>(temporal_floor);
+    const f32 a = wiggly_lattice_sample(params, sx, tx, channel);
+    const f32 b = wiggly_lattice_sample(params, sx + 1, tx, channel);
+    const f32 c = wiggly_lattice_sample(params, sx, tx + 1, channel);
+    const f32 d = wiggly_lattice_sample(params, sx + 1, tx + 1, channel);
+    const f32 ab = a + (b - a) * u;
+    const f32 cd = c + (d - c) * u;
+    return ab + (cd - ab) * v;
+}
+
+[[nodiscard]] f32 wiggly_noise(const WigglySelectorParams& params,
+                               f32 spatial, f32 temporal) noexcept {
+    if (params.lock_dimensions)
+        return wiggly_noise_1d(params, spatial, temporal, 0u);
+    const f32 x = wiggly_noise_1d(params, spatial, temporal, 0u);
+    const f32 y = wiggly_noise_1d(params, spatial, temporal, 1u);
+    const f32 z = wiggly_noise_1d(params, spatial, temporal, 2u);
+    return (x + y + z) / 3.0f;
+}
+
+[[nodiscard]] f32 evaluate_selector_expression(
+    const std::string& expression,
+    const SelectorWeightParams& params,
+    u32 text_index,
+    f32 base_weight) noexcept {
+    try {
+        std::unordered_map<std::string, double> variables;
+        variables.emplace("textIndex", static_cast<double>(text_index));
+        variables.emplace("textTotal", static_cast<double>(params.total_units));
+        variables.emplace("selectorValue", static_cast<double>(base_weight) * 100.0);
+
+        math::ExpressionContext context;
+        context.frame = params.sample_frame;
+        context.time = params.time_seconds;
+        context.fps = params.sample_fps;
+
+        const double value = math::evaluate_expression(
+            expression, context, variables, 0.0,
+            math::ExpressionProfile::Selector);
+        if (!std::isfinite(value)) return 0.0f;
+        return std::clamp(static_cast<f32>(value) * 0.01f, 0.0f, 1.0f);
+    } catch (...) {
+        return 0.0f;
+    }
+}
+
+[[nodiscard]] f32 apply_selector_expression(const GlyphSelectorSpec& spec,
+                                            const SelectorWeightParams& params,
+                                            u32 text_index,
+                                            f32 weight) noexcept {
+    if (!spec.expression || spec.expression->empty()) return weight;
+    return evaluate_selector_expression(*spec.expression, params, text_index, weight);
+}
+
+} // namespace
 
 namespace detail {
 
@@ -163,11 +262,24 @@ CompiledSelector compile_selector(
 ) {
     if (spec.order == TextSelectorOrder::Index && spec.randomize_order)
         throw std::invalid_argument("index selector order cannot be combined with randomize_order");
+    if (static_cast<u8>(spec.range_units) > static_cast<u8>(TextSelectorRangeUnits::Index))
+        throw std::invalid_argument("selector range units must be percentage or index");
+    if (!std::isfinite(spec.smoothness) || spec.smoothness < 0.0f ||
+        spec.smoothness > 100.0f)
+        throw std::invalid_argument("selector smoothness must be a percentage in [0, 100]");
+    if (spec.expression) {
+        if (spec.expression->empty() || spec.expression->size() > 4096)
+            throw std::invalid_argument(
+                "selector expression must contain 1..4096 bytes");
+        if (!validate_selector_expression(*spec.expression))
+            throw std::invalid_argument(
+                "selector expression uses an unsupported AE host variable or function");
+    }
     const auto& modulation = spec.shape == TextSelectorShape::Noise ? spec.noise : spec.wiggly;
     if ((spec.shape == TextSelectorShape::Wiggly || spec.shape == TextSelectorShape::Noise) &&
         !valid_wiggly_selector_params(modulation)) {
         throw std::invalid_argument(
-            "selector modulation frequency must be in (0, 1000] and amplitude in [0, 1]");
+            "selector modulation parameters are outside their supported ranges");
     }
     CompiledSelector c;
     c.spec = &spec;
@@ -229,28 +341,52 @@ SelectorWeightParams bind_selector_runtime(
     const u32 total_units,
     const SampleTime time
 ) {
-    const f32 start = spec.start.evaluate(time);
-    const f32 end = spec.end.evaluate(time);
+    f32 start = spec.start.evaluate(time);
+    f32 end = spec.end.evaluate(time);
+    f32 offset = spec.offset.evaluate(time);
     const auto& modulation = spec.shape == TextSelectorShape::Noise ? spec.noise : spec.wiggly;
+
+    // Range Selector Units: Index values are logical unit indices.  Bind them
+    // once per frame into the percentage domain the canonical weight function
+    // and the GPU ABI already consume.
+    if (spec.range_units == TextSelectorRangeUnits::Index) {
+        const f32 total = static_cast<f32>(std::max(total_units, 1u));
+        start = start / total * 100.0f;
+        end = end / total * 100.0f;
+        offset = offset / total * 100.0f;
+    }
 
     const u32 step = spec.order == TextSelectorOrder::Index
         ? std::max(spec.index_step, 1u) : 1u;
     const u32 effective_units = total_units == 0 ? 0 : 1u + (total_units - 1u) / step;
-    return SelectorWeightParams{
-        spec.shape,
-        start,
-        end,
-        spec.offset.evaluate(time),
-        spec.amount.evaluate(time),
-        effective_units,
-        0u,
-        false,
-        true,
-        std::abs(end - start) <= 1e-7f && start >= 100.0f,
-        modulation.frequency,
-        modulation.amplitude,
-        modulation.seed,
-    };
+
+    SelectorWeightParams params;
+    params.shape = spec.shape;
+    params.start = start;
+    params.end = end;
+    params.offset = offset;
+    params.amount = spec.amount.evaluate(time);
+    params.total_units = effective_units;
+    params.ordered_index = 0u;
+    params.use_ordered_index = false;
+    params.enabled = true;
+    params.window_completed = std::abs(end - start) <= 1e-7f && start >= 100.0f;
+    params.wiggly_frequency = modulation.frequency;
+    params.wiggly_amplitude = modulation.amplitude;
+    params.wiggly_seed = modulation.seed;
+    params.smoothness = spec.smoothness;
+    params.time_seconds = static_cast<f32>(time.seconds());
+    params.sample_frame = static_cast<f32>(time.frame);
+    params.sample_fps = static_cast<f32>(time.fps());
+    params.wiggles_per_second = modulation.wiggles_per_second;
+    params.correlation = modulation.correlation;
+    params.temporal_phase = modulation.temporal_phase;
+    params.spatial_phase = modulation.spatial_phase;
+    params.min_amount = modulation.min_amount;
+    params.max_amount = modulation.max_amount;
+    params.lock_dimensions = modulation.lock_dimensions;
+    params.wiggly_mode = modulation.mode;
+    return params;
 }
 
 SelectorWeightParams bind_selector_runtime(
@@ -294,6 +430,7 @@ SelectorWeightParams bind_selector_runtime(
     if (spec.order == TextSelectorOrder::Index)
         params.ordered_index /= std::max(spec.index_step, 1u);
     params.use_ordered_index = true;
+    params.raw_index = raw_index;
     return params;
 }
 
@@ -302,10 +439,20 @@ SelectorWeight selector_weight(
     const u32 glyph_index
 ) noexcept {
     if (!params.enabled) return 1.0f;
+    WigglySelectorParams modulation;
+    modulation.frequency = params.wiggly_frequency;
+    modulation.amplitude = params.wiggly_amplitude;
+    modulation.seed = params.wiggly_seed;
+    modulation.wiggles_per_second = params.wiggles_per_second;
+    modulation.correlation = params.correlation;
+    modulation.temporal_phase = params.temporal_phase;
+    modulation.spatial_phase = params.spatial_phase;
+    modulation.min_amount = params.min_amount;
+    modulation.max_amount = params.max_amount;
+    modulation.lock_dimensions = params.lock_dimensions;
+    modulation.mode = params.wiggly_mode;
     if ((params.shape == TextSelectorShape::Wiggly || params.shape == TextSelectorShape::Noise) &&
-        !valid_wiggly_selector_params(WigglySelectorParams{
-            params.wiggly_frequency, params.wiggly_amplitude,
-            params.wiggly_seed}))
+        !valid_wiggly_selector_params(modulation))
         return 0.0f;
 
     const f32 total = std::max(static_cast<f32>(params.total_units), 1.0f);
@@ -334,7 +481,42 @@ SelectorWeight selector_weight(
         (params.shape == TextSelectorShape::Wiggly || params.shape == TextSelectorShape::Noise)
             ? TextSelectorShape::Smooth : params.shape,
         position, start, end);
-    if (params.shape == TextSelectorShape::Wiggly || params.shape == TextSelectorShape::Noise) {
+
+    // AE Range Selector Smoothness feathers the active window with a
+    // smoothstep mask.  At 0 the historical hard shape is preserved.
+    if (params.smoothness > 0.0f) {
+        const f32 window_start = std::min(start, end);
+        const f32 window_end = std::max(start, end);
+        const f32 range_width = window_end - window_start;
+        if (range_width > 1e-7f) {
+            const f32 feather = range_width *
+                std::clamp(params.smoothness * 0.01f, 0.0f, 1.0f);
+            if (feather > 1e-7f) {
+                const f32 edge_in = smoothstep_unit(
+                    (position - window_start) / feather);
+                const f32 edge_out = smoothstep_unit(
+                    (window_end - position) / feather);
+                shaped *= std::min(edge_in, edge_out);
+            }
+        }
+    }
+
+    if (params.shape == TextSelectorShape::Wiggly) {
+        // Correlation reduces the spatial frequency: 100% gives every unit the
+        // same sample, 0% leaves neighbouring units independent.
+        const f32 correlation = std::clamp(params.correlation, 0.0f, 100.0f);
+        const f32 spatial_frequency = params.wiggly_frequency *
+            (1.0f - correlation * 0.01f);
+        const f32 spatial = static_cast<f32>(position_index) * spatial_frequency;
+        const f32 temporal = params.time_seconds * params.wiggles_per_second;
+        const f32 noise = wiggly_noise(modulation, spatial, temporal);
+        const f32 modulation_factor = 1.0f - params.wiggly_amplitude +
+            2.0f * params.wiggly_amplitude * noise;
+        const f32 low = std::clamp(params.min_amount * 0.01f, 0.0f, 1.0f);
+        const f32 high = std::clamp(params.max_amount * 0.01f, 0.0f, 1.0f);
+        shaped *= low + (high - low) *
+            std::clamp(modulation_factor, 0.0f, 1.0f);
+    } else if (params.shape == TextSelectorShape::Noise) {
         // Compute in double precision and validate before integer conversion:
         // malformed low-level bindings must never cause an out-of-range cast.
         const double phase = static_cast<double>(position_index) *
@@ -346,16 +528,14 @@ SelectorWeight selector_weight(
         const auto lattice = static_cast<std::int64_t>(std::floor(phase));
         f32 noise = random::unit(random::Seed{params.wiggly_seed},
                                  static_cast<u64>(lattice));
-        if (params.shape == TextSelectorShape::Noise) {
-            const f32 fraction = static_cast<f32>(phase - static_cast<double>(lattice));
-            const f32 eased = fraction * fraction * (3.0f - 2.0f * fraction);
-            const f32 next = random::unit(random::Seed{params.wiggly_seed},
-                                          static_cast<u64>(lattice + 1));
-            noise += (next - noise) * eased;
-        }
-        const f32 modulation =
+        const f32 fraction = static_cast<f32>(phase - static_cast<double>(lattice));
+        const f32 eased = fraction * fraction * (3.0f - 2.0f * fraction);
+        const f32 next = random::unit(random::Seed{params.wiggly_seed},
+                                      static_cast<u64>(lattice + 1));
+        noise += (next - noise) * eased;
+        const f32 modulation_factor =
             1.0f - params.wiggly_amplitude + 2.0f * params.wiggly_amplitude * noise;
-        shaped *= modulation;
+        shaped *= modulation_factor;
     }
     return std::clamp(shaped * amount, 0.0f, 1.0f);
 }
@@ -401,7 +581,9 @@ SelectorWeight selector_weight(
         named_params.total_units = 1;
         named_params.ordered_index = 0;
         named_params.use_ordered_index = true;
-        return selector_weight(named_params, 0);
+        named_params.raw_index = glyph_index;
+        const f32 weight = selector_weight(named_params, 0);
+        return apply_selector_expression(spec, named_params, glyph_index, weight);
     }
     const u32 raw_index = unit_map.unit_index(glyph_index, spec.unit);
     const u32 total = spec.order == TextSelectorOrder::Index
@@ -431,6 +613,7 @@ SelectorWeight selector_weight(
     if (spec.order == TextSelectorOrder::Index)
         glyph_params.ordered_index /= std::max(spec.index_step, 1u);
     glyph_params.use_ordered_index = true;
+    glyph_params.raw_index = raw_index;
     const f32 unit_position =
         (static_cast<f32>(glyph_params.ordered_index) + 0.5f) /
         static_cast<f32>(total);
@@ -469,6 +652,7 @@ SelectorWeight selector_weight(
         }
     }
 
+    weight = apply_selector_expression(spec, glyph_params, raw_index, weight);
     return std::clamp(weight, 0.0f, 1.0f);
 }
 

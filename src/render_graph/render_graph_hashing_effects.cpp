@@ -116,6 +116,43 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2,
             }
             break;
         }
+        case InnerGlow: {
+            if (auto* p = std::get_if<InnerGlowParams>(&e.params)) {
+                if (semantic_v2) {
+                    seed = hash_combine(seed, hash_value(p->size));
+                    seed = hash_combine(seed, hash_value(p->choke));
+                    seed = hash_combine(seed, hash_value(p->intensity));
+                    seed = hash_combine(seed, hash_value(p->color_r));
+                    seed = hash_combine(seed, hash_value(p->color_g));
+                    seed = hash_combine(seed, hash_value(p->color_b));
+                    seed = hash_combine(seed, hash_value(p->color_a));
+                } else {
+                    seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+                }
+            }
+            break;
+        }
+        case GlowAdvanced: {
+            if (auto* p = std::get_if<GlowAdvancedParams>(&e.params)) {
+                if (semantic_v2) {
+                    seed = hash_combine(seed, hash_value(p->threshold));
+                    seed = hash_combine(seed, hash_value(p->radius));
+                    seed = hash_combine(seed, hash_value(p->intensity));
+                    seed = hash_combine(seed, hash_value(p->color_r));
+                    seed = hash_combine(seed, hash_value(p->color_g));
+                    seed = hash_combine(seed, hash_value(p->color_b));
+                    seed = hash_combine(seed, hash_value(p->color_a));
+                    seed = hash_combine(seed, hash_value(p->color_b_r));
+                    seed = hash_combine(seed, hash_value(p->color_b_g));
+                    seed = hash_combine(seed, hash_value(p->color_b_b));
+                    seed = hash_combine(seed, hash_value(p->color_b_a));
+                    seed = hash_combine(seed, hash_value(p->falloff));
+                } else {
+                    seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+                }
+            }
+            break;
+        }
         case Glow: {
             if (auto* p = std::get_if<GlowParams>(&e.params))
                 seed = hash_combine(seed, semantic_v3
@@ -272,6 +309,27 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2,
             }
             break;
         }
+        case AlphaThreshold: {
+            if (auto* p = std::get_if<AlphaThresholdParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->threshold));
+                seed = hash_combine(seed, hash_value(p->softness));
+                seed = hash_combine(seed, hash_color(p->fill_color));
+                seed = hash_combine(seed, hash_value(p->recolor));
+            }
+            break;
+        }
+        case ContourPalette: {
+            if (auto* p = std::get_if<ContourPaletteParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->width));
+                seed = hash_combine(seed, hash_value(p->spacing));
+                seed = hash_combine(seed, hash_value(p->offset));
+                seed = hash_combine(seed, hash_value(p->softness));
+                seed = hash_combine(seed, hash_value(p->opacity));
+                for (const Color& color : p->palette_colors())
+                    seed = hash_combine(seed, hash_color(color));
+            }
+            break;
+        }
         case CornerPin: {
             if (auto* p = std::get_if<CornerPinParams>(&e.params)) {
                 for (const Vec2 corner : {p->top_left, p->top_right,
@@ -325,6 +383,7 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2,
                 seed = hash_combine(seed, hash_value(p->scale));
                 seed = hash_combine(seed, hash_value(p->complexity));
                 seed = hash_combine(seed, hash_value(p->evolution));
+                seed = hash_combine(seed, hash_value(p->evolution_speed));
                 seed = hash_combine(seed, hash_value(p->seed));
             }
             break;
@@ -357,6 +416,10 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2,
                 seed=hash_combine(seed,hash_string(p->map_layer));
                 seed=hash_combine(seed,hash_value(p->intensity_x)); seed=hash_combine(seed,hash_value(p->intensity_y));
                 seed=hash_combine(seed,hash_value(p->channel)); seed=hash_combine(seed,hash_value(p->edge_mode));
+                seed=hash_combine(seed,hash_value(p->channel_x.has_value()));
+                if (p->channel_x) seed=hash_combine(seed,hash_value(*p->channel_x));
+                seed=hash_combine(seed,hash_value(p->channel_y.has_value()));
+                if (p->channel_y) seed=hash_combine(seed,hash_value(*p->channel_y));
                 seed=hash_combine(seed,hash_value(p->field.has_value()));
                 if (p->field)
                     seed=hash_combine(seed,hash_value(semantic_v2
@@ -403,6 +466,62 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2,
                 seed = hash_combine(seed, hash_vec2(p->center));
                 seed = hash_combine(seed, hash_value(p->scale));
                 seed = hash_combine(seed, hash_value(static_cast<int>(p->edge_mode)));
+            }
+            break;
+        }
+        case OpticsCompensation: {
+            if (auto* p = std::get_if<OpticsCompensationParams>(&e.params)) {
+                if (semantic_v2) {
+                    seed = hash_combine(seed, hash_value(p->fov_degrees));
+                    seed = hash_combine(seed, hash_value(p->reverse));
+                    seed = hash_combine(seed, hash_value(p->center_x));
+                    seed = hash_combine(seed, hash_value(p->center_y));
+                    seed = hash_combine(seed, hash_value(p->scale));
+                } else {
+                    seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+                }
+            }
+            break;
+        }
+        case CylinderWrap: {
+            if (auto* p = std::get_if<CylinderWrapParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->center_x));
+                seed = hash_combine(seed, hash_value(p->center_y));
+                seed = hash_combine(seed, hash_value(p->width));
+                seed = hash_combine(seed, hash_value(p->height));
+                seed = hash_combine(seed, hash_value(p->rotation_degrees));
+                seed = hash_combine(seed, hash_value(p->ambient));
+                seed = hash_combine(seed, hash_value(p->diffuse));
+                seed = hash_combine(seed, hash_value(p->inside));
+            }
+            break;
+        }
+        case SphereWrap: {
+            if (auto* p = std::get_if<SphereWrapParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->center_x));
+                seed = hash_combine(seed, hash_value(p->center_y));
+                seed = hash_combine(seed, hash_value(p->radius));
+                seed = hash_combine(seed, hash_value(p->rotation_degrees));
+                seed = hash_combine(seed, hash_value(p->ambient));
+                seed = hash_combine(seed, hash_value(p->diffuse));
+                seed = hash_combine(seed, hash_value(p->specular));
+                seed = hash_combine(seed, hash_value(p->inside));
+            }
+            break;
+        }
+        case LightSweep: {
+            if (auto* p = std::get_if<LightSweepParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->center_x));
+                seed = hash_combine(seed, hash_value(p->center_y));
+                seed = hash_combine(seed, hash_value(p->angle_degrees));
+                seed = hash_combine(seed, hash_value(p->width));
+                seed = hash_combine(seed, hash_value(p->softness));
+                seed = hash_combine(seed, hash_value(p->intensity));
+                seed = hash_combine(seed, hash_value(p->edge_intensity));
+                seed = hash_combine(seed, hash_value(p->edge_width));
+                seed = hash_combine(seed, hash_value(p->color_r));
+                seed = hash_combine(seed, hash_value(p->color_g));
+                seed = hash_combine(seed, hash_value(p->color_b));
             }
             break;
         }

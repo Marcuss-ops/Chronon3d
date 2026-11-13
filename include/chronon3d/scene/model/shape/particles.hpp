@@ -40,18 +40,30 @@ struct ParticleTwinkleParams {
 /// Sample the divergence-free ambient flow displacement for one particle.
 /// `phase` decorrelates neighbouring particles; pass a deterministic value.
 [[nodiscard]] inline Vec2 particle_flow_displacement(
-    Vec2 origin, f32 age_seconds, f32 phase,
+    Vec2 origin, f32 age_seconds, f32 phase, f32 depth,
     const ParticleFlowParams& flow) noexcept {
     if (flow.strength == 0.0f) return Vec2{0.0f, 0.0f};
     const f32 k = flow.scale;
     const f32 t = age_seconds * flow.speed + phase;
-    const f32 ax = k * origin.x + t;
-    const f32 ay = k * 0.83f * origin.y - t * 0.7f + phase * 1.7f;
-    const f32 az = k * 0.6f * (origin.x + origin.y) + t * 1.3f + phase * 0.61f;
-    // curl(sin ax + sin ay + 0.5 sin az) = (d/dy, -d/dx)
-    return Vec2{
-        flow.strength * (0.83f * std::cos(ay) + 0.3f * std::cos(az)),
-        -flow.strength * (std::cos(ax) + 0.3f * std::cos(az))};
+    const f32 z = depth * 3.0f + phase * 0.37f;
+    // Three-component sine potential in a pseudo-3D space. The returned
+    // vector is the (x, y) part of curl(Psi), so the field is divergence-free
+    // in the plane and particles swirl without clumping into singularities.
+    const f32 ax = k * (0.90f * origin.y + 0.35f * z) + 0.87f * t + phase;
+    const f32 ay = k * (0.80f * z - 0.45f * origin.x) + 1.13f * t + 1.70f * phase;
+    const f32 az = k * (0.70f * origin.x - 0.55f * origin.y) + 1.03f * t + 0.61f * phase;
+    const f32 curl_x = -0.55f * std::cos(az) - 0.80f * std::cos(ay);
+    const f32 curl_y = 0.35f * std::cos(ax) - 0.70f * std::cos(az);
+    return Vec2{flow.strength * curl_x, flow.strength * curl_y};
+}
+
+/// Sample an optional over-life curve stored as a grayscale gradient. The red
+/// channel is the scalar value; an empty curve means "no modulation".
+[[nodiscard]] inline f32 particle_life_value(
+    const graphics::GradientDefinition& curve, f32 t,
+    f32 fallback = 1.0f) {
+    if (curve.color_stops.empty()) return fallback;
+    return graphics::sample_gradient(curve, t).r;
 }
 
 /// Stateless CPU particle-emitter description. Samples are a pure function
@@ -70,6 +82,19 @@ struct ParticleEmitterParams {
     f32 size_max{1.0f};
     f32 gravity{0.0f};
     f32 turbulence{0.0f};
+    /// Quadratic aerodynamic drag (1/units). 0 keeps the legacy ballistic
+    /// integration; a positive value brakes fast particles into the flow.
+    f32 air_drag{0.0f};
+    /// HDR multiplier on the colour ramp RGB. Values above 1 make additive
+    /// cores bloom without changing the authored [0, 1] ramp.
+    f32 emissive{1.0f};
+    /// Emitter velocity in canvas units/second. A particle born at an earlier
+    /// sub-frame is spawned at `-emitter_velocity * age`, which turns a moving
+    /// emitter into a continuous trail instead of a per-frame necklace.
+    Vec2 emitter_velocity{0.0f, 0.0f};
+    /// Optional over-life multipliers (red channel). Empty means 1.0.
+    graphics::GradientDefinition size_over_life{};
+    graphics::GradientDefinition opacity_over_life{};
     ParticleFlowParams flow{};
     ParticleTwinkleParams twinkle{};
     EmitterShape shape{EmitterShape::Box};
@@ -142,8 +167,26 @@ namespace detail {
         !std::isfinite(params.depth_min) || !std::isfinite(params.depth_max) ||
         !std::isfinite(params.flow.strength) || !std::isfinite(params.flow.scale) ||
         !std::isfinite(params.flow.speed) || !std::isfinite(params.twinkle.amount) ||
-        !std::isfinite(params.twinkle.speed))
+        !std::isfinite(params.twinkle.speed) || !std::isfinite(params.air_drag) ||
+        !std::isfinite(params.emissive) ||
+        !detail::finite_vec2(params.emitter_velocity))
         return "particle parameters must be finite";
+    if (params.air_drag < 0.0f || params.emissive < 0.0f || params.emissive > 64.0f)
+        return "particle air_drag and emissive must be non-negative (emissive <= 64)";
+    const auto valid_life_curve = [](const graphics::GradientDefinition& curve) {
+        if (curve.color_stops.empty()) return true;
+        if (curve.color_stops.size() < 2) return false;
+        for (const auto& stop : curve.color_stops) {
+            if (!std::isfinite(stop.position) || stop.position < 0.0f ||
+                stop.position > 1.0f || !std::isfinite(stop.color.r) ||
+                stop.color.r < 0.0f)
+                return false;
+        }
+        return true;
+    };
+    if (!valid_life_curve(params.size_over_life) ||
+        !valid_life_curve(params.opacity_over_life))
+        return "particle over-life curves require finite stops in [0, 1] with non-negative values";
     if (params.emitter_size.x < 0.0f || params.emitter_size.y < 0.0f ||
         params.lifetime_min <= 0.0f || params.lifetime_max < params.lifetime_min ||
         params.size_min < 0.0f || params.size_max < params.size_min ||
@@ -228,6 +271,9 @@ namespace detail {
             const float t=span>0.0f?(target-path_lengths[hi-1])/span:0.0f;
             spawn=params.path_points[hi-1]+(params.path_points[hi]-params.path_points[hi-1])*t;
         }
+        // Sub-frame emission: the particle was born earlier in the frame, when
+        // a moving emitter was at `spawn - emitter_velocity * age`.
+        spawn -= params.emitter_velocity * age;
         const Vec2 velocity{
             random::range(seed, detail::particle_random_index(index, cycle, 4U),
                           params.velocity_min.x, params.velocity_max.x),
@@ -243,39 +289,62 @@ namespace detail {
         const f32 depth = random::range(seed,
             detail::particle_random_index(index, cycle, 12U),
             params.depth_min, params.depth_max);
-        Vec2 position = spawn + velocity * age +
+        // Exact solution of dv/dt = -k * v * |v| per axis (quadratic drag).
+        // k == 0 reduces exactly to the legacy v * t displacement.
+        const auto drag_axis = [](f32 value, f32 k, f32 time) {
+            if (k <= 0.0f || value == 0.0f) return value * time;
+            return std::copysign(
+                std::log1p(k * std::abs(value) * time) / k, value);
+        };
+        const Vec2 drag_velocity{
+            velocity.x / (1.0f + params.air_drag * std::abs(velocity.x) * age),
+            velocity.y / (1.0f + params.air_drag * std::abs(velocity.y) * age)};
+        Vec2 position = spawn +
+            Vec2{drag_axis(velocity.x, params.air_drag, age),
+                 drag_axis(velocity.y, params.air_drag, age)} +
             Vec2{0.0f, 0.5f * params.gravity * age * age} + turbulence;
         if (params.flow.strength > 0.0f) {
             // Far motes drift less: the field reads as parallax, not a sheet.
             const f32 flow_phase = random_at(13U) * 6.2831853071795864769f;
             const f32 parallax = params.environment ? 1.0f - 0.25f * depth : 1.0f;
             position = position +
-                particle_flow_displacement(spawn, age, flow_phase, params.flow) * parallax;
+                particle_flow_displacement(spawn, age, flow_phase, depth, params.flow) * parallax;
         }
-        const f32 size = random::range(seed,
+        f32 size = random::range(seed,
             detail::particle_random_index(index, cycle, 8U),
             params.size_min, params.size_max);
+        size *= particle_life_value(params.size_over_life, life_fraction);
         const f32 rotation = random::range(seed, detail::particle_random_index(index, cycle, 9U), params.rotation_min, params.rotation_max);
         const f32 angular_velocity = random::range(seed, detail::particle_random_index(index, cycle, 10U), params.angular_velocity_min, params.angular_velocity_max);
         const f32 sprite_scale = random::range(seed, detail::particle_random_index(index, cycle, 11U), params.sprite_scale_min, params.sprite_scale_max);
         Color color = params.color_ramp.color_stops.empty()
             ? Color{1.0f, 1.0f, 1.0f, 1.0f}
             : graphics::sample_gradient(params.color_ramp, life_fraction);
+        color.r *= params.emissive;
+        color.g *= params.emissive;
+        color.b *= params.emissive;
+        color.a *= particle_life_value(params.opacity_over_life, life_fraction);
         if (params.twinkle.amount > 0.0f) {
             const f32 twinkle_phase = random_at(14U) * 6.2831853071795864769f;
             const f32 shimmer = 0.5f + 0.5f * std::sin(
                 6.2831853071795864769f * params.twinkle.speed * age + twinkle_phase);
             color.a *= 1.0f - params.twinkle.amount * shimmer;
         }
-        const f32 depth_scale = params.bokeh ? (1.35f - depth * 0.7f) : 1.0f;
-        if (params.bokeh) color.a *= 1.0f - depth * 0.35f;
-        if (!detail::finite_vec2(position) || !detail::finite_vec2(velocity) ||
+        if (params.bokeh) {
+            const f32 depth_scale = 1.35f - depth * 0.7f;
+            size *= depth_scale;
+            // Energy conservation: the same luminous flux is spread over the
+            // larger bokeh disc, so defocus cannot brighten a particle.
+            color.a = std::clamp(color.a / (depth_scale * depth_scale), 0.0f, 1.0f);
+        }
+        color.a = std::clamp(color.a, 0.0f, 1.0f);
+        if (!detail::finite_vec2(position) || !detail::finite_vec2(drag_velocity) ||
             !std::isfinite(size) || !std::isfinite(rotation) || !std::isfinite(angular_velocity) ||
             !std::isfinite(sprite_scale) || !std::isfinite(depth) ||
-            !std::isfinite(depth_scale) || !detail::finite_color(color))
+            !detail::finite_color(color))
             return fail("particle integration produced a non-finite sample");
         result.particles.push_back(ParticleSample{
-            index, position, velocity, color, size * depth_scale, age, life_fraction,
+            index, position, drag_velocity, color, size, age, life_fraction,
             rotation + angular_velocity*age, angular_velocity, sprite_scale, depth});
     }
     return result;

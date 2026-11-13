@@ -212,7 +212,15 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
             .map_layer=effect.map_layer,.intensity_x=effect.map_intensity_x,
             .intensity_y=effect.map_intensity_y,
             .channel=static_cast<DisplacementMapParams::Channel>(effect.map_channel),
-            .field=effect.map_field});
+            .field=effect.map_field,
+            .channel_x=effect.map_channel_x
+                ? std::optional<DisplacementMapParams::Channel>(
+                    static_cast<DisplacementMapParams::Channel>(*effect.map_channel_x))
+                : std::nullopt,
+            .channel_y=effect.map_channel_y
+                ? std::optional<DisplacementMapParams::Channel>(
+                    static_cast<DisplacementMapParams::Channel>(*effect.map_channel_y))
+                : std::nullopt});
         } break;
         case LayerPlan::EffectKindPlan::CornerPin: {
             prepared_effects[index].emplace_back(CornerPinParams{

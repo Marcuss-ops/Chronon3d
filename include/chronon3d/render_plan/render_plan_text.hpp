@@ -131,6 +131,24 @@ struct TextSelectorPlan {
     std::uint64_t noise_seed{0};
     std::uint32_t index_step{1};
     std::optional<std::string> semantic_id;
+
+    // AE Range Selector Units and Smoothness.
+    std::string range_units{"percentage"};  // "percentage" | "index"
+    float smoothness{0.0f};                 // 0..100 % of the active range
+
+    // AE Wiggly Selector temporal controls (shape == "wiggly").
+    float wiggles_per_second{0.0f};
+    float correlation{0.0f};    // 0..100 %
+    float temporal_phase{0.0f}; // degrees
+    float spatial_phase{0.0f};  // degrees
+    float min_amount{0.0f};     // 0..100 %
+    float max_amount{100.0f};   // 0..100 %
+    bool lock_dimensions{true};
+    std::string wiggly_mode{"smooth"};  // "smooth" | "corner" | "jagged"
+
+    // AE Expression Selector. Variables: textIndex, textTotal, selectorValue,
+    // time, frame, fps. The expression result is a 0..100 selector value.
+    std::optional<std::string> expression;
 };
 
 struct TextAnimatorPlan {

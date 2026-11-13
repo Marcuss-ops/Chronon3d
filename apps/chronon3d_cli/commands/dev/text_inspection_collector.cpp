@@ -23,6 +23,7 @@
 
 namespace chronon3d::cli {
 
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 StatusMapping map_status_for_node(TextVisibilityStatus s,
                                   bool predicted_contains_world) noexcept {
     if (predicted_contains_world == false) {
@@ -43,8 +44,6 @@ StatusMapping map_status_for_node(TextVisibilityStatus s,
     }
     return {"FAIL", 1};
 }
-
-#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 
 InspectionRecord audit_for_snapshot(
     const chronon3d::TextRunAuditSnapshot& snap,

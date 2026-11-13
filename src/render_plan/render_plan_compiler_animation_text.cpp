@@ -162,6 +162,23 @@ chronon3d::GlyphSelectorSpec compile_text_selector(const TextSelectorPlan& plan,
     selector.noise = chronon3d::WigglySelectorParams{
         plan.noise_frequency, plan.noise_amplitude, plan.noise_seed};
     selector.index_step = plan.index_step;
+    selector.range_units = plan.range_units == "index"
+        ? chronon3d::TextSelectorRangeUnits::Index
+        : chronon3d::TextSelectorRangeUnits::Percentage;
+    selector.smoothness = plan.smoothness;
+    selector.wiggly.wiggles_per_second = plan.wiggles_per_second;
+    selector.wiggly.correlation = plan.correlation;
+    selector.wiggly.temporal_phase = plan.temporal_phase;
+    selector.wiggly.spatial_phase = plan.spatial_phase;
+    selector.wiggly.min_amount = plan.min_amount;
+    selector.wiggly.max_amount = plan.max_amount;
+    selector.wiggly.lock_dimensions = plan.lock_dimensions;
+    selector.wiggly.mode = plan.wiggly_mode == "corner"
+        ? chronon3d::WigglySelectorMode::Corner
+        : plan.wiggly_mode == "jagged"
+            ? chronon3d::WigglySelectorMode::Jagged
+            : chronon3d::WigglySelectorMode::Smooth;
+    selector.expression = plan.expression;
     return selector;
 }
 

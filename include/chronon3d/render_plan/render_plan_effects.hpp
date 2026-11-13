@@ -95,6 +95,8 @@ struct EffectPlan {
     std::optional<Field2DPlan> map_field;
     float map_intensity_x{0.05f}, map_intensity_y{0.05f};
     std::uint8_t map_channel{0};
+    std::optional<std::uint8_t> map_channel_x;
+    std::optional<std::uint8_t> map_channel_y;
     // Warp family — quad corners (TL, TR, BR, BL as x,y pairs), radial
     // controls and the mesh-warp control grid.
     std::array<float, 8> quad{0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};

@@ -49,11 +49,15 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
     if (!instance.enabled) return false;
     const auto* glow_params = std::get_if<GlowParams>(&instance.params);
     const auto* bloom_params = std::get_if<BloomParams>(&instance.params);
+    const auto* advanced_params = std::get_if<GlowAdvancedParams>(&instance.params);
     if ((instance.effect_type != effects::EffectType::Glow || !glow_params) &&
-        (instance.effect_type != effects::EffectType::Bloom || !bloom_params))
+        (instance.effect_type != effects::EffectType::Bloom || !bloom_params) &&
+        (instance.effect_type != effects::EffectType::GlowAdvanced || !advanced_params))
         return false;
-    const float radius = glow_params ? glow_params->radius : bloom_params->radius;
-    const float intensity = glow_params ? glow_params->intensity : bloom_params->intensity;
+    const float radius = glow_params ? glow_params->radius
+        : bloom_params ? bloom_params->radius : advanced_params->radius;
+    const float intensity = glow_params ? glow_params->intensity
+        : bloom_params ? bloom_params->intensity : advanced_params->intensity;
     const bool valid_params = std::isfinite(radius) && std::isfinite(intensity) &&
         radius >= 0.0f && radius <= 96.0f && intensity >= 0.0f && intensity <= 4.0f &&
         (!bloom_params || (std::isfinite(bloom_params->threshold) &&
@@ -61,7 +65,19 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
         (!glow_params || (std::isfinite(glow_params->color.r) &&
                           std::isfinite(glow_params->color.g) &&
                           std::isfinite(glow_params->color.b) &&
-                          std::isfinite(glow_params->color.a)));
+                          std::isfinite(glow_params->color.a))) &&
+        (!advanced_params || (std::isfinite(advanced_params->threshold) &&
+                              advanced_params->threshold >= 0.0f &&
+                              advanced_params->threshold <= 1.0f &&
+                              std::abs(advanced_params->falloff - 1.0f) <= 1.0e-6f &&
+                              std::isfinite(advanced_params->color_r) &&
+                              std::isfinite(advanced_params->color_g) &&
+                              std::isfinite(advanced_params->color_b) &&
+                              std::isfinite(advanced_params->color_a) &&
+                              std::isfinite(advanced_params->color_b_r) &&
+                              std::isfinite(advanced_params->color_b_g) &&
+                              std::isfinite(advanced_params->color_b_b) &&
+                              std::isfinite(advanced_params->color_b_a)));
     if (!valid_params) {
         return false;
     }
@@ -221,6 +237,9 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
         native_effect = ctx.backend_surface_api()->glow_surfaces(
             output, source, horizontal, vertical, radius, intensity,
             glow_params->color);
+    } else if (advanced_params) {
+        native_effect = ctx.backend_surface_api()->glow_advanced_surfaces(
+            output, source, horizontal, vertical, *advanced_params);
     } else if (use_bloom_pyramid) {
         native_effect = ctx.backend_surface_api()->bloom_pyramid_surfaces(
             output, source, horizontal, bloom_mips,
@@ -265,6 +284,142 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
     return try_native_full_frame_glow_or_bloom(
         ctx, effect_stack, result, clip, existing_source,
         existing_source_framebuffer);
+}
+
+// Native Inner Glow certified window: choke == 0 and size <= 16. It reuses
+// the warp-bulk alpha erosion (mode 13), the separable Gaussian blur and a
+// screen-inside-alpha composite; unsupported choke/size values fail closed and
+// fall back to the software oracle.
+bool try_native_full_frame_inner_glow(
+    RenderGraphContext& ctx, const EffectStack& effect_stack,
+    Framebuffer& result, const std::optional<raster::BBox>& clip,
+    runtime::RenderSurfaceHandle borrowed_source,
+    const Framebuffer* borrowed_source_framebuffer) {
+    if (!clip_covers_result(clip, result) || !ctx.backend ||
+        !ctx.backend_stats_api()->supports_native_surfaces() ||
+        !ctx.surface_registry || effect_stack.size() != 1) {
+        return false;
+    }
+    const auto& instance = effect_stack[0];
+    if (!instance.enabled ||
+        instance.effect_type != effects::EffectType::InnerGlow) {
+        return false;
+    }
+    const auto* p = std::get_if<InnerGlowParams>(&instance.params);
+    if (!p) return false;
+    const float values[] = {p->size, p->choke, p->intensity,
+                            p->color_r, p->color_g, p->color_b, p->color_a};
+    for (float value : values) {
+        if (!std::isfinite(value)) return false;
+    }
+    if (p->size <= 0.0f || p->size > 16.0f || p->choke != 0.0f ||
+        p->intensity <= 0.0f || p->intensity > 4.0f ||
+        p->color_r < 0.0f || p->color_r > 1.0f ||
+        p->color_g < 0.0f || p->color_g > 1.0f ||
+        p->color_b < 0.0f || p->color_b > 1.0f ||
+        p->color_a < 0.0f || p->color_a > 1.0f) {
+        return false;
+    }
+
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
+    const bool source_is_existing =
+        borrowed_source != runtime::kInvalidRenderSurfaceHandle;
+    if (source_is_existing && borrowed_source_framebuffer &&
+        (borrowed_source_framebuffer->width() != result.width() ||
+         borrowed_source_framebuffer->height() != result.height() ||
+         borrowed_source_framebuffer->origin_x() != result.origin_x() ||
+         borrowed_source_framebuffer->origin_y() != result.origin_y())) {
+        return false;
+    }
+    const auto source = source_is_existing
+        ? borrowed_source
+        : ctx.surface_registry->create(desc);
+    const auto output = ctx.surface_registry->create(desc);
+    const auto band = ctx.surface_registry->create(desc);
+    const auto horizontal = ctx.surface_registry->create(desc);
+    const auto vertical = ctx.surface_registry->create(desc);
+    if (source == runtime::kInvalidRenderSurfaceHandle ||
+        output == runtime::kInvalidRenderSurfaceHandle ||
+        band == runtime::kInvalidRenderSurfaceHandle ||
+        horizontal == runtime::kInvalidRenderSurfaceHandle ||
+        vertical == runtime::kInvalidRenderSurfaceHandle) {
+        for (auto handle : {source, output, band, horizontal, vertical}) {
+            if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
+            (void)ctx.backend_surface_api()->release_surface(handle);
+            ctx.surface_registry->release(handle);
+        }
+        return false;
+    }
+    const auto cleanup = [&] {
+        for (auto handle : {output, band, horizontal, vertical}) {
+            (void)ctx.backend_surface_api()->release_surface(handle);
+            ctx.surface_registry->release(handle);
+        }
+        if (!source_is_existing) {
+            (void)ctx.backend_surface_api()->release_surface(source);
+            ctx.surface_registry->release(source);
+        }
+    };
+
+    RenderOpResult op = source_is_existing
+        ? RenderOpResult(RenderOpOutcome{})
+        : ctx.backend_surface_api()->create_surface(source, desc);
+    if (op.ok() && !source_is_existing) {
+        std::vector<float> packed;
+        const auto rgba = framebuffer_rgba_view(result, packed);
+        profiling::GpuUploadProducerScope upload_scope(
+            profiling::GpuUploadProducer::Effects);
+        op = ctx.backend_surface_api()->upload_surface(source, desc, rgba);
+    }
+    if (op.ok()) op = ctx.backend_surface_api()->create_surface(output, desc);
+    if (op.ok()) op = ctx.backend_surface_api()->create_surface(band, desc);
+    if (op.ok()) op = ctx.backend_surface_api()->create_surface(horizontal, desc);
+    if (op.ok()) op = ctx.backend_surface_api()->create_surface(vertical, desc);
+    if (op.ok()) op = ctx.backend_surface_api()->copy_surface(output, source);
+
+    WarpBulkParams bulk{};
+    bulk.mode = 13;
+    bulk.edge_mode = 0;
+    bulk.p[0] = std::round(p->size);
+    if (op.ok()) {
+        op = ctx.backend_surface_api()->warp_bulk_surface(band, source, source, bulk);
+    }
+    const float blur_radius = std::max(0.5f, p->size * 0.25f);
+    if (op.ok()) {
+        op = ctx.backend_surface_api()->blur_surface(
+            horizontal, band, blur_radius, true, false);
+    }
+    if (op.ok()) {
+        op = ctx.backend_surface_api()->blur_surface(
+            vertical, horizontal, blur_radius, false, false);
+    }
+    if (op.ok()) {
+        const Color tint{std::clamp(p->color_r, 0.0f, 1.0f),
+                         std::clamp(p->color_g, 0.0f, 1.0f),
+                         std::clamp(p->color_b, 0.0f, 1.0f),
+                         std::clamp(p->color_a, 0.0f, 1.0f)};
+        op = ctx.backend_surface_api()->inner_glow_composite_surface(
+            output, vertical, tint, p->intensity);
+    }
+    if (!op.ok()) {
+        spdlog::error("[native-inner-glow] failed: {}", op.error().message);
+        cleanup();
+        return false;
+    }
+
+    (void)ctx.backend_surface_api()->release_surface(band);
+    (void)ctx.backend_surface_api()->release_surface(horizontal);
+    (void)ctx.backend_surface_api()->release_surface(vertical);
+    ctx.surface_registry->release(band);
+    ctx.surface_registry->release(horizontal);
+    ctx.surface_registry->release(vertical);
+    if (!source_is_existing) {
+        (void)ctx.backend_surface_api()->release_surface(source);
+        ctx.surface_registry->release(source);
+    }
+    result.set_surface_handle(output);
+    result.mark_gpu_authoritative();
+    return true;
 }
 
 // Native drop shadow keeps the two authored alpha silhouettes on Vulkan:

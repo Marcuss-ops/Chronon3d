@@ -191,6 +191,105 @@ public:
     }
 };
 
+class SoftwareInnerGlowEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<InnerGlowParams>(&params);
+        if (!p) throw std::runtime_error("InnerGlow processor received invalid parameters");
+        const float size = std::clamp(p->size, 0.0f, 256.0f);
+        const float choke = std::clamp(p->choke, 0.0f, 1.0f);
+        const float intensity = std::clamp(p->intensity, 0.0f, 4.0f);
+        if (size <= 0.0f || intensity <= 0.0f) return;
+        const int w = fb.width();
+        const int h = fb.height();
+        if (w <= 0 || h <= 0) return;
+        (void)context;
+
+        const int band = std::max(1, static_cast<int>(std::lround(size)));
+        const int inset = std::clamp(static_cast<int>(std::lround(choke * size)), 0, 256);
+        const auto erode_alpha = [w, h](const Framebuffer& source, int radius) {
+            Framebuffer result(w, h);
+            result.clear(Color::transparent());
+            if (radius <= 0) {
+                for (int y = 0; y < h; ++y)
+                    for (int x = 0; x < w; ++x)
+                        result.set_pixel(x, y, Color{0.0f, 0.0f, 0.0f, source.get_pixel(x, y).a});
+                return result;
+            }
+            Framebuffer horizontal(w, h);
+            horizontal.clear(Color::transparent());
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    float value = 1.0f;
+                    for (int dx = -radius; dx <= radius; ++dx) {
+                        const int sx = std::clamp(x + dx, 0, w - 1);
+                        value = std::min(value, source.get_pixel(sx, y).a);
+                    }
+                    horizontal.set_pixel(x, y, Color{0.0f, 0.0f, 0.0f, value});
+                }
+            }
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    float value = 1.0f;
+                    for (int dy = -radius; dy <= radius; ++dy) {
+                        const int sy = std::clamp(y + dy, 0, h - 1);
+                        value = std::min(value, horizontal.get_pixel(x, sy).a);
+                    }
+                    result.set_pixel(x, y, Color{0.0f, 0.0f, 0.0f, value});
+                }
+            }
+            return result;
+        };
+
+        const Framebuffer outer = erode_alpha(fb, inset);
+        const Framebuffer inner = erode_alpha(fb, inset + band);
+        Framebuffer rim(w, h);
+        rim.clear(Color::transparent());
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const float value = std::max(0.0f, outer.get_pixel(x, y).a - inner.get_pixel(x, y).a);
+                rim.set_pixel(x, y, Color{0.0f, 0.0f, 0.0f, value});
+            }
+        }
+        apply_blur(rim, std::max(0.5f, size * 0.25f), std::nullopt, 1);
+
+        const Color tint{std::clamp(p->color_r, 0.0f, 1.0f),
+                         std::clamp(p->color_g, 0.0f, 1.0f),
+                         std::clamp(p->color_b, 0.0f, 1.0f),
+                         std::clamp(p->color_a, 0.0f, 1.0f)};
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                Color& pixel = fb.pixels_row(y)[x];
+                if (pixel.a <= 0.0f) continue;
+                const float coverage = std::clamp(rim.get_pixel(x, y).a * intensity, 0.0f, 1.0f) *
+                                       std::clamp(pixel.a, 0.0f, 1.0f);
+                if (coverage <= 0.0f) continue;
+                Color straight = pixel.unpremultiplied();
+                straight.r = 1.0f - (1.0f - straight.r) * (1.0f - tint.r * coverage);
+                straight.g = 1.0f - (1.0f - straight.g) * (1.0f - tint.g * coverage);
+                straight.b = 1.0f - (1.0f - straight.b) * (1.0f - tint.b * coverage);
+                pixel = straight.premultiplied();
+            }
+        }
+    }
+};
+
+class SoftwareGlowAdvancedEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<GlowAdvancedParams>(&params);
+        if (!p) throw std::runtime_error("GlowAdvanced processor received invalid parameters");
+        if (p->intensity <= 0.0f) return;
+        if (!context.effect_scratch)
+            throw std::runtime_error("GlowAdvanced processor requires EffectScratchResources");
+        run_glow_pipeline(fb, GlowPipeline::from(*p), context.clip,
+                          /*source_is_alpha_mask=*/false, context.debug_cfg,
+                          &context.effect_scratch->glow_kernel_scratch());
+    }
+};
+
 class SoftwareSaturationEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
@@ -231,6 +330,52 @@ public:
     }
 };
 
+class SoftwareAlphaThresholdEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<AlphaThresholdParams>(&params);
+        if (!p) throw std::runtime_error("AlphaThreshold processor received invalid parameters");
+        p->validate();
+        int x0 = 0, y0 = 0, x1 = fb.width(), y1 = fb.height();
+        if (context.clip) {
+            x0 = std::clamp(context.clip->x0, 0, x1);
+            y0 = std::clamp(context.clip->y0, 0, y1);
+            x1 = std::clamp(context.clip->x1, 0, x1);
+            y1 = std::clamp(context.clip->y1, 0, y1);
+        }
+        for (int y = y0; y < y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                Color& pixel = row[x];
+                const float old_alpha = pixel.a;
+                if (old_alpha <= 1.0e-8f) {
+                    pixel = Color::transparent();
+                    continue;
+                }
+                const float alpha = std::clamp(old_alpha, 0.0f, 1.0f);
+                float mask = 0.0f;
+                if (p->softness <= 0.0f) {
+                    mask = alpha >= p->threshold ? 1.0f : 0.0f;
+                } else {
+                    const float lo = p->threshold - p->softness * 0.5f;
+                    const float hi = p->threshold + p->softness * 0.5f;
+                    const float t = std::clamp((alpha - lo) / std::max(hi - lo, 1.0e-6f), 0.0f, 1.0f);
+                    mask = t * t * (3.0f - 2.0f * t);
+                }
+                if (p->recolor) {
+                    pixel = Color{p->fill_color.r * mask, p->fill_color.g * mask,
+                                  p->fill_color.b * mask, mask};
+                } else {
+                    const float inv = 1.0f / old_alpha;
+                    pixel = Color{pixel.r * inv * mask, pixel.g * inv * mask,
+                                  pixel.b * inv * mask, mask};
+                }
+            }
+        }
+    }
+};
+
 class SoftwareDropShadowEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
@@ -248,6 +393,73 @@ public:
         const auto* p = std::get_if<SdfBevelParams>(&params);
         if (!p) throw std::runtime_error("SDF bevel processor received invalid parameters");
         apply_sdf_bevel_effect(fb, *p, context.time_seconds, context.diagnostics_enabled);
+    }
+};
+
+class SoftwareContourPaletteEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<ContourPaletteParams>(&params);
+        if (!p) throw std::runtime_error("ContourPalette processor received invalid parameters");
+        apply_contour_palette(fb, *p, context.clip);
+    }
+};
+
+class SoftwareLightSweepEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<LightSweepParams>(&params);
+        if (!p) throw std::runtime_error("LightSweep processor received invalid parameters");
+        p->validate();
+        if (p->intensity <= 0.0f && p->edge_intensity <= 0.0f) return;
+        if (fb.width() <= 0 || fb.height() <= 0) return;
+
+        int x0 = 0, y0 = 0, x1 = fb.width(), y1 = fb.height();
+        if (context.clip) {
+            x0 = std::clamp(context.clip->x0, 0, x1);
+            y0 = std::clamp(context.clip->y0, 0, y1);
+            x1 = std::clamp(context.clip->x1, 0, x1);
+            y1 = std::clamp(context.clip->y1, 0, y1);
+        }
+
+        const float radians = p->angle_degrees * 0.01745329251994329577f;
+        const float dir_x = std::cos(radians);
+        const float dir_y = std::sin(radians);
+        const float center_x = p->center_x * static_cast<float>(fb.width());
+        const float center_y = p->center_y * static_cast<float>(fb.height());
+        const float half_width = p->width * 0.5f;
+        const float softness = std::max(p->softness, 1.0e-6f);
+        for (int y = y0; y < y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                Color& pixel = row[x];
+                if (pixel.a <= 1.0e-8f) continue;
+                const float distance = std::abs(
+                    (static_cast<float>(x) + 0.5f - center_x) * dir_x +
+                    (static_cast<float>(y) + 0.5f - center_y) * dir_y);
+                float profile = 0.0f;
+                if (distance <= half_width) {
+                    profile = 1.0f;
+                } else if (distance < half_width + softness) {
+                    const float t = (distance - half_width) / softness;
+                    profile = 1.0f - t * t * (3.0f - 2.0f * t);
+                }
+                float edge = 0.0f;
+                if (p->edge_width > 0.0f) {
+                    const float e = (distance - half_width) / p->edge_width;
+                    edge = std::exp(-e * e) * p->edge_intensity;
+                }
+                const float gain = profile * p->intensity + edge;
+                if (gain <= 0.0f) continue;
+                Color straight = pixel.unpremultiplied();
+                straight.r = std::min(1.0f, straight.r + p->color_r * gain);
+                straight.g = std::min(1.0f, straight.g + p->color_g * gain);
+                straight.b = std::min(1.0f, straight.b + p->color_b * gain);
+                pixel = straight.premultiplied();
+            }
+        }
     }
 };
 
@@ -815,6 +1027,14 @@ std::unique_ptr<EffectProcessor> create_sdf_bevel_effect_processor() {
     return std::make_unique<SoftwareSdfBevelEffectProcessor>();
 };
 
+std::unique_ptr<EffectProcessor> create_contour_palette_effect_processor() {
+    return std::make_unique<SoftwareContourPaletteEffectProcessor>();
+};
+
+std::unique_ptr<EffectProcessor> create_light_sweep_effect_processor() {
+    return std::make_unique<SoftwareLightSweepEffectProcessor>();
+};
+
 std::unique_ptr<EffectProcessor> create_bloom_effect_processor() {
     return std::make_unique<SoftwareBloomEffectProcessor>();
 };
@@ -833,6 +1053,10 @@ std::unique_ptr<EffectProcessor> create_invert_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_vignette_effect_processor() {
     return std::make_unique<SoftwareVignetteEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_alpha_threshold_effect_processor() {
+    return std::make_unique<SoftwareAlphaThresholdEffectProcessor>();
 };
 
 std::unique_ptr<EffectProcessor> create_exposure_effect_processor() {
@@ -897,6 +1121,14 @@ std::unique_ptr<EffectProcessor> create_curves_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_stroke_effect_processor() {
     return std::make_unique<SoftwareStrokeEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_inner_glow_effect_processor() {
+    return std::make_unique<SoftwareInnerGlowEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_glow_advanced_effect_processor() {
+    return std::make_unique<SoftwareGlowAdvancedEffectProcessor>();
 }
 
 } // namespace chronon3d::renderer

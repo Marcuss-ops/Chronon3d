@@ -306,6 +306,18 @@ struct EvaluatedLayerPlacement {
                 Vec3(-ctx.frame_input.width * 0.5f,
                      -ctx.frame_input.height * 0.5f,
                      0.0f)) * ssaa_world;
+        } else if (item.layer && item.layer->kind == LayerKind::Video) {
+            // Video surfaces are rasterized at the authored layer box and the
+            // TransformNode scales them about their own centre, while the
+            // authored placement is canvas-centred.  item.world_matrix still
+            // carries the implicit canvas-centre translation (tx = width/2),
+            // so remove it once; otherwise a centred 92% card renders shifted
+            // by half a canvas.  strip_implicit_canvas_centering() cannot do
+            // this here because it only handles LayerKind::Normal.
+            Mat4 centered = item.world_matrix;
+            centered[3][0] -= ctx.frame_input.width * 0.5f;
+            centered[3][1] -= ctx.frame_input.height * 0.5f;
+            result.render_matrix = centered;
         } else {
             result.render_matrix = strip_implicit_canvas_centering(
                 item.world_matrix, item, ctx);

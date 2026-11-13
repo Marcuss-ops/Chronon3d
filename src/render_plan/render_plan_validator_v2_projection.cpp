@@ -224,7 +224,8 @@ nlohmann::json validation_detail::v2_projection(const nlohmann::json& root) {
                                     "sprite_scale", "rotation", "angular_velocity",
                                     "environment", "depth_range", "bokeh",
                                     "flow_strength", "flow_scale", "flow_speed",
-                                    "twinkle", "twinkle_speed"})
+                                    "twinkle", "twinkle_speed", "air_drag", "emissive",
+                                    "emitter_velocity", "size_over_life", "opacity_over_life"})
                 emitter.erase(key);
         }
         if (layer.contains("style") && layer["style"].is_object()) {

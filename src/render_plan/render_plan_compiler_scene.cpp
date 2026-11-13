@@ -374,19 +374,18 @@ void apply_scene_layer_masks(LayerBuilder& builder, const LayerPlan& layer, cons
 void apply_scene_layer_video_position(LayerBuilder& builder, const LayerPlan& layer, const RenderPlan& plan) {
     if (layer.type == LayerType::Video &&
         layer.position_dimensions >= 2) {
-        const float sx = std::abs(layer.scale[0]) > 1e-6f
-            ? std::abs(layer.scale[0]) : 1.0f;
-        const float sy = std::abs(layer.scale[1]) > 1e-6f
-            ? std::abs(layer.scale[1]) : 1.0f;
-        const float displayed_w = layer.size_dimensions == 2
-            ? layer.size[0] : static_cast<float>(plan.canvas.width) * sx;
-        const float displayed_h = layer.size_dimensions == 2
-            ? layer.size[1] : static_cast<float>(plan.canvas.height) * sy;
+        // A video layer's plan position is the top-left of its
+        // unscaled box in canvas-centred coordinates. The scene
+        // transform is centred on that box and applies the authored
+        // scale once, so convert the origin to the box centre instead
+        // of deriving a second scaled box.
+        const float box_w = layer.size_dimensions == 2
+            ? layer.size[0] : static_cast<float>(plan.canvas.width);
+        const float box_h = layer.size_dimensions == 2
+            ? layer.size[1] : static_cast<float>(plan.canvas.height);
         builder.position({
-            layer.position[0] + displayed_w * 0.5f -
-                static_cast<float>(plan.canvas.width) * 0.5f,
-            layer.position[1] + displayed_h * 0.5f -
-                static_cast<float>(plan.canvas.height) * 0.5f,
+            layer.position[0] + box_w * 0.5f,
+            layer.position[1] + box_h * 0.5f,
             layer.position[2]});
     }
 }

@@ -216,6 +216,11 @@ private:
     static void retain_materialized_frame(Session& session, std::int64_t index, AVFrame* frame);
     std::shared_ptr<Session> open_session_locked(
         const std::string& path, DecodeDiagnostic* diagnostic);
+    /// Recreate the codec context in place for a backward seek. NVDEC can
+    /// reject a new cuvid decoder after repeated seek+flush cycles (the
+    /// 15 s background loop hits this on its third cycle), so release the old
+    /// hardware decoder and its retained surfaces before reopening.
+    bool open_codec_locked(Session& session, DecodeDiagnostic* diagnostic);
 };
 #else
 class NativeVideoFrameDecoder final : public MediaFrameProvider {

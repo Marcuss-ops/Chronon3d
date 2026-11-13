@@ -341,6 +341,9 @@ NodeExecResult EffectStackNode::execute(
                 case effects::EffectType::WaveWarp:
                 case effects::EffectType::Ripple:
                 case effects::EffectType::LensDistortion:
+                case effects::EffectType::OpticsCompensation:
+                case effects::EffectType::CylinderWrap:
+                case effects::EffectType::SphereWrap:
                 case effects::EffectType::FoldWarp:
                 case effects::EffectType::RoughenEdges:
                 case effects::EffectType::Stroke:
@@ -381,7 +384,13 @@ NodeExecResult EffectStackNode::execute(
                     break;
                 case effects::EffectType::Glow:
                 case effects::EffectType::Bloom:
+                case effects::EffectType::GlowAdvanced:
                     stage_handled = native_effects::try_native_full_frame_glow_or_bloom(
+                        ctx, one_effect, *result, native_clip, current_source,
+                        current_source_framebuffer);
+                    break;
+                case effects::EffectType::InnerGlow:
+                    stage_handled = native_effects::try_native_full_frame_inner_glow(
                         ctx, one_effect, *result, native_clip, current_source,
                         current_source_framebuffer);
                     break;
@@ -506,6 +515,11 @@ NodeExecResult EffectStackNode::execute(
             }
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_glow_or_bloom(
+                    ctx, active_effects, *result, native_clip, native_source,
+                    native_source_available ? inputs[0].get() : nullptr);
+            }
+            if (!native_handled) {
+                native_handled = native_effects::try_native_full_frame_inner_glow(
                     ctx, active_effects, *result, native_clip, native_source,
                     native_source_available ? inputs[0].get() : nullptr);
             }

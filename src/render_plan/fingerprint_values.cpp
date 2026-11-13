@@ -255,6 +255,12 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
             reinterpret_cast<const char*>(style.fill_pattern->rgba.data()),
             style.fill_pattern->rgba.size()));
         for (const auto value : style.fill_pattern->transform) out.add_float(value);
+        out.add_bool(style.fill_pattern->object_bounding_box);
+        out.add_float(style.fill_pattern->object_x);
+        out.add_float(style.fill_pattern->object_y);
+        out.add_float(style.fill_pattern->object_width);
+        out.add_float(style.fill_pattern->object_height);
+        out.add_float(style.fill_pattern->raster_scale);
     }
     add_optional(out, style.fill_opacity,
                  [](auto& writer, float value) { writer.add_float(value); });
@@ -293,6 +299,12 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
             reinterpret_cast<const char*>(style.stroke_pattern->rgba.data()),
             style.stroke_pattern->rgba.size()));
         for (const auto value : style.stroke_pattern->transform) out.add_float(value);
+        out.add_bool(style.stroke_pattern->object_bounding_box);
+        out.add_float(style.stroke_pattern->object_x);
+        out.add_float(style.stroke_pattern->object_y);
+        out.add_float(style.stroke_pattern->object_width);
+        out.add_float(style.stroke_pattern->object_height);
+        out.add_float(style.stroke_pattern->raster_scale);
     }
     add_optional(out, style.shadow, [](auto& writer, const ShadowStyle& shadow) {
         writer.add_string(shadow.color);
@@ -380,6 +392,46 @@ void add_text_animator(CanonicalPlanWriter& out, const TextAnimatorPlan& animato
         add_optional(out, selector.semantic_id, [](auto& writer, const std::string& value) {
             writer.add_string(value);
         });
+        // Extend the canonical stream only for non-default selector fields so
+        // legacy plans keep their pinned fingerprint.  The flag word keeps the
+        // variable-length extension unambiguous across fields.
+        std::uint64_t selector_extension = 0;
+        if (selector.range_units != "percentage") selector_extension |= 1ull << 0;
+        if (selector.smoothness != 0.0f) selector_extension |= 1ull << 1;
+        if (selector.wiggles_per_second != 0.0f) selector_extension |= 1ull << 2;
+        if (selector.correlation != 0.0f) selector_extension |= 1ull << 3;
+        if (selector.temporal_phase != 0.0f) selector_extension |= 1ull << 4;
+        if (selector.spatial_phase != 0.0f) selector_extension |= 1ull << 5;
+        if (selector.min_amount != 0.0f) selector_extension |= 1ull << 6;
+        if (selector.max_amount != 100.0f) selector_extension |= 1ull << 7;
+        if (!selector.lock_dimensions) selector_extension |= 1ull << 8;
+        if (selector.wiggly_mode != "smooth") selector_extension |= 1ull << 9;
+        if (selector.expression) selector_extension |= 1ull << 10;
+        if (selector_extension != 0) {
+            out.add_uint64(selector_extension);
+            if ((selector_extension & (1ull << 0)) != 0)
+                out.add_string(selector.range_units);
+            if ((selector_extension & (1ull << 1)) != 0)
+                out.add_float(selector.smoothness);
+            if ((selector_extension & (1ull << 2)) != 0)
+                out.add_float(selector.wiggles_per_second);
+            if ((selector_extension & (1ull << 3)) != 0)
+                out.add_float(selector.correlation);
+            if ((selector_extension & (1ull << 4)) != 0)
+                out.add_float(selector.temporal_phase);
+            if ((selector_extension & (1ull << 5)) != 0)
+                out.add_float(selector.spatial_phase);
+            if ((selector_extension & (1ull << 6)) != 0)
+                out.add_float(selector.min_amount);
+            if ((selector_extension & (1ull << 7)) != 0)
+                out.add_float(selector.max_amount);
+            if ((selector_extension & (1ull << 8)) != 0)
+                out.add_bool(selector.lock_dimensions);
+            if ((selector_extension & (1ull << 9)) != 0)
+                out.add_string(selector.wiggly_mode);
+            if ((selector_extension & (1ull << 10)) != 0)
+                out.add_string(*selector.expression);
+        }
     }
     out.add_size(animator.properties.size());
     for (const auto& track : animator.properties) add_track(out, track);

@@ -274,12 +274,15 @@ and the existing compiler, sampler, and renderer.
   visibility and deterministic repeats for fill and stroke gradients.
 - [x] Complete bounded SVG pattern text paint. The software path carries immutable
   RGBA tiles through TextPaint and uses Blend2D repeat patterns for fill and
-  stroke. The importer accepts bounded integer-pixel tiles with explicit
-  `userSpaceOnUse`, no inheritance, and solid path/primitive children, including
-  child transforms and fill-rule. The raw gate covers fill, stroke, path and
-  rect paint, translucency, and deterministic repeats. Group children, gradient
-  or stroke paint inside tiles, objectBoundingBox units, and href inheritance
-  fail closed by contract; browser-complete pattern inheritance is out of scope.
+  stroke. The importer accepts bounded `userSpaceOnUse` and matching
+  `objectBoundingBox` tiles, recursive groups (depth 8), solid/gradient fill and
+  stroke, fill-rule, child transforms, and local `href` inheritance with cycle
+  checks. Bounds are 32 shapes, 1024 commands per shape, and 4096 total; mixed
+  units, viewBox/preserveAspectRatio, nested pattern paint, animated gradient
+  paint, and dash strokes fail closed. The raw gate covers fill, stroke, group
+  and gradient paint, objectBoundingBox bounds, phase, translucency, and
+  deterministic repeats. Browser-complete pattern inheritance remains out of
+  scope.
 - [x] Add font-metric `dominant-baseline` support for central, middle and
   hanging baselines, and inherited `baseline-shift` values for sub/super,
   pixel, em and percentage inputs. The current sub/super values use bounded
@@ -315,7 +318,7 @@ and the existing compiler, sampler, and renderer.
   runs. Nested `textLength` scopes, textPath length adjustment, coordinate-list
   combinations, and nested rotate lists fail closed pending a separate scope
   implementation.
-- [x] Lower bounded SVG `textPath` through the existing path sampler and text shaping pipeline. Local references to visible static paths in the same group coordinate scope and direct paths in `<defs>` are supported, with numeric/percentage `startOffset`, `text-anchor`, and per-cluster canonical text layers retaining the text element ID. `dx/dy` and absolute `x/y` lists place clusters along/perpendicular to the path; paired transformed coordinates are projected into the path basis. Unsupported `method`, `spacing`, and `side` values fail closed. Raw-pixel coverage verifies coordinate changes and deterministic repeats.
+- [x] Lower bounded SVG `textPath` through the existing path sampler and text shaping pipeline. Local references to visible static paths in the same group coordinate scope and direct paths in `<defs>` are supported, with numeric/percentage `startOffset`, `text-anchor`, and per-cluster canonical text layers retaining the text element ID. Compatible chunks are merged before shaping; paint changes are applied per shaped cluster so style boundaries do not split ligatures or joining runs. `direction=rtl` and auto detection place clusters in visual order without double reversal. `dx/dy` and absolute `x/y` lists place clusters along/perpendicular to the path; paired transformed coordinates are projected into the path basis. The supported attribute subset is `method=align`, `spacing=exact`, `side=left`; all other values fail closed. Raw-pixel coverage verifies coordinate changes, LTR/RTL progression, and deterministic repeats.
 - [x] Prefer Chronon frame tracks for authored motion. Add SMIL timing forms
   only when real assets require them; do not pursue browser-complete SMIL.
   Authored element motion lowers to the shared Chronon `AnimationTrackPlan`

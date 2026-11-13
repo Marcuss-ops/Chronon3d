@@ -1,13 +1,26 @@
 # TICKET — Hotspot decomposition waves
 
-Status: `ACTIVE`  
+Status: `CLOSED` (2026-11-12, locale) — wave A–E verificate; residui GPU/MTSDF
+restano tracciati separatamente.
 Owner: CLI/render maintainers  
 Scope: orchestration boundaries, high-churn render paths, and compile-time text
 headers identified by the 2026-09 audit.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] **Chiudere e registrare l'esito dei criteri delle wave residue B–E** — logica: ogni wave ha criteri di accettazione dichiarati ma l'esito non è registrato; finché manca la registrazione la wave resta aperta. Dove per wave: B (packet/mux boundary) → `src/media/video/mux/packet_assembler.cpp` + `apps/chronon3d_cli/utils/video/gop_target_contract.{hpp,cpp}`; C (render node policies) → `src/render_graph/pipeline/scene.cpp` + `executor/node_runner_fused_batch.cpp`; D (backend boundaries) → `src/render_graph/core/render_graph_hashing.cpp` + `src/runtime/execution_plan_cache.cpp`; E (text header compile-time) → header text + `src/render_graph/CMakeLists.txt`. Gate: per ogni wave, criterio verificato + esito (PASS/PARTIAL/NOT RUN) con evidenza datata.
+- [x] **Chiudere e registrare l'esito dei criteri delle wave residue B–E** — CHIUSO (2026-11-12). Logica: ogni wave ha criteri di accettazione dichiarati ma l'esito non è registrato; finché manca la registrazione la wave resta aperta. Dove per wave: B (packet/mux boundary) → `src/media/video/mux/packet_assembler.cpp` + `apps/chronon3d_cli/utils/video/gop_target_contract.{hpp,cpp}`; C (render node policies) → `src/render_graph/pipeline/scene.cpp` + `executor/node_runner_fused_batch.cpp`; D (backend boundaries) → `src/render_graph/core/render_graph_hashing.cpp` + `src/runtime/execution_plan_cache.cpp`; E (text header compile-time) → header text + `src/render_graph/CMakeLists.txt`. Gate: per ogni wave, criterio verificato + esito (PASS/PARTIAL/NOT RUN) con evidenza datata.
+
+## Esito wave B–E — 2026-11-12
+
+| Wave | Criterio verificato | Esito | Evidenza |
+|---|---|---|---|
+| B — packet/mux | Boundary `PacketAssembler`/GOP con un solo `MuxSession`; contract e parità direct-mux | **PASS** | `chronon3d_cli_tests --test-case='*Packet*,*GOP*,*gop*,*P0-5*'`: **24/24 casi, 1.766/1.766 assert**; include `P0-5A` fail-closed, `P0-5B` oracle, `P0-5C` caller-owned mux, `P0-5D` copy parity, `P0-5E/5F` hybrid parity e HEVC `hvcC` |
+| C — render node policies | Clear/Transform/Fused/Cached GPU text/Temporal separati dal dispatch, con policy pure testate | **PASS** | `chronon3d_render_graph_tests`: **460/460 casi, 19.743/19.743 assert**; il filtro policy dedicato è **35/35 casi, 216/216 assert** |
+| D — backend boundaries | Separazione strutturale Vulkan/CUDA e hashing; una sola authority | **PASS (structural)**; runtime GPU **NOT RUN** | `check_architecture.py`: **218/218 PASS**; build/link CLI e suite CLI **266/266 casi**; la certificazione runtime Vulkan/CUDA resta esterna e non è dichiarata PASS |
+| E — text header compile-time | Header focalizzati, census e ratchet del fan-out | **PASS** | `check_text_header_fanout.py`: `TEXT_HEADER_GATE_PASS`, ratchet **22**, consumer diretti `text_unicode_utils` **0** |
+
+La chiusura non promuove i residui GPU/MTSDF: D1/D2 restano strutturali e la
+certificazione runtime same-SHA resta fuori da questo ticket.
 
 ## Progress snapshot — 2026-10-02 — shared-lock contention
 
@@ -362,8 +375,8 @@ item 3 of the definition of done.
   tests, GPU text canary, architecture gate e build target-specific.
 - **Removal scope:** include `.inc` non più necessari, helper duplicati e
   bridge temporanei introdotti solo per la migrazione.
-- **Status:** `ACTIVE`; il primo seam di Wave A è stato estratto e compilato,
-  mentre il test diretto e le successive estrazioni restano aperti.
+- **Status:** `CLOSED` (2026-11-12); wave A–E estratte e verificate, con i
+  residui runtime GPU/MTSDF tracciati separatamente.
 
 ## Progress snapshot — 2026-10-02
 

@@ -27,6 +27,12 @@
 // mode 12 (ColorMap): p[0..4].rgb are five evenly spaced straight-RGB stops,
 //                     p[0].w is the source→mapped blend amount; luminance
 //                     picks the segment and alpha is preserved.
+// mode 17 (AlphaThreshold): p[0].x threshold, p[0].y softness,
+//                     p[0].z recolor flag; p[1].rgb fill color. The mask is
+//                     smoothstepped in alpha and the output is premultiplied.
+// mode 18 (LightSweep): p[0] = center xy, angle radians, full width px;
+//                     p[1] = softness, intensity, edge intensity, edge width;
+//                     p[2].rgb = light color. Additive inside existing alpha.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
@@ -355,10 +361,61 @@ void main() {
         return;
     }
     if (source.a <= 0.0) {
-        // Threshold clears transparent inputs; Keying follows the software
-        // processor's alpha<=epsilon skip and preserves transparent RGB.
-        bool threshold_mode = params.options.x > 1.5 && params.options.x < 2.5;
+        // Threshold and AlphaThreshold clear transparent inputs; Keying
+        // follows the software processor's alpha<=epsilon skip and preserves
+        // transparent RGB.
+        const bool threshold_mode =
+            (params.options.x > 1.5 && params.options.x < 2.5) ||
+            (params.options.x > 16.5 && params.options.x < 17.5);
         imageStore(destination_image, coord, threshold_mode ? vec4(0.0) : source);
+        return;
+    }
+    if (params.options.x > 16.5 && params.options.x < 17.5) {
+        float source_alpha = clamp(source.a, 0.0, 1.0);
+        float threshold = params.p[0].x;
+        float softness = params.p[0].y;
+        float mask = 0.0;
+        if (softness <= 0.0) {
+            mask = source_alpha >= threshold ? 1.0 : 0.0;
+        } else {
+            float lo = threshold - softness * 0.5;
+            float hi = threshold + softness * 0.5;
+            float t = clamp((source_alpha - lo) / max(hi - lo, 1.0e-6), 0.0, 1.0);
+            mask = t * t * (3.0 - 2.0 * t);
+        }
+        if (params.p[0].z > 0.5) {
+            imageStore(destination_image, coord, vec4(params.p[1].rgb * mask, mask));
+        } else {
+            vec3 straight_rgb = source.rgb / max(source.a, 1.0e-8);
+            imageStore(destination_image, coord, vec4(straight_rgb * mask, mask));
+        }
+        return;
+    }
+    if (params.options.x > 17.5 && params.options.x < 18.5) {
+        vec2 center = params.p[0].xy * vec2(size);
+        vec2 direction = vec2(cos(params.p[0].z), sin(params.p[0].z));
+        float distance = abs(dot(vec2(coord) + vec2(0.5) - center, direction));
+        float half_width = params.p[0].w * 0.5;
+        float softness = max(params.p[1].x, 1.0e-6);
+        float profile = 0.0;
+        if (distance <= half_width) profile = 1.0;
+        else if (distance < half_width + softness) {
+            float t = (distance - half_width) / softness;
+            profile = 1.0 - t * t * (3.0 - 2.0 * t);
+        }
+        float edge = 0.0;
+        if (params.p[1].w > 0.0) {
+            float e = (distance - half_width) / params.p[1].w;
+            edge = exp(-e * e) * params.p[1].z;
+        }
+        float gain = profile * params.p[1].y + edge;
+        if (gain <= 0.0) {
+            imageStore(destination_image, coord, source);
+            return;
+        }
+        vec3 straight_rgb = source.rgb / source.a;
+        straight_rgb = min(vec3(1.0), straight_rgb + params.p[2].rgb * gain);
+        imageStore(destination_image, coord, vec4(straight_rgb * source.a, source.a));
         return;
     }
     const bool straight = params.options.z > 0.5;

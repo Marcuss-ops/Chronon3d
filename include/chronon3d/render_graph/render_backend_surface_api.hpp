@@ -138,6 +138,14 @@ public:
         runtime::RenderSurfaceHandle scratch_horizontal,
         runtime::RenderSurfaceHandle scratch_vertical, float radius, float intensity,
         const Color& tint);
+    virtual RenderOpResult glow_advanced_surfaces(
+        runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle scratch_horizontal,
+        runtime::RenderSurfaceHandle scratch_vertical,
+        const GlowAdvancedParams& params);
+    virtual RenderOpResult inner_glow_composite_surface(
+        runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
+        const Color& tint, float intensity);
     virtual RenderOpResult bloom_surfaces(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         runtime::RenderSurfaceHandle scratch_horizontal,

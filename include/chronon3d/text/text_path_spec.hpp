@@ -84,6 +84,11 @@ struct TextPathSpec {
     /// If true, the normal is flipped (useful for text below a path).
     bool flip_normal{false};
 
+    /// Resolved inline direction: 0 = auto, 1 = LTR, 2 = RTL. Auto inspects
+    /// source_text. RTL clusters are placed in visual order along the path
+    /// without reversing the shaped glyph order a second time.
+    int direction{0};
+
     /// If true, the path is treated as closed (end connects to start).
     /// When combined with WrapClosedPath overflow, clusters past the end
     /// wrap around to the path start.

@@ -31,6 +31,15 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
     CHECK(sdf_bevel->route == GpuEffectRoute::NativeZeroReadback);
     CHECK(sdf_bevel->diagnostic.find("separable SDF") != std::string_view::npos);
 
+    // ContourPalette deliberately has no Vulkan row yet: strict-native must
+    // fail closed instead of inheriting the SdfBevel pipeline by accident.
+    // Every catalog effect has an explicit row; absence of a native route is
+    // represented by Unsupported, never by a missing row.
+    const auto* contour = graph::gpu_effect_capability(EffectType::ContourPalette);
+    REQUIRE(contour != nullptr);
+    CHECK(contour->route == GpuEffectRoute::Unsupported);
+    CHECK(contour->diagnostic.find("not implemented") != std::string_view::npos);
+
     const auto* bloom = graph::gpu_effect_capability(EffectType::Bloom);
     REQUIRE(bloom != nullptr);
     CHECK(bloom->route == GpuEffectRoute::NativeZeroReadback);
@@ -103,6 +112,8 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
                             EffectType::TurbulentDisplace, EffectType::WaveWarp,
                             EffectType::Ripple, EffectType::DisplacementMap,
                             EffectType::Halftone, EffectType::LensDistortion,
+                            EffectType::OpticsCompensation,
+                            EffectType::GlowAdvanced, EffectType::InnerGlow,
                             EffectType::LuminanceResponse, EffectType::FoldWarp,
                             EffectType::CreaseShading, EffectType::RoughenEdges}) {
         const auto* row = graph::gpu_effect_capability(type);
@@ -124,7 +135,9 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
 TEST_CASE("AE effect graph hashes include every authored scalar parameter") {
     using namespace effects;
     for (const auto id : {ids::TransitionLinearWipe, ids::StylizeMinMax,
-                          ids::DistortStretchWarp, ids::LightLensFlare}) {
+                          ids::DistortStretchWarp, ids::LightLensFlare,
+                          ids::LightInnerGlow, ids::LightGlowAdvanced,
+                          ids::DistortOpticsCompensation}) {
         const auto defaults=make_default_animatable_effect_params(id);
         REQUIRE(defaults);
         const auto hash=[](const EffectParams& params) {

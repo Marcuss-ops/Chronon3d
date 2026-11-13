@@ -77,6 +77,33 @@ struct SvgStyledElement {
 /// lowered to ordinary Chronon text layers, so shaping and rasterization stay
 /// on the canonical text path. Coordinates remain in SVG user space until the
 /// RenderPlan compiler applies the root/group transforms.
+struct SvgTextLengthScope {
+    std::string id;
+    float target{0.0f};
+    std::string length_adjust{"spacing"};
+
+    bool operator==(const SvgTextLengthScope&) const = default;
+};
+
+/// Paint carried by one byte range of a merged textPath run. Shaping is
+/// preserved across style boundaries; the RenderPlan compiler selects the
+/// paint per shaped cluster so paint changes never split a ligature or a
+/// joining-script cluster.
+struct SvgTextPaintRange {
+    std::size_t byte_start{0};
+    std::size_t byte_end{0};
+    std::string fill{"#000000"};
+    std::optional<graphics::GradientDefinition> fill_gradient;
+    std::shared_ptr<const graphics::PatternTile> fill_pattern;
+    float fill_opacity{1.0f};
+    std::optional<std::string> stroke;
+    std::optional<graphics::GradientDefinition> stroke_gradient;
+    std::shared_ptr<const graphics::PatternTile> stroke_pattern;
+    float stroke_width{0.0f};
+    float stroke_opacity{1.0f};
+    float opacity{1.0f};
+};
+
 struct SvgTextRun {
     std::string text;
     std::string text_element_id;
@@ -93,6 +120,15 @@ struct SvgTextRun {
     float word_spacing{0.0f};
     std::optional<float> text_length;
     std::string length_adjust{"spacing"};
+    /// Enclosing textLength constraints, outermost first. A run inside nested
+    /// <tspan textLength> scopes carries one entry per scope.
+    std::vector<SvgTextLengthScope> text_length_scopes;
+    /// Set by the RenderPlan lowering after it resolves a multi-run or nested
+    /// scope. `text_length` remains the innermost authored target.
+    bool text_length_resolved{false};
+    float resolved_text_length_scale{1.0f};
+    float resolved_text_length_gap{0.0f};
+    float resolved_text_length_trailing_gap{0.0f};
     /// Full 2D points/deltas for coordinate lists under rotated or skewed
     /// SVG coordinate transforms (the scalar arrays are axis-aligned only).
     std::vector<std::array<float, 2>> transformed_position_coordinates;
@@ -132,6 +168,9 @@ struct SvgTextRun {
     float stroke_dash_offset{0.0f};
     float stroke_opacity{1.0f};
     float opacity{1.0f};
+    /// Non-empty when compatible textPath chunks were merged for shaping.
+    /// Ranges cover the complete `text` byte sequence in order.
+    std::vector<SvgTextPaintRange> paint_ranges;
 };
 
 } // namespace chronon3d::assets

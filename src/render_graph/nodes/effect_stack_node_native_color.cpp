@@ -438,6 +438,39 @@ lower_native_color_effect(const effects::EffectInstance& instance,
         out.honors_clip = true;
         return out;
     }
+    case effects::EffectType::AlphaThreshold: {
+        const auto* p = std::get_if<AlphaThresholdParams>(&instance.params);
+        if (!p || !finite_all({p->threshold, p->softness,
+                               p->fill_color.r, p->fill_color.g,
+                               p->fill_color.b, p->fill_color.a}) ||
+            p->threshold < 0.0f || p->threshold > 1.0f ||
+            p->softness < 0.0f || p->softness > 1.0f)
+            return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::AlphaThreshold;
+        out.transform.p[0] = {p->threshold, p->softness,
+                              p->recolor ? 1.0f : 0.0f, 0.0f};
+        out.transform.p[1] = {p->fill_color.r, p->fill_color.g,
+                              p->fill_color.b, p->fill_color.a};
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::LightSweep: {
+        const auto* p = std::get_if<LightSweepParams>(&instance.params);
+        if (!p) return std::nullopt;
+        try {
+            p->validate();
+        } catch (const std::invalid_argument&) {
+            return std::nullopt;
+        }
+        const float radians = p->angle_degrees * std::numbers::pi_v<float> / 180.0f;
+        out.transform.mode = NativeColorTransform::Mode::LightSweep;
+        out.transform.p[0] = {p->center_x, p->center_y, radians, p->width};
+        out.transform.p[1] = {p->softness, p->intensity,
+                              p->edge_intensity, p->edge_width};
+        out.transform.p[2] = {p->color_r, p->color_g, p->color_b, 0.0f};
+        out.honors_clip = true;
+        return out;
+    }
     default:
         return std::nullopt;
     }

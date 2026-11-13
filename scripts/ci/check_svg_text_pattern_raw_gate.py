@@ -12,20 +12,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 FONT = ROOT / "assets" / "fonts" / "Inter-Bold.ttf"
-WIDTH, HEIGHT = 320, 160
+WIDTH, HEIGHT = 320, 200
 FRAME_BYTES = WIDTH * HEIGHT * 4
 
-
-def render(cli: Path, root: Path, stem: str) -> bytes:
-    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}">
-      <defs><pattern id="tile" patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse" width="8" height="8" patternTransform="translate(1 0)">
+BASE_PATTERN = '''<pattern id="tile" patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse" width="8" height="8" patternTransform="translate(1 0)">
         <rect x="0" y="0" width="4" height="8" fill="#ff0000"/>
         <rect x="4" y="0" width="4" height="8" fill="#0000ff"/>
         <path d="M 3 1 L 1 7 L 5 7 Z" transform="translate(1 0)" fill="#00ff00"/>
         <rect x="0" y="0" width="4" height="8" fill="#ffffff" opacity="0.5" fill-opacity="0.5"/>
-      </pattern></defs>
-      <text x="16" y="70" font-family="Inter" font-weight="bold" font-size="64" fill="url(#tile)">PATTERN</text>
-      <text x="16" y="142" font-family="Inter" font-weight="bold" font-size="64" fill="none" stroke="url(#tile)" stroke-width="3">SVG</text>
+      </pattern>'''
+
+
+def render(cli: Path, root: Path, stem: str, body: str) -> bytes:
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}">
+      {body}
     </svg>'''
     (root / f"{stem}.svg").write_text(svg)
     (root / f"{stem}.json").write_text(json.dumps({
@@ -51,6 +51,49 @@ def render(cli: Path, root: Path, stem: str) -> bytes:
     return pixels
 
 
+def base_body(pattern_transform: str = "translate(1 0)") -> str:
+    pattern = BASE_PATTERN.replace('patternTransform="translate(1 0)"',
+                                   f'patternTransform="{pattern_transform}"')
+    return f'''<defs>{pattern}</defs>
+      <text x="16" y="78" font-family="Inter" font-weight="bold" font-size="64" fill="url(#tile)">PATTERN</text>
+      <text x="16" y="160" font-family="Inter" font-weight="bold" font-size="64" fill="none" stroke="url(#tile)" stroke-width="3">SVG</text>'''
+
+EXTENDED_BODY = '''<defs>
+        <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="1" y1="0" x2="5" y2="0">
+          <stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/>
+        </linearGradient>
+        <pattern id="base" patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse" width="8" height="8">
+          <g transform="translate(1 0)">
+            <rect width="4" height="8" fill="url(#ink)"/>
+            <path d="M 0 0 L 2 4" fill="none" stroke="#00ff00" stroke-width="1.5"/>
+          </g>
+        </pattern>
+        <pattern id="derived" href="#base" patternTransform="translate(2 0)"/>
+        <pattern id="obb" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="0.5" height="0.5">
+          <rect width="1" height="1" fill="#ff00ff"/>
+        </pattern>
+      </defs>
+      <text x="16" y="78" font-family="Inter" font-weight="bold" font-size="64" fill="url(#derived)">GROUP</text>
+      <text x="16" y="160" font-family="Inter" font-weight="bold" font-size="64" fill="url(#obb)">OBB</text>'''
+
+PHASE_A = base_body("translate(1 0)")
+PHASE_B = base_body("translate(3 0)")
+
+
+def colors(frame: bytes) -> dict[str, int]:
+    visible = [(frame[i], frame[i + 1], frame[i + 2], frame[i + 3])
+               for i in range(0, FRAME_BYTES, 4) if frame[i + 3] > 48]
+    return {
+        "visible": len(visible),
+        "red": sum(r > g * 1.3 and r > b * 1.3 for r, g, b, _ in visible),
+        "blue": sum(b > r * 1.3 and b > g * 1.3 for r, g, b, _ in visible),
+        "green": sum(g > r * 1.3 and g > b * 1.3 for r, g, b, _ in visible),
+        "magenta": sum(r > g * 1.3 and b > g * 1.3 for r, g, b, _ in visible),
+        "source_over": sum(r > g * 1.2 and alpha * 0.4 < g < alpha * 0.7
+                           for r, g, _, alpha in visible),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli", default=os.environ.get("CHRONON_CLI"))
@@ -64,24 +107,39 @@ def main() -> int:
         root = Path(temp)
         (root / "fonts").mkdir()
         shutil.copyfile(FONT, root / "fonts" / "Inter-Bold.ttf")
-        frame = render(cli, root, "pattern")
-        repeat = render(cli, root, "pattern_repeat")
-    visible = [(frame[i], frame[i + 1], frame[i + 2], frame[i + 3])
-               for i in range(0, FRAME_BYTES, 4) if frame[i + 3] > 48]
-    red = sum(r > g * 1.3 and r > b * 1.3 for r, g, b, _ in visible)
-    blue = sum(b > r * 1.3 and b > g * 1.3 for r, g, b, _ in visible)
-    green = sum(g > r * 1.3 and g > b * 1.3 for r, g, b, _ in visible)
-    source_over = sum(r > g * 1.2 and alpha * 0.4 < g < alpha * 0.7
-                      for r, g, _, alpha in visible)
-    if len(visible) < 1000 or red < 200 or blue < 200 or green < 100 or source_over < 100:
+        frame = render(cli, root, "pattern", base_body("translate(1 0)"))
+        repeat = render(cli, root, "pattern_repeat", base_body("translate(1 0)"))
+        phase_a = render(cli, root, "pattern_phase_a", PHASE_A)
+        phase_b = render(cli, root, "pattern_phase_b", PHASE_B)
+        phase_repeat = render(cli, root, "pattern_phase_repeat", PHASE_B)
+        extended = render(cli, root, "pattern_extended", EXTENDED_BODY)
+        extended_repeat = render(cli, root, "pattern_extended_repeat", EXTENDED_BODY)
+    counts = colors(frame)
+    if (counts["visible"] < 1000 or counts["red"] < 200 or
+            counts["blue"] < 200 or counts["green"] < 100 or
+            counts["source_over"] < 100):
         raise RuntimeError(
-            f"pattern fill/stroke lost tile paint: visible={len(visible)} red={red} "
-            f"blue={blue} green_path={green} translucent_source_over={source_over}")
+            f"pattern fill/stroke lost tile paint: {counts}")
     if frame != repeat:
         raise RuntimeError("repeated SVG text pattern render differs pixel-for-pixel")
-    print(f"SVG text pattern fill/stroke: PASS visible={len(visible)} red={red} "
-          f"blue={blue} green_path={green} translucent_source_over={source_over}")
+    if sum(a != b for a, b in zip(phase_a, phase_b)) < 500:
+        raise RuntimeError("patternTransform phase did not change the rendered tile")
+    if phase_b != phase_repeat:
+        raise RuntimeError("repeated pattern phase render differs pixel-for-pixel")
+    extended_counts = colors(extended)
+    if (extended_counts["visible"] < 500 or extended_counts["red"] < 100 or
+            extended_counts["blue"] < 100 or extended_counts["green"] < 20 or
+            extended_counts["magenta"] < 200):
+        raise RuntimeError(
+            f"group/gradient/stroke/objectBoundingBox pattern paint is missing: "
+            f"{extended_counts}")
+    if extended != extended_repeat:
+        raise RuntimeError("extended SVG text pattern render differs pixel-for-pixel")
+    print(f"SVG text pattern fill/stroke: PASS {counts}")
     print("SVG text pattern determinism: PASS (RGBA frame matches exactly)")
+    print("SVG text pattern phase: PASS (patternTransform changes tile phase deterministically)")
+    print(f"SVG text pattern groups/gradients/strokes/href/objectBoundingBox: PASS {extended_counts}")
+    print("SVG text pattern extended determinism: PASS (RGBA frame matches exactly)")
     return 0
 
 

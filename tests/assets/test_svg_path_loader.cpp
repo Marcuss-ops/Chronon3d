@@ -476,7 +476,60 @@ TEST_CASE("SVG text imports bounded textLength adjustment") {
     }
     const auto nested = load_svg_document_file(filename);
     std::remove(filename.c_str());
-    CHECK_FALSE(nested.ok);
+    REQUIRE(nested.ok);
+    REQUIRE(nested.text_runs.size() == 2);
+    CHECK(nested.text_runs[0].text == "A");
+    CHECK(nested.text_runs[1].text == "B");
+    REQUIRE(nested.text_runs[0].text_length_scopes.size() == 1);
+    REQUIRE(nested.text_runs[1].text_length_scopes.size() == 1);
+    CHECK(nested.text_runs[0].text_length_scopes[0].id ==
+          nested.text_runs[1].text_length_scopes[0].id);
+    CHECK(nested.text_runs[1].text_length_scopes[0].target ==
+          doctest::Approx(120.0f));
+}
+
+TEST_CASE("SVG nested textLength scopes retain inner-to-outer ordering") {
+    const std::string filename = "temp_test_svg_text_length_nested.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text font-family="Chronon Sans" textLength="200" lengthAdjust="spacing">AB<tspan textLength="80" lengthAdjust="spacingAndGlyphs">CD</tspan>EF</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 3);
+    REQUIRE(result.text_runs[0].text_length_scopes.size() == 1);
+    REQUIRE(result.text_runs[1].text_length_scopes.size() == 2);
+    REQUIRE(result.text_runs[2].text_length_scopes.size() == 1);
+    CHECK(result.text_runs[0].text_length_scopes[0].target ==
+          doctest::Approx(200.0f));
+    CHECK(result.text_runs[0].text_length_scopes[0].length_adjust == "spacing");
+    CHECK(result.text_runs[1].text_length_scopes[0].target ==
+          doctest::Approx(200.0f));
+    CHECK(result.text_runs[1].text_length_scopes[0].length_adjust == "spacing");
+    CHECK(result.text_runs[1].text_length_scopes[1].target ==
+          doctest::Approx(80.0f));
+    CHECK(result.text_runs[1].text_length_scopes[1].length_adjust ==
+          "spacingAndGlyphs");
+    CHECK(result.text_runs[0].text_length_scopes[0].id ==
+          result.text_runs[1].text_length_scopes[0].id);
+    CHECK(result.text_runs[0].text_length_scopes[0].id ==
+          result.text_runs[2].text_length_scopes[0].id);
+    CHECK(result.text_runs[1].text_length_scopes[1].id !=
+          result.text_runs[1].text_length_scopes[0].id);
+}
+
+TEST_CASE("SVG nested per-character rotate fails closed") {
+    const std::string filename = "temp_test_svg_nested_rotate.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text rotate="0 10">A<tspan>B</tspan></text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    CHECK_FALSE(result.ok);
+    CHECK(result.error.find("per-character rotate currently requires a direct text run") !=
+          std::string::npos);
 }
 
 TEST_CASE("SVG vertical writing mode fails closed") {
@@ -488,6 +541,9 @@ TEST_CASE("SVG vertical writing mode fails closed") {
     const auto result = load_svg_document_file(filename);
     std::remove(filename.c_str());
     CHECK_FALSE(result.ok);
+    CHECK(result.error.find(
+        "vertical SVG text writing modes are not supported by the bounded importer") !=
+        std::string::npos);
 }
 
 TEST_CASE("SVG text accepts the SVG dominant-baseline identifiers") {
@@ -697,6 +753,128 @@ TEST_CASE("SVG textPath retains relative per-character coordinate lists") {
     REQUIRE(result.text_runs.front().text_path_id.has_value());
     CHECK(result.text_runs.front().dx_coordinates == (std::vector<float>{0.0f, 8.0f, 0.0f}));
     CHECK(result.text_runs.front().dy_coordinates == (std::vector<float>{0.0f, 4.0f, 0.0f}));
+}
+
+TEST_CASE("SVG text pattern supports groups gradients strokes objectBoundingBox and href") {
+    const std::string filename = "temp_test_svg_text_pattern_extended.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><defs>
+          <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="1" y1="0" x2="5" y2="0">
+            <stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/>
+          </linearGradient>
+          <pattern id="base" patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse" width="8" height="8">
+            <g transform="translate(1 0)">
+              <rect width="4" height="8" fill="url(#ink)"/>
+              <path d="M 0 0 L 2 4" fill="none" stroke="#00ff00" stroke-width="1.5"/>
+            </g>
+          </pattern>
+          <pattern id="derived" href="#base" patternTransform="translate(2 0)"/>
+          <pattern id="obb" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="0.5" height="0.5">
+            <rect width="1" height="1" fill="#ff00ff"/>
+          </pattern>
+        </defs>
+        <text x="0" y="20" font-family="Chronon Sans" fill="url(#base)">A</text>
+        <text x="0" y="40" font-family="Chronon Sans" fill="url(#derived)" stroke="url(#base)" stroke-width="2">B</text>
+        <text x="0" y="60" font-family="Chronon Sans" fill="url(#obb)">C</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 3);
+    REQUIRE(result.text_runs[0].fill_pattern);
+    const auto& base = *result.text_runs[0].fill_pattern;
+    REQUIRE(base.valid());
+    CHECK(base.width == 8);
+    CHECK(base.height == 8);
+    CHECK_FALSE(base.object_bounding_box);
+    std::size_t red = 0, blue = 0, green = 0;
+    for (std::size_t index = 0; index + 3 < base.rgba.size(); index += 4) {
+        const int r = base.rgba[index + 0];
+        const int g = base.rgba[index + 1];
+        const int b = base.rgba[index + 2];
+        if (base.rgba[index + 3] < 8) continue;
+        if (r > g * 2 && r > b * 2) ++red;
+        else if (b > r * 2 && b > g * 2) ++blue;
+        else if (g > r * 2 && g > b * 2) ++green;
+    }
+    CHECK(red > 0);
+    CHECK(blue > 0);
+    CHECK(green > 0);
+
+    REQUIRE(result.text_runs[1].fill_pattern);
+    CHECK(result.text_runs[1].fill_pattern->width == 8);
+    CHECK(result.text_runs[1].fill_pattern->height == 8);
+    CHECK(result.text_runs[1].fill_pattern->transform[4] == doctest::Approx(2.0f));
+    REQUIRE(result.text_runs[1].stroke_pattern);
+    CHECK(result.text_runs[1].stroke_pattern->width == 8);
+
+    REQUIRE(result.text_runs[2].fill_pattern);
+    const auto& obb = *result.text_runs[2].fill_pattern;
+    CHECK(obb.object_bounding_box);
+    CHECK(obb.object_width == doctest::Approx(0.5f));
+    CHECK(obb.object_height == doctest::Approx(0.5f));
+    CHECK(obb.raster_scale == doctest::Approx(256.0f));
+    CHECK(obb.width == 128);
+    CHECK(obb.height == 128);
+}
+
+TEST_CASE("SVG text pattern rejects mixed units nested paint and href cycles") {
+    const auto load = [](const std::string& content, const char* filename) {
+        { std::ofstream out(filename); out << content; }
+        auto result = load_svg_document_file(filename);
+        std::remove(filename);
+        return result;
+    };
+    const auto mixed = load(R"svg(<svg><defs><pattern id="p" patternUnits="objectBoundingBox" patternContentUnits="userSpaceOnUse" width="0.5" height="0.5"><rect width="1" height="1"/></pattern></defs><text fill="url(#p)">A</text></svg>)svg", "temp_test_svg_pattern_mixed.svg");
+    CHECK_FALSE(mixed.ok);
+    CHECK(mixed.error.find("mixed units") != std::string::npos);
+
+    const auto nested = load(R"svg(<svg><defs><pattern id="a_inner" patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse" width="8" height="8"><rect width="8" height="8" fill="red"/></pattern><pattern id="b_outer" patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse" width="8" height="8"><rect width="8" height="8" fill="url(#a_inner)"/></pattern></defs><text fill="url(#b_outer)">A</text></svg>)svg", "temp_test_svg_pattern_nested.svg");
+    CHECK_FALSE(nested.ok);
+    CHECK(nested.error.find("nested pattern") != std::string::npos);
+
+    const auto cycle = load(R"svg(<svg><defs><pattern id="a" href="#b" patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse" width="8" height="8"><rect width="8" height="8" fill="red"/></pattern><pattern id="b" href="#a"/></defs><text fill="url(#a)">A</text></svg>)svg", "temp_test_svg_pattern_cycle.svg");
+    CHECK_FALSE(cycle.ok);
+    CHECK(cycle.error.find("cycle") != std::string::npos);
+
+    const auto missing = load(R"svg(<svg><defs><pattern id="p" href="#missing"/></defs><text fill="url(#p)">A</text></svg>)svg", "temp_test_svg_pattern_missing.svg");
+    CHECK_FALSE(missing.ok);
+    CHECK(missing.error.find("unknown pattern") != std::string::npos);
+}
+
+TEST_CASE("SVG textPath keeps shaping across paint chunks") {
+    const std::string filename = "temp_test_svg_text_path_paint_chunks.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><defs><path id="route" d="M 0 20 L 200 20"/></defs><text font-family="Chronon Sans"><textPath href="#route" startOffset="4"><tspan fill="#ff0000">AB</tspan><tspan fill="#0000ff">CD</tspan></textPath></text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    INFO("textPath chunk import error: " << result.error);
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 1);
+    CHECK(result.text_runs[0].text == "ABCD");
+    REQUIRE(result.text_runs[0].paint_ranges.size() == 2);
+    CHECK(result.text_runs[0].paint_ranges[0].fill == "#FF0000");
+    CHECK(result.text_runs[0].paint_ranges[1].fill == "#0000FF");
+    CHECK(result.text_runs[0].fill == "#FF0000");
+}
+
+TEST_CASE("SVG textPath rejects non-default spacing and side attributes") {
+    const auto load = [](const std::string& content) {
+        const std::string filename = "temp_test_svg_text_path_attribute.svg";
+        { std::ofstream out(filename); out << content; }
+        auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        return result;
+    };
+    const auto spacing = load(R"svg(<svg><defs><path id="p" d="M 0 0 L 20 0"/></defs><text><textPath href="#p" spacing="auto">x</textPath></text></svg>)svg");
+    CHECK_FALSE(spacing.ok);
+    CHECK(spacing.error.find("spacing=exact") != std::string::npos);
+    const auto side = load(R"svg(<svg><defs><path id="p" d="M 0 0 L 20 0"/></defs><text><textPath href="#p" side="right">x</textPath></text></svg>)svg");
+    CHECK_FALSE(side.ok);
+    CHECK(side.error.find("side=left") != std::string::npos);
 }
 
 TEST_CASE("SVG rotated text coordinate lists preserve both transformed axes") {

@@ -272,6 +272,45 @@ graph::RenderOpResult VulkanBackend::glow_surfaces(    runtime::RenderSurfaceHan
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::glow_advanced_surfaces(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle scratch_horizontal,
+    runtime::RenderSurfaceHandle scratch_vertical,
+    const GlowAdvancedParams& params) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 4> touched{
+        destination, source, scratch_horizontal, scratch_vertical};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->glow_advanced(destination, source, scratch_horizontal,
+                             scratch_vertical, params);
+    });
+#else
+    (void)destination; (void)source; (void)scratch_horizontal;
+    (void)scratch_vertical; (void)params;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::glow_advanced_surfaces: Vulkan support is disabled"));
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::inner_glow_composite_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const Color& tint, float intensity) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->inner_glow_composite(destination, source, tint, intensity);
+    });
+#else
+    (void)destination; (void)source; (void)tint; (void)intensity;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::inner_glow_composite_surface: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::bloom_surfaces(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,

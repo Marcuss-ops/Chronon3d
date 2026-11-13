@@ -2,8 +2,12 @@
 
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
+#include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
 #include <chronon3d/effects/effect_params.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/effect_gpu_capability.hpp>
 #include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/compositor/alpha.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
@@ -509,4 +513,116 @@ TEST_CASE("MosaicFramehashCanary") {
     effects::EffectExecutionContext context;
     apply_effect_stack(fb, stack, context, registry);
     write_raw(fb, std::getenv("CHRONON_MOSAIC_RAW"));
+}
+
+TEST_CASE("AlphaThreshold modifies alpha, recolors, and preserves straight RGB") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(5, 1);
+    fb.set_pixel(0, 0, Color{0.0f, 0.0f, 0.0f, 0.0f});
+    fb.set_pixel(1, 0, Color{0.1f, 0.05f, 0.02f, 0.2f});
+    fb.set_pixel(2, 0, Color{0.46f, 0.23f, 0.1f, 0.46f});
+    fb.set_pixel(3, 0, Color{0.5f, 0.25f, 0.1f, 0.5f});
+    fb.set_pixel(4, 0, Color{0.8f, 0.4f, 0.2f, 1.0f});
+    EffectStack stack;
+    stack.emplace_back(AlphaThresholdParams{.threshold = 0.47f, .softness = 0.0f,
+                                             .fill_color = Color{1.0f, 0.25f, 0.5f, 1.0f},
+                                             .recolor = true});
+    effects::EffectExecutionContext context;
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(0, 0).a == doctest::Approx(0.0f));
+    CHECK(fb.get_pixel(1, 0).a == doctest::Approx(0.0f));
+    CHECK(fb.get_pixel(2, 0).a == doctest::Approx(0.0f));
+    CHECK(fb.get_pixel(3, 0).a == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(3, 0).r == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(3, 0).g == doctest::Approx(0.25f));
+    CHECK(fb.get_pixel(3, 0).b == doctest::Approx(0.5f));
+
+    Framebuffer preserve(1, 1);
+    preserve.set_pixel(0, 0, Color{0.4f, 0.2f, 0.1f, 0.5f});
+    EffectStack preserve_stack;
+    preserve_stack.emplace_back(AlphaThresholdParams{.threshold = 0.47f, .softness = 0.0f,
+                                                       .recolor = false});
+    apply_effect_stack(preserve, preserve_stack, context, registry);
+    CHECK(preserve.get_pixel(0, 0).a == doctest::Approx(1.0f));
+    CHECK(preserve.get_pixel(0, 0).r == doctest::Approx(0.8f));
+    CHECK(preserve.get_pixel(0, 0).g == doctest::Approx(0.4f));
+    CHECK(preserve.get_pixel(0, 0).b == doctest::Approx(0.2f));
+}
+
+TEST_CASE("AlphaThreshold honors the clip and validates parameters") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(3, 1);
+    for (int x = 0; x < 3; ++x)
+        fb.set_pixel(x, 0, Color{0.25f, 0.25f, 0.25f, 0.5f});
+    EffectStack stack;
+    stack.emplace_back(AlphaThresholdParams{.threshold = 0.47f, .softness = 0.0f,
+                                             .fill_color = Color{0.0f, 1.0f, 0.0f, 1.0f}});
+    effects::EffectExecutionContext context;
+    context.clip = raster::BBox{1, 0, 2, 1};
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(0, 0).a == doctest::Approx(0.5f));
+    CHECK(fb.get_pixel(1, 0).a == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(1, 0).g == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(2, 0).a == doctest::Approx(0.5f));
+
+    CHECK_THROWS_AS((AlphaThresholdParams{.threshold = -0.1f}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((AlphaThresholdParams{.threshold = 1.1f}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((AlphaThresholdParams{.softness = -0.1f}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((AlphaThresholdParams{.fill_color = Color{NAN, 0.0f, 0.0f, 1.0f}}).validate(),
+                    std::invalid_argument);
+}
+
+TEST_CASE("Blur then AlphaThreshold creates a Gooey bridge between two discs") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(64, 32);
+    for (int y = 0; y < 32; ++y) {
+        for (int x = 0; x < 64; ++x) {
+            const float dx1 = static_cast<float>(x - 22);
+            const float dx2 = static_cast<float>(x - 42);
+            const float dy = static_cast<float>(y - 16);
+            if (dx1 * dx1 + dy * dy <= 100.0f || dx2 * dx2 + dy * dy <= 100.0f)
+                fb.set_pixel(x, y, Color{1.0f, 1.0f, 1.0f, 1.0f});
+        }
+    }
+    effects::EffectExecutionContext context;
+    EffectStack blur;
+    blur.emplace_back(BlurParams{.radius = 4.0f});
+    apply_effect_stack(fb, blur, context, registry);
+    EffectStack threshold;
+    threshold.emplace_back(AlphaThresholdParams{.threshold = 0.47f, .softness = 0.1f,
+        .fill_color = Color{1.0f, 0.2f, 0.1f, 1.0f}, .recolor = true});
+    apply_effect_stack(fb, threshold, context, registry);
+    CHECK(fb.get_pixel(32, 16).a > 0.2f);
+    CHECK(fb.get_pixel(22, 16).a == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(0, 0).a == doctest::Approx(0.0f));
+}
+
+TEST_CASE("AlphaThreshold is catalogued and admitted by the Vulkan capability authority") {
+    effects::EffectCatalog catalog;
+    CHECK(catalog.contains(effects::ids::AlphaThreshold));
+    CHECK(effects::effect_type_for<AlphaThresholdParams>::value ==
+          effects::EffectType::AlphaThreshold);
+    CHECK(static_cast<std::uint8_t>(effects::EffectType::AlphaThreshold) == 64);
+    const auto* capability = graph::gpu_effect_capability(effects::EffectType::AlphaThreshold);
+    REQUIRE(capability != nullptr);
+    CHECK(capability->route == graph::GpuEffectRoute::NativeZeroReadback);
+    CHECK(effects::find_animatable_effect_param(effects::ids::AlphaThreshold, "threshold") != nullptr);
+    CHECK(effects::find_animatable_effect_param(effects::ids::AlphaThreshold, "softness") != nullptr);
+    auto defaults = effects::make_default_animatable_effect_params(effects::ids::AlphaThreshold);
+    REQUIRE(defaults.has_value());
+    CHECK(effects::set_animatable_effect_param(*defaults, effects::ids::AlphaThreshold,
+                                               "threshold", 0.61f));
+    CHECK(effects::get_animatable_effect_param(*defaults, effects::ids::AlphaThreshold,
+                                               "threshold") == doctest::Approx(0.61f));
+}
+
+TEST_CASE("RoughenEdges semantic hash includes evolution_speed") {
+    EffectStack a;
+    EffectStack b;
+    a.emplace_back(RoughenEdgesParams{.evolution_speed = 0.0f});
+    b.emplace_back(RoughenEdgesParams{.evolution_speed = 150.0f});
+    CHECK(graph::hash_effect_stack_v3(a) != graph::hash_effect_stack_v3(b));
 }

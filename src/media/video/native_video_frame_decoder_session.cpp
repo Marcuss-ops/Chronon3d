@@ -138,6 +138,124 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
 #endif
 }
 
+bool NativeVideoFrameDecoder::open_codec_locked(Session& session,
+                                                DecodeDiagnostic* diagnostic) {
+    if (!session.fmt || session.stream_index < 0) {
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "decoder session has no video stream to reopen");
+        return false;
+    }
+    // Release every frame that can still hold one of the old NVDEC surfaces
+    // before destroying the context that owns them.
+    for (auto& retained : session.retained_frames) av_frame_free(&retained.frame);
+    session.retained_frames.clear();
+    session.captured_native_frame.reset();
+    session.native_import_session.reset();
+    if (session.decoded) av_frame_unref(session.decoded);
+    if (session.hw_transfer_frame) av_frame_unref(session.hw_transfer_frame);
+    if (session.closest_frame) av_frame_unref(session.closest_frame);
+    if (session.packet) av_packet_unref(session.packet);
+    if (session.codec) avcodec_free_context(&session.codec);
+    av_buffer_unref(&session.hw_device_ctx);
+    session.last_sample_index = -1;
+
+    const enum AVCodecID codec_id =
+        session.fmt->streams[session.stream_index]->codecpar->codec_id;
+    const AVCodec* codec = nullptr;
+    if (!m_software_only && codec_id == AV_CODEC_ID_H264) codec = avcodec_find_decoder_by_name("h264_cuvid");
+    else if (!m_software_only && codec_id == AV_CODEC_ID_HEVC) codec = avcodec_find_decoder_by_name("hevc_cuvid");
+    else if (!m_software_only && codec_id == AV_CODEC_ID_AV1) codec = avcodec_find_decoder_by_name("av1_cuvid");
+    if (!codec) codec = avcodec_find_decoder(codec_id);
+    if (!codec) {
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "no decoder is available to reopen the video stream");
+        return false;
+    }
+
+    const auto t_dec = profiling::now();
+    AVCodecContext* cc = avcodec_alloc_context3(codec);
+    if (!cc) {
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, AVERROR(ENOMEM),
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "failed to allocate the decoder context for a backward seek");
+        return false;
+    }
+    const int parameters_result =
+        avcodec_parameters_to_context(cc, session.fmt->streams[session.stream_index]->codecpar);
+    if (parameters_result < 0) {
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, parameters_result,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "failed to initialize decoder parameters for a backward seek");
+        avcodec_free_context(&cc);
+        return false;
+    }
+    cc->pkt_timebase = session.fmt->streams[session.stream_index]->time_base;
+    cc->time_base = session.fmt->streams[session.stream_index]->time_base;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    const bool uses_nvdec = codec->name && std::string_view(codec->name).ends_with("_cuvid");
+    AVBufferRef* device = nullptr;
+    if (uses_nvdec && m_video_runtime) device = m_video_runtime->ref_cuda_hwdevice();
+    if (uses_nvdec && !device) {
+        spdlog::debug("[native-decoder] CUDA hwdevice unavailable for {}; falling back to software decoder on reopen",
+                      codec->name ? codec->name : "");
+        avcodec_free_context(&cc);
+        codec = avcodec_find_decoder(codec_id);
+        if (!codec) {
+            set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, 0,
+                kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+                "no software fallback decoder is available on reopen");
+            return false;
+        }
+        cc = avcodec_alloc_context3(codec);
+        if (!cc || avcodec_parameters_to_context(cc, session.fmt->streams[session.stream_index]->codecpar) < 0) {
+            if (cc) avcodec_free_context(&cc);
+            set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, AVERROR(ENOMEM),
+                kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+                "failed to allocate the software fallback decoder on reopen");
+            return false;
+        }
+        cc->pkt_timebase = session.fmt->streams[session.stream_index]->time_base;
+        cc->time_base = session.fmt->streams[session.stream_index]->time_base;
+    } else if (device) {
+        auto* av_device = reinterpret_cast<AVHWDeviceContext*>(device->data);
+        auto* av_cuda = av_device ? reinterpret_cast<AVCUDADeviceContext*>(av_device->hwctx) : nullptr;
+        if (!av_cuda || !m_video_runtime->context_matches(reinterpret_cast<std::uintptr_t>(av_cuda->cuda_ctx))) {
+            set_decode_diagnostic(diagnostic, DecodeFailureReason::NativeSurfaceUnavailable, 0,
+                kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+                "shared CUDA decoder device does not match the runtime device on reopen");
+            av_buffer_unref(&device);
+            avcodec_free_context(&cc);
+            return false;
+        }
+        cc->hw_device_ctx = av_buffer_ref(device);
+        cc->get_format = select_cuda_format;
+        cc->extra_hw_frames = 8;
+    }
+#else
+    const AVBufferRef* device = nullptr;
+    (void)device;
+#endif
+    cc->thread_count = 0;
+    const int codec_open_result = avcodec_open2(cc, codec, nullptr);
+    if (codec_open_result < 0) {
+        set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, codec_open_result,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0, "failed to reopen video decoder");
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        av_buffer_unref(&device);
+#endif
+        avcodec_free_context(&cc);
+        return false;
+    }
+    session.codec = cc;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    session.hw_device_ctx = device;
+#endif
+    session.profiling.decoder_open_ms += profiling::duration_ms(t_dec, profiling::now());
+    return true;
+}
+
 std::shared_ptr<NativeVideoFrameDecoder::Session>
 NativeVideoFrameDecoder::open_session_locked(const std::string& path,
                                              DecodeDiagnostic* diagnostic) {

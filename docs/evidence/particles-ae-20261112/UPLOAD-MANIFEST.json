@@ -1,0 +1,205 @@
+{
+  "schema": "chronon3d.ae_particles_upload.v1",
+  "generated_at": "2026-11-12T14:56:10.009258+00:00",
+  "chronon3d_commit": "f126967f407b2f597205bd8e1bc7e1b2a1aae3a7",
+  "gpu": "NVIDIA RTX A4000",
+  "render": {
+    "backend": "vulkan",
+    "gpu_hot_path_mode": "require_gpu_native",
+    "encoder": "native",
+    "video_sink": "ffmpeg",
+    "pipe_pixfmt": "nv12",
+    "canvas": [
+      1920,
+      1080
+    ],
+    "fps": 24,
+    "frames_per_clip": 240,
+    "duration_seconds": 10.0,
+    "pixel_format": "yuv420p"
+  },
+  "clips": [
+    "01_ember_column_1080p.mp4",
+    "02_smoke_curl_1080p.mp4",
+    "03_bokeh_dust_1080p.mp4",
+    "04_spark_burst_1080p.mp4"
+  ],
+  "artifact_count": 35,
+  "artifacts": [
+    {
+      "path": "README.md",
+      "bytes": 1893,
+      "sha256": "bb84e4f07c51ffc3cd4ad048cddb92f317ad34161c533b7e7639002dad8dc24d"
+    },
+    {
+      "path": "build_campaign.py",
+      "bytes": 9957,
+      "sha256": "8989a6671e4571ecfb1394a2ca269aa8f38ae0aab9feddb7631805a371a24792"
+    },
+    {
+      "path": "contact_sheet.png",
+      "bytes": 3144809,
+      "sha256": "a0f26e30bc5632c9cac0670a69ea874762ee223806ef4dc24b101ba18d10521a"
+    },
+    {
+      "path": "logs/01_ember_column.log",
+      "bytes": 12662,
+      "sha256": "5013b570f0da3060b34d92eada962edbd79c920af406ce5061add2662a7d48de"
+    },
+    {
+      "path": "logs/02_smoke_curl.log",
+      "bytes": 12649,
+      "sha256": "61aa139c6138c791acd8e12b16548cb08abe3c8c22389306fa392d4a2a5c9ec5"
+    },
+    {
+      "path": "logs/03_bokeh_dust.log",
+      "bytes": 12662,
+      "sha256": "fca77ba39e8595b13cd1b2e129fc04474e25d7fb75011f9fc9497d7228bd6e46"
+    },
+    {
+      "path": "logs/04_spark_burst.log",
+      "bytes": 12666,
+      "sha256": "915815cccedc40c5618404ab4c6cc0341ad47b3136222caaeb4ed358b184bfe8"
+    },
+    {
+      "path": "plans/01_ember_column.plan.json",
+      "bytes": 2873,
+      "sha256": "478ab19d8783116bac00404bd499195e1b737ee5f29da16a31304847d8e5c143"
+    },
+    {
+      "path": "plans/02_smoke_curl.plan.json",
+      "bytes": 2815,
+      "sha256": "957ea841eb14e21f03af9ab1ff1350a78be3dd6f8e190c036562e90098d2aa70"
+    },
+    {
+      "path": "plans/03_bokeh_dust.plan.json",
+      "bytes": 2861,
+      "sha256": "88bba04c266ff2fd9bc1a2b864297b6b3cea1d3a43c8d40f4e89bbef15df5f1f"
+    },
+    {
+      "path": "plans/04_spark_burst.plan.json",
+      "bytes": 2657,
+      "sha256": "80c83d399bd0e32002e1cc837a08e974746b273e78d7eafc1d8bc749865e20f7"
+    },
+    {
+      "path": "stills/01_ember_column_0.5s.png",
+      "bytes": 495632,
+      "sha256": "27c93288134dbdb15fb40ddd18f70943a29d06e1f536f3a347018da78ff153c6"
+    },
+    {
+      "path": "stills/01_ember_column_3.0s.png",
+      "bytes": 511843,
+      "sha256": "9e560a1f46a868ff1fb1a90e78c94d783b35a64e1f6c89b35f81350643d3ba3d"
+    },
+    {
+      "path": "stills/01_ember_column_6.0s.png",
+      "bytes": 440724,
+      "sha256": "25283c971be6c30553ba1662ced3b4d97cff9bd1f06d37906963338040d421d2"
+    },
+    {
+      "path": "stills/01_ember_column_9.5s.png",
+      "bytes": 506217,
+      "sha256": "0c672d25883eb1e85025d48413a0c16eb886285ddb91b4cc2d625fadf7cc1e41"
+    },
+    {
+      "path": "stills/02_smoke_curl_0.5s.png",
+      "bytes": 91439,
+      "sha256": "b2dd1a659a2224bc03263405880a8ac8db3bbda4ba0c3ae5030a6a92db548e75"
+    },
+    {
+      "path": "stills/02_smoke_curl_3.0s.png",
+      "bytes": 103667,
+      "sha256": "4e162facfe522c7b901d852d50add50c9b13f2cb191dd0e180a729f0ca27f9d8"
+    },
+    {
+      "path": "stills/02_smoke_curl_6.0s.png",
+      "bytes": 84498,
+      "sha256": "ccb8f5253f04b1beebeb727438b239a787f77073f73d6c43243aeffebd45a21f"
+    },
+    {
+      "path": "stills/02_smoke_curl_9.5s.png",
+      "bytes": 108992,
+      "sha256": "105043926b8cf602487f65e431c46c3cfb34c622d0a8710e91f74985a76d6c90"
+    },
+    {
+      "path": "stills/03_bokeh_dust_0.5s.png",
+      "bytes": 696029,
+      "sha256": "1eb0b1ffa13d88be673d0041f1479f846db5c4779302dadb2833865b9e1cb801"
+    },
+    {
+      "path": "stills/03_bokeh_dust_3.0s.png",
+      "bytes": 739511,
+      "sha256": "b32a76a4afdb42fc154b88b3930bbfc8a77d0f36b5b66426dd63832498257466"
+    },
+    {
+      "path": "stills/03_bokeh_dust_6.0s.png",
+      "bytes": 619463,
+      "sha256": "fc954cf024ce1c7a48d27f8b9b9b582bf58287f5b7643420a1e5701aa3e0355b"
+    },
+    {
+      "path": "stills/03_bokeh_dust_9.5s.png",
+      "bytes": 795212,
+      "sha256": "50bc786bc8d19328b75f10e1e2603957f93f2cf9267dd8594cb4a7417c1de908"
+    },
+    {
+      "path": "stills/04_spark_burst_0.5s.png",
+      "bytes": 441749,
+      "sha256": "884c2a71c67fe8e737fb0b91c25a2b710bdf4f957617ae939f1db3ad73c84ba8"
+    },
+    {
+      "path": "stills/04_spark_burst_3.0s.png",
+      "bytes": 449574,
+      "sha256": "66928fca81f63ea6942d96181359653eeaa2b81e2ff5fcba3e1f14a456df0958"
+    },
+    {
+      "path": "stills/04_spark_burst_6.0s.png",
+      "bytes": 471107,
+      "sha256": "45661ec4b14cc12ee2ad1d6576a3c7dc9e25baa1232abc14b11828355d6d0226"
+    },
+    {
+      "path": "stills/04_spark_burst_9.5s.png",
+      "bytes": 438246,
+      "sha256": "ca9a0464a3aa463a171ca4aa9eb9d8c73d1fddabe7046698d90c2cd9477a3856"
+    },
+    {
+      "path": "videos/01_ember_column_1080p.mp4",
+      "bytes": 2595740,
+      "sha256": "e84c76146263f3837920891129454fb4248e5a941eaeb38c64cbf5f3e8017c01"
+    },
+    {
+      "path": "videos/01_ember_column_1080p.mp4.timing.json",
+      "bytes": 966374,
+      "sha256": "ac834795f9fe086a9f44e27b8ff396ca0aa009e6a4028231055e4097490b9aa3"
+    },
+    {
+      "path": "videos/02_smoke_curl_1080p.mp4",
+      "bytes": 1046470,
+      "sha256": "e685efb394f0f7af11c5c13f40f854ad2c0bcd32fde1da02e1649266f5c0ee80"
+    },
+    {
+      "path": "videos/02_smoke_curl_1080p.mp4.timing.json",
+      "bytes": 959801,
+      "sha256": "ac876f18b009fc7204e63e7b2b77bb46b4da5c87ef90557bf437e23ec47ec32a"
+    },
+    {
+      "path": "videos/03_bokeh_dust_1080p.mp4",
+      "bytes": 2932460,
+      "sha256": "e832f9da082968155fb7492fc074f14ebaa156a40d03757f9fccc798fde05d91"
+    },
+    {
+      "path": "videos/03_bokeh_dust_1080p.mp4.timing.json",
+      "bytes": 966705,
+      "sha256": "9da97a609657631f5ff3946e9cef6cad7b48d835b44526129d1e1b300c77c3c2"
+    },
+    {
+      "path": "videos/04_spark_burst_1080p.mp4",
+      "bytes": 2627614,
+      "sha256": "d9f64ff6c1422b8756b99b94eab9d3782dbdcaeb2d096ff53475d6d049c3e589"
+    },
+    {
+      "path": "videos/04_spark_burst_1080p.mp4.timing.json",
+      "bytes": 966500,
+      "sha256": "e30933fcd7f5f0da0d671df6b0b46784037cf25876c79409671c3681dcb618af"
+    }
+  ]
+}

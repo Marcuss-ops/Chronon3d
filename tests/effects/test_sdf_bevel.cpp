@@ -180,3 +180,33 @@ TEST_CASE("SdfBevel: spatial halo covers the bevel and the widest shadow reach")
     const auto compact = effects::effect_spatial_halo(no_shadow);
     CHECK(compact.right < halo.right);
 }
+
+TEST_CASE("ContourPalette draws outer and inner SDF rings and preserves alpha") {
+    Framebuffer fb = make_image(96, 96, Color{0.0f, 0.0f, 0.0f, 0.0f});
+    fill_rect(fb, 16, 16, 80, 80, Color{0.2f, 0.2f, 0.2f, 1.0f});
+    fill_rect(fb, 40, 40, 56, 56, Color{0.0f, 0.0f, 0.0f, 0.0f});
+
+    ContourPaletteParams p;
+    p.width = 4.0f;
+    p.spacing = 6.0f;
+    p.offset = 0.0f;
+    p.softness = 0.0f;
+    p.opacity = 1.0f;
+    p.palette_0_r = 1.0f;
+    p.palette_0_g = 0.0f;
+    p.palette_0_b = 0.0f;
+    renderer::apply_contour_palette(fb, p);
+
+    // Outer silhouette ring and the ring around the transparent inner hole
+    // both use the shared SDF. Geography between rings stays untouched.
+    CHECK(fb.get_pixel(17, 48).r > 0.9f);
+    CHECK(fb.get_pixel(17, 48).a == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(39, 48).r > 0.9f);
+    CHECK(fb.get_pixel(39, 48).a == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(37, 48).r == doctest::Approx(0.2f));
+    CHECK(fb.get_pixel(40, 48).a == doctest::Approx(0.0f));
+
+    Framebuffer repeat = fb;
+    renderer::apply_contour_palette(repeat, p);
+    CHECK(test_fx::framebuffer_max_error(fb, repeat) <= test_fx::kScalarEpsilon);
+}

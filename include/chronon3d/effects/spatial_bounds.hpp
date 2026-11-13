@@ -145,6 +145,24 @@ struct SpatialHalo {
     return uniform_spatial_halo(extent + 2.0f);
 }
 
+[[nodiscard]] inline SpatialHalo effect_spatial_halo(
+    const InnerGlowParams&) noexcept {
+    // The result is clamped to the original alpha coverage.
+    return {};
+}
+
+[[nodiscard]] inline SpatialHalo effect_spatial_halo(
+    const GlowAdvancedParams& p) noexcept {
+    return glow_spatial_halo(p.radius);
+}
+
+[[nodiscard]] inline SpatialHalo effect_spatial_halo(
+    const OpticsCompensationParams&) noexcept {
+    // In-place radial resample; the graph keeps full-frame dirty safety for
+    // Distort-category effects.
+    return {};
+}
+
 [[nodiscard]] inline SpatialHalo offset_spatial_halo(
     const OffsetParams& p) noexcept {
     return {

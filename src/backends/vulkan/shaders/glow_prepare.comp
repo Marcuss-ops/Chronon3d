@@ -5,9 +5,11 @@ layout(binding = 0, rgba32f) uniform image2D destination_image;
 layout(binding = 1, rgba32f) uniform readonly image2D source_image;
 
 layout(push_constant) uniform GlowPrepareParams {
-    vec4 tint;
+    vec4 color_a;
+    vec4 color_b;
+    float threshold;
     float intensity;
-    vec3 padding;
+    vec2 padding;
 } params;
 
 void main() {
@@ -27,6 +29,14 @@ void main() {
         }
     }
     source /= max(sample_count, 1.0);
-    float amount = clamp(source.a, 0.0, 1.0) * params.intensity;
-    imageStore(destination_image, pixel, params.tint * amount);
+
+    float alpha = clamp(source.a, 0.0, 1.0);
+    float trigger = alpha;
+    if (params.threshold > 0.0) {
+        trigger = clamp((alpha - params.threshold) /
+                        max(1.0 - params.threshold, 1.0e-6), 0.0, 1.0);
+    }
+    vec4 color = mix(params.color_a, params.color_b, trigger);
+    float amount = trigger * params.intensity;
+    imageStore(destination_image, pixel, color * amount);
 }

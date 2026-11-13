@@ -392,3 +392,28 @@ TEST_CASE("TextPath: same input produces same output") {
         CHECK(a.clusters[i].rotation_deg == doctest::Approx(b.clusters[i].rotation_deg));
     }
 }
+
+TEST_CASE("TextPath: RTL places shaped clusters in visual order without double reversal") {
+    auto path = std::make_shared<PathShape>(make_straight_path({0,0}, {300,0}));
+    auto sampler = PathSampler::compile(*path);
+    auto shaped = make_shaped_run({40.0f, 40.0f, 40.0f});
+    auto spec = make_spec(path);
+    spec.direction = 2;
+
+    auto result = compose_text_on_path(shaped, sampler, spec, "ABC");
+    REQUIRE(result.clusters.size() == 3);
+    CHECK(result.clusters[0].cluster_index == 0);
+    CHECK(result.clusters[0].position.x == doctest::Approx(100.0f));
+    CHECK(result.clusters[1].position.x == doctest::Approx(60.0f));
+    CHECK(result.clusters[2].position.x == doctest::Approx(20.0f));
+
+    spec.direction = 1;
+    auto ltr = compose_text_on_path(shaped, sampler, spec, "ABC");
+    CHECK(ltr.clusters[0].position.x == doctest::Approx(20.0f));
+    CHECK(ltr.clusters[2].position.x == doctest::Approx(100.0f));
+
+    auto auto_spec = make_spec(path);
+    auto detected = compose_text_on_path(shaped, sampler, auto_spec,
+        "\xd8\xa7\xd8\xa8\xd8\xac");
+    CHECK(detected.clusters[0].position.x == doctest::Approx(100.0f));
+}

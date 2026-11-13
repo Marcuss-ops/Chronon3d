@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <glm/glm.hpp>
 
 namespace chronon3d {
@@ -46,6 +47,66 @@ namespace {
     return result;
 }
 
+// ── Minimal bidi direction detection for single-script text paths ────────
+// The RenderPlan compiler already resolves explicit direction overrides.
+// For direction:auto we only need the first strong character.
+
+[[nodiscard]] std::uint32_t decode_utf8(
+    std::string_view text, std::size_t& index) {
+    if (index >= text.size()) return 0;
+    const auto first = static_cast<unsigned char>(text[index]);
+    if (first < 0x80u) { ++index; return first; }
+    std::size_t length = 0;
+    std::uint32_t codepoint = 0;
+    if ((first & 0xe0u) == 0xc0u) { length = 2; codepoint = first & 0x1fu; }
+    else if ((first & 0xf0u) == 0xe0u) { length = 3; codepoint = first & 0x0fu; }
+    else if ((first & 0xf8u) == 0xf0u) { length = 4; codepoint = first & 0x07u; }
+    else { ++index; return 0; }
+    if (index + length > text.size()) { index = text.size(); return 0; }
+    for (std::size_t offset = 1; offset < length; ++offset) {
+        const auto byte = static_cast<unsigned char>(text[index + offset]);
+        if ((byte & 0xc0u) != 0x80u) { index += offset; return 0; }
+        codepoint = (codepoint << 6u) | (byte & 0x3fu);
+    }
+    index += length;
+    return codepoint;
+}
+
+[[nodiscard]] bool is_rtl_codepoint(std::uint32_t codepoint) {
+    return (codepoint >= 0x0590u && codepoint <= 0x05ffu) ||
+        (codepoint >= 0x0600u && codepoint <= 0x06ffu) ||
+        (codepoint >= 0x0700u && codepoint <= 0x074fu) ||
+        (codepoint >= 0x0750u && codepoint <= 0x077fu) ||
+        (codepoint >= 0x0780u && codepoint <= 0x07bfu) ||
+        (codepoint >= 0x07c0u && codepoint <= 0x08ffu) ||
+        (codepoint >= 0xfb1du && codepoint <= 0xfdffu) ||
+        (codepoint >= 0xfe70u && codepoint <= 0xfeffu) ||
+        (codepoint >= 0x10800u && codepoint <= 0x10fffu) ||
+        (codepoint >= 0x1e800u && codepoint <= 0x1efffu);
+}
+
+[[nodiscard]] bool is_ltr_strong_codepoint(std::uint32_t codepoint) {
+    return (codepoint >= 0x0041u && codepoint <= 0x005au) ||
+        (codepoint >= 0x0061u && codepoint <= 0x007au) ||
+        (codepoint >= 0x00c0u && codepoint <= 0x02ffu) ||
+        (codepoint >= 0x0370u && codepoint <= 0x058fu) ||
+        (codepoint >= 0x0900u && codepoint <= 0x1fffu) ||
+        (codepoint >= 0x2e80u && codepoint <= 0xa4cfu) ||
+        (codepoint >= 0xac00u && codepoint <= 0xd7afu) ||
+        (codepoint >= 0xf900u && codepoint <= 0xfaffu);
+}
+
+[[nodiscard]] bool source_text_is_rtl(std::string_view text) {
+    std::size_t index = 0;
+    while (index < text.size()) {
+        const auto codepoint = decode_utf8(text, index);
+        if (codepoint == 0) break;
+        if (is_rtl_codepoint(codepoint)) return true;
+        if (is_ltr_strong_codepoint(codepoint)) return false;
+    }
+    return false;
+}
+
 } // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -58,14 +119,15 @@ PlacedTextOnPath compose_text_on_path(
     const TextPathSpec& spec,
     std::string_view source_text
 ) {
-    (void)source_text;  // reserved for RTL detection
+    const bool rtl = spec.direction == 2 ||
+        (spec.direction == 0 && source_text_is_rtl(source_text));
     PlacedTextOnPath result;
     const size_t n = shaped.clusters.size();
     if (n == 0 || sampler.total_length() <= 0.0f) {
         return result;
     }
 
-    result.clusters.reserve(n);
+    result.clusters.resize(n);
 
     // ── Compute usable length ─────────────────────────────────────────
     float total_len = sampler.total_length();
@@ -105,7 +167,8 @@ PlacedTextOnPath compose_text_on_path(
     // ── Place each cluster ─────────────────────────────────────────────
     float cursor = start_distance;
 
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t step = 0; step < n; ++step) {
+        const size_t i = rtl ? n - 1 - step : step;
         float cluster_advance = shaped.clusters[i].advance;
         float cluster_center  = cursor + cluster_advance * 0.5f;
 
@@ -123,7 +186,7 @@ PlacedTextOnPath compose_text_on_path(
             pc.position = Vec2{0.0f, 0.0f};
             pc.rotation_deg = 0.0f;
             pc.path_distance = cluster_center;
-            result.clusters.push_back(pc);
+            result.clusters[i] = pc;
             cursor += cluster_advance + extra_tracking;
             continue;
         }
@@ -175,7 +238,7 @@ PlacedTextOnPath compose_text_on_path(
         }
 
         pc.path_distance = cluster_center;
-        result.clusters.push_back(pc);
+        result.clusters[i] = pc;
 
         cursor += cluster_advance + extra_tracking;
     }

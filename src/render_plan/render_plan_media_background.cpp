@@ -111,14 +111,15 @@ void materialize_media_background_cards(RenderPlan& plan) {
         card.enable_3d = layer.enable_3d;
         card.opacity = layer.opacity;
         if (layer.type == LayerType::Video && layer.position_dimensions >= 2) {
-            const float displayed_w = layer.size_dimensions == 2
-                ? layer.size[0] : static_cast<float>(plan.canvas.width) * scale_x;
-            const float displayed_h = layer.size_dimensions == 2
-                ? layer.size[1] : static_cast<float>(plan.canvas.height) * scale_y;
-            card.position[0] += displayed_w * 0.5f -
-                static_cast<float>(plan.canvas.width) * 0.5f;
-            card.position[1] += displayed_h * 0.5f -
-                static_cast<float>(plan.canvas.height) * 0.5f;
+            // Video positions name the top-left of the unscaled box in
+            // canvas-centred coordinates; the plate is a shape centred on
+            // its transform, so it follows the same box centre.
+            const float box_w = layer.size_dimensions == 2
+                ? layer.size[0] : static_cast<float>(plan.canvas.width);
+            const float box_h = layer.size_dimensions == 2
+                ? layer.size[1] : static_cast<float>(plan.canvas.height);
+            card.position[0] += box_w * 0.5f;
+            card.position[1] += box_h * 0.5f;
         }
         // The frame plate is a sibling layer, so it must follow the media's
         // transform and visibility tracks explicitly. Its base size above

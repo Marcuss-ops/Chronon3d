@@ -1,0 +1,295 @@
+{
+  "folder_id": "1WlJXchsqlrdchhTUWdOiZbOq4EoFtHCo",
+  "verified": 36,
+  "errors": [],
+  "files": [
+    {
+      "path": "README.md",
+      "id": "1DRVh4zGUEnemQFo3F4XRckcNzzvkN3yi",
+      "name": "README.md",
+      "size": 1893,
+      "sha256": "bb84e4f07c51ffc3cd4ad048cddb92f317ad34161c533b7e7639002dad8dc24d",
+      "link": "https://drive.google.com/file/d/1DRVh4zGUEnemQFo3F4XRckcNzzvkN3yi/view"
+    },
+    {
+      "path": "UPLOAD-MANIFEST.json",
+      "id": "1lNTslcK7ZI7IdmjGGK_5JiyJVe1ibiPs",
+      "name": "UPLOAD-MANIFEST.json",
+      "size": 6514,
+      "sha256": "11a0f6b9592d889aaa7fa071638bc49540d5318061366c1ae6c04b51a1b4e892",
+      "link": "https://drive.google.com/file/d/1lNTslcK7ZI7IdmjGGK_5JiyJVe1ibiPs/view"
+    },
+    {
+      "path": "build_campaign.py",
+      "id": "1_7eOK7Zz3Ye65qGklWk_7zaAfnOn0p1c",
+      "name": "build_campaign.py",
+      "size": 9957,
+      "sha256": "8989a6671e4571ecfb1394a2ca269aa8f38ae0aab9feddb7631805a371a24792",
+      "link": "https://drive.google.com/file/d/1_7eOK7Zz3Ye65qGklWk_7zaAfnOn0p1c/view"
+    },
+    {
+      "path": "contact_sheet.png",
+      "id": "10izOcEFL016hXyDz7MnrZW9fKFQ6SdG3",
+      "name": "contact_sheet.png",
+      "size": 3144809,
+      "sha256": "a0f26e30bc5632c9cac0670a69ea874762ee223806ef4dc24b101ba18d10521a",
+      "link": "https://drive.google.com/file/d/10izOcEFL016hXyDz7MnrZW9fKFQ6SdG3/view"
+    },
+    {
+      "path": "logs/01_ember_column.log",
+      "id": "1GNeMK6O_dVnpaCl1XtCFHUbyonHb3HlD",
+      "name": "01_ember_column.log",
+      "size": 12662,
+      "sha256": "5013b570f0da3060b34d92eada962edbd79c920af406ce5061add2662a7d48de",
+      "link": "https://drive.google.com/file/d/1GNeMK6O_dVnpaCl1XtCFHUbyonHb3HlD/view"
+    },
+    {
+      "path": "logs/02_smoke_curl.log",
+      "id": "1vaYh04XQCGTBDdNtvXxrD0V-Vhl2q2LS",
+      "name": "02_smoke_curl.log",
+      "size": 12649,
+      "sha256": "61aa139c6138c791acd8e12b16548cb08abe3c8c22389306fa392d4a2a5c9ec5",
+      "link": "https://drive.google.com/file/d/1vaYh04XQCGTBDdNtvXxrD0V-Vhl2q2LS/view"
+    },
+    {
+      "path": "logs/03_bokeh_dust.log",
+      "id": "139PjiLCqJe74JQwTvovs4Y7DyiIzV6q-",
+      "name": "03_bokeh_dust.log",
+      "size": 12662,
+      "sha256": "fca77ba39e8595b13cd1b2e129fc04474e25d7fb75011f9fc9497d7228bd6e46",
+      "link": "https://drive.google.com/file/d/139PjiLCqJe74JQwTvovs4Y7DyiIzV6q-/view"
+    },
+    {
+      "path": "logs/04_spark_burst.log",
+      "id": "1xPU5kjPWszxmOFU6UXehqVJv8YoBx2TT",
+      "name": "04_spark_burst.log",
+      "size": 12666,
+      "sha256": "915815cccedc40c5618404ab4c6cc0341ad47b3136222caaeb4ed358b184bfe8",
+      "link": "https://drive.google.com/file/d/1xPU5kjPWszxmOFU6UXehqVJv8YoBx2TT/view"
+    },
+    {
+      "path": "plans/01_ember_column.plan.json",
+      "id": "1JLadMNctfS0RjXHZndZv6qFsupf8AB6C",
+      "name": "01_ember_column.plan.json",
+      "size": 2873,
+      "sha256": "478ab19d8783116bac00404bd499195e1b737ee5f29da16a31304847d8e5c143",
+      "link": "https://drive.google.com/file/d/1JLadMNctfS0RjXHZndZv6qFsupf8AB6C/view"
+    },
+    {
+      "path": "plans/02_smoke_curl.plan.json",
+      "id": "1xYh7beIJypKD2E1b8LKdOyf5gkBwnQjm",
+      "name": "02_smoke_curl.plan.json",
+      "size": 2815,
+      "sha256": "957ea841eb14e21f03af9ab1ff1350a78be3dd6f8e190c036562e90098d2aa70",
+      "link": "https://drive.google.com/file/d/1xYh7beIJypKD2E1b8LKdOyf5gkBwnQjm/view"
+    },
+    {
+      "path": "plans/03_bokeh_dust.plan.json",
+      "id": "1nYGO3Rv1VdC3KbBPgxwcQoVG0JJ-MIBJ",
+      "name": "03_bokeh_dust.plan.json",
+      "size": 2861,
+      "sha256": "88bba04c266ff2fd9bc1a2b864297b6b3cea1d3a43c8d40f4e89bbef15df5f1f",
+      "link": "https://drive.google.com/file/d/1nYGO3Rv1VdC3KbBPgxwcQoVG0JJ-MIBJ/view"
+    },
+    {
+      "path": "plans/04_spark_burst.plan.json",
+      "id": "1egMj1HQ8LBXP7FkVLmIbtwXqMoGkk_dL",
+      "name": "04_spark_burst.plan.json",
+      "size": 2657,
+      "sha256": "80c83d399bd0e32002e1cc837a08e974746b273e78d7eafc1d8bc749865e20f7",
+      "link": "https://drive.google.com/file/d/1egMj1HQ8LBXP7FkVLmIbtwXqMoGkk_dL/view"
+    },
+    {
+      "path": "stills/01_ember_column_0.5s.png",
+      "id": "1YN4_QCFIni1r31cOWYRz0Mrp-zet7mKG",
+      "name": "01_ember_column_0.5s.png",
+      "size": 495632,
+      "sha256": "27c93288134dbdb15fb40ddd18f70943a29d06e1f536f3a347018da78ff153c6",
+      "link": "https://drive.google.com/file/d/1YN4_QCFIni1r31cOWYRz0Mrp-zet7mKG/view"
+    },
+    {
+      "path": "stills/01_ember_column_3.0s.png",
+      "id": "1W4h6vb8HCNgSTxMDsbOu_JmhWiPLvFlY",
+      "name": "01_ember_column_3.0s.png",
+      "size": 511843,
+      "sha256": "9e560a1f46a868ff1fb1a90e78c94d783b35a64e1f6c89b35f81350643d3ba3d",
+      "link": "https://drive.google.com/file/d/1W4h6vb8HCNgSTxMDsbOu_JmhWiPLvFlY/view"
+    },
+    {
+      "path": "stills/01_ember_column_6.0s.png",
+      "id": "1HBTJ6NUfJSOfEogzzkaA8HuTsUU-SrSR",
+      "name": "01_ember_column_6.0s.png",
+      "size": 440724,
+      "sha256": "25283c971be6c30553ba1662ced3b4d97cff9bd1f06d37906963338040d421d2",
+      "link": "https://drive.google.com/file/d/1HBTJ6NUfJSOfEogzzkaA8HuTsUU-SrSR/view"
+    },
+    {
+      "path": "stills/01_ember_column_9.5s.png",
+      "id": "10ByHdmilgXX-MADlqADigmRHaMGRRJ08",
+      "name": "01_ember_column_9.5s.png",
+      "size": 506217,
+      "sha256": "0c672d25883eb1e85025d48413a0c16eb886285ddb91b4cc2d625fadf7cc1e41",
+      "link": "https://drive.google.com/file/d/10ByHdmilgXX-MADlqADigmRHaMGRRJ08/view"
+    },
+    {
+      "path": "stills/02_smoke_curl_0.5s.png",
+      "id": "1ozAQfs-BbxpR6ixSq3sSRxcMJqOsdM5j",
+      "name": "02_smoke_curl_0.5s.png",
+      "size": 91439,
+      "sha256": "b2dd1a659a2224bc03263405880a8ac8db3bbda4ba0c3ae5030a6a92db548e75",
+      "link": "https://drive.google.com/file/d/1ozAQfs-BbxpR6ixSq3sSRxcMJqOsdM5j/view"
+    },
+    {
+      "path": "stills/02_smoke_curl_3.0s.png",
+      "id": "1uFjpJEsa37qexUjw4Uj6Js6Mo3zGg61M",
+      "name": "02_smoke_curl_3.0s.png",
+      "size": 103667,
+      "sha256": "4e162facfe522c7b901d852d50add50c9b13f2cb191dd0e180a729f0ca27f9d8",
+      "link": "https://drive.google.com/file/d/1uFjpJEsa37qexUjw4Uj6Js6Mo3zGg61M/view"
+    },
+    {
+      "path": "stills/02_smoke_curl_6.0s.png",
+      "id": "1IX9EvranSdtSWIE3Ji8vKsCCvwPyXbDb",
+      "name": "02_smoke_curl_6.0s.png",
+      "size": 84498,
+      "sha256": "ccb8f5253f04b1beebeb727438b239a787f77073f73d6c43243aeffebd45a21f",
+      "link": "https://drive.google.com/file/d/1IX9EvranSdtSWIE3Ji8vKsCCvwPyXbDb/view"
+    },
+    {
+      "path": "stills/02_smoke_curl_9.5s.png",
+      "id": "1KzxRdJxVAQnkmFdEWTSWMkGT8fH0UhdN",
+      "name": "02_smoke_curl_9.5s.png",
+      "size": 108992,
+      "sha256": "105043926b8cf602487f65e431c46c3cfb34c622d0a8710e91f74985a76d6c90",
+      "link": "https://drive.google.com/file/d/1KzxRdJxVAQnkmFdEWTSWMkGT8fH0UhdN/view"
+    },
+    {
+      "path": "stills/03_bokeh_dust_0.5s.png",
+      "id": "1t8HsiuVe4AtOzLpaBNjC8blLtVnyacPJ",
+      "name": "03_bokeh_dust_0.5s.png",
+      "size": 696029,
+      "sha256": "1eb0b1ffa13d88be673d0041f1479f846db5c4779302dadb2833865b9e1cb801",
+      "link": "https://drive.google.com/file/d/1t8HsiuVe4AtOzLpaBNjC8blLtVnyacPJ/view"
+    },
+    {
+      "path": "stills/03_bokeh_dust_3.0s.png",
+      "id": "1E1gW-1kaGyhYU-rgMmE4Beoe_g4YJhF4",
+      "name": "03_bokeh_dust_3.0s.png",
+      "size": 739511,
+      "sha256": "b32a76a4afdb42fc154b88b3930bbfc8a77d0f36b5b66426dd63832498257466",
+      "link": "https://drive.google.com/file/d/1E1gW-1kaGyhYU-rgMmE4Beoe_g4YJhF4/view"
+    },
+    {
+      "path": "stills/03_bokeh_dust_6.0s.png",
+      "id": "16T2SWGefjo5R_Srof5pCVoMncEBUk1i5",
+      "name": "03_bokeh_dust_6.0s.png",
+      "size": 619463,
+      "sha256": "fc954cf024ce1c7a48d27f8b9b9b582bf58287f5b7643420a1e5701aa3e0355b",
+      "link": "https://drive.google.com/file/d/16T2SWGefjo5R_Srof5pCVoMncEBUk1i5/view"
+    },
+    {
+      "path": "stills/03_bokeh_dust_9.5s.png",
+      "id": "1RfCtxu50oGQ3ysIFjo5EC0RqfBBxDFgx",
+      "name": "03_bokeh_dust_9.5s.png",
+      "size": 795212,
+      "sha256": "50bc786bc8d19328b75f10e1e2603957f93f2cf9267dd8594cb4a7417c1de908",
+      "link": "https://drive.google.com/file/d/1RfCtxu50oGQ3ysIFjo5EC0RqfBBxDFgx/view"
+    },
+    {
+      "path": "stills/04_spark_burst_0.5s.png",
+      "id": "14_YOt2zTYL8OdpEjwZODpiNemU4mdkJF",
+      "name": "04_spark_burst_0.5s.png",
+      "size": 441749,
+      "sha256": "884c2a71c67fe8e737fb0b91c25a2b710bdf4f957617ae939f1db3ad73c84ba8",
+      "link": "https://drive.google.com/file/d/14_YOt2zTYL8OdpEjwZODpiNemU4mdkJF/view"
+    },
+    {
+      "path": "stills/04_spark_burst_3.0s.png",
+      "id": "1omkqu4I90LndG5NE4zhQsSoWkyLWIKfs",
+      "name": "04_spark_burst_3.0s.png",
+      "size": 449574,
+      "sha256": "66928fca81f63ea6942d96181359653eeaa2b81e2ff5fcba3e1f14a456df0958",
+      "link": "https://drive.google.com/file/d/1omkqu4I90LndG5NE4zhQsSoWkyLWIKfs/view"
+    },
+    {
+      "path": "stills/04_spark_burst_6.0s.png",
+      "id": "1nCV7lcudEoN5Txi0QnURFudsauoa_9OP",
+      "name": "04_spark_burst_6.0s.png",
+      "size": 471107,
+      "sha256": "45661ec4b14cc12ee2ad1d6576a3c7dc9e25baa1232abc14b11828355d6d0226",
+      "link": "https://drive.google.com/file/d/1nCV7lcudEoN5Txi0QnURFudsauoa_9OP/view"
+    },
+    {
+      "path": "stills/04_spark_burst_9.5s.png",
+      "id": "1_2APRvuPRmHJXlj-ctoI3utIEiFGyOXp",
+      "name": "04_spark_burst_9.5s.png",
+      "size": 438246,
+      "sha256": "ca9a0464a3aa463a171ca4aa9eb9d8c73d1fddabe7046698d90c2cd9477a3856",
+      "link": "https://drive.google.com/file/d/1_2APRvuPRmHJXlj-ctoI3utIEiFGyOXp/view"
+    },
+    {
+      "path": "videos/01_ember_column_1080p.mp4",
+      "id": "1SHL5CFUKpCk16RnwBHw-B7tMLJKp5Pvx",
+      "name": "01_ember_column_1080p.mp4",
+      "size": 2595740,
+      "sha256": "e84c76146263f3837920891129454fb4248e5a941eaeb38c64cbf5f3e8017c01",
+      "link": "https://drive.google.com/file/d/1SHL5CFUKpCk16RnwBHw-B7tMLJKp5Pvx/view"
+    },
+    {
+      "path": "videos/01_ember_column_1080p.mp4.timing.json",
+      "id": "1h9CWY7uY8NASZoUYA0BMHPqvbmO6GVGH",
+      "name": "01_ember_column_1080p.mp4.timing.json",
+      "size": 966374,
+      "sha256": "ac834795f9fe086a9f44e27b8ff396ca0aa009e6a4028231055e4097490b9aa3",
+      "link": "https://drive.google.com/file/d/1h9CWY7uY8NASZoUYA0BMHPqvbmO6GVGH/view"
+    },
+    {
+      "path": "videos/02_smoke_curl_1080p.mp4",
+      "id": "1zA6rUaP_AKT_dAfGEwdRbABkPs-wwdFr",
+      "name": "02_smoke_curl_1080p.mp4",
+      "size": 1046470,
+      "sha256": "e685efb394f0f7af11c5c13f40f854ad2c0bcd32fde1da02e1649266f5c0ee80",
+      "link": "https://drive.google.com/file/d/1zA6rUaP_AKT_dAfGEwdRbABkPs-wwdFr/view"
+    },
+    {
+      "path": "videos/02_smoke_curl_1080p.mp4.timing.json",
+      "id": "1bwOk0eoSbXhygNbUE5UeOBunR-oUqh_r",
+      "name": "02_smoke_curl_1080p.mp4.timing.json",
+      "size": 959801,
+      "sha256": "ac876f18b009fc7204e63e7b2b77bb46b4da5c87ef90557bf437e23ec47ec32a",
+      "link": "https://drive.google.com/file/d/1bwOk0eoSbXhygNbUE5UeOBunR-oUqh_r/view"
+    },
+    {
+      "path": "videos/03_bokeh_dust_1080p.mp4",
+      "id": "1hD--6bz9XOJajoT3MswZqcfSviD3Vyom",
+      "name": "03_bokeh_dust_1080p.mp4",
+      "size": 2932460,
+      "sha256": "e832f9da082968155fb7492fc074f14ebaa156a40d03757f9fccc798fde05d91",
+      "link": "https://drive.google.com/file/d/1hD--6bz9XOJajoT3MswZqcfSviD3Vyom/view"
+    },
+    {
+      "path": "videos/03_bokeh_dust_1080p.mp4.timing.json",
+      "id": "1cSUsZ3SOBZsZOiSAx_FJJm4Cls8QwC1m",
+      "name": "03_bokeh_dust_1080p.mp4.timing.json",
+      "size": 966705,
+      "sha256": "9da97a609657631f5ff3946e9cef6cad7b48d835b44526129d1e1b300c77c3c2",
+      "link": "https://drive.google.com/file/d/1cSUsZ3SOBZsZOiSAx_FJJm4Cls8QwC1m/view"
+    },
+    {
+      "path": "videos/04_spark_burst_1080p.mp4",
+      "id": "1ktCZGC34Ave_IqTkHIXe9LUc8mD34gY7",
+      "name": "04_spark_burst_1080p.mp4",
+      "size": 2627614,
+      "sha256": "d9f64ff6c1422b8756b99b94eab9d3782dbdcaeb2d096ff53475d6d049c3e589",
+      "link": "https://drive.google.com/file/d/1ktCZGC34Ave_IqTkHIXe9LUc8mD34gY7/view"
+    },
+    {
+      "path": "videos/04_spark_burst_1080p.mp4.timing.json",
+      "id": "1byUieFZzqxbzXqqPxhWIZIqY9ogpJ-um",
+      "name": "04_spark_burst_1080p.mp4.timing.json",
+      "size": 966500,
+      "sha256": "e30933fcd7f5f0da0d671df6b0b46784037cf25876c79409671c3681dcb618af",
+      "link": "https://drive.google.com/file/d/1byUieFZzqxbzXqqPxhWIZIqY9ogpJ-um/view"
+    }
+  ]
+}
