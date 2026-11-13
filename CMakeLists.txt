@@ -328,6 +328,7 @@ if(CHRONON3D_ENABLE_MOTION_ADAPTER)
         message(FATAL_ERROR "CHRONONMOTION_SOURCE_DIR must point to a ChrononMotion3D checkout")
     endif()
     set(CHRONONMOTION_BUILD_TESTS OFF CACHE BOOL "Do not add the sibling project's standalone test suite" FORCE)
+    set(CHRONONMOTION_EMBEDDED_IN_CHRONON3D ON)
     set(CHRONON3D_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/include" CACHE PATH "Chronon3D public headers for offline motion adapter" FORCE)
     set(CHRONON3D_DEPENDENCY_INCLUDE_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include"
         CACHE PATH "Chronon3D public dependency headers for offline motion adapter" FORCE)
@@ -353,6 +354,17 @@ if(CHRONON3D_ENABLE_VULKAN)
 endif()
 
 add_subdirectory(src)
+
+# The embedded adapter no longer compiles the temporal sampler itself (that
+# would duplicate `chronon3d_animations` symbols in its consumers). The offline
+# camera-bake tool links the canonical Chronon3D object library directly; the
+# bridge test receives it through chronon3d_compiler/render_plan.
+if(CHRONON3D_ENABLE_MOTION_ADAPTER
+   AND TARGET chrononmotion_chronon3d_adapter
+   AND TARGET chronon3d_camera_plan_bake
+   AND TARGET chronon3d_animations)
+    target_link_libraries(chronon3d_camera_plan_bake PRIVATE chronon3d_animations)
+endif()
 
 if(CHRONON3D_ENABLE_TRACING)
     target_link_libraries(chronon3d_core_impl PRIVATE unofficial::perfetto::perfetto)
