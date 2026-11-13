@@ -1,25 +1,8 @@
+#include <chronon3d/backends/assets/rounded_rect_coverage.hpp>
+
 namespace chronon3d {
 
 namespace {
-
-float rounded_rect_coverage(float x, float y, float w, float h, float radius) {
-    if (radius <= 0.0f) {
-        return 1.0f;
-    }
-
-    const float r = std::min({radius, w * 0.5f, h * 0.5f});
-    const float inner_x0 = r;
-    const float inner_y0 = r;
-    const float inner_x1 = w - r;
-    const float inner_y1 = h - r;
-    const float cx = std::clamp(x, inner_x0, inner_x1);
-    const float cy = std::clamp(y, inner_y0, inner_y1);
-    const float dx = x - cx;
-    const float dy = y - cy;
-    const float dist = std::sqrt(dx * dx + dy * dy);
-
-    return std::clamp(r + 0.5f - dist, 0.0f, 1.0f);
-}
 
 std::string rounded_cache_key(const std::string& path, int width, int height,
                               float radius, ImageDecodeOptions options) {
@@ -37,69 +20,29 @@ void apply_rounded_coverage(Framebuffer& fb, float radius) {
     const int h = fb.height();
     if (w <= 0 || h <= 0 || radius <= 0.0f) return;
 
-    const float r = std::min({radius, static_cast<float>(w) * 0.5f, static_cast<float>(h) * 0.5f});
-    const int ix0 = static_cast<int>(r);
-    const int iy0 = static_cast<int>(r);
-    const int ix1 = w - ix0;
-    const int iy1 = h - iy0;
-    const float r_sq = (r + 0.5f) * (r + 0.5f);
-
+    // Evaluate the same rounded-rectangle distance field used by
+    // rounded_framebuffer(). The old implementation faded every pixel in the
+    // left/right radius band, including middle rows that are part of the
+    // straight edge; that produced a wide horizontal alpha gradient along the
+    // full image height instead of clipping only the four corners.
     tbb::parallel_for(tbb::blocked_range<int>(0, h, 16), [&](const tbb::blocked_range<int>& range) {
         for (int y = range.begin(); y < range.end(); ++y) {
             Color* row = fb.pixels_row(y);
-            const bool edge_row = (y < iy0 || y >= iy1);
-
-            if (edge_row) {
-                // Top or bottom edge: all pixels potentially need coverage
-                for (int x = 0; x < w; ++x) {
-                    const float fx = static_cast<float>(x) + 0.5f;
-                    const float fy = static_cast<float>(y) + 0.5f;
-                    const float dx = (fx < r) ? fx - r : ((fx > w - r) ? fx - (w - r) : 0.0f);
-                    const float dy = (fy < r) ? fy - r : ((fy > h - r) ? fy - (h - r) : 0.0f);
-                    if (dx == 0.0f && dy == 0.0f) continue; // interior, coverage = 1
-                    const float dist = std::sqrt(dx * dx + dy * dy);
-                    const float coverage = std::clamp(r + 0.5f - dist, 0.0f, 1.0f);
-                    if (coverage <= 0.0f) {
-                        row[x] = Color::transparent();
-                    } else if (coverage < 1.0f) {
-                        row[x].r *= coverage;
-                        row[x].g *= coverage;
-                        row[x].b *= coverage;
-                        row[x].a *= coverage;
-                    }
-                }
-            } else {
-                // Middle rows: only left and right edge pixels need coverage
-                // Left edge
-                for (int x = 0; x < ix0 && x < w; ++x) {
-                    const float fx = static_cast<float>(x) + 0.5f;
-                    const float dx = fx - r;
-                    const float dy = 0.0f; // interior y
-                    const float dist_sq = dx * dx;
-                    if (dist_sq >= r_sq) {
-                        row[x] = Color::transparent();
-                    } else {
-                        const float coverage = 1.0f - std::sqrt(dist_sq) / (r + 0.5f);
-                        row[x].r *= coverage;
-                        row[x].g *= coverage;
-                        row[x].b *= coverage;
-                        row[x].a *= coverage;
-                    }
-                }
-                // Right edge
-                for (int x = ix1; x < w; ++x) {
-                    const float fx = static_cast<float>(x) + 0.5f;
-                    const float dx = fx - (w - r);
-                    const float dist_sq = dx * dx;
-                    if (dist_sq >= r_sq) {
-                        row[x] = Color::transparent();
-                    } else {
-                        const float coverage = 1.0f - std::sqrt(dist_sq) / (r + 0.5f);
-                        row[x].r *= coverage;
-                        row[x].g *= coverage;
-                        row[x].b *= coverage;
-                        row[x].a *= coverage;
-                    }
+            for (int x = 0; x < w; ++x) {
+                const float coverage = ::chronon3d::detail::rounded_rect_coverage(
+                    static_cast<float>(x) + 0.5f,
+                    static_cast<float>(y) + 0.5f,
+                    static_cast<float>(w),
+                    static_cast<float>(h),
+                    radius);
+                if (coverage >= 1.0f) continue;
+                if (coverage <= 0.0f) {
+                    row[x] = Color::transparent();
+                } else {
+                    row[x].r *= coverage;
+                    row[x].g *= coverage;
+                    row[x].b *= coverage;
+                    row[x].a *= coverage;
                 }
             }
         }
@@ -141,7 +84,7 @@ std::shared_ptr<const Framebuffer> ImageRenderer::rounded_framebuffer(
             const Color* src_row = cached.fb_img->pixels_row(y);
             Color* dst_row = rounded->pixels_row(y);
             for (int x = 0; x < cached.width; ++x) {
-                const float coverage = rounded_rect_coverage(
+                const float coverage = ::chronon3d::detail::rounded_rect_coverage(
                     static_cast<float>(x) + 0.5f,
                     static_cast<float>(y) + 0.5f,
                     w,
