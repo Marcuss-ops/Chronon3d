@@ -40,6 +40,7 @@
 // RENDER_JOB range parity: first/last are honored ONLY when range_enabled is
 // true, and an explicit first=0/last=0 pair is a single-frame chunk at frame
 // 0 — never an absent range (whole-plan render).
+//   CACHE_STATS     (empty)                   cache diagnostics of the live runtime
 //   STATUS          (empty)                   engine statistics
 //   SHUTDOWN        (empty)                   stop serving
 //
@@ -105,6 +106,7 @@ enum class Command : std::uint32_t {
     AssembleSegments = 7, ///< payload: JSON {input_paths, output_path, fragmented_mp4, audio_source_path, audio_target_sample_rate}
     GetJobStatus  = 8,   ///< payload: daemon job_id → JSON lifecycle snapshot
     RenderBatch   = 9,   ///< payload: JSON {jobs:[RENDER_JOB payload, ...]}
+    CacheStats    = 10,  ///< no payload → live RuntimeContext cache snapshot
 };
 
 enum class Status : std::uint32_t {

@@ -239,8 +239,11 @@ bool try_native_inline_mesh(
             if (state.rim_light.enabled)
                 throw std::runtime_error(
                     "Vulkan inline mesh per-pixel PBR does not support an explicit rim light");
-            shading.per_pixel_pbr = mr_texture_handle !=
-                runtime::kInvalidRenderSurfaceHandle;
+            // A neutral base texture is a valid metal-roughness source: its
+            // G/B channels are 1, so the authored factors carry the material.
+            // This keeps text meshes on the per-pixel path without requiring
+            // an extra MR asset just to light a bevel.
+            shading.per_pixel_pbr = true;
             shading.metallic_roughness_texture = mr_texture_handle;
             shading.metallic = source.metallic.value_or(0.0f);
             shading.roughness = *source.roughness;

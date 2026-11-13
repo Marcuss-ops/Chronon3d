@@ -1,8 +1,8 @@
 # AE-grade particles — evidence report (2026-11-12)
 
-**Status:** local implementation and demos complete. The parent ticket remains
-**PARTIAL** because same-SHA certification and the full byte-parity matrix are
-not closed.
+**Status:** local implementation, demos and the required byte-parity matrix are
+complete. The parent ticket remains **PARTIAL** because same-SHA certification
+is not closed.
 
 ## Host
 
@@ -79,13 +79,37 @@ byte size and SHA-256: **36/36 verified, 0 errors** (`DRIVE-FILES.json`,
    rectangle. It was removed; the final look relies on emissive cores,
    tone mapping and the motion-trail capsule.
 
+## Byte-parity matrix (2026-11-13)
+
+`scripts/ci/check_particle_environment_gate.py --vulkan` passes **7/7** cases on
+the local RTX A4000 with the NVIDIA ICD. Each case checks the software SHA-256
+golden, byte identity between 1 and 4 render workers, direct frame 2 against
+sequential frame 2, and byte identity against strict-native Vulkan, including
+Vulkan direct seek.
+
+| Case | Coverage | Result |
+|---|---|---|
+| `empty` | no particles | PASS |
+| `full_budget` | 4096 particles | PASS |
+| `clipped` | emitter beyond the canvas | PASS |
+| `bokeh_depth` | depth-driven bokeh | PASS |
+| `animated_color` | colour ramp, curl, drag, over-life curves | PASS |
+| `blend_normal` | particle layer over a dim particle backdrop | PASS |
+| `blend_screen` | screen-blended particle layer over a backdrop | PASS |
+
+Edge probes (`scripts/ci/check_particle_parity_edges.py`): the native-3D
+rotated layer is now byte-identical (0 bytes; previously 3,233, max 246) after
+correcting the transposed velocity transform. Scaled moving bokeh and additive
+blend remain within 1/255 (one byte), pinned as explicit tolerance checks
+rather than strict byte cases.
+
 ## Remaining gates / not claimed as PASS
 
 - **Same-SHA certification** on a clean host: the worktree is dirty, so this
   run cannot certify a published SHA.
-- **Full byte-parity matrix** for full-budget, clipping and bokeh-depth cases:
-  the focused `Vulkan *particle*` selection passed, but it is not the full
-  matrix required by the ticket.
+- **Full byte-parity matrix** — closed locally on 2026-11-13: 7/7 cases pass
+  software golden, 1/4-worker identity, direct seek and strict-native Vulkan
+  byte identity. The out-of-matrix residuals above are documented, not hidden.
 - **T1-01** (GPU canonical shadow), **T1-02** (GPU `VectorStroke`) and
   **T2-01** (`text_transitions` + spans/paint ranges) remain fail-closed under
   [ADR-040](../../adr/ADR-040-text-parity-product-exception.md). They were not

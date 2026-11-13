@@ -26,7 +26,7 @@
 // The 3 composition registration layers (see register_compositions.hpp).
 #include "register_compositions.hpp"
 
-#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
+#if defined(CHRONON3D_BUILD_CONTENT)
 #include <content/register_content_modules.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
 #include <chronon3d/extension/extension_context.hpp>
@@ -45,7 +45,7 @@ namespace chronon3d::cli {
 /// Register all compositions into the given registry.
 /// Per TICKET-CLI-ISOLATE-RUNTIME-DEV: 3-layer split
 ///   1. register_runtime_compositions  (always)
-///   2. register_content_compositions  (always when content/diagnostics)
+///   2. register_content_compositions  (content modules when CHRONON3D_BUILD_CONTENT)
 ///   3. register_dev_compositions      (only when CHRONON3D_BUILD_CLI_DEV)
 /// The `assets` parameter is accepted for backward compatibility with the
 /// caller's signature; composition registration does not need assets

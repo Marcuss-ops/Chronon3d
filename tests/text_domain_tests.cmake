@@ -63,7 +63,7 @@ chronon3d_add_test_suite(
 )
 list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_safe_area_placement_tests)
 
-if(CHRONON3D_BUILD_DIAGNOSTICS)
+if(CHRONON3D_ENABLE_DIAGNOSTICS)
     chronon3d_add_test_suite(
         NAME chronon3d_text_clip_policy_tests
         TIER INTEGRATION

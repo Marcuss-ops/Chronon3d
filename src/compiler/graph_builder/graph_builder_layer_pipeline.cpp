@@ -291,6 +291,11 @@ void sort_camera25d_layers(std::vector<LayerGraphItem>& items) {
             if (a.depth != b.depth) return a.depth > b.depth;
             return a.insertion_index < b.insertion_index;
         });
+    // Labels flagged composite_on_top keep their native 2.5D projection but
+    // must draw after the rest of the camera-ordered bin; otherwise a
+    // foreground bust paints over a name that belongs to a farther one.
+    std::stable_partition(items.begin(), items.end(),
+        [](const LayerGraphItem& item) { return !item.composite_on_top; });
 }
 
 } // namespace chronon3d::graph::detail

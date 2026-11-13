@@ -21,6 +21,10 @@ Rect alpha_bbox_scan(const Framebuffer& fb) noexcept {
     const int fb_w = static_cast<int>(fb.width());
     const int fb_h = static_cast<int>(fb.height());
     if (fb_w <= 0 || fb_h <= 0) return Rect{};
+    // Vulkan graph surfaces are GPU-authoritative and may have no CPU pixel
+    // allocation. There is no host data to scan; report an unmeasured bbox
+    // instead of dereferencing a null pixel pointer.
+    if (fb.data() == nullptr) return Rect{};
 
     int alpha_x0 = fb_w, alpha_y0 = fb_h;
     int alpha_x1 = -1, alpha_y1 = -1;

@@ -97,6 +97,9 @@ public:
     // contract behind SceneBuilder::screen_layer(), exposed here so the
     // render-plan compiler can honour a plan's `screen_space` flag.
     LayerBuilder& screen_space(bool value = true);
+    // Composite this layer after the rest of the 2.5D bin while preserving
+    // its camera projection.
+    LayerBuilder& composite_on_top(bool value = true);
     LayerBuilder& transform(Transform transform);
     LayerBuilder& transform(const Mat4& matrix);
     AnimatedValue<Vec3>& position_anim();

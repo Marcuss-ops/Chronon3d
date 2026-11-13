@@ -70,6 +70,7 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
                               advanced_params->threshold >= 0.0f &&
                               advanced_params->threshold <= 1.0f &&
                               std::abs(advanced_params->falloff - 1.0f) <= 1.0e-6f &&
+                              std::abs(advanced_params->color_cycle) <= 1.0e-6f &&
                               std::isfinite(advanced_params->color_r) &&
                               std::isfinite(advanced_params->color_g) &&
                               std::isfinite(advanced_params->color_b) &&
@@ -789,6 +790,9 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         params->radius < 0.0f || params->radius > 128.0f) {
         return false;
     }
+    // Fast Box Blur is CPU-authoritative until the native path loops passes;
+    // strict native fails closed instead of silently running one Gaussian pass.
+    if (params->box) return false;
     const auto desc = native_surface_desc(ctx, result.width(), result.height());
     const bool source_is_borrowed =
         borrowed_source != runtime::kInvalidRenderSurfaceHandle;

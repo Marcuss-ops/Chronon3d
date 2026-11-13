@@ -32,6 +32,16 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
         style_plan.text_direction = style.value("direction", std::string{"auto"});
         style_plan.text_align = style.value("text_align", std::string{"center"});
         style_plan.font_size = optional_value<float>(style, "font_size");
+        style_plan.tracking = optional_value<float>(style, "tracking");
+        if (style_plan.tracking &&
+            (!std::isfinite(*style_plan.tracking) ||
+             *style_plan.tracking < -1000.0f ||
+             *style_plan.tracking > 1000.0f))
+            throw std::runtime_error(
+                "text style tracking must be finite in [-1000, 1000]");
+        if (style_plan.tracking && layer.type != LayerType::Text)
+            throw std::runtime_error(
+                "style.tracking is only valid for text layers");
         style_plan.fill = style.value("fill", std::string{});
         style_plan.quality = style.value("quality", std::string{"fast"});
         if (style_plan.quality != "fast" && style_plan.quality != "high")

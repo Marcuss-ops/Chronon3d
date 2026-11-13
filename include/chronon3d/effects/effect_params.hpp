@@ -25,7 +25,14 @@
 
 namespace chronon3d {
 
-struct BlurParams          { f32   radius{0.0f}; };
+struct BlurParams {
+    f32 radius{0.0f};
+    // AE Fast Box Blur: `box=true` runs `passes` box iterations at the authored
+    // radius. `box=false` with passes=0 keeps the historical Gaussian-equivalent
+    // two-pass path byte-identical.
+    std::uint8_t passes{0};
+    bool box{false};
+};
 struct TintParams          { Color color{0,0,0,0}; f32 amount{1.0f}; };
 // Bodymovin/After Effects two-color Tint controls, stored in sRGB coordinates.
 struct LottieTintParams {
@@ -277,10 +284,17 @@ struct NoiseParams {
 
 // Deterministic fractal value noise generated over the full frame. Evolution
 // is a continuous sampling offset in lattice-space per second.
+// AE-style octave combination. Basic keeps the historical fBm, Dynamic shears
+// each octave with the evolution drift, SmallBumps uses rounded billow blobs.
+enum class FractalNoiseType : std::uint8_t { Basic, Dynamic, SmallBumps };
+
 struct FractalNoiseParams {
     uint32_t seed{0};
     uint32_t octaves{4};
     float frequency{0.015f};
+    // Percentage like AE Scale: 100 keeps `frequency`, 20 multiplies it by 5.
+    float scale{100.0f};
+    FractalNoiseType fractal_type{FractalNoiseType::Basic};
     float amplitude{1.0f};
     float evolution{0.0f};
     float contrast{1.0f};
@@ -772,6 +786,7 @@ struct GlowAdvancedParams {
     f32 color_r{1.0f}, color_g{1.0f}, color_b{1.0f}, color_a{1.0f};
     f32 color_b_r{1.0f}, color_b_g{1.0f}, color_b_b{1.0f}, color_b_a{1.0f};
     f32 falloff{1.0f};    // [1, 8]
+    f32 color_cycle{0.0f}; // [0, 1]; 0 keeps A, 1 shifts the ramp fully to B
 };
 
 // AE Optics Compensation shape: FOV drives a radial curvature; `reverse`

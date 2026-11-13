@@ -105,7 +105,10 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
             prepared_effects[index].emplace_back(camera_ring);
         } break;
         case LayerPlan::EffectKindPlan::GaussianBlur: {
-            prepared_effects[index].emplace_back(BlurParams{.radius = effect.radius});
+            prepared_effects[index].emplace_back(BlurParams{
+                .radius = effect.radius,
+                .passes = effect.blur_passes,
+                .box = effect.blur_box});
         } break;
         case LayerPlan::EffectKindPlan::DropShadow: {
             prepared_effects[index].emplace_back(DropShadowParams{
@@ -168,6 +171,8 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
             .seed = effect.seed,
             .octaves = effect.octaves,
             .frequency = effect.frequency,
+            .scale = effect.fractal_scale,
+            .fractal_type = static_cast<FractalNoiseType>(effect.fractal_type),
             .amplitude = effect.amplitude,
             .evolution = effect.evolution,
             .contrast = effect.contrast,

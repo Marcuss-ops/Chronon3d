@@ -62,7 +62,7 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
     std::span<const std::optional<raster::BBox>>
 ) const {
-    if (!m_node.gpu_particle_instances.empty()) {
+    if (!m_node.gpu_particle_instances.empty() || m_node.software_environment_particle) {
         return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
     const Mat4 base_matrix = effective_matrix(ctx);

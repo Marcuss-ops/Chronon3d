@@ -631,6 +631,37 @@ TEST_CASE("Vulkan particle instances render procedural discs in one layer batch"
     (void)backend.release_surface(transparent_source);
 }
 
+TEST_CASE("Vulkan particle coordinates near the origin are pixels") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+    backends::vulkan::VulkanBackend backend;
+    constexpr RenderSurfaceHandle dst = 951, source = 952;
+    const auto desc = SurfaceDesc::make(
+        8, 8, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    REQUIRE(backend.create_surface(dst, desc).ok());
+    REQUIRE(backend.create_surface(source, desc).ok());
+    REQUIRE(backend.initialize_transparent_surface(dst).ok());
+    REQUIRE(backend.initialize_transparent_surface(source).ok());
+    LayerInstance particle;
+    particle.kind = PrimitiveKind::Particle;
+    particle.dst_x0 = particle.dst_y0 = -0.2f;
+    particle.dst_x1 = particle.dst_y1 = 0.9f;
+    particle.tint = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    const std::array<LayerInstance, 1> instances{particle};
+    const std::array<RenderSurfaceHandle, 1> resources{source};
+    backend.begin_frame_batch();
+    const auto rendered = backend.execute_layer_batch(dst, instances, resources, {}, {});
+    backend.end_frame_batch();
+    REQUIRE(rendered.ok());
+    std::vector<float> pixels(8 * 8 * 4, 0.0f);
+    REQUIRE(backend.download_surface(dst, pixels).ok());
+    CHECK(pixels[3] > 0.0f);
+    CHECK(pixels[(3 * 8 + 3) * 4 + 3] == doctest::Approx(0.0f));
+    (void)backend.release_surface(dst);
+    (void)backend.release_surface(source);
+}
+
 TEST_CASE("Vulkan particle motion draws a trail outside the head rectangle") {
     using namespace chronon3d;
     using namespace chronon3d::runtime;

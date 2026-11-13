@@ -224,6 +224,11 @@ public:
     /// registry attached, not the preference string.
     [[nodiscard]] std::string resolved_lane_name() const;
 
+    /// Human-readable snapshot of the engine-owned RuntimeContext cache
+    /// diagnostics. Internal adapter surface for the daemon; no cache object
+    /// escapes the runtime boundary.
+    [[nodiscard]] std::string cache_snapshot() const;
+
 private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;

@@ -110,6 +110,10 @@ vec4 sample_texture(vec2 uv) {
 
 // Same texel addressing as the base-color sampler: G roughness, B metallic.
 vec2 sample_metallic_roughness(vec2 uv) {
+    // Text and other factor-only materials have no MR image. In that case the
+    // authored factors are authoritative and the neutral sample is 1.0, not
+    // the base-color texture's green/blue channels.
+    if ((params.shading_flags & 32) == 0) return vec2(1.0);
     ivec2 size = imageSize(metallic_roughness_image);
     vec2 p = clamp(vec2(uv.x, 1.0 - uv.y), vec2(0.0), vec2(1.0)) *
              vec2(max(size - ivec2(1), ivec2(0)));

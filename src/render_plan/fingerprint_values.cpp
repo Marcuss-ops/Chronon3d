@@ -18,6 +18,8 @@ void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
     out.add_string(track.property);
     out.add_string(track.easing);
     out.add_string(track.loop_mode);
+    out.add_bool(track.expression.has_value());
+    if (track.expression) out.add_string(*track.expression);
     if (track.wiggle) {
         out.add_bool(true);
         out.add_float(track.wiggle->frequency);
@@ -213,6 +215,8 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
         out.add_string(style.text_align);
     }
     add_optional(out, style.font_size,
+                 [](auto& writer, float value) { writer.add_float(value); });
+    add_optional(out, style.tracking,
                  [](auto& writer, float value) { writer.add_float(value); });
     out.add_string(style.fill);
     out.add_string(style.quality);

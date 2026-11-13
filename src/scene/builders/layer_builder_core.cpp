@@ -150,6 +150,11 @@ LayerBuilder& LayerBuilder::screen_space(bool value) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::composite_on_top(bool value) {
+    m_layer.composite_on_top = value;
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::transform(Transform t) {
     m_layer.transform = t;
     return *this;

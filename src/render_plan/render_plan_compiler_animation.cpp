@@ -155,6 +155,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         if (!track) return result;
         for (const auto& key : track->keyframes)
             add_animation_keyframe(result, *track, key, scalar_value(key, track->property), fps);
+        apply_wiggle(result, *track);
+        apply_authored_expression(result, *track);
         result.compute_roving();
         result.compute_auto_beziers();
         return result;
@@ -307,6 +309,7 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
                 add_animation_keyframe(animated, *pos_tracks.full, key,
                     vector_value(key, pos_tracks.full->property, base_position), fps);
         }
+        apply_vector_wiggle(animated, *pos_tracks.full);
         animated.compute_roving();
         animated.compute_auto_beziers();
     } else if (pos_tracks.x || pos_tracks.y || pos_tracks.z) {
@@ -350,6 +353,7 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
             add_animation_keyframe(animated, *scale_tracks.full, key,
                 value, fps);
         }
+        apply_vector_wiggle(animated, *scale_tracks.full);
         animated.compute_roving();
         animated.compute_auto_beziers();
     } else if (scale_tracks.x || scale_tracks.y || scale_tracks.z) {
@@ -391,6 +395,7 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         for (const auto& key : rot_tracks.full->keyframes)
             add_animation_keyframe(animated, *rot_tracks.full, key,
                 vector_value(key, rot_tracks.full->property, base_rotation), fps);
+        apply_vector_wiggle(animated, *rot_tracks.full);
         animated.compute_roving();
         animated.compute_auto_beziers();
     } else if (rot_tracks.x || rot_tracks.y || rot_tracks.z) {
@@ -467,6 +472,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         for (const auto& key : opacity_track->keyframes)
             add_animation_keyframe(animated, *opacity_track, key,
                 scalar_value(key, opacity_track->property), fps);
+        apply_wiggle(animated, *opacity_track);
+        apply_authored_expression(animated, *opacity_track);
         animated.compute_roving();
         animated.compute_auto_beziers();
     }
@@ -476,6 +483,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         for (const auto& key : blur_track->keyframes)
             add_animation_keyframe(animated, *blur_track, key,
                 scalar_value(key, blur_track->property), fps);
+        apply_wiggle(animated, *blur_track);
+        apply_authored_expression(animated, *blur_track);
         animated.compute_roving();
         animated.compute_auto_beziers();
     }
@@ -575,6 +584,7 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
     }
     if (layer.enable_3d) builder.enable_3d();
     if (layer.screen_space) builder.screen_space();
+    if (layer.composite_on_top) builder.composite_on_top();
     if (layer.depth_role) {
         builder.depth_role(depth_role_value(*layer.depth_role));
         builder.depth_offset(layer.depth_offset);

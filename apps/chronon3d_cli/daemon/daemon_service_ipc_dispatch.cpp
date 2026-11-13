@@ -47,6 +47,10 @@ ipc::Reply DaemonService::ipc_status() {
     return ipc::Reply{ipc::Status::Ok, ss.str()};
 }
 
+ipc::Reply DaemonService::ipc_cache_stats() {
+    return ipc::Reply{ipc::Status::Ok, format_cache_stats()};
+}
+
 bool DaemonService::begin_job_status(std::string_view job_id) {
     if (job_id.empty()) return true;
     std::lock_guard lock(m_job_status_mutex);

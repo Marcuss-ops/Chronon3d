@@ -338,5 +338,24 @@ void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& 
     }
 }
 
+// AE Fast Box Blur contract: raw radius per pass, no Gaussian-equivalent radius
+// conversion, so `passes` authored iterations are exactly what runs. Full-res
+// only because the downsample paths special-case two passes as a Gaussian.
+void apply_box_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip, int passes) {
+    if (resolve_blur_strategy(radius) == BlurStrategy::None) return;
+    const i32 r = std::max(1, static_cast<i32>(std::round(radius)));
+    const i32 blur_passes = std::clamp(passes, 1, 5);
+    const i32 w = fb.width(), h = fb.height();
+    i32 x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        const i32 margin = blur_passes * r + 2;
+        x0 = std::clamp(clip->x0 - margin, 0, w);
+        x1 = std::clamp(clip->x1 + margin, 0, w);
+        y0 = std::clamp(clip->y0 - margin, 0, h);
+        y1 = std::clamp(clip->y1 + margin, 0, h);
+    }
+    apply_fullres_blur(fb, r, blur_passes, x0, x1, y0, y1);
+}
+
 } // namespace renderer
 } // namespace chronon3d

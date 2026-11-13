@@ -115,6 +115,14 @@ u64 hash_render_node_content_impl(const RenderNode& n, bool semantic_v2) {
     seed = hash_combine(seed, hash_string(n.inline_mesh_texture_asset));
     seed = hash_combine(seed, hash_value(n.inline_mesh_animated));
     seed = hash_combine(seed, hash_value(n.gpu_particle_bokeh));
+    if (n.software_environment_particle) {
+        const auto& particle = *n.software_environment_particle;
+        seed = hash_combine(seed, hash_value(true));
+        seed = hash_combine(seed, hash_vec2(particle.position));
+        seed = hash_combine(seed, hash_color(particle.color));
+        seed = hash_combine(seed, hash_value(particle.size));
+        seed = hash_combine(seed, hash_vec2(particle.velocity));
+    }
     seed = hash_combine(seed, hash_string(n.gpu_particle_sprite_path));
     seed = hash_combine(seed, hash_value(n.gpu_particle_instances.size()));
     for (const auto& particle : n.gpu_particle_instances) {

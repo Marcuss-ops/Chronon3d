@@ -20,6 +20,8 @@ struct LayerGraphItem {
     f32          world_z{0.0f};    // world-space Z before camera-relative projection
     bool         projected{false}; // true if transform was computed by project_layer_2_5d
     bool         native_3d{false}; // true if layer contains native 3D shapes
+    // Keep native 2.5D projection but composite after the camera-ordered bin.
+    bool         composite_on_top{false};
 
     bool         visible{true};    // canonical placement/projection visibility
     // Tight projected surfaces carry their local raster dimensions through

@@ -513,6 +513,7 @@ struct EvaluatedSourcePlacement {
         .world_z = placed_transform.position.z,
         .projected = false,
         .native_3d = native_3d,
+        .composite_on_top = layer.composite_on_top,
         .visible = layer.visible,
         .projected_surface_size = projected_surface_size,
         .projected_surface_origin = projected_surface_origin,

@@ -142,6 +142,7 @@ void decode_layer_render_flags(LayerPlan& layer, const nlohmann::json& value) {
          *layer.shadow_opacity > 1.0f))
         throw std::runtime_error("layer.shadow_opacity must be finite and in [0, 1]");
     layer.screen_space = value.value("screen_space", false);
+    layer.composite_on_top = value.value("composite_on_top", false);
     if (value.contains("safe_insets")) {
         const auto& insets = value.at("safe_insets");
         if (!insets.is_object())

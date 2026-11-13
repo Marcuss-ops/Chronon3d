@@ -100,6 +100,11 @@ struct AnimationTrackPlan {
     // the end value; cycle and pingpong repeat the segment; offset adds the
     // authored end-to-start delta for each completed cycle.
     std::string loop_mode{"none"};
+    // Closed-profile time expression evaluated per sample. `value` is the
+    // keyframed base value; the evaluator supplies time/frame/fps/index.
+    // Host-dependent AE forms (thisComp/layer()/loopOut/...) are rejected at
+    // decode time so unsupported input fails closed instead of reading 0.
+    std::optional<std::string> expression;
     struct WiggleDriverPlan {
         float frequency{2.0f};
         float amplitude{30.0f};

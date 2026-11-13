@@ -165,8 +165,8 @@ void decode_effect_parameter_tracks(LayerPlan& layer, const nlohmann::json& valu
             raw_animation.erase("param");
             raw_animation["property"] = "opacity";
             auto track = decode_animation_track(raw_animation);
-            if (track.keyframes.size() < 1)
-                throw std::runtime_error("effect parameter tracks require keyframes");
+            if (track.keyframes.empty() && !track.expression)
+                throw std::runtime_error("effect parameter tracks require keyframes or an expression");
             for (const auto& key : track.keyframes) {
                 if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
                     key.value.front() < definition->minimum || key.value.front() > definition->maximum)

@@ -18,12 +18,25 @@ inline void apply_particle_sample(
     // keeping it out of the node transform avoids multiplying alpha twice.
     node.world_transform.opacity = 1.0f;
     node.color = sample.color;
+    if (node.software_environment_particle) {
+        auto& particle = *node.software_environment_particle;
+        particle.position = Vec2{sample.position.x, sample.position.y};
+        particle.color = sample.color;
+        particle.size = sample.size;
+        particle.rotation = sample.rotation.z;
+        particle.sprite_scale = sample.sprite_scale;
+        particle.z = sample.position.z;
+        particle.velocity = sample.velocity;
+    }
     if (node.shape.type() == ShapeType::Circle) {
         const float radius = std::max(0.0f, sample.size * 0.5f);
         node.shape.circle().radius = radius;
         node.world_transform.anchor = Vec3{radius, radius, 0.0f};
         if (node.fill.gradient.type == graphics::GradientType::Radial &&
             node.fill.gradient.color_stops.size() >= 2) {
+            // The gradient already contains the particle alpha. The shape
+            // rasterizer multiplies it by node.color.a as a separate opacity.
+            node.color.a = 1.0f;
             node.fill.gradient.color_stops.front().color = sample.color;
             auto transparent = sample.color;
             transparent.a = 0.0f;

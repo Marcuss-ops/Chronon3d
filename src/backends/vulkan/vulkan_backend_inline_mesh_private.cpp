@@ -19,6 +19,7 @@ constexpr std::int32_t kShadingDoubleSided = 2;
 constexpr std::int32_t kShadingDirectional = 4;
 constexpr std::int32_t kShadingAmbient = 8;
 constexpr std::int32_t kShadingEmissive = 16;
+constexpr std::int32_t kShadingHasMrTexture = 32;
 
 constexpr std::size_t kInlineMeshVertexStride = 11;
 
@@ -49,11 +50,6 @@ void VulkanBackend::Impl::draw_inline_mesh(
         std::numeric_limits<std::int32_t>::max());
     if (vertex_count > shader_count_limit || indices.size() > shader_count_limit)
         throw std::length_error("Vulkan inline mesh exceeds signed shader count limits");
-    if (shading.per_pixel_pbr &&
-        shading.metallic_roughness_texture == runtime::kInvalidRenderSurfaceHandle)
-        throw std::invalid_argument(
-            "Vulkan inline mesh per-pixel material requires a metallic-roughness texture");
-
     auto& dst_image = resolve_image(destination);
     auto& texture_image = resolve_image(texture);
     const bool write_depth =
@@ -72,7 +68,8 @@ void VulkanBackend::Impl::draw_inline_mesh(
         }
     }
     Image* mr_image = &texture_image;
-    if (shading.per_pixel_pbr) {
+    if (shading.per_pixel_pbr &&
+        shading.metallic_roughness_texture != runtime::kInvalidRenderSurfaceHandle) {
         mr_image = &resolve_image(shading.metallic_roughness_texture);
         if (!mr_image->initialized || !mr_image->width || !mr_image->height)
             throw std::invalid_argument(
@@ -167,6 +164,8 @@ void VulkanBackend::Impl::draw_inline_mesh(
     if (shading.directional_enabled) shading_flags |= kShadingDirectional;
     if (shading.ambient_enabled) shading_flags |= kShadingAmbient;
     if (shading.emissive_enabled) shading_flags |= kShadingEmissive;
+    if (shading.metallic_roughness_texture != runtime::kInvalidRenderSurfaceHandle)
+        shading_flags |= kShadingHasMrTexture;
 
     struct PushConstants {
         std::int32_t vertex_count;

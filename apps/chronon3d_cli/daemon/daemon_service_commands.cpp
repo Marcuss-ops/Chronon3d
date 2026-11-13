@@ -3,6 +3,10 @@
 
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
+#include <chronon3d/backends/software/software_execution_context.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/cache/cache_diagnostics.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include "../utils/common/render_error_formatter.hpp"
 
@@ -23,6 +27,7 @@ void DaemonService::run() {
     spdlog::info("╠══════════════════════════════════════════╣");
     spdlog::info("║  r  <comp> <frame> [out]     Render     ║");
     spdlog::info("║  st                          Stats      ║");
+    spdlog::info("║  cs                          Cache stats║");
     spdlog::info("║  cc                          Clear cache║");
     spdlog::info("║  rl                          Rebuild    ║");
     spdlog::info("║  h                           Help       ║");
@@ -57,6 +62,8 @@ void DaemonService::handle_command(const std::string& line) {
         cmd_clear_caches();
     } else if (cmd == "status" || cmd == "st") {
         cmd_status();
+    } else if (cmd == "cache-stats" || cmd == "cs") {
+        cmd_cache_stats();
     } else if (cmd == "help" || cmd == "h") {
         cmd_help();
     } else if (cmd == "quit" || cmd == "q" || cmd == "exit") {
@@ -116,11 +123,32 @@ void DaemonService::cmd_status() {
     spdlog::info("");
 }
 
+std::string DaemonService::format_cache_stats() const {
+    std::lock_guard<std::mutex> lock(m_device_sessions_mutex);
+    std::string snapshot;
+    for (const auto& [device, renderer] : m_device_sessions) {
+        if (!renderer) continue;
+        auto* runtime = renderer->execution_context().runtime;
+        if (runtime == nullptr) continue;
+        snapshot += "Device " + std::to_string(device) + ":\n";
+        snapshot += cache::format_cache_snapshot(runtime->diagnostics());
+    }
+    if (!snapshot.empty()) return snapshot;
+    if (m_engine) return m_engine->cache_snapshot();
+    return "[cache] No active runtime.\n";
+}
+
+void DaemonService::cmd_cache_stats() {
+    std::cout << format_cache_stats();
+    std::cout.flush();
+}
+
 void DaemonService::cmd_help() {
     spdlog::info("");
     spdlog::info("Commands (short aliases in parentheses):");
     spdlog::info("  r      <comp> <frame> [out]   Render a single frame");
     spdlog::info("  st                             Show engine statistics");
+    spdlog::info("  cs / cache-stats               Show the runtime cache diagnostics");
     spdlog::info("  cc                             Clear all caches (FB pool, fonts, nodes)");
     spdlog::info("  rl                             Rebuild project (requires build command)");
     spdlog::info("  h                              Show this help");

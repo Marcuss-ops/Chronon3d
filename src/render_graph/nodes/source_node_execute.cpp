@@ -355,10 +355,14 @@ NodeExecResult SourceNode::execute(
                 // and expose only a short trail. Without this the GPU batch
                 // receives a dot with no direction, which is why motion was
                 // invisible even after the sampler produced it.
+                // Column-major transform of the emitter-local velocity:
+                // v' = M * v, i.e. m[0][0]*vx + m[1][0]*vy on x and
+                // m[0][1]*vx + m[1][1]*vy on y. The transposed form matches
+                // only axis-aligned matrices and broke rotated 3D layers.
                 const Vec2 velocity{
                     particle_matrix[0][0] * particle.velocity.x +
-                        particle_matrix[0][1] * particle.velocity.y,
-                    particle_matrix[1][0] * particle.velocity.x +
+                        particle_matrix[1][0] * particle.velocity.y,
+                    particle_matrix[0][1] * particle.velocity.x +
                         particle_matrix[1][1] * particle.velocity.y};
                 Vec2 motion = velocity * runtime::kParticleTrailSeconds;
                 const float trail_limit = std::max(
@@ -460,7 +464,12 @@ NodeExecResult SourceNode::execute(
                         transforms.size() / 16U);
                     transforms.insert(transforms.end(), transform.begin(), transform.end());
                 }
-                if (ctx.node_exec.clip_rect) {
+                // Procedural particle bounds describe the capsule geometry,
+                // not merely a scissor. Clamping them changes its centre and
+                // radius, and can discard an off-screen head with a visible
+                // trail. The destination surface already clips the dispatch.
+                if (ctx.node_exec.clip_rect &&
+                    instance.kind != runtime::PrimitiveKind::Particle) {
                     instance.dst_x0 = std::max(instance.dst_x0,
                         static_cast<float>(ctx.node_exec.clip_rect->x0));
                     instance.dst_y0 = std::max(instance.dst_y0,

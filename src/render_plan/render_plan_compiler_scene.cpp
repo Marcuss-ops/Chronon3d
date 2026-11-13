@@ -1,4 +1,6 @@
 #include "render_plan_compiler_detail.hpp"
+#include <chronon3d/math/expression.hpp>
+#include <unordered_map>
 #include <chronon3d/render_plan/resolved_transform_samples.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
 #include "light_attenuation.hpp"
@@ -199,14 +201,53 @@ void apply_scene_layer_effects(LayerBuilder& builder, const LayerPlan& layer, co
                 if (param_track.effect_id != canonical_effect_id) continue;
                 effects::EffectParameterTrack runtime_track;
                 runtime_track.param = param_track.param;
-                runtime_track.keyframes.reserve(param_track.track.keyframes.size());
-                for (const auto& key : param_track.track.keyframes) {
-                    if (key.value.size() != 1)
+                runtime_track.expression = param_track.track.expression;
+                const auto* bounds = effects::find_animatable_effect_param(
+                    param_track.effect_id, param_track.param);
+                if (!bounds)
+                    throw std::runtime_error(
+                        "effect parameter is not declared animatable: " +
+                        param_track.effect_id + "." + param_track.param);
+                if (param_track.track.expression) {
+                    // Effect parameters are sampled by a keyframe-only runtime
+                    // track, so the authored time expression is baked at the
+                    // composition rate and clamped to the catalog range. This
+                    // keeps hashing and per-frame sampling unchanged.
+                    const double fps =
+                        static_cast<double>(plan.canvas.fps.numerator) /
+                        static_cast<double>(plan.canvas.fps.denominator);
+                    if (!(fps > 0.0) || !std::isfinite(fps))
                         throw std::runtime_error(
-                            "effect parameter animation requires scalar keyframes");
-                    runtime_track.keyframes.push_back({
-                        key.frame.integral(), key.value.front(),
-                        key.interpolation.value_or(std::string{}) == "hold"});
+                            "effect parameter expression requires a positive frame rate");
+                    const std::int64_t last_frame = std::max<std::int64_t>(
+                        plan.canvas.duration.integral(), 0);
+                    runtime_track.keyframes.reserve(
+                        static_cast<std::size_t>(last_frame) + 1U);
+                    for (std::int64_t frame = 0; frame <= last_frame; ++frame) {
+                        const std::unordered_map<std::string, double> vars{
+                            {"time", static_cast<double>(frame) / fps},
+                            {"frame", static_cast<double>(frame)},
+                            {"fps", fps},
+                            {"value", 0.0}};
+                        double sample = math::evaluate_expression(
+                            *param_track.track.expression, vars, 0.0);
+                        if (!std::isfinite(sample))
+                            throw std::runtime_error(
+                                "effect parameter expression produced a non-finite value");
+                        sample = std::clamp<double>(sample, bounds->minimum, bounds->maximum);
+                        runtime_track.keyframes.push_back({
+                            frame, static_cast<float>(sample), false});
+                    }
+                } else {
+                    runtime_track.keyframes.reserve(param_track.track.keyframes.size());
+                    for (const auto& key : param_track.track.keyframes) {
+                        if (key.value.size() != 1)
+                            throw std::runtime_error(
+                                "effect parameter animation requires scalar keyframes");
+                        runtime_track.keyframes.push_back({
+                            key.frame.integral(), key.value.front(),
+                            key.interpolation.value_or(std::string{}) == "hold"});
+                    }
                 }
                 builder.effect_parameter_track(std::move(runtime_track));
             }

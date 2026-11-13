@@ -274,8 +274,9 @@ std::optional<PlanDecodeError> validate_render_budget(
                     return fail(prefix + ".animation.tracks[].spring", "spring config is outside supported finite bounds");
                 if (track.spring && track.easing != easing_name::kSpring)
                     return fail(prefix + ".animation.tracks[].spring", "track spring config requires spring easing");
-                if (track.keyframes.empty())
-                    return fail(prefix + ".animation.tracks", "tracks require at least one keyframe");
+                if (track.keyframes.empty() && !track.expression && !track.wiggle)
+                    return fail(prefix + ".animation.tracks",
+                                "tracks require keyframes, an expression, or a wiggle driver");
                 if (track.easing == easing_name::kSpring && track.keyframes.size() < 2)
                     return fail(prefix + ".animation.tracks", "spring segment requires positive frame span");
                 Frame previous{-1};

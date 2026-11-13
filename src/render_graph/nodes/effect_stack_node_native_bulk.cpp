@@ -590,6 +590,10 @@ bool try_native_full_frame_generate_bulk(RenderGraphContext& ctx,
         const auto* p = std::get_if<FractalNoiseParams>(&instance.params);
         if (!p) return false;
         if (p->field.has_value()) return false;  // Field2D port is future work
+        // Scale and fractal_type are CPU-authoritative extensions: the native
+        // shader implements only Basic at scale 100, so fail closed otherwise.
+        if (p->scale != 100.0f || p->fractal_type != FractalNoiseType::Basic)
+            return false;
         if (!bulk_finite_list({p->frequency, p->amplitude, p->evolution,
                           p->contrast, p->brightness}))
             return false;

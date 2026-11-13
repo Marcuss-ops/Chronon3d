@@ -30,15 +30,23 @@ float smooth_value_noise(float x, float y, uint32_t seed) {
     return std::lerp(a, b, sy);
 }
 
-float fractal(float x, float y, const FractalNoiseParams& p, uint32_t channel_seed) {
+float fractal(float x, float y, const FractalNoiseParams& p, uint32_t channel_seed,
+              float phase) {
     const uint32_t octaves = std::clamp(p.octaves, 1u, 16u);
-    float frequency = std::max(0.0f, p.frequency);
+    const float scale = p.scale > 0.0f ? 100.0f / p.scale : 1.0f;
+    float frequency = std::max(0.0f, p.frequency) * scale;
     float amplitude = 1.0f;
     float sum = 0.0f;
     float weight = 0.0f;
     for (uint32_t octave = 0; octave < octaves; ++octave) {
-        sum += smooth_value_noise(x * frequency, y * frequency,
-                                  p.seed + channel_seed + octave * 0x9E3779B9u) * amplitude;
+        const float offset = p.fractal_type == FractalNoiseType::Dynamic
+            ? phase * static_cast<float>(octave + 1u) : 0.0f;
+        float sample = smooth_value_noise(x * frequency + offset * 0.37f,
+                                          y * frequency + offset * 0.61f,
+                                          p.seed + channel_seed + octave * 0x9E3779B9u);
+        if (p.fractal_type == FractalNoiseType::SmallBumps)
+            sample = 2.0f * (1.0f - std::abs(2.0f * sample - 1.0f)) - 1.0f;
+        sum += sample * amplitude;
         weight += amplitude;
         frequency *= 2.0f;
         amplitude *= 0.5f;
@@ -92,11 +100,11 @@ void apply_fractal_noise(Framebuffer& fb, const FractalNoiseParams& params,
             const float px = static_cast<float>(x) + drift;
             const float py = static_cast<float>(y) + drift * 0.6180339f;
             if (params.color_mode == NoiseColorMode::RGB) {
-                row[x] = Color{fractal(px, py, params, 0u),
-                               fractal(px, py, params, 0x68BC21EBu),
-                               fractal(px, py, params, 0x02E5BE93u), 1.0f};
+                row[x] = Color{fractal(px, py, params, 0u, drift),
+                               fractal(px, py, params, 0x68BC21EBu, drift),
+                               fractal(px, py, params, 0x02E5BE93u, drift), 1.0f};
             } else {
-                const float value = fractal(px, py, params, 0u);
+                const float value = fractal(px, py, params, 0u, drift);
                 row[x] = Color{value, value, value, 1.0f};
             }
         }

@@ -1,12 +1,16 @@
 #include "render_plan_compiler_detail.hpp"
+#include "../render_graph/builder/extruded_text_mesh.hpp"
 #include <chronon3d/render_plan/color_utils.hpp>
 #include <chronon3d/effects/effect_param_animation.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
+#include <chronon3d/scene/builders/text_run_materialization.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <spdlog/spdlog.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -302,6 +306,7 @@ void append_particles_layer_for_scene(
     // compositing or sampling semantics.
     const bool opaque_cpu_batch =
         resolved_particle_sprite_paths[index].empty() &&
+        !layer.particle_emitter->environment &&
         layer.particle_emitter->blend_mode == BlendMode::Normal &&
         std::all_of(sampled.particles.begin(), sampled.particles.end(),
             [](const auto& particle) { return particle.color.a >= 1.0f; });
@@ -362,6 +367,7 @@ void append_particles_layer_for_scene(
         params.color = particle.color;
         params.fill = graphics::FillStyle::solid(particle.color);
         if (layer.particle_emitter->bokeh) {
+            params.color.a = 1.0f;
             const Color transparent{particle.color.r, particle.color.g,
                                      particle.color.b, 0.0f};
             params.fill = graphics::FillStyle::radial(
@@ -372,6 +378,13 @@ void append_particles_layer_for_scene(
             layer.particle_emitter->environment ? (1.0f - particle.depth) * 100.0f : 0.0f};
         builder.circle("particle_" + std::to_string(particle.index),
                        std::move(params));
+        if (layer.particle_emitter->environment) {
+            builder.last_node_handle().node().software_environment_particle =
+                RenderNode::GpuParticleInstance{
+                    particle.position, particle.color, particle.size,
+                    particle.rotation, particle.sprite_scale,
+                    (1.0f - particle.depth) * 100.0f, particle.velocity};
+        }
     }
     attach_gpu_instances();
     return;
@@ -547,7 +560,10 @@ void append_text_layer_for_scene(
     // native GPU path from inserting CPU-only light/
     // depth-grade passes between projected text and
     // its compositor output.
-    builder.accepts_lights(false).accepts_shadows(false);
+    // Extruded TextRun is a real 3D mesh: it must receive the scene lighting
+    // rig and cast shadows, unlike screen-space MTSDF text.
+    const bool extruded_text = layer.style && layer.style->extruded_text;
+    builder.accepts_lights(extruded_text).accepts_shadows(extruded_text);
     if (!prepared_texts[index])
         throw std::runtime_error(
             "text layer was not prepared");
@@ -575,6 +591,78 @@ void append_text_layer_for_scene(
         card.color = *color;
         card.fill = graphics::FillStyle::solid(*color);
         builder.rounded_rect("text_card", std::move(card));
+    }
+    // An extruded TextRun is real geometry, not an MTSDF quad.  The
+    // RenderPlan scene route used to leave it on the text lane, so the
+    // authored extrusion rendered as a flat, oversized 2D run under the
+    // camera.  Promote it to the same inline mesh the compiled route and the
+    // render-graph source pass build, then let the scene lighting rig shade
+    // the front/back caps and side walls.
+    if (extruded_text && !prepared_text_counters[index]) {
+        auto text_run = chronon3d::materialize_prepared_text(
+            *prepared_texts[index], font_engine.get(),
+            chronon3d::SampleTime::from_frame(0.0, plan.canvas.fps), nullptr);
+        if (text_run && text_run->animators.empty() && !text_run->animated_doc) {
+            auto mesh = chronon3d::graph::detail::build_extruded_text_mesh(
+                *text_run, layer.style->extrusion_depth);
+            // Glyph outlines are baseline-local.  Center them on the layer
+            // origin so the authored position is the visual center instead
+            // of pinning the left edge to the camera axis.
+            float min_x = std::numeric_limits<float>::infinity();
+            float max_x = -std::numeric_limits<float>::infinity();
+            float min_y = std::numeric_limits<float>::infinity();
+            float max_y = -std::numeric_limits<float>::infinity();
+            for (const auto& vertex : mesh->vertices()) {
+                min_x = std::min(min_x, vertex.position.x);
+                max_x = std::max(max_x, vertex.position.x);
+                min_y = std::min(min_y, vertex.position.y);
+                max_y = std::max(max_y, vertex.position.y);
+            }
+            const float center_x = (min_x + max_x) * 0.5f;
+            const float center_y = (min_y + max_y) * 0.5f;
+            InlineMeshParams params;
+            params.name = layer.id;
+            params.vertices.reserve(mesh->vertices().size());
+            for (const auto& vertex : mesh->vertices()) {
+                params.vertices.push_back(Vertex{
+                    Vec3{vertex.position.x - center_x,
+                         vertex.position.y - center_y,
+                         vertex.position.z},
+                    vertex.normal, vertex.uv});
+            }
+            params.indices = mesh->indices();
+            builder.kind(LayerKind::Normal)
+                .enable_3d(true)
+                .screen_space(false)
+                .accepts_lights(true)
+                .accepts_shadows(true);
+            builder.inline_mesh(std::move(params));
+            auto& mesh_node = builder.last_node_handle().node();
+            const Color base_color = prepared_texts[index]->style.color;
+            // The native mesh renderer multiplies the node tint by the material
+            // base color; keep the tint white so the fill is applied once.
+            mesh_node.color = Color{1.0f, 1.0f, 1.0f, base_color.a};
+            // The native mesh lane converts to linear but does not sRGB-encode
+            // the surface; pre-encode so the authored fill is preserved.
+            RenderNode::InlineMeshMaterial material;
+            material.base_color = base_color.to_srgb();
+            material.diffuse = 1.0f;
+            material.specular = 0.92f;
+            material.shininess = 112.0f;
+            material.metallic = 0.42f;
+            material.roughness = 0.30f;
+            material.double_sided = true;
+            mesh_node.inline_mesh_material = material;
+            if (layer.composite_on_top) builder.composite_on_top();
+            spdlog::debug(
+                "[extruded-text] promoted layer='{}' depth={} vertices={}",
+                layer.id, layer.style->extrusion_depth,
+                mesh->vertices().size());
+            return;
+        }
+        spdlog::warn(
+            "[extruded-text] layer='{}' fell back to MTSDF: static TextRun "
+            "was not available", layer.id);
     }
     auto& text_builder = builder.text_run(
         "text",
