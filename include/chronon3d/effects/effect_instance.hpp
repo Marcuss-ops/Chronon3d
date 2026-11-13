@@ -24,6 +24,10 @@ struct EffectParameterKeyframe {
 struct EffectParameterTrack {
     std::string param;
     std::vector<EffectParameterKeyframe> keyframes;
+    // Host-free time expression over value/time/frame/fps. When present the
+    // expression is evaluated on top of the keyframed value and the result is
+    // clamped to the catalog's declared parameter range.
+    std::optional<std::string> expression;
 };
 
 // ── effect_type_for<T> primary template ────────────────────────────────────

@@ -31,7 +31,11 @@ public:
     void apply(Framebuffer& fb, const EffectParams& params,
                const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<BlurParams>(&params)) {
-            renderer::apply_blur(fb, p->radius, context.clip);
+            if (p->box)
+                renderer::apply_box_blur(fb, p->radius, context.clip,
+                                         p->passes == 0 ? 3 : p->passes);
+            else
+                renderer::apply_blur(fb, p->radius, context.clip);
         }
     }
 };

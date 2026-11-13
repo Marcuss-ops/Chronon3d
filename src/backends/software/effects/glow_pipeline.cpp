@@ -47,7 +47,12 @@ namespace {
 [[nodiscard]] Color glow_color_from_trigger(float trigger, const GlowPipeline& p, float intensity_scale, const Color& tint = {0,0,0,0}) {
     const Color& base = (tint.a > 0.0f) ? tint : p.color;
     const Color& peak = (tint.a > 0.0f) ? tint : p.color_b;
-    const float t = std::clamp(trigger, 0.0f, 1.0f);
+    // `color_cycle` drives the A->B hue independently of the trigger, so a
+    // bright source can still cycle. Zero keeps the historical trigger-only
+    // blend byte for byte; author the cycle in (0, 1] to avoid the boundary.
+    const float t = p.color_cycle > 0.0f
+        ? std::clamp(p.color_cycle, 0.0f, 1.0f)
+        : std::clamp(trigger, 0.0f, 1.0f);
     const Color src{
         base.r + (peak.r - base.r) * t,
         base.g + (peak.g - base.g) * t,

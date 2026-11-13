@@ -181,6 +181,8 @@ void add_layer_effects_and_masks(CanonicalPlanWriter& out, const LayerPlan& laye
             } break;
             case LayerPlan::EffectKindPlan::GaussianBlur: {
                 out.add_float(effect.radius);
+                out.add_uint64(effect.blur_passes);
+                out.add_bool(effect.blur_box);
             } break;
             case LayerPlan::EffectKindPlan::DropShadow: {
                 out.add_float(effect.radius);
@@ -237,6 +239,8 @@ void add_layer_effects_and_masks(CanonicalPlanWriter& out, const LayerPlan& laye
                 out.add_uint64(effect.seed);
                 out.add_uint64(effect.octaves);
                 out.add_float(effect.frequency);
+                out.add_float(effect.fractal_scale);
+                out.add_uint64(effect.fractal_type);
                 out.add_float(effect.amplitude);
                 out.add_float(effect.evolution);
                 out.add_float(effect.contrast);

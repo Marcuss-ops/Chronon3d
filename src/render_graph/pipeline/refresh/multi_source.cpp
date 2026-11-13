@@ -64,8 +64,12 @@ void refresh_multi_source_node(
     }
     for (const auto& src_node : materialized_nodes) {
         const auto source_placement = evaluate_source_placement(item, src_node, ctx);
-        const Mat4 render_matrix = finalize_source_placement_matrix(
-            source_placement, item, src_node, ctx);
+        const Mat4 render_matrix = sampled_layer &&
+                sampled_layer->kind == compiler::NodeKind::Particles &&
+                !item.projected && !item.native_3d && !item.layer->screen_space
+            ? implicit_canvas_center_matrix(ctx) * sampled_layer->matrix *
+                src_node.world_transform.to_mat4()
+            : finalize_source_placement_matrix(source_placement, item, src_node, ctx);
         f32 render_opacity = source_placement.opacity;
 
         // Keep SVG isolation metadata when refreshing a reused graph. The

@@ -349,6 +349,7 @@
               "font_style": { "enum": ["normal", "italic", "oblique"] },
               "text_align": { "enum": ["left", "center", "right"] },
               "font_size": { "type": "number", "exclusiveMinimum": 0 },
+              "tracking": { "type": "number", "minimum": -1000, "maximum": 1000, "description": "Layer-wide per-cluster tracking in pixels; layout-affecting for 2D text and the extruded mesh path." },
               "fill": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
               "gel_surface": { "type": "boolean", "default": false, "description": "Render text as a rounded glossy gel surface in the native MTSDF path." },
               "gel_material_profile": { "type": "string", "enum": ["current", "reference_20261107"], "default": "current", "description": "GEL material profile; reference_20261107 selects the certified 2026-11-07 shading. Requires gel_surface." },
@@ -450,7 +451,11 @@
                   "type": "object",
                   "additionalProperties": false,
                   "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
-                  "required": ["property", "keyframes"],
+                  "required": ["property"],
+                  "anyOf": [
+                    { "required": ["keyframes"] },
+                    { "required": ["expression"] }
+                  ],
                   "properties": {
                     "property": {
                       "description": "Layer rotation components and vectors are specified in degrees.",
@@ -475,6 +480,9 @@
                       ]
                     },
                     "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                    "expression": {
+                      "type": "string", "minLength": 1, "maxLength": 4096
+                    },
                     "keyframes": {
                       "type": "array",
                       "minItems": 1,

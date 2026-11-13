@@ -76,7 +76,13 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             lowered.position[0] += box_w * 0.5f;
             lowered.position[1] += box_h * 0.5f;
         } else if (layer.type == render_plan::LayerType::Text &&
-                   layer.position_dimensions >= 2) {
+                   layer.position_dimensions >= 2 &&
+                   !(layer.style && layer.style->extruded_text)) {
+            // 2D text is authored in top-left canvas space and the graph adds
+            // the canvas centre back.  Extruded text is real camera-space
+            // geometry already centred on the authored position; applying
+            // the 2D half-canvas bake pushed the mesh off the camera axis and
+            // made it render in the bottom-left corner.
             lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
             lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
         } else if (layer.type == render_plan::LayerType::Particles &&

@@ -134,6 +134,10 @@ struct LayerPlan {
     // is active. This is independent of enable_3d and is for screen overlays
     // such as backgrounds or HUD elements.
     bool screen_space{false};
+    // Keep the layer's camera projection but composite it after the rest of
+    // the 2.5D bin. Labels/annotations use this to stay readable over
+    // foreground geometry.
+    bool composite_on_top{false};
     // Pixel insets [top, right, bottom, left] for title/action-safe layout.
     std::optional<std::array<float, 4>> safe_insets;
     std::optional<std::string> depth_role;

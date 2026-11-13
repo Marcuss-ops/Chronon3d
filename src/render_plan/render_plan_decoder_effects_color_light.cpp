@@ -283,8 +283,12 @@ void decode_gaussian_blur_effect(LayerPlan::EffectPlan& effect,
                             const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::GaussianBlur;
                 effect.radius = raw_effect.value("radius", 8.0f);
-                if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f)
-                    throw std::runtime_error("Gaussian blur radius must be in [0, 256]");
+                effect.blur_passes = static_cast<std::uint8_t>(
+                    raw_effect.value("passes", 0));
+                effect.blur_box = raw_effect.value("box", false);
+                if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f ||
+                    effect.blur_passes > 5)
+                    throw std::runtime_error("Gaussian blur requires radius in [0, 256] and passes in [0, 5]");
 }
 
 void decode_drop_shadow_effect(LayerPlan::EffectPlan& effect,
@@ -440,6 +444,12 @@ void decode_fractal_noise_effect(LayerPlan::EffectPlan& effect,
                 effect.seed = raw_effect.value("seed", std::uint32_t{0});
                 effect.octaves = raw_effect.value("octaves", std::uint32_t{4});
                 effect.frequency = raw_effect.value("frequency", 0.015f);
+                effect.fractal_scale = raw_effect.value("scale", 100.0f);
+                const auto fractal_type = raw_effect.value("fractal_type", std::string{"basic"});
+                if (fractal_type == "basic") effect.fractal_type = 0;
+                else if (fractal_type == "dynamic") effect.fractal_type = 1;
+                else if (fractal_type == "small_bumps") effect.fractal_type = 2;
+                else throw std::runtime_error("Fractal Noise fractal_type must be basic, dynamic, or small_bumps");
                 effect.amplitude = raw_effect.value("amplitude", 1.0f);
                 effect.evolution = raw_effect.value("evolution", 0.0f);
                 effect.contrast = raw_effect.value("contrast", 1.0f);
@@ -450,6 +460,7 @@ void decode_fractal_noise_effect(LayerPlan::EffectPlan& effect,
                 effect.rgb_noise = mode == "rgb";
                 if (effect.octaves == 0 || effect.octaves > 16 ||
                     !std::isfinite(effect.frequency) || effect.frequency <= 0.0f || effect.frequency > 10.0f ||
+                    !std::isfinite(effect.fractal_scale) || effect.fractal_scale < 1.0f || effect.fractal_scale > 1000.0f ||
                     !std::isfinite(effect.amplitude) || effect.amplitude < 0.0f || effect.amplitude > 4.0f ||
                     !std::isfinite(effect.evolution) || std::abs(effect.evolution) > 10000.0f ||
                     !std::isfinite(effect.contrast) || effect.contrast < 0.0f || effect.contrast > 16.0f ||

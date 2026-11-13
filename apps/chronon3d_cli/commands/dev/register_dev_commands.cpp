@@ -1,9 +1,11 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
+#include "../../daemon/chronon_ipc.hpp"
 #include "../../utils/common/cli_utils.hpp"
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <exception>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -109,10 +111,36 @@ void register_bench_convert(CLI::App& app, CliContext& ctx) {
 }
 
 void register_cache_stats(CLI::App& app, CliContext& ctx) {
+    auto socket_path = std::make_shared<std::string>();
     auto* cmd = app.add_subcommand(
         "cache-stats",
-        "Print the cache diagnostics registry owned by a canonical RuntimeContext");
-    cmd->callback([&ctx]() {
+        "Print cache diagnostics from a live RuntimeContext or a running daemon");
+    cmd->add_option(
+        "--socket", *socket_path,
+        "Query the cache diagnostics of a running daemon on this UNIX-domain socket");
+    cmd->callback([&ctx, socket_path]() {
+        if (!socket_path->empty()) {
+            try {
+                chronon3d::cli::ipc::UnixSocketClient client;
+                client.connect(*socket_path);
+                const auto reply = client.request(
+                    chronon3d::cli::ipc::Command::CacheStats);
+                if (!reply) {
+                    std::cerr << "cache-stats: transport failure on daemon socket '"
+                              << *socket_path << "'\n";
+                    ctx.exit_code = 1;
+                    return;
+                }
+                if (!reply->message.empty()) std::cout << reply->message;
+                ctx.exit_code =
+                    reply->status == chronon3d::cli::ipc::Status::Ok ? 0 : 1;
+            } catch (const std::exception& error) {
+                std::cerr << "cache-stats: cannot query daemon socket '"
+                          << *socket_path << "': " << error.what() << '\n';
+                ctx.exit_code = 1;
+            }
+            return;
+        }
         // CacheDiagnostics has no singleton (P1-10): it is owned by the
         // RuntimeContext that also owns the caches. Build the runtime through
         // the canonical factory so the snapshot reads that registry instead

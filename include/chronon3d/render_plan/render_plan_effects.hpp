@@ -61,6 +61,8 @@ struct EffectPlan {
     float camera_ring_anamorphic_stretch{1.0f};
     std::uint32_t camera_ring_samples{16};
     float radius{0.0f};
+    std::uint8_t blur_passes{0};
+    bool blur_box{false};
     std::array<float, 2> offset{0.0f, 8.0f};
     std::array<float, 4> effect_color{0.0f, 0.0f, 0.0f, 0.35f};
     float bloom_threshold{0.80f};
@@ -81,6 +83,8 @@ struct EffectPlan {
     std::uint32_t octaves{4};
     std::optional<Field2DPlan> noise_field;
     float frequency{0.015f};
+    float fractal_scale{100.0f};
+    std::uint8_t fractal_type{0};
     float amplitude{1.0f};
     float evolution{0.0f};
     float contrast{1.0f};

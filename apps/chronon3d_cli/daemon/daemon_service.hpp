@@ -81,6 +81,7 @@ struct DaemonOptions {
  * Accepts commands via stdin:
  *   render <comp> <frame> [out]   Render a frame
  *   status / st                   Show engine stats
+ *   cache-stats / cs              Show the runtime cache diagnostics
  *   clear  / cc                   Clear all caches
  *   reload / rl                   Rebuild project (new binary requires
  *                                 manual restart; see NOTE above)
@@ -100,6 +101,7 @@ struct DaemonOptions {
  *                                 on this daemon, returning one result each
  *   GET_JOB_STATUS <job-id>       Return prepared/running/completed/failed
  *                                 status for a tracked RENDER_JOB
+ *   CACHE_STATS                   Cache diagnostics of the live runtime
  *   STATUS                        Engine statistics
  *   SHUTDOWN                      Stop serving
  */
@@ -127,6 +129,7 @@ private:
     void cmd_reload();
     void cmd_clear_caches();
     void cmd_status();
+    void cmd_cache_stats();
     void cmd_help();
 
     // ── UNIX-socket IPC dispatch (RenderingGen → Chronon) ───────────────
@@ -142,6 +145,7 @@ private:
         bool batch_member = false);
     ipc::Reply ipc_render_batch(const std::string& payload);
     ipc::Reply ipc_status();
+    ipc::Reply ipc_cache_stats();
     ipc::Reply ipc_get_job_status(const std::string& job_id);
     ipc::Reply ipc_assemble_segments(const std::string& payload);
     [[nodiscard]] bool begin_job_status(std::string_view job_id);
@@ -149,6 +153,7 @@ private:
                            std::string message);
     [[nodiscard]] std::shared_ptr<SoftwareRenderer> warm_renderer_for_device(
         runtime::DeviceId device);
+    [[nodiscard]] std::string format_cache_stats() const;
 
     const CompositionRegistry& m_registry;
     DaemonOptions m_options;

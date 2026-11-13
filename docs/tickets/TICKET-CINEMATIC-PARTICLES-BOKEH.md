@@ -1,13 +1,14 @@
 # Cinematic particles and bokeh environment
 
-**Stato (2026-11-12): PARTIAL — contratto V3 esteso e quattro demo AE-grade
-completate; parità GPU locale 5/5 PASS su RTX A4000, certificazione same-SHA e
-matrice full-budget/clipping/bokeh-depth restano aperte.**
+**Stato (2026-11-13): PARTIAL — contratto V3 esteso, quattro demo AE-grade e
+matrice byte-parity software/Vulkan 7/7 PASS localmente su RTX A4000 (golden,
+1/4 worker, seek diretto e Vulkan strict-native); resta aperta la
+certificazione same-SHA su host pulito.**
 
-## TODO — cosa manca (agg. 2026-10-28)
+## TODO — cosa manca (agg. 2026-11-13)
 
-- [ ] **Parità software/Vulkan byte-identica** — logica: il software kernel è l'autorità di placement/compositing; il replica Vulkan deve essere parità-certificato prima della promozione, altrimenti la capability resta fail-closed (`UnsupportedCapability`). Dove: emitter environment nel lowering `particle_emitter` + dispatch Vulkan strict-native. Gate: test di parità byte su casi full-budget/clipping/bokeh-depth. **2026-11-12:** uniform V3 (`dynamics`, `over_life_lut`) ricostruito; selection `Vulkan *particle*` 5/5 casi, 62/62 assertion su RTX A4000. La matrice completa e la certificazione same-SHA restano aperte.
-- [ ] **Golden + random access** — logica: golden software per empty/full-budget/clipped/bokeh-depth, e rendering random-access byte-identico su conteggi worker diversi. Dove: `tests/` (fingerprint + golden), schema V3 (`environment`, `depth_range`, `bokeh`). Gate: golden verdi + determinismo cross-worker.
+- [x] **Parità software/Vulkan byte-identica** — logica: il software kernel è l'autorità di placement/compositing; il replica Vulkan deve essere parità-certificato prima della promozione, altrimenti la capability resta fail-closed (`UnsupportedCapability`). Dove: emitter environment nel lowering `particle_emitter` + dispatch Vulkan strict-native. Gate: test di parità byte su casi full-budget/clipping/bokeh-depth. **2026-11-12:** uniform V3 (`dynamics`, `over_life_lut`) ricostruito; selection `Vulkan *particle*` 6/6 casi, 107/107 assertion su RTX A4000. **2026-11-13:** matrice 7/7 byte-identica locale, inclusi blend normal/screen; certificazione same-SHA ancora aperta.
+- [x] **Golden + random access** — logica: golden software per empty/full-budget/clipped/bokeh-depth, e rendering random-access byte-identico su conteggi worker diversi. Dove: `tests/` (fingerprint + golden), schema V3 (`environment`, `depth_range`, `bokeh`). Gate: golden verdi + determinismo cross-worker. **2026-11-13:** sette fixture con SHA-256 golden, 1/4 worker e seek diretto verdi localmente in `scripts/ci/check_particle_environment_gate.py`.
 - [ ] **Certificazione su host Vulkan** — logica: il promotion gate richiede l'esecuzione su host Vulkan reale (llvmpipe non basta per la promozione). Gate: run same-SHA su host Vulkan; fin lì fail-closed.
 
 ## Scope
@@ -28,7 +29,9 @@ channel difference of 0.999799 against that path on RTX A4000. After the fix,
 These are local results on a dirty checkout. Both sides of the new comparison
 use Vulkan layer-batch rasterization, with CPU versus GPU particle sampling;
 they are not software-renderer versus Vulkan byte parity, golden/random-access
-coverage, or clean same-SHA certification. Those gates remain open.
+coverage, or clean same-SHA certification. Byte parity and golden/random-access
+were subsequently closed locally in the 2026-11-13 matrix below; same-SHA
+certification remains open.
 
 Software raw-frame golden and direct-seek gates have since been added in
 `scripts/ci/check_particle_environment_gate.py` with four 64x64 fixtures:
@@ -42,10 +45,65 @@ not clean-SHA CI certification.
 An independent raw full-render probe with 30 bokeh particles, zero velocity,
 and a 64x64 canvas still fails software/Vulkan parity: software has 67 nonzero
 alpha pixels (x 0..27, y 0..29), Vulkan has 224 (x 3..59, y 2..61), with
-maximum byte difference 244. The software result appears shifted by half a
-canvas relative to Vulkan; raster/coverage differences remain to be resolved
-as well. Do not promote the GPU or close the parity gate on the basis of the
-sampler-only test.
+maximum byte difference 244. A subsequent 2D multi-source placement fix aligns
+the sample with `SourceNode::effective_matrix`, on both fresh construction and
+refresh. On the same probe both backends now cover 224 pixels with identical
+bounds (x 3..59, y 2..61); 636 bytes differ, max 54 and mean 0.523/255.
+Two translated probes have alpha-mask differences of 2 and 0 pixels. The
+projected, native-3D and screen-space cases retain their existing placement
+resolver. A further correction prevents particle bokeh alpha being multiplied
+twice by the software gradient and node opacity. In the same static 30-particle
+probe this reduces the residual to 33 bytes differing by at most 1/255, with
+identical alpha coverage. `scripts/ci/check_particle_bokeh_cpu_vulkan.py`
+also checks a visible isolated bokeh particle against strict-native Vulkan
+with maximum byte delta 1; it passes locally on RTX A4000. Initially the moving full-budget, clipped and bokeh fixtures failed byte
+parity: native GPU drew motion capsules while software drew discs, and opaque
+software paths differed in raster coverage. Both sides now match byte-for-byte
+in the 2026-11-13 matrix below. Do not promote the GPU or close the parity gate
+on the basis of the sampler-only test.
+
+## 2026-11-13 — byte-parity matrix, blend coverage and residuals
+
+`scripts/ci/check_particle_environment_gate.py --vulkan` passes **7/7** cases on
+the local RTX A4000 with the NVIDIA ICD. Every case checks the software
+SHA-256 golden, byte identity between 1 and 4 render workers, direct frame 2
+against sequential frame 2, and byte identity against strict-native Vulkan,
+including Vulkan direct seek.
+
+| Case | Coverage | Result |
+|---|---|---|
+| `empty` | no particles | PASS |
+| `full_budget` | 4096 particles | PASS |
+| `clipped` | emitter beyond the canvas | PASS |
+| `bokeh_depth` | depth-driven bokeh | PASS |
+| `animated_color` | colour ramp, curl, drag, over-life curves | PASS |
+| `blend_normal` | particle layer over a dim particle backdrop | PASS |
+| `blend_screen` | screen-blended particle layer over a backdrop | PASS |
+
+The blend fixtures use a second, sparse dim particle layer because blending
+against a transparent canvas is a no-op and cannot exercise the mode. The GPU
+instance path keeps per-instance `Normal` and the authored layer blend is
+applied at compositing; the fixtures confirm that composition is byte-identical
+to software for `normal` and `screen`.
+
+Edge probes outside the required matrix, pinned by
+`scripts/ci/check_particle_parity_edges.py`:
+
+- **Native-3D rotated layer (`enable_3d: true`, z = 27°): fixed.** The CPU
+  instance path transformed the emitter velocity with the transposed matrix
+  (`m[0][1]`/`m[1][0]`), which is only correct for axis-aligned layers. The
+  column-major transform makes the probe byte-identical: 0 bytes, previously
+  3,233 with max 246. The edge gate requires exact equality.
+- **Scaled moving bokeh (`scale: [0.7, 1.3]`):** one colour byte differs by
+  1/255 over three frames; the alpha mask and bounds are identical.
+- **Additive blend:** 1-2 bytes differ by at most 1/255, while `normal` and
+  `screen` are byte-identical. The divergence is a float quantization boundary
+  in the compositing/trail coverage, not particle placement.
+
+The two 1/255 probes are pinned with an explicit tolerance (maximum 1) rather
+than claimed as byte-identical; they remain outside the ticket's required
+matrix. These are local dirty-tree results. Same-SHA certification on a clean
+host is still open, so native promotion stays fail-closed.
 
 ## Proposed bounded contract
 

@@ -25,6 +25,7 @@ GlowPipeline GlowPipeline::from(const GlowAdvancedParams& p) {
     out.radius = p.radius;
     out.intensity = p.intensity;
     out.falloff = p.falloff;
+    out.color_cycle = p.color_cycle;
     return out;
 }
 

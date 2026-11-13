@@ -339,10 +339,20 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     node.shape.mesh_shape().inline_mesh =
                         build_extruded_text_mesh(*run, run->material.extrusion_depth);
                     node.inline_mesh_material = RenderNode::InlineMeshMaterial{};
-                    node.inline_mesh_material->base_color = node.color;
-                    node.inline_mesh_material->specular = 0.32f;
-                    node.inline_mesh_material->shininess = 48.0f;
-                    node.inline_mesh_material->double_sided = false;
+                    // The native mesh renderer multiplies node.color by the
+                    // material base color; carrying the fill in both squares it.
+                    const Color text_fill = node.color;
+                    node.color = Color{1.0f, 1.0f, 1.0f, text_fill.a};
+                    // Pre-encode: the native mesh lane linearizes but does not
+                    // re-encode the display surface, so use of the raw sRGB
+                    // fill would shift gold to orange.
+                    node.inline_mesh_material->base_color = text_fill.to_srgb();
+                    node.inline_mesh_material->diffuse = 1.0f;
+                    node.inline_mesh_material->specular = 0.92f;
+                    node.inline_mesh_material->shininess = 112.0f;
+                    node.inline_mesh_material->metallic = 0.42f;
+                    node.inline_mesh_material->roughness = 0.30f;
+                    node.inline_mesh_material->double_sided = true;
                 }
             }
             // The fresh build path has no refresh pass behind it: without this
@@ -543,8 +553,15 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // behaviour for non-text items).
         for (const auto& node : materialized_nodes) {
             const auto source_placement = evaluate_source_placement(item, node, ctx);
-            const Mat4 shape_matrix = finalize_source_placement_matrix(
-                source_placement, item, node, ctx);
+            // Match SourceNode::effective_matrix for the ordinary 2D particle
+            // layer. Projected, native-3D and screen-space layers keep the
+            // canonical placement resolver and its camera/space policies.
+            const Mat4 shape_matrix = sampled_particle_layer &&
+                    sampled_particle_layer->kind == compiler::NodeKind::Particles &&
+                    !item.projected && !item.native_3d && !item.layer->screen_space
+                ? implicit_canvas_center_matrix(ctx) * sampled_particle_layer->matrix *
+                    node.world_transform.to_mat4()
+                : finalize_source_placement_matrix(source_placement, item, node, ctx);
             f32 shape_opacity = source_placement.opacity;
 
             // ADR-035 — grouped SVG nodes keep the combined post-composite

@@ -9,7 +9,10 @@
 #include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/scene/builders/text_run_materialization.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
+#include "extruded_text_mesh.hpp"
+#include <limits>
 #include <chronon3d/effects/effect_param_animation.hpp>
 // The compiled route reuses the RenderPlan text lowering verbatim instead of
 // keeping a second copy of the typography mapping.
@@ -208,6 +211,79 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         definition = std::move(transitioned.final_definition);
                         animated_document = std::move(transitioned.document);
                     }
+                    // The compiled-program route used to force every text
+                    // layer through the MTSDF branch, so an authored
+                    // extruded_text material rendered black. Promote a static
+                    // extruded run to the same inline mesh the render-graph
+                    // source pass builds, and let the native camera/lighting
+                    // rig light the real front/back caps and side walls.
+                    if (definition.style.material.extruded_text &&
+                        !animated_document) {
+                        const auto prepared_run = chronon3d::prepare_text(definition);
+                        const auto sample_time = chronon3d::SampleTime::from_frame(
+                            0.0, canvas_fps);
+                        auto text_run = chronon3d::materialize_prepared_text(
+                            prepared_run, font_engine, sample_time, nullptr);
+                        if (text_run && text_run->animators.empty() &&
+                            !text_run->animated_doc) {
+                            auto mesh = chronon3d::graph::detail::build_extruded_text_mesh(
+                                *text_run,
+                                definition.style.material.extrusion_depth);
+                            // Glyph outlines are baseline-local. Center the
+                            // mesh on the layer origin so the authored text
+                            // position is its visual center, matching the 2D
+                            // text anchor instead of putting the left edge on
+                            // the camera axis.
+                            float min_x = std::numeric_limits<float>::infinity();
+                            float max_x = -std::numeric_limits<float>::infinity();
+                            float min_y = std::numeric_limits<float>::infinity();
+                            float max_y = -std::numeric_limits<float>::infinity();
+                            for (const auto& vertex : mesh->vertices()) {
+                                min_x = std::min(min_x, vertex.position.x);
+                                max_x = std::max(max_x, vertex.position.x);
+                                min_y = std::min(min_y, vertex.position.y);
+                                max_y = std::max(max_y, vertex.position.y);
+                            }
+                            const float center_x = (min_x + max_x) * 0.5f;
+                            const float center_y = (min_y + max_y) * 0.5f;
+                            InlineMeshParams params;
+                            params.name = name;
+                            params.vertices.reserve(mesh->vertices().size());
+                            for (const auto& vertex : mesh->vertices()) {
+                                params.vertices.push_back(Vertex{
+                                    Vec3{vertex.position.x - center_x,
+                                         vertex.position.y - center_y,
+                                         vertex.position.z},
+                                    vertex.normal, vertex.uv});
+                            }
+                            params.indices = mesh->indices();
+                            builder.kind(LayerKind::Normal)
+                                .accepts_lights(true)
+                                .accepts_shadows(true);
+                            builder.inline_mesh(std::move(params));
+                            auto& mesh_node = builder.last_node_handle().node();
+                            // The native mesh renderer multiplies the node tint by
+                            // the material base color. Carrying the text fill in
+                            // both squares it (gold becomes saturated orange),
+                            // so keep the tint white and author the fill once.
+                            mesh_node.color = Color{1.0f, 1.0f, 1.0f,
+                                definition.style.color.a};
+                            // The native mesh lane converts this value to linear
+                            // light but stores the result display-referred, with no
+                            // final sRGB encode. Pre-encode the authored fill so
+                            // the title keeps the same color as 2D text.
+                            RenderNode::InlineMeshMaterial material;
+                            material.base_color = definition.style.color.to_srgb();
+                            material.diffuse = 1.0f;
+                            material.specular = 0.92f;
+                            material.shininess = 112.0f;
+                            material.metallic = 0.42f;
+                            material.roughness = 0.30f;
+                            material.double_sided = true;
+                            mesh_node.inline_mesh_material = material;
+                            break;
+                        }
+                    }
                     // Text paint is authored in screen space, not a lit 3D
                     // material; keep the same boundary contract the RenderPlan
                     // route enforces.
@@ -321,6 +397,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                 std::move(sprite));
                         } else {
                             const bool opaque_cpu_batch =
+                                !emitter.environment &&
                                 emitter.blend_mode == BlendMode::Normal &&
                                 particle.color.a >= 1.0f && !emitter.bokeh;
                             if (opaque_cpu_batch) {
@@ -353,6 +430,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                 circle.color = particle.color;
                                 circle.fill = graphics::FillStyle::solid(particle.color);
                                 if (emitter.bokeh) {
+                                circle.color.a = 1.0f;
                                 const Color transparent{
                                     particle.color.r, particle.color.g,
                                     particle.color.b, 0.0f};
@@ -365,6 +443,13 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                 builder.circle(
                                     "particle_" + std::to_string(particle.index),
                                     std::move(circle));
+                            }
+                            if (emitter.environment) {
+                                builder.last_node_handle().node().software_environment_particle =
+                                    RenderNode::GpuParticleInstance{
+                                        particle.position, particle.color, particle.size,
+                                        particle.rotation, particle.sprite_scale, z,
+                                        particle.velocity};
                             }
                         }
                     }

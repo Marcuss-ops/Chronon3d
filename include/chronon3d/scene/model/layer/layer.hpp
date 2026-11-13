@@ -138,6 +138,10 @@ struct Layer {
     // are never sent through the scene camera.  This is the model-side
     // contract behind SceneBuilder::screen_layer().
     bool      screen_space{false};
+    // Keep the layer's projected geometry but composite it after the rest of
+    // the camera-ordered 3D bin. Used for labels that must stay readable
+    // over foreground geometry without giving up native 2.5D placement.
+    bool      composite_on_top{false};
     bool      hierarchy_resolved{false};
     bool      cache_static{false};
     // True when a path carries operator animation (trim/morph/repeater) that

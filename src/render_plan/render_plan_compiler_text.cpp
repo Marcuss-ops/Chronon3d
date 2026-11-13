@@ -244,6 +244,7 @@ chronon3d::TextDefinition materialize_text(
     definition.style.font.font_weight = layer.style->font_weight;
     definition.style.font.font_style = layer.style->font_style;
     definition.style.font.font_size = *layer.style->font_size;
+    definition.frame.tracking = layer.style->tracking.value_or(0.0f);
     if (!layer.style->variation_axes.empty()) {
         std::size_t axis_begin = 0;
         while (axis_begin <= layer.style->variation_axes.size()) {

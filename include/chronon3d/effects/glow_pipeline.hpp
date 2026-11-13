@@ -92,6 +92,8 @@ struct GlowPipeline {
     f32 radius{24.0f};
     f32 intensity{0.25f};
     f32 falloff{1.0f};
+    // AE Glow A&B cycling: shifts the A->B trigger ramp. 0 keeps color A.
+    f32 color_cycle{0.0f};
 
     static GlowPipeline from(const GlowParams& p);
     static GlowPipeline from(const GlowAdvancedParams& p);

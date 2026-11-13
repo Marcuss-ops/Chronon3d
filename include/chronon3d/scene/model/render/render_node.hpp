@@ -77,6 +77,9 @@ struct RenderNode {
     // Optional per-emitter payload. CPU shape nodes remain the software
     // authority; strict Vulkan consumes this array in one instanced dispatch.
     std::vector<GpuParticleInstance> gpu_particle_instances;
+    // Per-particle input for the bounded environment software rasterizer.
+    // Sprite particles retain the image path.
+    std::optional<GpuParticleInstance> software_environment_particle;
     bool gpu_particle_bokeh{false};
     std::string gpu_particle_sprite_path;
     struct SvgGroupIsolation {

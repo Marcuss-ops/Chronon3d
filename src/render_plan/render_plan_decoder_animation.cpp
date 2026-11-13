@@ -2,6 +2,7 @@
 #include <chronon3d/render_plan/easing_contract.hpp>
 #include "audio_react_contract.hpp"
 #include <chronon3d/render_plan/color_utils.hpp>
+#include <chronon3d/math/expression.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -14,6 +15,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -98,12 +100,45 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
             driver.frequency > 1000.0f || !std::isfinite(driver.amplitude) ||
             std::abs(driver.amplitude) > 10000.0f)
             throw std::runtime_error("animation wiggle frequency/amplitude is outside supported bounds");
-        if (track.property != "opacity" && track.property != "blur" &&
-            track.property != "tracking" && track.property != "stroke_dash_offset" &&
-            track.property != "skew" && track.property != "skew_axis" &&
-            track.property != "baseline_shift" && track.property != "stroke_width")
-            throw std::runtime_error("animation wiggle driver requires a scalar opacity, blur, tracking, stroke_dash_offset, skew, baseline_shift, or stroke_width property");
+        if (!scalar_driver_property(track.property) &&
+            track.property != "position" && track.property != "scale" &&
+            track.property != "rotation")
+            throw std::runtime_error("animation wiggle driver requires a scalar or transform property");
         track.wiggle = driver;
+    }
+    if (value.contains("expression")) {
+        if (!value.at("expression").is_string())
+            throw std::runtime_error("animation expression must be a string");
+        auto expression = value.at("expression").get<std::string>();
+        if (expression.empty() || expression.size() > 4096)
+            throw std::runtime_error("animation expression must contain 1..4096 bytes");
+        static constexpr std::array<std::string_view, 10> kExpressionProperties{{
+            "opacity", "blur", "position_x", "position_y", "position_z",
+            "scale_x", "scale_y", "scale_z", "rotation_x", "rotation_y"}};
+        const bool supported_expression_property =
+            std::find(kExpressionProperties.begin(), kExpressionProperties.end(),
+                      track.property) != kExpressionProperties.end() ||
+            track.property == "rotation_z";
+        if (!supported_expression_property)
+            throw std::runtime_error("animation expression requires a supported scalar transform property");
+        // The render-plan profile is host-free: only value/time/frame/fps/index
+        // and the shared math built-ins may appear. Rejecting the AE host forms
+        // here keeps decode and evaluation from drifting.
+        static constexpr std::array<std::string_view, 11> kHostForms{{
+            "thisComp", "thisLayer", "thisProperty", "layer(", "loopIn",
+            "loopOut", "valueAtTime", "toComp", "fromComp", "posterizeTime",
+            "posterize"}};
+        for (const auto form : kHostForms)
+            if (expression.find(form) != std::string::npos)
+                throw std::runtime_error("animation expression uses an unsupported AE host form: " + std::string(form));
+        const std::unordered_map<std::string, double> vars{
+            {"time", 0.0}, {"frame", 0.0}, {"fps", 30.0},
+            {"value", 0.0}, {"index", 0.0}};
+        math::ExpressionParser parser(expression, vars);
+        parser.parse();
+        if (parser.error())
+            throw std::runtime_error("animation expression is not a valid time expression");
+        track.expression = std::move(expression);
     }
     const auto driver_count = static_cast<int>(value.contains("wiggle")) +
         static_cast<int>(value.contains("oscillate")) +
@@ -113,9 +148,15 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
         static_cast<int>(value.contains("audio_react"));
     if (driver_count > 1)
         throw std::runtime_error("an animation track can contain only one procedural driver");
+    if (track.expression && driver_count > 0)
+        throw std::runtime_error("an animation expression cannot be combined with a procedural driver");
     if ((value.contains("data_feed") || value.contains("audio_react")) && value.contains("keyframes"))
         throw std::runtime_error("data_feed and audio_react tracks cannot also declare keyframes");
-    if (driver_count > 0 && !scalar_driver_property(track.property))
+    const bool vector_wiggle_property = track.wiggle &&
+        (track.property == "position" || track.property == "scale" ||
+         track.property == "rotation");
+    if (driver_count > 0 && !scalar_driver_property(track.property) &&
+        !vector_wiggle_property)
         throw std::runtime_error("procedural animation drivers require a supported scalar property");
     if (value.contains("oscillate")) {
         const auto& raw = value.at("oscillate");
@@ -326,9 +367,15 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
         track.keyframes.push_back(std::move(key));
     }
     if (track.keyframes.empty()) {
-        if (!track.data_feed && !track.audio_react)
-            throw std::runtime_error("animation track requires keyframes or a procedural data driver");
-        track.keyframes.push_back({Frame{0}, {0.0f}});
+        // Expression-only and wiggle-only tracks sample the layer's authored
+        // base value, so they deliberately stay keyframe-free. Data/audio
+        // drivers still need the synthetic frame-zero sample.
+        const bool expression_or_wiggle_only =
+            track.expression.has_value() || track.wiggle.has_value();
+        if (!track.data_feed && !track.audio_react && !expression_or_wiggle_only)
+            throw std::runtime_error("animation track requires keyframes, an expression, a wiggle driver, or a procedural data driver");
+        if (!expression_or_wiggle_only)
+            track.keyframes.push_back({Frame{0}, {0.0f}});
     }
     if (track.easing == easing_name::kSpring && track.keyframes.size() < 2)
         throw std::runtime_error("spring segment requires positive frame span");

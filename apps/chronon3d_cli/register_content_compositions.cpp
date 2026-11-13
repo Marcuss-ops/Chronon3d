@@ -23,7 +23,7 @@
 
 #include <chronon3d/core/composition/composition_registry.hpp>
 
-#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
+#if defined(CHRONON3D_BUILD_CONTENT)
 #include <content/register_content_modules.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
 #include <chronon3d/extension/extension_context.hpp>
@@ -40,7 +40,7 @@
 namespace chronon3d {
 
 void register_content_compositions(CompositionRegistry& registry) {
-#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
+#if defined(CHRONON3D_BUILD_CONTENT)
     // Static ExtensionCatalog + stub graph/effects catalogs (per-domain
     // register functions only consume ctx.compositions; ctx.assets is a
     // real AssetRegistry instance but is unused by the composition
@@ -53,8 +53,9 @@ void register_content_compositions(CompositionRegistry& registry) {
     ExtensionContext ctx{registry, dummy_nodes, dummy_effects, stub_assets};
     chronon3d::register_content_modules(content_catalog, ctx);
 #endif
-    // When CHRONON3D_BUILD_CONTENT=OFF and CHRONON3D_BUILD_DIAGNOSTICS=OFF,
-    // no content compositions are registered (production headless CLI).
+    // When CHRONON3D_BUILD_CONTENT=OFF, no content compositions are
+    // registered (production headless CLI). Diagnostics does not imply the
+    // external content checkout.
 }
 
 } // namespace chronon3d

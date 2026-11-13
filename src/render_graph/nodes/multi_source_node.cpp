@@ -18,6 +18,7 @@
 #include "text_run/text_run_transform.hpp"
 #endif
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <cstdlib>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <limits>
@@ -40,6 +41,14 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     i32 x1 = std::numeric_limits<i32>::min();
     i32 y1 = std::numeric_limits<i32>::min();
     bool has_any = false;
+
+    // Particle capsules extend beyond their head geometry. The shared
+    // particle rasterizer applies the precise per-particle bounds at draw.
+    if (std::any_of(m_items.begin(), m_items.end(), [](const auto& item) {
+            return item.node && item.node->software_environment_particle.has_value();
+        })) {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
 
     // CHRONON3D_PROJ_DIAG: indexed-for loop so item index reflects actual vector
     // position even when null items are skipped (range-for + manual counter was

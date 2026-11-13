@@ -103,6 +103,10 @@ struct LayerStylePlan {
     std::optional<GlowStyle> glow;
     std::optional<BackgroundStyle> background;
     std::optional<TextCaretPlan> text_caret;
+    // Layer-wide per-cluster tracking in pixels. This is layout-affecting
+    // (it feeds TextFrame::tracking), unlike a per-span paint override.
+    // Kept last so existing field offsets remain stable for incremental builds.
+    std::optional<float> tracking;
 };
 
 // Generic AE-style text animator contract. Editorial motion ids are lowered

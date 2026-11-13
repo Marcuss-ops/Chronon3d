@@ -1,6 +1,7 @@
 #pragma once
 #include "enum_mapping.hpp"
 #include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/animation/effects/wiggle.hpp>
 #include <chronon3d/animation/animation_property_kind.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/render_plan/spring_bake.hpp>
@@ -219,11 +220,46 @@ void apply_wiggle(chronon3d::AnimatedValue<T>& animated,
                   const AnimationTrackPlan& track) {
     if (!track.wiggle) return;
     if constexpr (!std::is_same_v<T, float>) {
-        throw std::runtime_error("wiggle driver requires a scalar animated value");
+        // Vector tracks install their driver once after every keyframe has
+        // been added; installing it per key would nest evaluators.
+        return;
     } else {
         animated.expression("value + wiggle(" + std::to_string(track.wiggle->frequency) +
             "," + std::to_string(track.wiggle->amplitude) +
             ",time," + std::to_string(track.wiggle->seed) + ")");
+    }
+}
+
+template <typename T>
+void apply_vector_wiggle(chronon3d::AnimatedValue<T>& animated,
+                         const AnimationTrackPlan& track) {
+    if (!track.wiggle) return;
+    if constexpr (!std::is_same_v<T, chronon3d::Vec3>) {
+        throw std::runtime_error("vector wiggle requires a Vec3 animated value");
+    } else {
+        const auto driver = *track.wiggle;
+        const chronon3d::AnimatedValue<chronon3d::Vec3> base = animated;
+        animated.frame_evaluator([base, driver](double frame) {
+            chronon3d::Vec3 value = base.evaluate(frame);
+            value.x += chronon3d::wiggle(driver.frequency, driver.amplitude,
+                                         static_cast<f32>(frame), driver.seed);
+            value.y += chronon3d::wiggle(driver.frequency, driver.amplitude,
+                                         static_cast<f32>(frame), driver.seed + 100u);
+            value.z += chronon3d::wiggle(driver.frequency, driver.amplitude,
+                                         static_cast<f32>(frame), driver.seed + 200u);
+            return value;
+        });
+    }
+}
+
+template <typename T>
+void apply_authored_expression(chronon3d::AnimatedValue<T>& animated,
+                               const AnimationTrackPlan& track) {
+    if (!track.expression) return;
+    if constexpr (!std::is_same_v<T, float>) {
+        throw std::runtime_error("authored expressions require a scalar animated value");
+    } else {
+        animated.expression(*track.expression);
     }
 }
 
@@ -330,6 +366,7 @@ void add_animation_keyframe(chronon3d::AnimatedValue<T>& animated,
     apply_data_feed(animated, track, key);
     apply_scalar_driver(animated, track);
     apply_wiggle(animated, track);
+    apply_authored_expression(animated, track);
     if (bake_spring_segment(animated, track, key, value, fps)) return;
     add_interpolated_keyframe(animated, track, key, value);
 }

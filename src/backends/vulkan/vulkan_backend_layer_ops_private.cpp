@@ -103,7 +103,9 @@ void VulkanBackend::Impl::execute_layer_batch(
             float dy0 = inst.dst_y0;
             float dx1 = inst.dst_x1;
             float dy1 = inst.dst_y1;
-            if (dx1 <= 1.0f && dy1 <= 1.0f &&
+            if (inst.kind != runtime::PrimitiveKind::Particle &&
+                inst.kind != runtime::PrimitiveKind::ParticleSprite &&
+                dx1 <= 1.0f && dy1 <= 1.0f &&
                 (dx1 > dx0 || dy1 > dy0)) {
                 dx0 *= static_cast<float>(dst_image.width);
                 dy0 *= static_cast<float>(dst_image.height);

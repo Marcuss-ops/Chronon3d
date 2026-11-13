@@ -59,7 +59,11 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2,
         switch (e.effect_type) {
         case Blur: {
             if (auto* p = std::get_if<BlurParams>(&e.params)) {
-                const auto digest = semantic_v2 ? hash_value(p->radius) : hash_bytes(p, sizeof(*p));
+                auto digest = semantic_v2 ? hash_value(p->radius) : hash_bytes(p, sizeof(*p));
+                if (semantic_v2) {
+                    digest = hash_combine(digest, hash_value(p->passes));
+                    digest = hash_combine(digest, hash_value(p->box));
+                }
                 seed = hash_combine(seed, digest);
             }
             break;
@@ -147,6 +151,7 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2,
                     seed = hash_combine(seed, hash_value(p->color_b_b));
                     seed = hash_combine(seed, hash_value(p->color_b_a));
                     seed = hash_combine(seed, hash_value(p->falloff));
+                    seed = hash_combine(seed, hash_value(p->color_cycle));
                 } else {
                     seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
                 }
@@ -241,6 +246,8 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2,
                 seed = hash_combine(seed, hash_value(p->seed));
                 seed = hash_combine(seed, hash_value(p->octaves));
                 seed = hash_combine(seed, hash_value(p->frequency));
+                seed = hash_combine(seed, hash_value(p->scale));
+                seed = hash_combine(seed, hash_value(p->fractal_type));
                 seed = hash_combine(seed, hash_value(p->amplitude));
                 seed = hash_combine(seed, hash_value(p->evolution));
                 seed = hash_combine(seed, hash_value(p->contrast));

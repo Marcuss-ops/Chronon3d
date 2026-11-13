@@ -2,6 +2,8 @@
 // private implementation types are complete so the PImpl boundary stays local
 // to a single translation unit.
 
+#include <chronon3d/cache/cache_diagnostics.hpp>
+
 // ── Construction / move specials ─────────────────────────────────────────
 
 RenderEngine::RenderEngine()
@@ -156,4 +158,9 @@ void RenderEngine::reset_counters() { m_impl->m_renderer->reset_counters(); }
 
 std::string RenderEngine::resolved_lane_name() const {
     return m_impl ? m_impl->resolved_lane_name() : "software";
+}
+
+std::string RenderEngine::cache_snapshot() const {
+    if (!m_impl || !m_impl->m_runtime) return {};
+    return cache::format_cache_snapshot(m_impl->m_runtime->diagnostics());
 }

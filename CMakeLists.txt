@@ -195,6 +195,10 @@ if(CHRONON3D_BUILD_TESTS)
 endif()
 if(CHRONON3D_ENABLE_DIAGNOSTICS)
     add_compile_definitions(CHRONON3D_ENABLE_DIAGNOSTICS)
+    # The text-audit headers and implementations still use the historical
+    # CHRONON3D_BUILD_DIAGNOSTICS gate. Map it from the canonical option so
+    # the audit code and its tests are compiled whenever diagnostics are on.
+    add_compile_definitions(CHRONON3D_BUILD_DIAGNOSTICS)
 endif()
 
 if(CHRONON3D_UNITY_BUILD)

@@ -327,9 +327,15 @@ NodeExecResult TextRunNode::execute(
             renderer::compute_text_run_visual_bounds(*m_shape));
         (void)local_ink_bbox;  // audit now reads it internally; see
                                 // TICKET-VISIBILITY-OVERRIDE-DEDUP.
+        // A native Vulkan text surface is GPU-authoritative: its CPU pixel
+        // allocation is intentionally absent. The pixel-side audit cannot
+        // scan it, so pass nullptr and keep the geometric audit only. Passing
+        // the surface here made alpha_bbox_scan() walk a null pixel buffer.
+        const Framebuffer* audit_fb =
+            (fb && !fb->is_gpu_authoritative()) ? fb.get() : nullptr;
         const auto audit = verify_text_visibility(
             *m_shape, world_matrix, predicted_r, clip_r,
-            fb.get(), m_name.c_str(),
+            audit_fb, m_name.c_str(),
             /*deduper=*/s_warn_deduper);
 
         // Emit structured geometric diagnostics (layout/ink/effect bounds,

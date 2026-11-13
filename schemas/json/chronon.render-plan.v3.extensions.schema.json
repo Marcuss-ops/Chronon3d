@@ -70,8 +70,11 @@
       "additionalProperties": false,
       "required": [
         "effect_id",
-        "param",
-        "keyframes"
+        "param"
+      ],
+      "anyOf": [
+        { "required": ["keyframes"] },
+        { "required": ["expression"] }
       ],
       "properties": {
         "effect_id": {
@@ -163,6 +166,12 @@
             "pingpong",
             "offset"
           ]
+        },
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "description": "Host-free time expression over value/time/frame/fps. Requires keyframes or supplies the whole animation."
         },
         "wiggle": {
           "$ref": "#/$defs/wiggle_driver"
@@ -6042,6 +6051,12 @@
                     "spring": {
                       "$ref": "#/$defs/spring_config"
                     },
+                    "expression": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4096,
+                      "description": "Host-free time expression over value/time/frame/fps/index. Rejects thisComp, layer(), loopIn/loopOut, valueAtTime and posterize helpers."
+                    },
                     "wiggle": {
                       "$ref": "#/$defs/wiggle_driver"
                     },
@@ -7112,6 +7127,16 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 256
+                    },
+                    "passes": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 5,
+                      "default": 0
+                    },
+                    "box": {
+                      "type": "boolean",
+                      "default": false
                     }
                   }
                 },
@@ -7417,6 +7442,16 @@
                     },
                     "time": {
                       "$ref": "#/$defs/effect_time"
+                    },
+                    "scale": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1000,
+                      "default": 100
+                    },
+                    "fractal_type": {
+                      "enum": ["basic", "dynamic", "small_bumps"],
+                      "default": "basic"
                     },
                     "seed": {
                       "type": "integer",
@@ -8312,6 +8347,12 @@
                 "maxLength": 512,
                 "pattern": "^[ -~]*$",
                 "description": "OpenType variable-font coordinates, e.g. wght=650,wdth=92."
+              },
+              "tracking": {
+                "type": "number",
+                "minimum": -1000,
+                "maximum": 1000,
+                "description": "Layer-wide per-cluster tracking in pixels; layout-affecting for 2D text and the extruded mesh path."
               },
               "quality": {
                 "type": "string",
