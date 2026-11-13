@@ -61,3 +61,13 @@ chronon3d_add_test_suite(
             # contract the GPU analytic fill must reproduce (Vulkan host corpus).
             backends/software/test_grid_background_kernel_semantics.cpp
 )
+
+# Rounded-image coverage regression: the old middle-row branch faded the
+# straight left/right edges across the whole radius band. The shared distance
+# field must keep those edges opaque and clip only the four corner arcs.
+chronon3d_add_test_suite(
+    NAME chronon3d_rounded_rect_coverage_tests
+    TIER UNIT
+    SOURCES backends/test_rounded_rect_coverage.cpp
+    LABELS "assets;backends;regression"
+)

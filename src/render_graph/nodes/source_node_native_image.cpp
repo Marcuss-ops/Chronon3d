@@ -23,6 +23,7 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/backends/assets/rounded_rect_coverage.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
@@ -43,69 +44,29 @@ namespace {
 
 /// Serial rounded-corner coverage over a cropped source buffer. This mirrors
 /// apply_rounded_coverage() in backends/assets/image_renderer_support_detail
-/// pixel-for-pixel (same clamp(r + 0.5 - dist) coverage on edge rows, same
-/// 1 - sqrt(dist)/r+0.5 falloff on middle-row edges) so the GPU pre-rounded
-/// crop composites identically to the software reference, which rounds the
-/// crop before the transformed composite. Serial: rounding runs once per
-/// distinct (crop, radius) and the result is content-cached in GpuAssetCache.
+/// pixel-for-pixel (same clamp(r + 0.5 - dist) coverage from the rounded-rect
+/// distance field) so the GPU pre-rounded crop composites identically to the
+/// software reference, which rounds the crop before the transformed composite.
+/// Serial: rounding runs once per distinct (crop, radius) and the result is
+/// content-cached in GpuAssetCache.
 void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     if (!pixels || w <= 0 || h <= 0 || radius <= 0.0f) return;
-    const float r = std::min({radius, static_cast<float>(w) * 0.5f,
-                              static_cast<float>(h) * 0.5f});
-    const int ix0 = static_cast<int>(r);
-    const int iy0 = static_cast<int>(r);
-    const int ix1 = w - ix0;
-    const int iy1 = h - iy0;
-    const float r_sq = (r + 0.5f) * (r + 0.5f);
     for (int y = 0; y < h; ++y) {
         Color* row = pixels + static_cast<std::size_t>(y) * w;
-        const bool edge_row = (y < iy0 || y >= iy1);
-        if (edge_row) {
-            for (int x = 0; x < w; ++x) {
-                const float fx = static_cast<float>(x) + 0.5f;
-                const float fy = static_cast<float>(y) + 0.5f;
-                const float dx = (fx < r) ? fx - r : ((fx > w - r) ? fx - (w - r) : 0.0f);
-                const float dy = (fy < r) ? fy - r : ((fy > h - r) ? fy - (h - r) : 0.0f);
-                if (dx == 0.0f && dy == 0.0f) continue;
-                const float dist = std::sqrt(dx * dx + dy * dy);
-                const float coverage = std::clamp(r + 0.5f - dist, 0.0f, 1.0f);
-                if (coverage <= 0.0f) {
-                    row[x] = Color::transparent();
-                } else if (coverage < 1.0f) {
-                    row[x].r *= coverage;
-                    row[x].g *= coverage;
-                    row[x].b *= coverage;
-                    row[x].a *= coverage;
-                }
-            }
-        } else {
-            for (int x = 0; x < ix0 && x < w; ++x) {
-                const float fx = static_cast<float>(x) + 0.5f;
-                const float dx = fx - r;
-                const float dist_sq = dx * dx;
-                if (dist_sq >= r_sq) {
-                    row[x] = Color::transparent();
-                } else {
-                    const float coverage = 1.0f - std::sqrt(dist_sq) / (r + 0.5f);
-                    row[x].r *= coverage;
-                    row[x].g *= coverage;
-                    row[x].b *= coverage;
-                    row[x].a *= coverage;
-                }
-            }
-            for (int x = ix1; x < w; ++x) {
-                const float fx = static_cast<float>(x) + 0.5f;
-                const float dx = fx - (w - r);
-                const float dist_sq = dx * dx;
-                if (dist_sq >= r_sq) {
-                    row[x] = Color::transparent();
-                } else {
-                    const float coverage = 1.0f - std::sqrt(dist_sq) / (r + 0.5f);
-                    row[x].r *= coverage;
-                    row[x].g *= coverage;
-                    row[x].b *= coverage;
-                    row[x].a *= coverage;
-                }
+        for (int x = 0; x < w; ++x) {
+            const float coverage = ::chronon3d::detail::rounded_rect_coverage(
+                static_cast<float>(x) + 0.5f,
+                static_cast<float>(y) + 0.5f,
+                static_cast<float>(w),
+                static_cast<float>(h),
+                radius);
+            if (coverage <= 0.0f) {
+                row[x] = Color::transparent();
+            } else if (coverage < 1.0f) {
+                row[x].r *= coverage;
+                row[x].g *= coverage;
+                row[x].b *= coverage;
+                row[x].a *= coverage;
             }
         }
     }
