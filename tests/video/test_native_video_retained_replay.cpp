@@ -35,6 +35,7 @@
 #endif
 
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -138,9 +139,10 @@ TEST_CASE("Retained window replays repeated and regressed sample indices") {
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 TEST_CASE("Diagnose Matt Damon clip frame sequence") {
-    const std::string source = "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/refactored/data/media/clips/general/yt_0ElQTzSx3ec/yt_0ElQTzSx3ec_72_91_v1_matt-damon-00-01-12-00-01-31.mp4";
-    if (!std::filesystem::exists(source)) {
-        MESSAGE("Source file does not exist: " << source);
+    const char* source_env = std::getenv("CHRONON3D_RETAINED_REPLAY_VIDEO");
+    const std::string source = source_env ? source_env : "";
+    if (source.empty() || !std::filesystem::exists(source)) {
+        MESSAGE("Set CHRONON3D_RETAINED_REPLAY_VIDEO to a local clip to run this diagnostic");
         return;
     }
 

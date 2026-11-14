@@ -1000,6 +1000,18 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             .mode = effect.fill_opacity_replaces_alpha
                                 ? FillMode::ReplaceAlpha : FillMode::Mix});
                         break;
+                    case EffectKind::LensDistortion:
+                        builder.effect(LensDistortionParams{
+                            .curvature = effect.lens_curvature,
+                            .center = Vec2{effect.lens_center[0], effect.lens_center[1]},
+                            .scale = effect.lens_scale});
+                        break;
+                    case EffectKind::Bulge:
+                        builder.effect(BulgeParams{
+                            .center = Vec2{effect.warp_center[0], effect.warp_center[1]},
+                            .amount = effect.warp_amount,
+                            .radius = effect.warp_radius});
+                        break;
                     default:
                         break;
                 }

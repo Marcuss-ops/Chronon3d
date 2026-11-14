@@ -29,8 +29,8 @@ printf '\n' >> "$out_dir/command.txt"
 # Prefer repository-local profiler bundles, then fall back to system installs.
 # This keeps profiling reproducible on workstations where sudo is unavailable.
 tool_root="${CHRONON3D_PROFILERS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/profilers" 2>/dev/null && pwd || true)}"
-if [[ ! -d "$tool_root/nsight-systems" && -d "/home/pierone/.local/share/chronon3d/profilers" ]]; then
-  tool_root="/home/pierone/.local/share/chronon3d/profilers"
+if [[ ! -d "$tool_root/nsight-systems" && -d "$HOME/.local/share/chronon3d/profilers" ]]; then
+  tool_root="$HOME/.local/share/chronon3d/profilers"
 fi
 nsys_tool=""
 tracy_capture_tool=""
