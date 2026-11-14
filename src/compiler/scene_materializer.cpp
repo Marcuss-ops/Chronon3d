@@ -96,6 +96,18 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                 .transform(transform)
                 .opacity(layer.opacity)
                 .enable_3d(layer.enable_3d);
+            if (!layer.transform_samples.empty()) {
+                const bool opacity_varies = std::any_of(
+                    layer.transform_samples.begin(), layer.transform_samples.end(),
+                    [&](const auto& s) { return std::abs(s.opacity - layer.opacity) > 1e-6f; });
+                if (opacity_varies) {
+                    auto& animated = builder.opacity_anim();
+                    animated.set(layer.opacity);
+                    for (const auto& s : layer.transform_samples) {
+                        animated.add_keyframe(Frame{static_cast<std::int64_t>(std::llround(s.frame))}, s.opacity);
+                    }
+                }
+            }
             if (layer.screen_space) builder.screen_space(true);
             if (layer.blend_mode) builder.blend(*layer.blend_mode);
             switch (layer.kind) {
