@@ -17,6 +17,7 @@
 #include <cstring>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "native_surface.hpp"
 #include "composite_node_detail.hpp"
@@ -135,11 +136,25 @@ NodeExecResult CompositeNode::execute(
     if (native_surface_promotion_diag_enabled()) {
         spdlog::info(
             "[composite-inputs] frame={} inputs={} in0={} in1={} "
-            "bottom={}x{} top={}x{} mode={}",
+            "bottom={}x{} top={}x{} bottom_h={} top_h={} "
+            "bottom_cpu={} top_cpu={} bottom_gpu={} top_gpu={} "
+            "bboxes={} top_bbox=[{},{},{},{}] top_empty={} mode={}",
             static_cast<int>(ctx.frame_input.frame), inputs.size(),
             in0 ? 1 : 0, in1 ? 1 : 0,
             bottom ? bottom->width() : -1, bottom ? bottom->height() : -1,
             top ? top->width() : -1, top ? top->height() : -1,
+            bottom ? bottom->surface_handle() : 0,
+            top ? top->surface_handle() : 0,
+            bottom && bottom->is_cpu_authoritative() ? 1 : 0,
+            top && top->is_cpu_authoritative() ? 1 : 0,
+            bottom && bottom->is_gpu_authoritative() ? 1 : 0,
+            top && top->is_gpu_authoritative() ? 1 : 0,
+            input_bboxes.size(),
+            input_bboxes.size() >= 2 && input_bboxes[1] ? input_bboxes[1]->x0 : -9999,
+            input_bboxes.size() >= 2 && input_bboxes[1] ? input_bboxes[1]->y0 : -9999,
+            input_bboxes.size() >= 2 && input_bboxes[1] ? input_bboxes[1]->x1 : -9999,
+            input_bboxes.size() >= 2 && input_bboxes[1] ? input_bboxes[1]->y1 : -9999,
+            top_has_empty_bounds ? 1 : 0,
             static_cast<int>(m_mode));
     }
 
@@ -487,6 +502,29 @@ NodeExecResult CompositeNode::execute(
             // the handle is the authoritative value for subsequent native
             // composite nodes.
             result->mark_gpu_authoritative();
+            if (std::getenv("CHRONON3D_TEXT_DEBUG") &&
+                result->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+                std::vector<float> readback(
+                    static_cast<std::size_t>(result->width()) *
+                    static_cast<std::size_t>(result->height()) * 4u);
+                const auto downloaded = ctx.backend->download_surface(
+                    result->surface_handle(), readback);
+                float max_rgb = 0.0f;
+                std::size_t red_pixels = 0;
+                if (downloaded.ok()) {
+                    for (std::size_t i = 0; i + 3 < readback.size(); i += 4) {
+                        const float r = readback[i];
+                        const float g = readback[i + 1];
+                        const float b = readback[i + 2];
+                        max_rgb = std::max({max_rgb, r, g, b});
+                        if (r > 0.02f && r > g * 1.6f && r > b * 1.6f) ++red_pixels;
+                    }
+                }
+                spdlog::info(
+                    "[composite-result] frame={} handle={} readback_ok={} max_rgb={} red_pixels={}",
+                    static_cast<int>(ctx.frame_input.frame), result->surface_handle(),
+                    downloaded.ok(), max_rgb, red_pixels);
+            }
         } else if (m_operator != CompositeOperator::SourceOver) {
             // Stencil/Silhouette: use Normal blend to copy top first, then
             // apply the operator via the backend (which handles the masking).

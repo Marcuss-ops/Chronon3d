@@ -49,6 +49,15 @@ struct BackgroundStyle {
     std::size_t padding_dimensions{0};
 };
 
+// Procedural wear inside the text fill. The renderer expands this into the
+// canonical fill PatternTile, so it is deterministic and backend-independent.
+struct TextWearStyle {
+    float amount{0.5f};
+    float scale{8.0f};
+    std::uint32_t seed{0};
+    float softness{0.25f};
+};
+
 // Concrete text paint supplied by the caller. There is deliberately no
 // family/weight lookup or preset/profile fallback at the render-plan boundary.
 struct LayerStylePlan {
@@ -90,6 +99,7 @@ struct LayerStylePlan {
     std::optional<float> gel_light_azimuth_radians;
     std::optional<float> gel_light_elevation;
     std::optional<graphics::GradientDefinition> fill_gradient;
+    std::optional<TextWearStyle> wear;
     std::shared_ptr<const graphics::PatternTile> fill_pattern;
     std::optional<float> fill_opacity;
     std::string text_fit_mode{"none"};

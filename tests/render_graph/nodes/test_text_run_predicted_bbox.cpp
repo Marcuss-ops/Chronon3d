@@ -44,14 +44,21 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 
 #include <tests/helpers/test_utils.hpp>
+#include <tests/helpers/render_scene_graph.hpp>
 #include <tests/support/pixel_scan_helpers.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <filesystem>
+#include <memory>
 #include <string>
+#include <vector>
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/presets/font_asset_paths.hpp>
@@ -644,5 +651,190 @@ TEST_CASE("BBoxParity: text corpus ink stays inside predicted placement box") {
         // Zero contract-violation counter bumps for this frame.
         REQUIRE(renderer.counters() != nullptr);
         CHECK(renderer.counters()->text_bbox_contract_violations.load() == 0);
+    }
+}
+
+// The T16 camera evidence used a pre-rasterized transparent title plane, so it
+// never proved that a real MTSDF text layer follows a perspective camera. This
+// test renders true text at four X tilts through the projected tight-surface
+// path and asserts that the ink survives, stays centred and compresses with
+// the plane instead of being flattened to a screen-space affine draw.
+TEST_CASE("True 3D text follows a perspective camera through 0..65 degree tilt") {
+    constexpr int kWidth = 960;
+    constexpr int kHeight = 540;
+    const std::array<float, 4> tilts = {0.0f, 30.0f, 45.0f, 65.0f};
+
+    auto renderer = test::make_renderer();
+
+    Camera2_5D camera;
+    camera.enabled = true;
+    camera.position = {0.0f, 0.0f, -1000.0f};
+    camera.zoom = 1000.0f;
+
+    const auto make_scene = [&renderer](float tilt) {
+        SceneBuilder s;
+        s.font_engine(&renderer.font_engine());
+        s.layer("camera_title", [&renderer, tilt](LayerBuilder& l) {
+            l.font_engine(&renderer.font_engine());
+            l.enable_3d();
+            l.rotate({tilt, 0.0f, 0.0f});
+
+            TextDefinition title;
+            title.content.value = "CHRONON 3D";
+            title.style.font.font_path =
+                test::bundled_font_path("assets/fonts/Inter-Bold.ttf");
+            title.style.font.font_family = "Inter";
+            title.style.font.font_weight = 700;
+            title.style.font.font_size = 96.0f;
+            title.style.color = Color::white();
+            title.frame.size = {720.0f, 180.0f};
+            title.frame.placement =
+                TextPlacement{TextPlacementKind::CanvasCenter, {0.0f, 0.0f}};
+            title.frame.anchor = TextAnchor::Center;
+            title.frame.align = TextAlign::Center;
+            title.frame.vertical_align = VerticalAlign::Middle;
+            l.text("title", title);
+        });
+        return s.build();
+    };
+
+    struct Sample {
+        float tilt;
+        int x0;
+        int y0;
+        int x1;
+        int y1;
+        int visible;
+        std::shared_ptr<Framebuffer> fb;
+    };
+
+    std::vector<Sample> samples;
+    for (const float tilt : tilts) {
+        auto fb = test::render_scene_graph(
+            renderer, make_scene(tilt), camera, kWidth, kHeight, 30.0f);
+        REQUIRE(fb != nullptr);
+
+        const auto bbox = chronon3d::test::completeness::alpha_bbox(*fb);
+        const int visible =
+            chronon3d::test::completeness::count_visible_pixels(*fb);
+        INFO("tilt=", tilt, " bbox=(", bbox.x0, ",", bbox.y0, ",",
+             bbox.x1, ",", bbox.y1, ") visible=", visible);
+
+        CHECK_FALSE(bbox.empty());
+        CHECK(visible > 500);
+        CHECK(bbox.x0 >= 0);
+        CHECK(bbox.y0 >= 0);
+        CHECK(bbox.x1 < kWidth);
+        CHECK(bbox.y1 < kHeight);
+
+        // The layer is authored on the canvas centre. A full projective
+        // transform must keep the optical centre while foreshortening the
+        // plane; a flattened sx/sy draw would leave the height unchanged and
+        // a double-applied transform would drift the centre.
+        const float cx = (bbox.x0 + bbox.x1) * 0.5f;
+        const float cy = (bbox.y0 + bbox.y1) * 0.5f;
+        CHECK(std::abs(cx - kWidth * 0.5f) <= 12.0f);
+        CHECK(std::abs(cy - kHeight * 0.5f) <= 20.0f);
+
+        const std::filesystem::path dir = "output/debug/text_3d_camera";
+        std::filesystem::create_directories(dir);
+        const auto path = dir / ("tilt_" +
+            std::to_string(static_cast<int>(tilt)) + "deg.png");
+        CHECK(save_png(*fb, path.string()));
+        CHECK(std::filesystem::exists(path));
+
+        samples.push_back(Sample{tilt, bbox.x0, bbox.y0, bbox.x1, bbox.y1,
+                                 visible, std::move(fb)});
+    }
+
+    REQUIRE(samples.size() == tilts.size());
+    for (std::size_t i = 1; i < samples.size(); ++i) {
+        const int previous_height =
+            samples[i - 1].y1 - samples[i - 1].y0;
+        const int height = samples[i].y1 - samples[i].y0;
+        INFO("tilt=", samples[i].tilt, " height=", height,
+             " previous=", previous_height);
+        CHECK(height < previous_height);
+    }
+
+    const auto& front = *samples.front().fb;
+    for (std::size_t i = 1; i < samples.size(); ++i) {
+        const auto& tilted = *samples[i].fb;
+        int changed = 0;
+        for (int y = 0; y < kHeight; ++y) {
+            for (int x = 0; x < kWidth; ++x) {
+                const Color a = front.get_pixel(x, y);
+                const Color b = tilted.get_pixel(x, y);
+                if (std::abs(a.r - b.r) > 1e-4f ||
+                    std::abs(a.g - b.g) > 1e-4f ||
+                    std::abs(a.b - b.b) > 1e-4f ||
+                    std::abs(a.a - b.a) > 1e-4f) {
+                    ++changed;
+                }
+            }
+        }
+        const float fraction =
+            static_cast<float>(changed) / static_cast<float>(kWidth * kHeight);
+        INFO("tilt=", samples[i].tilt, " changed_fraction=", fraction);
+        CHECK(fraction > 0.01f);
+    }
+}
+
+// A projected 2D text surface is a compositor quad, not a single-sided solid.
+// Requesting UV mirroring on its camera-space backface made every negative
+// camera yaw sample the transparent side of the tight surface, so a title at
+// -0.5 degrees disappeared while +0.5 degrees rendered normally. The camera
+// path must keep both yaw signs visible without a mirrored UV basis.
+TEST_CASE("Negative camera yaw keeps projected text visible") {
+    constexpr int kWidth = 960;
+    constexpr int kHeight = 540;
+
+    auto renderer = test::make_renderer();
+    for (const float yaw : {-2.0f, 0.0f, 2.0f}) {
+        Camera2_5D camera;
+        camera.enabled = true;
+        camera.position = {0.0f, 0.0f, -1000.0f};
+        camera.rotation = {0.0f, yaw, 0.0f};
+        camera.optics_mode = CameraOpticsMode::FieldOfView;
+        camera.fov_deg = 42.0f;
+
+        SceneBuilder s;
+        s.font_engine(&renderer.font_engine());
+        s.layer("yaw_title", [&renderer](LayerBuilder& l) {
+            l.font_engine(&renderer.font_engine());
+            l.enable_3d();
+            TextDefinition title;
+            title.content.value = "MOTION";
+            title.style.font.font_path =
+                test::bundled_font_path("assets/fonts/Inter-Bold.ttf");
+            title.style.font.font_family = "Inter";
+            title.style.font.font_weight = 700;
+            title.style.font.font_size = 148.0f;
+            title.style.color = Color::white();
+            title.frame.size = {860.0f, 300.0f};
+            title.frame.placement =
+                TextPlacement{TextPlacementKind::CanvasCenter, {0.0f, 0.0f}};
+            title.frame.anchor = TextAnchor::Center;
+            title.frame.align = TextAlign::Center;
+            title.frame.vertical_align = VerticalAlign::Middle;
+            l.text("title", title);
+        });
+
+        auto fb = test::render_scene_graph(
+            renderer, s.build(), camera, kWidth, kHeight, 30.0f);
+        REQUIRE(fb != nullptr);
+        const auto bbox = chronon3d::test::completeness::alpha_bbox(*fb);
+        const int visible =
+            chronon3d::test::completeness::count_visible_pixels(*fb);
+        INFO("yaw=", yaw, " visible=", visible, " bbox=(", bbox.x0, ",",
+             bbox.y0, ",", bbox.x1, ",", bbox.y1, ")");
+        CHECK_FALSE(bbox.empty());
+        CHECK(visible > 500);
+
+        const std::filesystem::path dir = "output/debug/text_camera_yaw";
+        std::filesystem::create_directories(dir);
+        const auto path = dir / ("yaw_" +
+            std::to_string(static_cast<int>(yaw)) + "deg.png");
+        CHECK(save_png(*fb, path.string()));
     }
 }

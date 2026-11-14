@@ -288,7 +288,7 @@ void checkSemanticallyRejected(const Json& json) {
 
 } // namespace
 
-TEST_CASE("ChrononMotion offline audio baking lowers into ordinary V3 transform tracks") {
+TEST_CASE("ChrononMotion offline audio baking lowers into ordinary V3 resolved transform samples") {
     MotionScene scene("audio-reactive", 10.f);
     auto& driven = scene.addContent(
         41, "audio-driven", ContentRef::image("audio-driven-image", {32.f, 32.f}));
@@ -315,15 +315,13 @@ TEST_CASE("ChrononMotion offline audio baking lowers into ordinary V3 transform 
 
     REQUIRE(plan.schema == chronon3d::render_plan::kRenderPlanSchemaV3);
     REQUIRE(plan.layers.size() == 1);
-    REQUIRE(plan.layers[0].animation.has_value());
-    const auto position = std::find_if(plan.layers[0].animation->tracks.begin(),
-        plan.layers[0].animation->tracks.end(), [](const auto& track) {
-            return track.property == "position";
-        });
-    REQUIRE(position != plan.layers[0].animation->tracks.end());
-    REQUIRE(position->keyframes.size() >= 3);
-    CHECK(position->keyframes[0].value[0] < position->keyframes[1].value[0]);
-    CHECK(position->keyframes[1].value[0] < position->keyframes[2].value[0]);
+    // V3 has no legacy animation lane for visual transforms: the audio-baked
+    // Motion track is resolved per presentation frame into transform_samples.
+    REQUIRE_FALSE(plan.layers[0].animation.has_value());
+    REQUIRE(plan.layers[0].transform_samples.size() >= 3);
+    const auto& samples = plan.layers[0].transform_samples;
+    CHECK(samples[0].position[0] < samples[1].position[0]);
+    CHECK(samples[1].position[0] < samples[2].position[0]);
     CHECK_MESSAGE(canonicallyValid(plan), canonicalDiagnostic(plan));
 }
 
@@ -586,9 +584,16 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
 
     options.schema = chronon3d::render_plan::kRenderPlanSchemaV3;
     const auto v3 = lowerToRenderPlan(scene, options);
-    CHECK(v3.schema == chronon3d::render_plan::kRenderPlanSchemaV3);
+    REQUIRE(v3.schema == chronon3d::render_plan::kRenderPlanSchemaV3);
+    REQUIRE(v3.layers.size() == 1);
     CHECK(v3.layers[0].position[0] == doctest::Approx(0.f));
-    CHECK(v3.layers[0].animation->tracks[0].keyframes.back().value[0] == doctest::Approx(30.f));
+    // V3 resolves the authored animation to presentation-frame samples rather
+    // than emitting the V2 animation lane. Dereferencing animation here was the
+    // source of the adapter suite SIGSEGV.
+    CHECK_FALSE(v3.layers[0].animation.has_value());
+    REQUIRE(v3.layers[0].transform_samples.size() == 31);
+    CHECK(v3.layers[0].transform_samples.back().position[0] == doctest::Approx(30.f));
+    CHECK(v3.layers[0].transform_samples.back().position[1] == doctest::Approx(20.f));
     CHECK_MESSAGE(canonicallyValid(v3), canonicalDiagnostic(v3));
 
     MotionScene cameraScene("camera adapter", 30.f);

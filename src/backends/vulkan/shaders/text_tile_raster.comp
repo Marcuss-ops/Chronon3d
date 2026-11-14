@@ -102,6 +102,13 @@ const uint kExact3DRotationBit = 1u << 11;
 // Certified 2026-11-07 GEL material profile. Bit 13 is free in the text
 // effect_flags domain.
 const uint kGelReferenceMaterialBit = 1u << 13;
+// Host-orchestrated canonical shadow mask. When set, the tile writes one
+// premultiplied union-coverage value and never emits fill, stroke or glow.
+const uint kCanonicalShadowMaskBit = 1u << 14;
+// Native vector-stroke coverage atlas: R and B carry fill coverage (the
+// page may be RGBA8 or BGRA8), G carries the stroke ring.  The shader
+// applies the run's animated fill/stroke colours.
+const uint kVectorCoverageBit = 1u << 15;
 bool apply_exact_3d_inverse(vec2 origin, inout vec2 local,
                             GpuTextRunDynamic run, float reveal_weight) {
     float rx = radians(run.animator_rotation_x * reveal_weight);
@@ -731,6 +738,7 @@ void main() {
     vec4 background_layer = vec4(0.0);
     vec4 stroke_layer = vec4(0.0);
     vec4 fill_layer = vec4(0.0);
+    float union_shadow_mask = 0.0;
 
 
     for (uint i = 0; i < count; ++i) {
@@ -1000,6 +1008,12 @@ void main() {
                 fill_alpha = clamp(0.5 + ((msd - 0.5) * distance_range * texel_to_screen) /
                                    softness, 0.0, 1.0);
             }
+            const float mask_opacity = run.opacity *
+                (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
+            if ((run.effect_flags & kCanonicalShadowMaskBit) != 0u) {
+                union_shadow_mask = max(union_shadow_mask,
+                    clamp(fill_alpha * mask_opacity, 0.0, 1.0));
+            }
             src = vec4(0.0);
             if ((gd.style_flags & 4u) == 0u &&
                 ((run.effect_flags & 2u) != 0u ||
@@ -1066,7 +1080,7 @@ void main() {
                 stroke_layer = stroke + stroke_layer * (1.0 - stroke.a);
             }
             vec4 fill = fill_color;
-            float run_op = run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
+            float run_op = mask_opacity;
             if ((run.effect_flags & 8u) != 0u) {
                 // GEL-01: the composite TextRun silhouette is shaded once,
                 // after the glyph loop, from the shared distance field. Per-
@@ -1079,14 +1093,48 @@ void main() {
             }
         } else {
             src = sample_value;
-            if ((run.flags & 0x400u) != 0u ||
-                (run.color != 0xFFFFFFFFu && run.color != 0u)) {
-                src *= animated_fill_color(run, reveal_weight);
+            const float mask_opacity = run.opacity *
+                (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
+            if ((run.effect_flags & kVectorCoverageBit) != 0u) {
+                const float fill_cov = clamp(
+                    max(sample_value.r, sample_value.b), 0.0, 1.0);
+                const float stroke_cov = clamp(sample_value.g, 0.0, 1.0);
+                if ((run.effect_flags & kCanonicalShadowMaskBit) != 0u) {
+                    union_shadow_mask = max(union_shadow_mask,
+                        clamp(max(fill_cov, stroke_cov) * mask_opacity,
+                              0.0, 1.0));
+                }
+                vec4 stroke = unpack_color(run.stroke_color);
+                stroke *= stroke_cov * mask_opacity;
+                stroke_layer = stroke + stroke_layer * (1.0 - stroke.a);
+                vec4 fill = animated_fill_color(run, reveal_weight);
+                fill *= fill_cov * mask_opacity;
+                fill_layer = fill + fill_layer * (1.0 - fill.a);
+                src = vec4(0.0);
+            } else {
+                if ((run.flags & 0x400u) != 0u ||
+                    (run.color != 0xFFFFFFFFu && run.color != 0u)) {
+                    src *= animated_fill_color(run, reveal_weight);
+                }
+                if ((run.effect_flags & kCanonicalShadowMaskBit) != 0u) {
+                    union_shadow_mask = max(union_shadow_mask,
+                        clamp(src.a * mask_opacity, 0.0, 1.0));
+                }
+                src *= mask_opacity;
+                fill_layer = src + fill_layer * (1.0 - src.a);
             }
-            src *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
-            fill_layer = src + fill_layer * (1.0 - src.a);
         }
 
+    }
+
+    // Canonical shadow: one union value per destination pixel. The host
+    // blurs this premultiplied silhouette and composites it before the fill.
+    if ((runs[0].effect_flags & kCanonicalShadowMaskBit) != 0u) {
+        vec4 shadow_color = unpack_color(runs[0].color);
+        float alpha = clamp(union_shadow_mask * shadow_color.a, 0.0, 1.0);
+        imageStore(dst_image, pixel_coord,
+                   vec4(shadow_color.rgb * alpha, alpha));
+        return;
     }
 
     if (s_has_gel != 0u) {

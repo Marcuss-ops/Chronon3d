@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <optional>
 #include <string_view>
@@ -188,6 +189,29 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
         if (original_source_handle == runtime::kInvalidRenderSurfaceHandle) {
             release_native_surface(ctx, source);
         }
+        return false;
+    }
+    if (std::getenv("CHRONON3D_TEXT_COMPOSITE_DIAG")) {
+        spdlog::info(
+            "[vk-composite-fb] dst_handle={} dst_cpu={} dst_gpu={} dst_data={} "
+            "src_handle={} src_cpu={} src_gpu={} src_data={} {}x{}",
+            destination.surface_handle(),
+            destination.is_cpu_authoritative() ? 1 : 0,
+            destination.is_gpu_authoritative() ? 1 : 0,
+            destination.data() != nullptr ? 1 : 0,
+            source.surface_handle(), source.is_cpu_authoritative() ? 1 : 0,
+            source.is_gpu_authoritative() ? 1 : 0,
+            source.data() != nullptr ? 1 : 0,
+            source.width(), source.height());
+    }
+    if (std::getenv("CHRONON3D_TEXT_COMPOSITE_COPY_PROBE")) {
+        // Temporary diagnostic: a full-frame replace copy isolates the source
+        // descriptor/shader read from the blend/clip path.
+        const auto copied = ctx.backend_surface_api()->copy_surface(
+            destination.surface_handle(), source.surface_handle(), std::nullopt);
+        if (copied.ok()) return true;
+        spdlog::error("[native-composite] copy probe failed: {}",
+                      copied.error().message);
         return false;
     }
     const auto result = ctx.backend_surface_api()->composite_surfaces(

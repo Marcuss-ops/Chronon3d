@@ -388,26 +388,28 @@ graph::RenderOpResult render_text_run_item(
             "[text-debug] frame={} phase=software.end ok={}",
             frame_number, fallback.ok());
     }
-    if (fallback.ok() && fb.surface_handle() == runtime::kInvalidRenderSurfaceHandle &&
+    if (fallback.ok() &&
+        fb.surface_handle() == runtime::kInvalidRenderSurfaceHandle &&
         backend.supports_native_surfaces()) {
+        // A software text fallback can still receive a layer framebuffer that
+        // already carries a native handle from planning/reuse. In that case
+        // the old condition skipped promotion and the CPU ink never reached
+        // the GPU surface, leaving the text layer visibly empty. Always
+        // promote the transparent fallback through the canonical ROI path;
+        // ensure_empty_native_surface detaches any stale/shared handle first.
         // The fallback framebuffer is transparent outside its actual ink.
         // Promote only that region whenever the backend reports it.  This
         // avoids 1280x720/1080p RGBA32F full-surface uploads for small text
         // overlays while retaining ensure_native_surface() as the exact
         // historical correctness fallback when the ROI path is unavailable.
-        if (text_debug) {
-            spdlog::info(
-                "[text-debug] frame={} phase=promotion.begin", frame_number);
-        }
-        const bool promoted = promote_text_fallback_region(
-            mutable_ctx, backend, fb, fallback.value().actual_ink_bbox);
-        if (text_debug) {
-            spdlog::info(
-                "[text-debug] frame={} phase=promotion.end ok={}",
-                frame_number, promoted);
-        }
-        if (!promoted &&
-            !ensure_native_surface(mutable_ctx, fb, "TextRun.execution.fallback")) {
+        // Upload the complete CPU fallback synchronously. A text layer is
+        // transparent outside its ink, so the full-surface upload is exact;
+        // unlike the ROI path it cannot lose the ink when a reused layer
+        // surface already exists or when the predicted bbox is conservative.
+        fb.mark_cpu_authoritative();
+        if (!ensure_native_surface(
+                mutable_ctx, fb, "TextRun.execution.fallback",
+                /*synchronous_upload=*/true)) {
             return graph::RenderOpResult(graph::make_render_backend_error(
                 RenderBackendErrorCode::ExecutionFailure,
                 "TextRun fallback rendered but could not be uploaded to the native surface"));

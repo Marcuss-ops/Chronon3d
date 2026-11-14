@@ -193,14 +193,13 @@ NodeExecResult TextRunNode::execute(
         ? ctx.framebuffer_pool->acquire_owned_exact(
               surface_width, surface_height, /*clear=*/true)
         : ctx.acquire_owned_fb(surface_width, surface_height, /*clear=*/true);
-    if (ctx.backend && ctx.surface_registry &&
-        ctx.backend_stats_api()->supports_native_surfaces() &&
-        !ensure_empty_native_surface(ctx, *fb, /*exportable=*/false)) {
-        return NodeExecResult{NodeExecutionError{
-            RenderBackendErrorCode::ExecutionFailure,
-            m_name,
-            "failed to materialize native text surface"}};
-    }
+    // Do not pre-create a cleared native surface here. The MTSDF route
+    // materializes and clears its destination inside the active command
+    // buffer, while the software fallback uploads a complete CPU canvas. A
+    // clear recorded here would execute later, when the frame command buffer
+    // is submitted, and would overwrite the fallback upload that completed
+    // earlier on its own upload queue. Letting the selected route own the
+    // surface keeps the clear and the pixels in one command stream.
     if (std::getenv("CHRONON3D_PATH_DIAG"))
         spdlog::info("[native-textrun-diag] node={} shape={} surface={} cpu={} opacity={}",
             m_name, static_cast<bool>(m_shape), fb->surface_handle(),

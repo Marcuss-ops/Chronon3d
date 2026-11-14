@@ -215,10 +215,69 @@ graph::RenderOpResult VulkanBackend::draw_text_run(
     Framebuffer& framebuffer, const TextRunShape& shape,
     const glm::mat4& model_matrix, float opacity) {
     if (m_fallback_backend) {
+        // The software text rasterizer writes through Framebuffer::data().
+        // A GPU-only layer surface has no CPU storage, so the fallback used
+        // to return success while compositing into a null pixel buffer. Allocate
+        // the CPU shadow before the software draw, then upload it explicitly.
+        if (!framebuffer.ensure_cpu_storage()) {
+            return graph::RenderOpResult(graph::make_render_backend_error(
+                graph::RenderBackendErrorCode::ExecutionFailure,
+                "VulkanBackend::draw_text_run: fallback framebuffer has no CPU storage"));
+        }
         sync_gpu_to_cpu(*this, framebuffer);
+        const auto count_alpha = [&]() {
+            std::size_t count = 0;
+            for (int y = 0; y < framebuffer.height(); ++y) {
+                const Color* row = framebuffer.pixels_row(y);
+                for (int x = 0; x < framebuffer.width(); ++x)
+                    count += row[x].a > 0.001f;
+            }
+            return count;
+        };
+        const auto alpha_before = count_alpha();
         auto result = m_fallback_backend->draw_text_run(framebuffer, shape, model_matrix, opacity);
         if (!result.ok()) return result;
+        const auto alpha_after = count_alpha();
+        const auto max_rgb = [&]() {
+            float maximum = 0.0f;
+            for (int y = 0; y < framebuffer.height(); ++y) {
+                const Color* row = framebuffer.pixels_row(y);
+                for (int x = 0; x < framebuffer.width(); ++x)
+                    maximum = std::max({maximum, row[x].r, row[x].g, row[x].b});
+            }
+            return maximum;
+        };
+        const auto cpu_max_rgb = max_rgb();
+        if (std::getenv("CHRONON3D_TEXT_DEBUG")) {
+            spdlog::info(
+                "[vulkan-text-fallback] handle={} size={}x{} items={} alpha_before={} alpha_after={} cpu_max_rgb={}",
+                framebuffer.surface_handle(), framebuffer.width(), framebuffer.height(),
+                result.value().items_drawn, alpha_before, alpha_after, cpu_max_rgb);
+        }
+        framebuffer.mark_cpu_authoritative();
         sync_cpu_to_gpu(*this, framebuffer);
+        if (std::getenv("CHRONON3D_TEXT_DEBUG")) {
+            std::vector<float> readback(
+                static_cast<std::size_t>(framebuffer.width()) *
+                static_cast<std::size_t>(framebuffer.height()) * 4u);
+            const auto downloaded = download_surface(framebuffer.surface_handle(), readback);
+            float gpu_max_rgb = 0.0f;
+            float gpu_max_alpha = 0.0f;
+            std::size_t gpu_red_pixels = 0;
+            if (downloaded.ok()) {
+                for (std::size_t i = 0; i + 3 < readback.size(); i += 4) {
+                    const float r = readback[i];
+                    const float g = readback[i + 1];
+                    const float b = readback[i + 2];
+                    gpu_max_rgb = std::max({gpu_max_rgb, r, g, b});
+                    gpu_max_alpha = std::max(gpu_max_alpha, readback[i + 3]);
+                    if (r > 0.02f && r > g * 1.6f && r > b * 1.6f) ++gpu_red_pixels;
+                }
+            }
+            spdlog::info(
+                "[vulkan-text-fallback] gpu_readback_ok={} gpu_max_rgb={} gpu_max_alpha={} gpu_red_pixels={}",
+                downloaded.ok(), gpu_max_rgb, gpu_max_alpha, gpu_red_pixels);
+        }
         return result;
     }
     (void)framebuffer; (void)shape; (void)model_matrix; (void)opacity;

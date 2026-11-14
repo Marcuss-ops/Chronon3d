@@ -9,15 +9,16 @@ cache remains. The legacy Composition executor was demolished on 2026-11-10: `Co
 is the only production execution input; the pinned compatibility counts are now
 0 production callers and the ticket is closed for demolition (pixel parity
 remains a separate, NOT RUN certification). Text AE
-parity closed on 2026-11-10 by product exception
-[ADR-040](adr/ADR-040-text-parity-product-exception.md): the final
-post-revert corpus on CLI SHA
-`ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e` is 1/8 PASS;
-the seven residual cases and the GPU canonical
-shadow/VectorStroke/transition+span gates are accepted/deferred, not PASS. See
-the [text closure ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md),
-[exception report](evidence/text-parity-20261110-product-exception/REPORT.md),
-and [Composition demolition ticket](tickets/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md).
+parity remains closed on 2026-11-10 by product exception
+[ADR-040](adr/ADR-040-text-parity-product-exception.md). On 2026-11-13 the
+GPU canonical shadow (`T1-01`), GPU `VectorStroke` (`T1-02`) and transition
+span/paint-range (`T2-01`) implementations landed; the frozen corpus on CLI
+SHA `410d7395a2c8782695f4e43a69e91b4312088742f7f2679b81bccea5647d20d3` is
+still 1/8 PASS (`multipage`). The seven residual cases and the three new
+paths' pixel-parity gaps remain accepted, not PASS. See the
+[text closure ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md), the
+[2026-11-13 evidence](evidence/text-parity-20261113/REPORT.md), and the
+[exception report](evidence/text-parity-20261110-product-exception/REPORT.md).
 
 Latest benchmark note (2026-11-02): B2 is encoder-bound. The native-surface
 breakdown measures `avcodec_send_frame` at 3.76 ms/frame (`send_frame`
@@ -171,7 +172,7 @@ This table mirrors the canonical 10-row blocker index in
 | Lights / shadows (T05) | PARTIAL — 2026-10-30 final-binary no-probe acceptance: 5/5 caster-off + 5/5 caster-on, gate 30/30 PASS, zero black; 2026-11-11 review visiva dei frame on/off: ombre portate visibili e controllo off pulito, ma la scena non è una composizione di produzione approvata. Same-SHA CI resta il blocker; C2 2.047/2.607/7.998 s e GPU instancing/parity restano aperti — [ticket and evidence](tickets/TICKET-LIGHTS-SHADOWS-PARTICLES.md) |
 | Render-plan audio mix | PASS (focused) — V3 clips, trim, gain automation, ducking and native mux integration; GPU/CI same-SHA certification remains separate |
 | Text Core V1 | PASS (focused) |
-| Text animator AE parity | CLOSED — product exception (ADR-040): functional selectors/caret and ordered multi-shadow paths are implemented; 1/8 frozen CPU/GPU corpus cases pass, the other 7 are accepted with documented residual; Vulkan canonical shadow/vector stroke and transition+span remain deferred, not PASS — [ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md), [ADR-040](adr/ADR-040-text-parity-product-exception.md) |
+| Text animator AE parity | CLOSED — product exception (ADR-040): functional selectors/caret and ordered multi-shadow paths are implemented; Vulkan canonical shadow, vector stroke and transition+span landed on 2026-11-13, but the frozen corpus is still 1/8 PASS and those pixel gates are not PASS — [ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md), [ADR-040](adr/ADR-040-text-parity-product-exception.md), [2026-11-13 evidence](evidence/text-parity-20261113/REPORT.md) |
 | Text depth focus (text_depth_focus_v1) | PARTIAL — resolver and preset recipes are in `ChrononPlugin/plugins/typography`; text animator primitives remain in Chronon3D |
 | Text Production V1 | PARTIAL — acceptance contract is in [`RELEASE_GATE.md`](RELEASE_GATE.md): 20 general + 8 subtitle presets, timed JSON/SRT input, productive word styling, per-preset 16:9/9:16 short/long multi-time goldens, installed-SDK use, and serial/parallel determinism. The claimed 20+8 catalog count is not backed by a current inventory artifact found in this checkout; the other end-to-end criteria are not certified. |
 | GPU Production V1 | PARTIAL / scope not separately defined — no dedicated ticket or acceptance contract named “GPU Production V1” was found. Related measurable C3D gates are [zero-copy Z-waves](tickets/TICKET-ZERO-COPY-ZWAVES.md), [GPU corpus](tickets/TICKET-GPU-BASELINE-CORPUS.md), and the GPU-native video evidence above; the content corpus and broad release certification remain open. |

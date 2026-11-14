@@ -95,6 +95,7 @@ add_library(chronon3d_graph_nodes OBJECT
     # and its CPU bitmap upload TUs were removed after MTSDF certification.
     nodes/text_run/gpu_text_run_animation.cpp
     nodes/text_run/text_run_packing.cpp
+    nodes/text_run/text_run_vector_stroke.cpp
     nodes/text_run/text_run_draw.cpp
     nodes/text_run/gpu_text_run_cached.cpp
     nodes/text_run/gpu_text_cached_policy.cpp
@@ -107,6 +108,9 @@ target_link_libraries(chronon3d_graph_nodes
         fmt::fmt
         spdlog::spdlog_header_only
 )
+# Vector-stroke outlines are expanded with Clipper2.  This is the same
+# dependency already used by the path builder and graph pipeline.
+target_link_libraries(chronon3d_graph_nodes PUBLIC Clipper2::Clipper2)
 if(TARGET chronon3d_text_core)
     target_link_libraries(chronon3d_graph_nodes PUBLIC chronon3d_text_core)
 endif()

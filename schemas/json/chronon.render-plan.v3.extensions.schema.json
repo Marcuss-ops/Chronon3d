@@ -8372,6 +8372,17 @@
                 "default": "auto",
                 "description": "Stroke semantics: auto is the historical backend choice, distance is GPU SDF dilation, vector is the expanded outline and is CPU-only."
               },
+              "wear": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Procedural internal wear on the text fill. Deterministic tileable pattern; GPU routes fall back to the canonical software text rasterizer.",
+                "properties": {
+                  "amount": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.5},
+                  "scale": {"type": "number", "exclusiveMinimum": 0, "maximum": 256, "default": 8},
+                  "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0},
+                  "softness": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.25}
+                }
+              },
               "text_caret": {
                 "type": "object",
                 "additionalProperties": false,

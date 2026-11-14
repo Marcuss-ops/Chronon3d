@@ -44,6 +44,14 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     const assets::AssetResolver* resolver,
     const TextRunShape& shape);
 
+/// Prepare the native vector-stroke coverage atlas.  This route stores fill
+/// coverage in R and stroke-ring coverage in G, so the shader can apply
+/// animated fill/stroke colours without regenerating glyph pixels.
+std::shared_ptr<const runtime::GpuPreparedTextRun>
+prepare_vector_stroke_text_run(
+    runtime::GpuGlyphAtlas& glyph_atlas,
+    const TextRunShape& shape);
+
 namespace detail {
 
 /// Overflow-safe `a * b`.  Returns false on overflow and never writes `out`.

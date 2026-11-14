@@ -141,10 +141,14 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     // MTSDF outlines are evaluated as a distance-field threshold, so their
     // result does not depend on the vector stroke miter limit. Keep the
     // cap/join/dash checks: those change the outline topology or end treatment.
+    const bool vector_stroke = shape.paint.stroke_enabled &&
+        shape.paint.stroke_mode == TextStrokeMode::Vector;
     if (!shape.layout || shape.animated_doc ||
-        shape.paint.fill_style || shape.paint.stroke_style ||
-        shape.paint.stroke_cap != LineCap::Butt ||
-        shape.paint.stroke_join != LineJoin::Miter ||
+        shape.paint.fill_style || shape.paint.fill_pattern ||
+        shape.paint.stroke_style ||
+        (!vector_stroke &&
+         (shape.paint.stroke_cap != LineCap::Butt ||
+          shape.paint.stroke_join != LineJoin::Miter)) ||
         !shape.paint.stroke_dash_array.empty() ||
         shape.paint.stroke_dash_offset != 0.0f ||
         (shape.material.enabled && !shape.material.gel_surface) ||
@@ -153,18 +157,12 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
         return false;
     }
     if (shape.paint.stroke_enabled &&
-        (shape.paint.stroke_width < 0.0f || shape.paint.stroke_width > 16.0f)) {
+        (!std::isfinite(shape.paint.stroke_width) ||
+         shape.paint.stroke_width < 0.0f ||
+         shape.paint.stroke_width > (vector_stroke ? 64.0f : 16.0f))) {
         return false;
     }
-    if (shape.paint.stroke_enabled &&
-        shape.paint.stroke_mode == TextStrokeMode::Vector) {
-        return false;
-    }
-    if (shape.paint.shadow_quality == TextShadowQuality::Canonical &&
-        std::any_of(shape.shadows.begin(), shape.shadows.end(),
-                    [](const TextShadow& shadow) { return shadow.enabled; })) {
-        return false;
-    }
+    if (vector_stroke && !shape.engine) return false;
     if (shape.caret.enabled &&
         (!std::isfinite(shape.caret.width) || shape.caret.width < 0.0f ||
          !std::isfinite(shape.caret.height) || shape.caret.height < 0.0f ||

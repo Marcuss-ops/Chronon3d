@@ -10,6 +10,7 @@
 // (draw_cached_text_run_mtsdf). See gpu_text_run.hpp for the contract.
 
 #include "gpu_text_run.hpp"
+#include "gpu_text_run_detail.hpp"
 
 #include "../native_surface.hpp"
 
@@ -37,6 +38,47 @@
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph::text_run {
+
+namespace {
+
+/// Frame-transient scratch surface for the run-level canonical shadow. The
+/// surface is registered with the backend and released in reverse order; all
+/// recorded passes keep the handle alive until the batch retires it.
+struct TextScratchSurface {
+    RenderGraphContext* ctx{nullptr};
+    runtime::RenderSurfaceHandle handle{runtime::kInvalidRenderSurfaceHandle};
+
+    TextScratchSurface() = default;
+    TextScratchSurface(const TextScratchSurface&) = delete;
+    TextScratchSurface& operator=(const TextScratchSurface&) = delete;
+    ~TextScratchSurface() { reset(); }
+
+    bool create(RenderGraphContext& context, std::uint32_t width,
+                std::uint32_t height) {
+        ctx = &context;
+        const auto desc = runtime::SurfaceDesc::make(
+            width, height, runtime::canonical_render_format(),
+            runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient);
+        handle = ctx->surface_registry->create(desc);
+        if (handle == runtime::kInvalidRenderSurfaceHandle) return false;
+        const auto created = ctx->backend_surface_api()->create_surface(handle, desc);
+        if (!created.ok()) {
+            (void)ctx->surface_registry->release(handle);
+            handle = runtime::kInvalidRenderSurfaceHandle;
+            return false;
+        }
+        return true;
+    }
+
+    void reset() noexcept {
+        if (ctx == nullptr || handle == runtime::kInvalidRenderSurfaceHandle) return;
+        (void)ctx->backend_surface_api()->release_surface(handle);
+        (void)ctx->surface_registry->release(handle);
+        handle = runtime::kInvalidRenderSurfaceHandle;
+    }
+};
+
+} // namespace
 
 graph::RenderOpResult draw_cached_text_run_mtsdf(
     RenderGraphContext& ctx,
@@ -74,31 +116,60 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     }
 
     const auto quality_key = static_cast<std::uint8_t>(shape.paint.quality);
-    auto prepared = ctx.gpu_text_prepared_cache->find(*shape.layout, quality_key);
-    if (!prepared) {
+    // Vector strokes use a separate coverage atlas whose pixels encode fill
+    // and stroke masks, not an MTSDF distance field.  The prepared batch is
+    // deliberately rebuilt per submission: the expensive outline expansion and
+    // rasterisation are cached by GpuGlyphKey, while the batch itself must not
+    // be shared with a differently styled run in the layout-only cache.
+    const bool vector_coverage =
+        shape.paint.stroke_enabled &&
+        shape.paint.stroke_mode == TextStrokeMode::Vector;
+    std::shared_ptr<const runtime::GpuPreparedTextRun> prepared;
+    if (vector_coverage) {
         if (profiling::g_current_counters) {
             profiling::g_current_counters->text_cache_misses.fetch_add(1, std::memory_order_relaxed);
             profiling::g_current_counters->gpu_text_prepared_batch_build_count.fetch_add(1, std::memory_order_relaxed);
         }
         const auto prep_t0 = profiling::g_current_counters ? profiling::now() : profiling::Clock::time_point{};
-        auto created = prepare_mtsdf_text_run(
-            *ctx.gpu_glyph_atlas, ctx.asset_resolver, shape);
+        prepared = prepare_vector_stroke_text_run(
+            *ctx.gpu_glyph_atlas, shape);
         if (profiling::g_current_counters) {
             profiling::g_current_counters->text_prepare_per_frame_wall_us.fetch_add(
                 static_cast<uint64_t>(std::llround(profiling::elapsed_us(prep_t0))),
                 std::memory_order_relaxed);
         }
-        if (!created || !created->ready) {
+        if (!prepared || !prepared->ready) {
             return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
-                "MTSDF text route has no resident glyphs"));
+                "Vector text route has no resident coverage glyphs"));
         }
-        ctx.gpu_text_prepared_cache->store(*shape.layout, quality_key, created);
-        prepared = created;
     } else {
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->text_cache_hits.fetch_add(1, std::memory_order_relaxed);
-            profiling::g_current_counters->gpu_text_prepared_batch_reuse_count.fetch_add(1, std::memory_order_relaxed);
+        prepared = ctx.gpu_text_prepared_cache->find(*shape.layout, quality_key);
+        if (!prepared) {
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->text_cache_misses.fetch_add(1, std::memory_order_relaxed);
+                profiling::g_current_counters->gpu_text_prepared_batch_build_count.fetch_add(1, std::memory_order_relaxed);
+            }
+            const auto prep_t0 = profiling::g_current_counters ? profiling::now() : profiling::Clock::time_point{};
+            auto created = prepare_mtsdf_text_run(
+                *ctx.gpu_glyph_atlas, ctx.asset_resolver, shape);
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->text_prepare_per_frame_wall_us.fetch_add(
+                    static_cast<uint64_t>(std::llround(profiling::elapsed_us(prep_t0))),
+                    std::memory_order_relaxed);
+            }
+            if (!created || !created->ready) {
+                return graph::RenderOpResult(graph::make_render_backend_error(
+                    graph::RenderBackendErrorCode::UnsupportedCapability,
+                    "MTSDF text route has no resident glyphs"));
+            }
+            ctx.gpu_text_prepared_cache->store(*shape.layout, quality_key, created);
+            prepared = created;
+        } else {
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->text_cache_hits.fetch_add(1, std::memory_order_relaxed);
+                profiling::g_current_counters->gpu_text_prepared_batch_reuse_count.fetch_add(1, std::memory_order_relaxed);
+            }
         }
     }
 
@@ -109,14 +180,17 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         spdlog::warn(
             "[text-cache] rebuilding prepared MTSDF batch after glyph-atlas epoch change");
         ctx.gpu_text_prepared_cache->clear();
-        auto rebuilt = prepare_mtsdf_text_run(
-            *ctx.gpu_glyph_atlas, ctx.asset_resolver, shape);
+        auto rebuilt = vector_coverage
+            ? prepare_vector_stroke_text_run(*ctx.gpu_glyph_atlas, shape)
+            : prepare_mtsdf_text_run(
+                *ctx.gpu_glyph_atlas, ctx.asset_resolver, shape);
         if (!rebuilt || !rebuilt->ready) {
             return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
-                "MTSDF text route could not rebuild after glyph-atlas epoch change"));
+                "Text route could not rebuild after glyph-atlas epoch change"));
         }
-        ctx.gpu_text_prepared_cache->store(*shape.layout, quality_key, rebuilt);
+        if (!vector_coverage)
+            ctx.gpu_text_prepared_cache->store(*shape.layout, quality_key, rebuilt);
         prepared = std::move(rebuilt);
     }
 
@@ -144,14 +218,17 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             "[text-cache] invalidating prepared MTSDF pages after backend surface retirement");
         ctx.gpu_text_prepared_cache->clear();
         ctx.gpu_glyph_atlas->clear();
-        auto rebuilt = prepare_mtsdf_text_run(
-            *ctx.gpu_glyph_atlas, ctx.asset_resolver, shape);
+        auto rebuilt = vector_coverage
+            ? prepare_vector_stroke_text_run(*ctx.gpu_glyph_atlas, shape)
+            : prepare_mtsdf_text_run(
+                *ctx.gpu_glyph_atlas, ctx.asset_resolver, shape);
         if (!rebuilt || !rebuilt->ready || !pages_are_bound(*rebuilt)) {
             return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
-                "MTSDF text route could not rebuild retired GPU atlas pages"));
+                "Text route could not rebuild retired GPU atlas pages"));
         }
-        ctx.gpu_text_prepared_cache->store(*shape.layout, quality_key, rebuilt);
+        if (!vector_coverage)
+            ctx.gpu_text_prepared_cache->store(*shape.layout, quality_key, rebuilt);
         prepared = std::move(rebuilt);
     }
 
@@ -225,7 +302,15 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         sample_gpu_gel_light_animation(
             shape, ctx.frame_input.sample_time, run);
     }
-    if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
+    if (vector_coverage) {
+        // Vector coverage is already an expanded outline: do not ask the
+        // distance-field shader to dilate it a second time.  Bit 0 of run.flags
+        // still selects plane placement, not MTSDF sampling.
+        run.effect_flags |= runtime::kTextRunEffectVectorCoverage;
+        run.flags |= 1u;
+        run.stroke_width = shape.paint.stroke_width;
+        run.stroke_color = ::chronon3d::text::pack_text_color(shape.paint.stroke_color);
+    } else if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
         run.effect_flags |= 1u;
         run.stroke_width = shape.paint.stroke_width;
         run.stroke_color = ::chronon3d::text::pack_text_color(shape.paint.stroke_color);
@@ -261,7 +346,11 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         target.effect_flags |= (std::abs(shadow.offset.x) < 1e-4f &&
                                 std::abs(shadow.offset.y) < 1e-4f) ? 4u : 2u;
     };
-    if (gpu_shadows.size() == 1) apply_shadow(run, *gpu_shadows.front());
+    const bool canonical_shadow =
+        shape.paint.shadow_quality == TextShadowQuality::Canonical &&
+        !gpu_shadows.empty();
+    if (!canonical_shadow && gpu_shadows.size() == 1)
+        apply_shadow(run, *gpu_shadows.front());
     const auto shadow_only_run = [&](const TextShadow& shadow) {
         runtime::TextRunDynamic shadow_run = run;
         shadow_run.effect_flags &= ~(2u | 4u);
@@ -294,7 +383,9 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     const auto draw_t0 = profiling::g_current_counters ? profiling::now() : profiling::Clock::time_point{};
     const auto dispatch_batch = [&](
         const runtime::GpuPreparedTextRun::Batch& batch,
-        const runtime::TextRunDynamic& pass_run) -> graph::RenderOpResult {
+        const runtime::TextRunDynamic& pass_run,
+        runtime::RenderSurfaceHandle target,
+        bool union_mask) -> graph::RenderOpResult {
         if (batch.glyphs.empty())
             return graph::RenderOpResult(graph::RenderOpOutcome{0});
         const bool has_resolved_glyph_motion = rotated_xy || !shape.animators.empty() ||
@@ -316,9 +407,9 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                            glyph.fill.b != 1.0f || glyph.fill.a != 1.0f;
                 });
         const auto dispatch = [&]() -> graph::RenderOpResult {
-          if (!has_resolved_glyph_motion) {
+          if (!has_resolved_glyph_motion && !union_mask) {
             return ctx.backend_texture_api()->draw_text_batch(
-                destination.surface_handle(), batch.glyphs,
+                target, batch.glyphs,
                 std::span<const runtime::TextRunDynamic>(&pass_run, 1),
                 std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1),
                 std::span<const runtime::GlyphPaint>{});
@@ -402,6 +493,18 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 glyph.pad0 = 0; // the record selector addresses one local glyph
 
                 auto& dynamic = glyph_runs[state_index];
+                // T2-01: a source span (or a transition keyframe paint range)
+                // seeds GlyphInstanceState::fill.  The fast batch path can
+                // carry that value only through the per-glyph dynamic record;
+                // without this copy the run colour painted every glyph and
+                // spans silently disappeared on the native route.  A fill
+                // animator still owns its own animator_fill_color path below.
+                const auto& placed_glyph =
+                    layout.placed.glyphs[state_index];
+                if (!has_fill_animator && placed_glyph.fill_color_override) {
+                    dynamic.color = ::chronon3d::text::pack_text_color(
+                        state.fill);
+                }
                 float depth_factor = 1.0f;
                 if (std::isfinite(state.position.z) && state.position.z > 0.0f) {
                     depth_factor = 1.0f / (1.0f + state.position.z * 0.001f);
@@ -464,7 +567,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 // Keep the run-level paint as the fallback for glyphs whose
                 // selector did not enable a per-glyph stroke.
                 if (state.stroke.a > 0.0f && state.stroke_width > 0.0f) {
-                    dynamic.effect_flags |= 1u;
+                    if (!vector_coverage) dynamic.effect_flags |= 1u;
                     dynamic.stroke_color =
                         ::chronon3d::text::pack_text_color(state.stroke);
                     dynamic.stroke_width = state.stroke_width;
@@ -476,7 +579,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 }
             }
             return ctx.backend_texture_api()->draw_text_batch(
-                destination.surface_handle(), glyphs, glyph_runs,
+                target, glyphs, glyph_runs,
                 std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1),
                 std::span<const runtime::GlyphPaint>(glyph_paints));
         }();
@@ -486,13 +589,72 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     // Ordered compositing: every authored shadow first, then a single fill
     // pass.  A shadow-only pass is forbidden from drawing the caret or fill.
     runtime::TextRunDynamic fill_run = run;
-    if (gpu_shadows.size() > 1) {
+    if (canonical_shadow) {
+        // One union silhouette per authored shadow. The tile raster writes the
+        // per-pixel max coverage; the two blur passes are separable and the
+        // final composite is a single linear source-over. This is the GPU twin
+        // of the CPU canonical shadow without accumulating per-glyph edges.
+        fill_run.effect_flags &= ~(2u | 4u | runtime::kTextRunEffectShadowOnly);
+        for (const TextShadow* shadow : gpu_shadows) {
+            if (!shadow->enabled || shadow->opacity <= 0.0f) continue;
+            TextScratchSurface mask;
+            TextScratchSurface blurred;
+            if (!mask.create(ctx, static_cast<std::uint32_t>(destination.width()),
+                             static_cast<std::uint32_t>(destination.height())) ||
+                !blurred.create(ctx, static_cast<std::uint32_t>(destination.width()),
+                                static_cast<std::uint32_t>(destination.height()))) {
+                return graph::RenderOpResult(graph::make_render_backend_error(
+                    graph::RenderBackendErrorCode::ExecutionFailure,
+                    "MTSDF canonical shadow could not allocate scratch surfaces"));
+            }
+            runtime::TextRunDynamic mask_run = run;
+            mask_run.effect_flags =
+                (run.effect_flags & (kTextRunEffectExact3DRotation |
+                                     runtime::kTextRunEffectVectorCoverage)) |
+                runtime::kTextRunEffectCanonicalShadowMask;
+            mask_run.color = ::chronon3d::text::pack_text_color(shadow->color);
+            mask_run.opacity = std::clamp(
+                opacity * shadow->opacity, 0.0f, 1.0f);
+            mask_run.tx += shadow->offset.x;
+            mask_run.ty += shadow->offset.y;
+            mask_run.shadow_color = 0;
+            mask_run.shadow_dx = 0.0f;
+            mask_run.shadow_dy = 0.0f;
+            mask_run.shadow_blur = 0.0f;
+            mask_run.stroke_width = 0.0f;
+            mask_run.animator_blur = 0.0f;
+            mask_run.caret_flags = 0;
+            for (const auto& batch : prepared->batches) {
+                if (batch.glyphs.empty()) continue;
+                auto pass = dispatch_batch(
+                    batch, mask_run, mask.handle, /*union_mask=*/true);
+                if (!pass.ok()) return pass;
+                items_drawn += pass.value().items_drawn;
+            }
+            if (shadow->blur > 0.0f) {
+                // CPU canonical uses sigma = radius / 3; the generic Vulkan
+                // blur shader consumes sigma directly and clamps to 0.5.
+                const float sigma = std::max(shadow->blur / 3.0f, 0.5f);
+                auto horizontal = ctx.backend_surface_api()->blur_surface(
+                    blurred.handle, mask.handle, sigma, /*horizontal=*/true);
+                if (!horizontal.ok()) return horizontal;
+                auto vertical = ctx.backend_surface_api()->blur_surface(
+                    mask.handle, blurred.handle, sigma, /*horizontal=*/false);
+                if (!vertical.ok()) return vertical;
+            }
+            auto composite = ctx.backend_surface_api()->composite_surfaces(
+                destination.surface_handle(), mask.handle,
+                BlendMode::Normal, CompositeOperator::SourceOver);
+            if (!composite.ok()) return composite;
+        }
+    } else if (gpu_shadows.size() > 1) {
         fill_run.effect_flags &= ~(2u | 4u);
         for (const TextShadow* shadow : gpu_shadows) {
             const runtime::TextRunDynamic shadow_run = shadow_only_run(*shadow);
             for (const auto& batch : prepared->batches) {
                 if (batch.glyphs.empty()) continue;
-                auto pass = dispatch_batch(batch, shadow_run);
+                auto pass = dispatch_batch(
+                    batch, shadow_run, destination.surface_handle(), false);
                 if (!pass.ok()) return pass;
                 items_drawn += pass.value().items_drawn;
             }
@@ -500,7 +662,8 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     }
     for (const auto& batch : prepared->batches) {
         if (batch.glyphs.empty()) continue;
-        auto pass = dispatch_batch(batch, fill_run);
+        auto pass = dispatch_batch(
+            batch, fill_run, destination.surface_handle(), false);
         if (!pass.ok()) return pass;
         items_drawn += pass.value().items_drawn;
         // The caret is a single run-level layer: only the first prepared page

@@ -61,14 +61,23 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
         return;
     }
 
+    // Camera-depth ordering is a 2.5D contract.  A screen-space/2D layer has
+    // no camera-space position: feeding its full-canvas centre (e.g. 960,540)
+    // to the depth recomposer makes a background move nearer than a centred
+    // title at negative yaw and paint over it.  Keep 2D layers on authored
+    // submission order by withholding the 3D position.
+    const bool camera_depth_participant =
+        layer.uses_2_5d_projection && !layer.screen_space;
     auto composite_node = std::make_unique<CompositeNode>(
         graph.next_composite_id(),
         layer.blend_mode,
         is_static ? Frame{0} : Frame{-1},
-        world_z,
+        camera_depth_participant ? world_z : 0.0f,
         ::chronon3d::CompositeOperator::SourceOver,
         is_static ? static_memory_cache("composite") : frame_variant_cache("composite"));
-    composite_node->set_world_position(world_position);
+    if (camera_depth_participant) {
+        composite_node->set_world_position(world_position);
+    }
     composite_node->set_backdrop_blur(layer.backdrop_blur);
     composite_node->set_gel_transmission(gel_transmission);
     auto composite = graph.add_node(std::move(composite_node), node_ctx);

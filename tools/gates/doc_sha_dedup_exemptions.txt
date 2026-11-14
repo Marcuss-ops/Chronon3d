@@ -43,3 +43,14 @@ exempt_file_sha ADR-039-text-transition-residuals.md:2026110
 # TICKET-AE-SELECTOR-PARITY-20261112 references, not a commit SHA. Keep the
 # legitimate ticket citations instead of removing them to satisfy the scanner.
 exempt_file_sha ADR-041-selector-expression-and-smoothness-contract.md:2026111
+
+# ADR-040: the sha7 scan matches the shared date prefix "2026111" of two
+# evidence directory links (text-parity-20261110-product-exception and
+# text-parity-20261113), not a commit SHA. Keep the legitimate evidence cites
+# instead of dropping them to satisfy the scanner.
+exempt_file_sha ADR-040-text-parity-product-exception.md:2026111
+
+# ADR-040: the sha7 scan matches the shared date prefix "2026111" of the
+# 2026-11-10 and 2026-11-13 text-parity evidence paths, not a commit SHA. Keep
+# both legitimate evidence links instead of dropping one to satisfy the scanner.
+exempt_file_sha ADR-040-text-parity-product-exception.md:2026111
