@@ -18,7 +18,7 @@ function(chronon3d_configure_cuda)
 
     find_path(CHRONON3D_CUDA_INCLUDE_DIR cuda.h
         HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "/usr/local/cuda"
-              "/home/pierone/cuda-include-chronon"
+              "$ENV{HOME}/cuda-include-chronon"
         PATH_SUFFIXES include)
     find_library(CHRONON3D_CUDA_DRIVER_LIBRARY cuda
         HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
@@ -36,12 +36,12 @@ function(chronon3d_configure_cuda)
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         find_path(CHRONON3D_NVRTC_INCLUDE_DIR nvrtc.h
             HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "/usr/local/cuda"
-                  "/home/pierone/cuda-include-chronon"
+                  "$ENV{HOME}/cuda-include-chronon"
             PATH_SUFFIXES include include/cuda)
         find_library(CHRONON3D_NVRTC_LIBRARY
             NAMES nvrtc libnvrtc.so libnvrtc-chronon.so
             HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}" "/usr/local/cuda"
-                  "/usr/local/cuda-13.0" "/home/pierone"
+                  "/usr/local/cuda-13.0" "$ENV{HOME}"
             PATH_SUFFIXES lib64 lib lib/x64 targets/x86_64-linux/lib)
         if(NOT CHRONON3D_NVRTC_LIBRARY)
             foreach(_chronon3d_cuda_root IN ITEMS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}")

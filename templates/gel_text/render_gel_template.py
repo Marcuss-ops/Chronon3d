@@ -13,7 +13,8 @@ import subprocess
 import sys
 
 CHRONON_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-CLI_PATH = os.path.join(CHRONON_ROOT, "build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli")
+CLI_PATH = os.environ.get("CHRONON_CLI") or os.path.join(
+    CHRONON_ROOT, "build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli")
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "compositions/GelText1080p.json")
 
 def main():

@@ -194,6 +194,16 @@ private:
                 }
                 break;
             }
+            case LensDistortion: {
+                if (auto* p = std::get_if<LensDistortionParams>(&inst.params)) {
+                    if (p->curvature < 0.0f || p->scale < 1.0f) {
+                        const f32 c = p->curvature < 0.0f ? std::abs(p->curvature) : 0.0f;
+                        const f32 s = p->scale < 1.0f ? (1.0f - p->scale) : 0.0f;
+                        max_spread = std::max(max_spread, std::ceil((c + s) * 260.0f));
+                    }
+                }
+                break;
+            }
             default: break;
             }
         }
