@@ -139,7 +139,10 @@ TEST_CASE("render plan decodes bounded wiggle drivers and fingerprints their see
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
     source["layers"][0]["animation"]["tracks"][0]["wiggle"]["frequency"] = 2;
     source["layers"][0]["animation"]["tracks"][0]["property"] = "position";
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+    const auto vector_wiggle = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(vector_wiggle.has_value());
+    REQUIRE(vector_wiggle->layers[0].animation->tracks[0].wiggle.has_value());
+    CHECK(vector_wiggle->layers[0].animation->tracks[0].property == "position");
 }
 
 TEST_CASE("render plan auto_orient requires position motion and excludes rotation tracks") {

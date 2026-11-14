@@ -138,8 +138,10 @@ inline std::optional<Mat4> project_to_camera_space(
         // This helper is exclusively the 2D-projection path; projected
         // compositor surfaces are double-sided.  Native 3D callers use the
         // separate placement/bounds path where physical winding is owned by
-        // the 3D source processor.
-        chronon3d::BackfaceMode::DoubleSided);
+        // the 3D source processor.  Do not mirror UVs here: a projected text
+        // surface is not a physical card, and mirroring its V axis sampled the
+        // transparent side for negative camera yaw.
+        chronon3d::BackfaceMode::Visible);
     if (!proj.visible) {
         if (std::getenv("CHRONON3D_PROJ_DIAG")) {
             spdlog::warn(

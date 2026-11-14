@@ -28,8 +28,44 @@ def animator(unit, props, selector_order="forward", shape="ramp_up", start=None,
     return {"selectors": [selector], "properties": props}
 
 
+EASINGS = {
+    "linear": lambda t: t,
+    "in_out_cubic": lambda t: 4 * t ** 3 if t < 0.5 else 1 - (-2 * t + 2) ** 3 / 2,
+    "out_cubic": lambda t: 1 - (1 - t) ** 3,
+    "out_back": lambda t: 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2,
+}
+
+
+def _sample_property(values, easing):
+    """Bake an authored easing curve to one linear keyframe per frame.
+
+    RenderPlan v3 text-animator property tracks reject non-linear easing;
+    callers must pre-sample the curve instead. Camera tracks already use the
+    same sampling model.
+    """
+    ease = EASINGS[easing]
+    keys = sorted(values, key=lambda item: item[0])
+    sampled = []
+    for frame in range(N):
+        if frame <= keys[0][0]:
+            value = keys[0][1]
+        elif frame >= keys[-1][0]:
+            value = keys[-1][1]
+        else:
+            for (fa, va), (fb, vb) in zip(keys, keys[1:]):
+                if fa <= frame <= fb:
+                    t = 0.0 if fb == fa else (frame - fa) / (fb - fa)
+                    e = ease(t)
+                    value = ([x + (y - x) * e for x, y in zip(va, vb)]
+                             if isinstance(va, (list, tuple)) else va + (vb - va) * e)
+                    break
+        sampled.append({"frame": frame, "value": value})
+    return sampled
+
+
 def prop_track(prop, values, easing="in_out_cubic"):
-    return track(prop, values, easing)
+    return {"property": prop, "easing": "linear",
+            "keyframes": _sample_property(values, easing)}
 
 
 def make_layer(text="MOTION", *, enable_3d=False, position=(480, 270), size=(860, 300), font_size=148,

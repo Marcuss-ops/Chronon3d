@@ -82,8 +82,10 @@ void main() {
         return;
     }
     float sigma = max(params.radius, 0.5);
-    // Glow radii up to 96 map to a sigma of 32 and a 64-pixel support window.
-    int extent = clamp(int(ceil(sigma * 2.0)), 1, 128);
+    // The canonical CPU Gaussian (text canonical shadow) integrates the full
+    // 3-sigma support.  Keep the GPU kernel identical to that oracle instead
+    // of truncating at 2-sigma, which shifted the blurred silhouette inward.
+    int extent = clamp(int(ceil(sigma * 3.0)), 1, 128);
     vec4 accumulated = vec4(0.0);
     float weight_sum = 0.0;
     float inverse_two_sigma_squared = 0.5 / (sigma * sigma);

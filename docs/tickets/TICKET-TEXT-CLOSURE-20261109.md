@@ -1,10 +1,10 @@
 # TICKET-TEXT-CLOSURE-20261109 — Chiusura del testo: pixel truth, caret RTL e qualità avanzata
 
-**Status:** CLOSED — product exception (ADR-040, 2026-11-10). The frozen pixel gate is not green: 1/8 cases pass; the other 7 and the T1-01/T1-02/T2-01 gates are accepted/deferred by explicit product decision, not passed. See §17 and [ADR-040](../adr/ADR-040-text-parity-product-exception.md).
+**Status:** CLOSED — product exception (ADR-040, 2026-11-10). T1-01/T1-02/T2-01 were implemented on 2026-11-13, but the frozen pixel gate is still not green: 1/8 cases pass. The other 7 cases and the three implemented paths' pixel-parity gaps are accepted by explicit product decision, not passed. See §17 and [ADR-040](../adr/ADR-040-text-parity-product-exception.md).
 **Parent:** [TICKET-TEXT-ANIMATOR-PARITY-20261107](TICKET-TEXT-ANIMATOR-PARITY-20261107.md)
 **Quality authority:** [TICKET-TEXT-QUALITY-V2](TICKET-TEXT-QUALITY-V2.md)
 **Related:** [TICKET-SVG-TEXT-PARITY-REMAINING](TICKET-SVG-TEXT-PARITY-REMAINING.md), [TICKET-CHRONON-2.0-MASTER](TICKET-CHRONON-2.0-MASTER.md), [ADR-037](../adr/ADR-037-pre-shaping-selector-unit-map.md)
-**Closeout evidence:** [text-parity-20261110-product-exception/REPORT.md](../evidence/text-parity-20261110-product-exception/REPORT.md) — CLI SHA `ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e`; 1/8 PASS.
+**Closeout evidence:** [text-parity-20261110-product-exception/REPORT.md](../evidence/text-parity-20261110-product-exception/REPORT.md) — CLI SHA `ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e`; 1/8 PASS. Implementation update: [text-parity-20261113/REPORT.md](../evidence/text-parity-20261113/REPORT.md) — CLI SHA `410d7395a2c8782695f4e43a69e91b4312088742f7f2679b81bccea5647d20d3`; T1-01/T1-02/T2-01 implemented, still 1/8 PASS.
 **Owner:** Chronon3D text/runtime.
 **Scope:** chiusura del testo non-SVG: certificazione pixel CPU/GPU su glifi reali, caret RTL/bidi, shadow canonica sul run, `VectorStroke`, policy di generazione MTSDF/`msdfgen`, e residui di parità oggi documentati.
 **Non-goals:** SVG text (P2-02, ticket separato), DirectYUV/NV12 (lane separata), un secondo text renderer, un nuovo resolver o una nuova cache authority.
@@ -116,10 +116,10 @@ Questo ticket è il piano di chiusura. Non duplica l’authority della qualità:
 | T0-01 | Pixel diff CPU/GPU su glifi reali, tutti gli effetti nativi | P0 | OPEN — 1/8 corpus cases pass; 7/8 accepted by ADR-040, not PASS | Report per-frame + soglie + evidenza same-SHA |
 | T0-02 | Caret RTL/bidi: edge logico, cluster, ligature, run misti | P0 | PARTIAL — functional tests pass; pixel case remains below T0-01 thresholds | Unit + integration + pixel diff RTL |
 | T0-03 | Multi-shadow GPU compositing and CPU/GPU pixel parity | P0 | PARTIAL — ordered multi-pass dispatch is implemented in `text_run_draw.cpp`; `multi_shadow` still misses the frozen pixel gate | Two ordered layers visible and within the frozen pixel gate |
-| T1-01 | Shadow canonica sul run: maschera unione, blur gaussiano, source-over lineare | P1 | OPEN — CPU `Canonical` exists; Vulkan rejects it | GPU union-mask + canonical blur parity |
-| T1-02 | `VectorStroke`: joins miter/bevel/round + miter limit | P1 | OPEN — software vector exists; Vulkan rejects `Vector` | Native Vulkan joins and miter-limit parity |
+| T1-01 | Shadow canonica sul run: maschera unione, blur gaussiano, source-over lineare | P1 | IMPLEMENTED — targeted IoU 0.994251 (threshold 0.995); not PASS | GPU union-mask + canonical blur parity |
+| T1-02 | `VectorStroke`: joins miter/bevel/round + miter limit | P1 | IMPLEMENTED — targeted IoU 0.966888, coverage 1.032781; not PASS | Native Vulkan joins and miter-limit parity |
 | T1-03 | Policy `Fast`/`High`/`Ultra` e generatore HQ (`msdfgen` solo se serve) | P1 | PARTIAL — `Fast`/`High`; High range/padding candidate under full-corpus evaluation (`generation_id=4`); cache identity and parity gate still open | ADR-038 + corpus + cache identity |
-| T2-01 | `text_transitions` + `text_spans`/glyph paint ranges | P2 | OPEN — authored combination still fail-closed | AE-compatible typed/native combination semantics |
+| T2-01 | `text_transitions` + `text_spans`/glyph paint ranges | P2 | IMPLEMENTED — targeted IoU 0.983597, p99 0.070588; not PASS | AE-compatible typed/native combination semantics |
 | T2-02 | Typewriter al frame 0 e Scramble con larghezza outgoing | P2 | PASS — frame 0 vuoto legale; layout scramble per-frame e bounds unione | ADR-039 + test driver |
 | T2-03 | Line Anchor selector-scoped | P3 | CLOSED — run-level e' il contratto di prodotto | ADR-039 |
 | T2-04 | GPU fast path run-level più stretta del per-glico | P3 | CLOSED — ottimizzazione P3, non blocco di correttezza | ADR-039 |
@@ -156,7 +156,7 @@ Regole del corpus:
 - 1280×720, 30 fps, 120 frame massimo.
 - Nessun `--profile preview`; entrambi i backend usano lo stesso profilo di render.
 - Font caricati da `--assets-root "$PWD/Chronon3d"`.
-- `text_transitions` non deve essere combinato con `text_spans` o `glyph_paint_ranges`.
+- Il corpus frozen non combina `text_transitions` con `text_spans` o `glyph_paint_ranges`; la combinazione T2-01 ha un piano mirato separato.
 - Un piano per caso; niente varianti nascoste nel codice del test.
 
 ### 3.3 Acquisizione
@@ -336,6 +336,11 @@ Per un insertion point `b` (byte offset UTF-8 valido):
 
 ### 5.1 Stato
 
+> **2026-11-13:** `T1-01` è implementato (maschera unione, blur separabile 3σ,
+> source-over lineare). Gate mirato: IoU `0.994251`, coverage `0.994642`; resta
+> sotto la soglia `0.995` e non è PASS. Vedi
+> [text-parity-20261113](../evidence/text-parity-20261113/REPORT.md).
+
 - Il software raster ha già un pass di shadow con maschera unione (`src/backends/software/processors/text_run/text_run_processor/raster.cpp`, Stage 4: render di tutti i glifi su una superficie, poi blur, poi composite). Questo è il punto di partenza giusto; non va reimplementato da zero.
 - Il blur software usa `apply_separable_box_blur()` con tier (`kBlurTierRadii`), quindi è una **box blur a tier**, non una gaussiana canonica.
 - Il Vulkan shader applica shadow per-glico con `if (sh.a > shadow_layer.a) shadow_layer = sh;` (alpha-max), non source-over sull’unione.
@@ -398,6 +403,11 @@ Per `Fast`, il comportamento attuale può restare, ma deve essere esplicito nel 
 ## 6. T1-02 — VectorStroke
 
 ### 6.1 Stato e due semantiche dichiarate
+
+> **2026-11-13:** `T1-02` è implementato su Vulkan con atlas `CoverageRgba`
+> dedicato, espansione Clipper2 e canali fill/stroke per-glico. Gate mirato:
+> IoU `0.966888`, coverage `1.032781`; il residuo di outline/AA non è PASS.
+> Vedi [text-parity-20261113](../evidence/text-parity-20261113/REPORT.md).
 
 Il software raster usa già uno stroke vettoriale Blend2D: `BL_STROKE_JOIN_ROUND/BEVEL/MITER_CLIP` e `setStrokeMiterLimit` in `raster.cpp`. Il Vulkan usa invece la dilatazione del campo distanza. La differenza è reale e oggi non è dichiarata nel piano: va resa esplicita, non “aggiustata” facendo sembrare un miter un SDF.
 
@@ -516,13 +526,20 @@ in ADR-038 and [`text-parity-20261109-range40/REPORT.md`](../evidence/text-parit
 
 ### 8.1 `text_transitions` + styled spans
 
-Oggi il compiler fallisce closed:
+> **2026-11-13:** `T2-01` è implementato. Ogni keyframe porta `spans` e
+> `glyph_paint_ranges` opzionali, validati contro il testo di quel keyframe; il
+> fallback layer-level è accettato solo se le range restano valide. La route
+> nativa propaga `GlyphInstanceState::fill` nel record dinamico. Gate mirato:
+> IoU `0.983597`, p99 `0.070588`; il residuo di maschera MTSDF non è PASS.
+> Vedi [text-parity-20261113](../evidence/text-parity-20261113/REPORT.md).
+
+Il vecchio contratto falliva closed con:
 
 ```text
 text layer '<id>' cannot combine text_transitions with styled text spans
 ```
 
-`src/render_plan/render_plan_compiler_text.cpp` rifiuta `text_spans` e `svg_glyph_paint_ranges` con transizioni. È corretto finché le range sono autoreferenziate sul testo base.
+`src/render_plan/render_plan_compiler_text.cpp` rifiutava `text_spans` e `svg_glyph_paint_ranges` con transizioni. Era corretto finché le range erano autoreferenziate sul testo base; ora la validazione è per-keyframe.
 
 Se il prodotto richiede testo animato con stili per keyframe:
 

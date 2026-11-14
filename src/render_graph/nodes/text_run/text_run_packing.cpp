@@ -44,7 +44,7 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     if (!shape.layout ||
         shape.animated_doc ||
         shape.layout->font_spans.empty() || shape.paint.fill_style ||
-        shape.paint.stroke_style ||
+        shape.paint.fill_pattern || shape.paint.stroke_style ||
         (shape.material.enabled && !shape.material.gel_surface) ||
         shape.paint.stroke_cap != LineCap::Butt ||
         shape.paint.stroke_join != LineJoin::Miter ||
@@ -60,11 +60,6 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     // Non-native quality modes are explicit failures, never silent aliases.
     if (shape.paint.stroke_enabled &&
         shape.paint.stroke_mode == TextStrokeMode::Vector) {
-        return nullptr;
-    }
-    if (shape.paint.shadow_quality == TextShadowQuality::Canonical &&
-        std::any_of(shape.shadows.begin(), shape.shadows.end(),
-                    [](const TextShadow& shadow) { return shadow.enabled; })) {
         return nullptr;
     }
     for (const auto& shadow : shape.shadows) {

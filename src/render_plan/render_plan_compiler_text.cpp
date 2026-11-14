@@ -10,6 +10,7 @@
 #include <chronon3d/text/text_run_builder.hpp>
 #include <chronon3d/scene/builders/text_run_materialization.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -23,6 +24,106 @@
 #include <utility>
 
 namespace chronon3d::render_plan::detail {
+namespace {
+
+// Deterministic, tileable value-noise wear baked into a PatternTile. The
+// software text rasterizer already consumes fill_pattern; keeping the wear
+// here means software and the Vulkan CPU fallback share one implementation.
+constexpr std::uint32_t kWearTileSize = 1024;
+
+[[nodiscard]] std::uint32_t wear_hash(std::uint32_t x, std::uint32_t y,
+                                      std::uint32_t seed) noexcept {
+    std::uint32_t h = seed + x * 0x8da6b343u + y * 0xd8163841u;
+    h ^= h >> 13;
+    h *= 0x85ebca6bu;
+    h ^= h >> 16;
+    return h;
+}
+
+[[nodiscard]] float wear_lattice(int x, int y, int period,
+                                 std::uint32_t seed) noexcept {
+    x %= period;
+    if (x < 0) x += period;
+    y %= period;
+    if (y < 0) y += period;
+    return static_cast<float>(wear_hash(static_cast<std::uint32_t>(x),
+                                        static_cast<std::uint32_t>(y), seed) &
+                              0x00FFFFFFu) / 16777215.0f;
+}
+
+[[nodiscard]] float wear_noise(float u, float v, int period,
+                               std::uint32_t seed) noexcept {
+    const float fx = u * static_cast<float>(period);
+    const float fy = v * static_cast<float>(period);
+    const int x0 = static_cast<int>(std::floor(fx));
+    const int y0 = static_cast<int>(std::floor(fy));
+    float tx = fx - static_cast<float>(x0);
+    float ty = fy - static_cast<float>(y0);
+    tx = tx * tx * (3.0f - 2.0f * tx);
+    ty = ty * ty * (3.0f - 2.0f * ty);
+    const float a = wear_lattice(x0, y0, period, seed);
+    const float b = wear_lattice(x0 + 1, y0, period, seed);
+    const float c = wear_lattice(x0, y0 + 1, period, seed);
+    const float d = wear_lattice(x0 + 1, y0 + 1, period, seed);
+    const float top = a + (b - a) * tx;
+    const float bottom = c + (d - c) * tx;
+    return top + (bottom - top) * ty;
+}
+
+[[nodiscard]] std::shared_ptr<const graphics::PatternTile> make_text_wear_pattern(
+    const Color& fill, const TextWearStyle& wear) {
+    auto tile = std::make_shared<graphics::PatternTile>();
+    tile->width = kWearTileSize;
+    tile->height = kWearTileSize;
+    tile->rgba.resize(static_cast<std::size_t>(kWearTileSize) * kWearTileSize * 4);
+
+    const float scale = std::clamp(wear.scale, 0.5f, 256.0f);
+    const int base_period = std::clamp(
+        static_cast<int>(std::lround(static_cast<float>(kWearTileSize) / scale)),
+        2, 256);
+    const int period_mid = std::min(base_period * 2, 512);
+    const int period_fine = std::min(base_period * 4, 1024);
+    const float edge = std::max(0.35f * wear.softness, 0.01f);
+    const float low = 0.5f - edge;
+    const float high = 0.5f + edge;
+    const std::uint8_t fill_r = static_cast<std::uint8_t>(
+        std::clamp(std::lround(std::clamp(fill.r, 0.0f, 1.0f) * 255.0f), 0L, 255L));
+    const std::uint8_t fill_g = static_cast<std::uint8_t>(
+        std::clamp(std::lround(std::clamp(fill.g, 0.0f, 1.0f) * 255.0f), 0L, 255L));
+    const std::uint8_t fill_b = static_cast<std::uint8_t>(
+        std::clamp(std::lround(std::clamp(fill.b, 0.0f, 1.0f) * 255.0f), 0L, 255L));
+
+    for (std::uint32_t y = 0; y < kWearTileSize; ++y) {
+        const float v = (static_cast<float>(y) + 0.5f) /
+            static_cast<float>(kWearTileSize);
+        for (std::uint32_t x = 0; x < kWearTileSize; ++x) {
+            const float u = (static_cast<float>(x) + 0.5f) /
+                static_cast<float>(kWearTileSize);
+            const float fbm =
+                0.55f * wear_noise(u, v, base_period, wear.seed) +
+                0.30f * wear_noise(u, v, period_mid, wear.seed + 1u) +
+                0.15f * wear_noise(u, v, period_fine, wear.seed + 2u);
+            float mask = std::clamp((fbm - low) / (high - low), 0.0f, 1.0f);
+            mask = mask * mask * (3.0f - 2.0f * mask);
+            const float coverage =
+                1.0f - std::clamp(wear.amount, 0.0f, 1.0f) * (1.0f - mask);
+            const float shade = 0.80f + 0.20f * mask;
+            const std::size_t index =
+                (static_cast<std::size_t>(y) * kWearTileSize + x) * 4;
+            tile->rgba[index + 0] = static_cast<std::uint8_t>(
+                std::clamp(std::lround(fill_r * shade), 0L, 255L));
+            tile->rgba[index + 1] = static_cast<std::uint8_t>(
+                std::clamp(std::lround(fill_g * shade), 0L, 255L));
+            tile->rgba[index + 2] = static_cast<std::uint8_t>(
+                std::clamp(std::lround(fill_b * shade), 0L, 255L));
+            tile->rgba[index + 3] = static_cast<std::uint8_t>(
+                std::clamp(std::lround(coverage * 255.0f), 0L, 255L));
+        }
+    }
+    return tile;
+}
+
+} // namespace
 
 PreparedTextTransitions build_text_transitions(
     const std::string& layer_id, const chronon3d::TextDefinition& base_definition,
@@ -33,11 +134,32 @@ PreparedTextTransitions build_text_transitions(
         auto definition_at_frame = base_definition;
         definition_at_frame.content.value = keyframe.text;
         // A transition keyframe owns the ranges authored against its own
-        // text.  The layer-level range block remains mutually exclusive with
-        // text_transitions, so there is no ambiguity about which string a
-        // range addresses.
-        definition_at_frame.spans = keyframe.spans;
-        definition_at_frame.glyph_paint_ranges = keyframe.glyph_paint_ranges;
+        // text. When it omits them, the layer-level ranges are a validated
+        // fallback: they must still be valid UTF-8 ranges of THIS keyframe's
+        // text, so a shorter/different string can never receive a stale range.
+        definition_at_frame.spans = keyframe.spans.empty()
+            ? base_definition.spans : keyframe.spans;
+        definition_at_frame.glyph_paint_ranges =
+            keyframe.glyph_paint_ranges.empty()
+                ? base_definition.glyph_paint_ranges
+                : keyframe.glyph_paint_ranges;
+        const auto validate_ranges = [&](const auto& ranges) {
+            const auto boundary = [&](std::size_t offset) {
+                return offset == 0 || offset == keyframe.text.size() ||
+                    (static_cast<unsigned char>(keyframe.text[offset]) & 0xc0U) != 0x80U;
+            };
+            for (const auto& range : ranges) {
+                if (range.byte_start >= range.byte_end ||
+                    range.byte_end > keyframe.text.size() ||
+                    !boundary(range.byte_start) || !boundary(range.byte_end))
+                    throw std::runtime_error(
+                        "text layer '" + layer_id + "' has a span or paint "
+                        "range that does not match text_transitions keyframe " +
+                        std::to_string(keyframe.frame.integral()));
+            }
+        };
+        validate_ranges(definition_at_frame.spans);
+        validate_ranges(definition_at_frame.glyph_paint_ranges);
         chronon3d::SourceTextKeyframe source_key;
         source_key.frame = keyframe.frame;
         source_key.document = chronon3d::to_text_document(definition_at_frame);
@@ -114,11 +236,10 @@ PreparedTextLayers prepare_text_layers(
         if (layer.text_counter && layer.text_transitions)
             throw std::runtime_error(
                 "text layer '" + layer.id + "' cannot combine text_counter and text_transitions");
-        if (layer.text_transitions &&
-            (!layer.text_spans.empty() || !layer.svg_glyph_paint_ranges.empty()))
+        if (layer.text_transitions && !layer.svg_glyph_paint_ranges.empty())
             throw std::runtime_error(
                 "text layer '" + layer.id +
-                "' cannot combine text_transitions with styled text spans");
+                "' cannot combine text_transitions with SVG paint ranges");
         if (layer.text_counter) {
             const auto& counter = layer.text_counter->counter;
             AnimationTrackPlan value_track;
@@ -299,6 +420,13 @@ chronon3d::TextDefinition materialize_text(
             layer.style->extrusion_depth);
     }
     definition.style.paint.fill_pattern = layer.style->fill_pattern;
+    if (layer.style->wear) {
+        if (layer.style->fill_pattern)
+            throw std::runtime_error(
+                "text layer '" + layer.id + "' cannot combine style.wear with fill_pattern");
+        definition.style.paint.fill_pattern =
+            make_text_wear_pattern(*fill, *layer.style->wear);
+    }
     if (layer.style->fill_gradient) {
         auto gradient = *layer.style->fill_gradient;
         const float opacity = layer.style->fill_opacity.value_or(1.0f);

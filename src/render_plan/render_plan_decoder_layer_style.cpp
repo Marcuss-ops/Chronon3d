@@ -179,6 +179,23 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
         if ((style_plan.min_font_size || style_plan.max_font_size) &&
             style_plan.text_fit_mode == "none")
             throw std::runtime_error("text font size limits require a non-none fit_mode");
+        if (style.contains("wear")) {
+            if (layer.type != LayerType::Text)
+                throw std::runtime_error("style.wear is only valid for text layers");
+            const auto& raw_wear = style.at("wear");
+            if (!raw_wear.is_object())
+                throw std::runtime_error("text style wear must be an object");
+            TextWearStyle wear;
+            wear.amount = raw_wear.value("amount", 0.5f);
+            wear.scale = raw_wear.value("scale", 8.0f);
+            wear.seed = raw_wear.value("seed", std::uint32_t{0});
+            wear.softness = raw_wear.value("softness", 0.25f);
+            if (!std::isfinite(wear.amount) || wear.amount < 0.0f || wear.amount > 1.0f ||
+                !std::isfinite(wear.scale) || wear.scale <= 0.0f || wear.scale > 256.0f ||
+                !std::isfinite(wear.softness) || wear.softness < 0.0f || wear.softness > 1.0f)
+                throw std::runtime_error("text style wear controls are outside supported bounds");
+            style_plan.wear = wear;
+        }
         if (style.contains("stroke")) {
             const auto& stroke = style.at("stroke");
             style_plan.stroke = StrokeStyle{stroke.value("color", std::string{}),

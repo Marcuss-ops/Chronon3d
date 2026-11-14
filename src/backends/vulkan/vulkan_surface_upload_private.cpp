@@ -3,7 +3,9 @@
 
 #include "vulkan_backend_impl.hpp"
 
+#include <cstdlib>
 #include <cstring>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::backends::vulkan {
 
@@ -110,6 +112,16 @@ std::uint64_t VulkanBackend::Impl::upload(runtime::RenderSurfaceHandle handle, c
         const VkDeviceSize bytes = static_cast<VkDeviceSize>(runtime::tight_surface_bytes(
             desc.format, desc.width, desc.height));
         if (rgba.size_bytes() != bytes) throw std::invalid_argument("Vulkan upload size does not match surface");
+        if (std::getenv("CHRONON3D_TEXT_COMPOSITE_DIAG")) {
+            spdlog::info(
+                "[vk-upload-diag] handle={} image={} view={} fmt={} {}x{} "
+                "init={} exportable={} bytes={} sync={}",
+                handle, reinterpret_cast<std::uintptr_t>(image.image),
+                reinterpret_cast<std::uintptr_t>(image.view),
+                static_cast<int>(image.format), image.width, image.height,
+                image.initialized ? 1 : 0, image.exportable ? 1 : 0,
+                bytes, wait_for_completion ? 1 : 0);
+        }
         ++stats.upload_calls;
         stats.upload_bytes += bytes;
         stats.upload_full_surface_bytes += bytes;
@@ -132,12 +144,15 @@ std::uint64_t VulkanBackend::Impl::upload(runtime::RenderSurfaceHandle handle, c
               "vkResetCommandBuffer(upload slot)");
         check(vkBeginCommandBuffer(slot.command_buffer, &begin),
               "vkBeginCommandBuffer(upload slot)");
-        clear_uninitialized_upload_target(slot.command_buffer, image);
-        if (image.initialized) {
-            transition(slot.command_buffer, image.image,
-                       VK_IMAGE_LAYOUT_GENERAL,
-                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        }
+        // A full-surface upload replaces every texel, so the previous contents
+        // are irrelevant. Always declare the source layout UNDEFINED: a
+        // recycled physical slot can still be marked initialized while its
+        // actual layout is UNDEFINED. Claiming GENERAL here leaves the image
+        // in the wrong layout for the first shader read and the composite
+        // samples an undefined surface (observed as a black text layer).
+        transition(slot.command_buffer, image.image,
+                   VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         const VkBufferImageCopy copy{0, desc.width, desc.height,
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {desc.width, desc.height, 1}};
         vkCmdCopyBufferToImage(slot.command_buffer, slot.buffer_allocation.buffer, image.image,

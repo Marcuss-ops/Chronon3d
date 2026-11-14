@@ -187,10 +187,6 @@ void decode_layer_text_spans(LayerPlan& layer, const nlohmann::json& value) {
     if (value.contains("spans")) {
         if (layer.type != LayerType::Text)
             throw std::runtime_error("layer.spans is only valid for text layers");
-        if (layer.text_transitions)
-            throw std::runtime_error(
-                "text_transitions cannot be combined with text spans: "
-                "span byte ranges are authored against the base text");
         if (!value.at("spans").is_array() || value.at("spans").size() > 65536)
             throw std::runtime_error("layer.spans must be an array of at most 65536 entries");
         std::size_t previous_end = 0;
@@ -324,6 +320,29 @@ void decode_layer_text_spans(LayerPlan& layer, const nlohmann::json& value) {
                 }
             }
             layer.text_spans.push_back(std::move(span));
+        }
+
+        // T2-01: layer-level spans act as the fallback style for transition
+        // keyframes, but only when every range is still a valid UTF-8 range of
+        // that keyframe's own text. A keyframe with its own spans overrides
+        // this block entirely; the compiler performs the same check for
+        // direct SDK callers that bypass JSON decoding.
+        if (layer.text_transitions) {
+            for (const auto& keyframe : layer.text_transitions->keyframes) {
+                const auto boundary = [&](std::size_t offset) {
+                    return offset == 0 || offset == keyframe.text.size() ||
+                        (static_cast<unsigned char>(keyframe.text[offset]) & 0xc0U) != 0x80U;
+                };
+                for (const auto& span : layer.text_spans) {
+                    if (span.byte_start >= span.byte_end ||
+                        span.byte_end > keyframe.text.size() ||
+                        !boundary(span.byte_start) || !boundary(span.byte_end))
+                        throw std::runtime_error(
+                            "text spans do not match the UTF-8 byte range of "
+                            "text_transitions keyframe " +
+                            std::to_string(keyframe.frame.integral()));
+                }
+            }
         }
     }
 

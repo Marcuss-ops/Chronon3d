@@ -469,6 +469,15 @@ static_assert(alignof(TextRunDynamic) == 16,
 /// declared and fail-closed: silently dropping an authored shadow is a visual
 /// regression, not a fallback.
 inline constexpr std::uint32_t kTextRunEffectShadowOnly = 1u << 12;
+/// Canonical-shadow mask pass: the tile raster writes the per-pixel union of
+/// glyph coverage instead of the fill/stroke/effect layers. The host blurs
+/// that mask and composites it once, so overlapping glyphs never accumulate
+/// a second shadow edge.
+inline constexpr std::uint32_t kTextRunEffectCanonicalShadowMask = 1u << 14;
+/// Vector-stroke coverage atlas: R carries fill coverage, G carries the
+/// stroke ring.  The shader applies the run's fill/stroke colours instead of
+/// treating the atlas entry as a pre-coloured coverage bitmap.
+inline constexpr std::uint32_t kTextRunEffectVectorCoverage = 1u << 15;
 inline constexpr std::size_t kTextRunMaxGpuShadowLayers = 4;
 
 struct GlyphInstance {

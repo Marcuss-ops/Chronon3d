@@ -1040,9 +1040,9 @@ TEST_CASE("render plan V3 decodes explicit text_transitions with bounded transit
     bad_direction["layers"][0]["text_transitions"]["keyframes"][2]["morph"]["direction"] = "up";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_direction));
 
-    // Span byte offsets belong to the base text, not to each transition
-    // keyframe text.  Mixing them would paint unrelated byte ranges once the
-    // text length changes, so the decoder fails closed.
+    // T2-01 base-span fallback: a layer-level range is accepted only when it
+    // remains a valid UTF-8 range of every keyframe. The first keyframe here
+    // is empty, so the 0..1 range cannot apply and decoding fails closed.
     auto with_spans = source;
     with_spans["layers"][0]["spans"] = nlohmann::json::array({
         {
@@ -1052,6 +1052,37 @@ TEST_CASE("render plan V3 decodes explicit text_transitions with bounded transit
         },
     });
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(with_spans));
+
+    // The same range is valid when every keyframe carries at least one byte.
+    auto base_styled = source;
+    base_styled["layers"][0]["text"] = "HELLO";
+    base_styled["layers"][0]["spans"] = nlohmann::json::array({
+        {
+            {"start", 0},
+            {"end", 1},
+            {"style", {{"color", "#FF0000"}}},
+        },
+    });
+    base_styled["layers"][0]["text_transitions"]["keyframes"][0]["text"] =
+        "HELLO";
+    base_styled["layers"][0]["text_transitions"]["keyframes"][1]["text"] =
+        "HELLO";
+    base_styled["layers"][0]["text_transitions"]["keyframes"][2]["text"] =
+        "WORLD";
+    base_styled["layers"][0]["text_transitions"]["keyframes"][3]["text"] =
+        "FINAL";
+    const auto base_decoded =
+        chronon3d::render_plan::decode_render_plan(base_styled);
+    REQUIRE(base_decoded.has_value());
+    REQUIRE(base_decoded->layers[0].text_spans.size() == 1);
+    CHECK(base_decoded->layers[0].text_spans[0].byte_start == 0);
+    CHECK(base_decoded->layers[0].text_spans[0].byte_end == 1);
+
+    // A keyframe that becomes empty invalidates the base fallback.
+    auto bad_base_styled = base_styled;
+    bad_base_styled["layers"][0]["text_transitions"]["keyframes"][2]["text"] =
+        "";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_base_styled));
 }
 
 TEST_CASE("render plan V3 retains the implemented text_counter contract") {

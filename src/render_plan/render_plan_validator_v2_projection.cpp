@@ -121,6 +121,7 @@ nlohmann::json validation_detail::v2_projection(const nlohmann::json& root) {
             layer["style"].erase("quality");
             layer["style"].erase("shadow_quality");
             layer["style"].erase("stroke_mode");
+            layer["style"].erase("wear");
             layer["style"].erase("variation_axes");
             layer["style"].erase("text_caret");
             // Backdrop blur is a V3 graph-composite extension. The V2

@@ -76,6 +76,32 @@ not lower a threshold and does not declare the seven residual cases a pass.
 - No runtime, schema, threshold, corpus or cache change.
 - The closeout is documentation and evidence only.
 
+## 2026-11-13 implementation update
+
+`T1-01`, `T1-02` and `T2-01` are now implemented; they are no longer
+fail-closed rejections:
+
+- `T1-01`: Vulkan canonical union-mask shadow with separable blur and linear
+  source-over. Targeted gate: alpha IoU `0.994251`, coverage `0.994642`, RGB
+  p99 `0.027451`; the IoU is still below `0.995` and the flat-background
+  difference is `2/255`.
+- `T1-02`: Vulkan `VectorStroke` with a dedicated `CoverageRgba` atlas,
+  Clipper2 join/cap/miter expansion and per-glyph fill/stroke channels.
+  Targeted gate: alpha IoU `0.966888`, coverage `1.032781`, RGB p99 `0.164706`.
+- `T2-01`: typed transition keyframe spans/paint ranges validated against the
+  keyframe text, plus native per-glyph fill propagation. Targeted gate: alpha
+  IoU `0.983597`, RGB MAE `0.003092`, PSNR `36.736 dB`, SSIM `0.999222`.
+
+The final binary (`chronon3d_cli` SHA-256
+`410d7395a2c8782695f4e43a69e91b4312088742f7f2679b81bccea5647d20d3`)
+still passes only `1/8` frozen corpus cases (`multipage`). The other seven
+cases retain the AA/coverage, effect-composition and 3D residual recorded in
+[the 2026-11-13 evidence](../evidence/text-parity-20261113/REPORT.md).
+
+Accordingly, this ADR remains **Accepted — product exception**. The feature
+implementation debt is closed; the pixel-parity debt is not. No threshold was
+changed and no failing case is declared PASS.
+
 ## Alternatives considered
 
 - **Leave the ticket open indefinitely.** Rejected: the product owner requested

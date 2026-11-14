@@ -9,8 +9,10 @@
 
 #include <bit>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::backends::vulkan {
 namespace {
@@ -41,6 +43,23 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
                                     bool gel_transmission) {
     auto& dst_image = resolve_image(destination);
     auto& src_image = resolve_image(source);
+    if (std::getenv("CHRONON3D_TEXT_COMPOSITE_DIAG")) {
+        spdlog::info(
+            "[vk-composite-diag] dst_handle={} dst_image={} dst_view={} "
+            "dst_fmt={} {}x{} dst_init={} | src_handle={} src_image={} "
+            "src_view={} src_fmt={} {}x{} src_init={} | clip=[{},{},{},{}] "
+            "plan={} pass={}",
+            destination, reinterpret_cast<std::uintptr_t>(dst_image.image),
+            reinterpret_cast<std::uintptr_t>(dst_image.view),
+            static_cast<int>(dst_image.format), dst_image.width,
+            dst_image.height, dst_image.initialized ? 1 : 0, source,
+            reinterpret_cast<std::uintptr_t>(src_image.image),
+            reinterpret_cast<std::uintptr_t>(src_image.view),                static_cast<int>(src_image.format), src_image.width,
+                src_image.height, src_image.initialized ? 1 : 0,
+                clip ? clip->x0 : -1, clip ? clip->y0 : -1,
+                clip ? clip->x1 : -1, clip ? clip->y1 : -1,
+                frame_batch.command_plan != nullptr ? 1 : 0, frame_batch.pass_count);
+    }
     if (dst_image.image == src_image.image) {
         throw std::invalid_argument(
             "Vulkan composite destination aliases its source image: destination=" +
