@@ -158,6 +158,10 @@ public:
             static_cast<int>(view.width), static_cast<int>(view.height),
             static_cast<Color*>(nullptr));
         result->set_surface_handle(slot.surface);
+        // The native surface owns the decoded pixels; the empty CPU shadow
+        // must not make acquire_owned_fb() treat this frame as CPU-authoritative
+        // and drop the handle before MaskNode can download it.
+        result->mark_gpu_authoritative();
         return result;
     }
 
