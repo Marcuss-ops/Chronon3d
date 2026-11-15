@@ -162,8 +162,10 @@ u64 hash_text_run_shape(const TextRunShape& s) {
     seed = hash_combine(seed, hash_value(s.material.enabled));
     seed = hash_combine(seed, hash_value(s.material.gel_surface));
     seed = hash_combine(seed, hash_value(s.material.extruded_text));
-    if (s.material.extruded_text)
+    if (s.material.extruded_text) {
         seed = hash_combine(seed, hash_value(s.material.extrusion_depth));
+        seed = hash_combine(seed, hash_value(s.material.extrusion_bevel));
+    }
     if (s.material.gel_surface) {
         seed = hash_combine(seed, hash_value(s.material.gel_transmission_enabled));
         seed = hash_combine(seed, hash_value(s.material.gel_soft_fusion));
@@ -251,7 +253,10 @@ u64 hash_text_run_shape_v2(const TextRunShape& s) {
     builder.add(s.material.enabled);
     builder.add(s.material.gel_surface);
     builder.add(s.material.extruded_text);
-    if (s.material.extruded_text) f(s.material.extrusion_depth);
+    if (s.material.extruded_text) {
+        f(s.material.extrusion_depth);
+        if (s.material.extrusion_bevel) f(*s.material.extrusion_bevel);
+    }
     if (s.material.gel_surface) {
         builder.add(s.material.gel_transmission_enabled);
         builder.add(s.material.gel_soft_fusion);

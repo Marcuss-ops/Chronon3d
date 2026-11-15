@@ -47,6 +47,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             case render_plan::LayerType::Shape: kind = NodeKind::Shape; break;
             case render_plan::LayerType::Mesh: kind = NodeKind::Mesh; break;
             case render_plan::LayerType::Particles: kind = NodeKind::Particles; break;
+            case render_plan::LayerType::Light: kind = NodeKind::Light; break;
         }
         out.nodes.push_back({i, kind, 0, 0, i});
         StaticLayerProgram lowered;
@@ -85,14 +86,23 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             // made it render in the bottom-left corner.
             lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
             lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
-        } else if (layer.type == render_plan::LayerType::Particles &&
-                   layer.position_dimensions >= 2) {
-            // Particle samples are emitter-local around (0, 0), so the authored
-            // absolute-canvas position must be made centre-relative exactly
-            // like Text. SourceNode then applies the implicit canvas centre
-            // once. Adding the centre here doubled it and moved every particle
-            // off-canvas (e.g. a 1920x1080 plan at [960,540] sampled at
-            // [2880,1620]).
+        } else if ((layer.type == render_plan::LayerType::Shape ||
+                    layer.type == render_plan::LayerType::Particles) &&
+                   layer.position_dimensions >= 2 && layer.screen_space) {
+            // Screen-space Shape/Particle positions name the top-left of the
+            // unscaled box, while the shape geometry and the particle emitter
+            // are centred on their local origin. Add the half box to get the
+            // authored centre, then make it canvas-relative. SourceNode adds
+            // the implicit canvas centre exactly once. Skipping the half box
+            // put a badge authored at top-left [320,310] at centre [320,310]
+            // (0..639) instead of centre [640,400] (320..959), and left the
+            // `$10,000` text outside its badge.
+            const float box_w = layer.size_dimensions >= 2
+                ? layer.size[0] : static_cast<float>(plan.canvas.width);
+            const float box_h = layer.size_dimensions >= 2
+                ? layer.size[1] : static_cast<float>(plan.canvas.height);
+            lowered.position[0] += box_w * 0.5f;
+            lowered.position[1] += box_h * 0.5f;
             lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
             lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
         }
@@ -100,6 +110,13 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.rotation = layer.rotation;
         lowered.enable_3d = layer.enable_3d;
         lowered.screen_space = layer.screen_space;
+        lowered.image_lighting = layer.image_lighting;
+        lowered.light = layer.light;
+        if (layer.type == render_plan::LayerType::Light) {
+            lowered.light_animation = layer.animation;
+        }
+        lowered.casts_shadows = layer.casts_shadows;
+        lowered.accepts_shadows = layer.accepts_shadows;
         lowered.blend_mode = layer.blend_mode;
         lowered.transform_samples = layer.transform_samples;
         lowered.effects = layer.effects;

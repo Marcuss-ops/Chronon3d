@@ -37,8 +37,11 @@ chronon3d_add_test_suite(
         renderer/mesh/test_inline_mesh_extrusion_canary.cpp
         renderer/mesh/test_mesh_roughness_map.cpp
         renderer/mesh/test_textured_animated_inline_mesh.cpp
+        renderer/lighting/test_ae_high_quality_style.cpp
         renderer/lighting/test_depth_aware_shadows.cpp
         renderer/lighting/test_directional_lights.cpp
+        renderer/lighting/test_image_lighting.cpp
+        renderer/lighting/test_image_lighting_render_plan.cpp
         renderer/lighting/test_light_context.cpp
         renderer/lighting/test_lighting_rig.cpp
         renderer/lighting/test_shadows.cpp

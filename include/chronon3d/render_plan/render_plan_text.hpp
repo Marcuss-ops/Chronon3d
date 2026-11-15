@@ -86,6 +86,8 @@ struct LayerStylePlan {
     std::optional<bool> gel_soft_fusion;
     bool extruded_text{false};
     float extrusion_depth{12.0f};
+    std::optional<float> extrusion_bevel;
+    std::optional<float> bevel_px;
     bool gel_transmission_enabled{true};
     // GEL material constants. "current" keeps the post-2026-11-08 shading;
     // "reference_20261107" selects the certified 2026-11-07 closure.

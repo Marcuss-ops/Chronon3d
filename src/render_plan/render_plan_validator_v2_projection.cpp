@@ -153,6 +153,9 @@ nlohmann::json validation_detail::v2_projection(const nlohmann::json& root) {
         // representable in the frozen V2 projection.
         layer.erase("background_look");
         layer.erase("backdrop_filter");
+        // Image/video 2.5D relighting is a V3 extension validated above; the
+        // frozen V2 schema has no equivalent layer property.
+        layer.erase("image_lighting");
         layer.erase("transition_in");
         layer.erase("transition_out");
         if (layer.contains("animation") && layer["animation"].is_object() &&

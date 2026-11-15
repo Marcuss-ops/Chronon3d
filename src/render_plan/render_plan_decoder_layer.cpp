@@ -257,6 +257,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     validate_adjustment_layer(layer, value);
     decode_layer_transform_fields(layer, value);
     decode_layer_render_flags(layer, value);
+    decode_layer_image_lighting(layer, value);
     decode_layer_frame_crop_fields(layer, value);
 
     decode_layer_style_fields(layer, value);

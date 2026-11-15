@@ -19,6 +19,11 @@ struct ImageWriteOptions {
     // EXR should usually preserve linear float data.
     bool convert_png_to_srgb{true};
 
+    // Apply a deterministic sub-LSB interleaved-gradient dither before the
+    // final 8-bit quantization. Off by default so programmatic golden exports
+    // stay byte-stable; the render-plan output path enables it.
+    bool dither_8bit{false};
+
     // For V1 keep EXR as 32-bit float.
     bool exr_half_float{false};
 

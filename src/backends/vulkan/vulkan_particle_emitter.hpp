@@ -6,8 +6,10 @@
 namespace chronon3d::backends::vulkan {
 
 // First GPU-driven particle step: bounded, stateless emitters.  The CPU
-// sampler remains the authority for parity tests; this path is intentionally
-// limited to procedural billboards until sprite/path support is certified.
+// sampler remains the authority for parity tests.  Procedural and sprite
+// billboards are supported; sprite emitters bind the prepared sprite surface
+// as the layer-batch source.  Path emitters remain CPU-authoritative and fail
+// closed on this path.
 inline constexpr std::uint32_t kGpuParticleMaxCount = 4096;
 inline constexpr std::size_t kGpuParticleLutEntries = 256;
 
@@ -23,14 +25,22 @@ struct alignas(16) GpuParticleEmitterUniform {
     float dynamics[4]{};                // air_drag, emitter_velocity.xy, emissive
     float color_lut[kGpuParticleLutEntries][4]{};
     float over_life_lut[kGpuParticleLutEntries][4]{}; // r=size, g=opacity
+    // Emitter-local -> destination pixel transform, column-major (std140 mat4).
+    float transform[16]{};
+    // x = source-layer opacity, y/z = sprite source width/height.
+    float source[4]{};
 };
 
-static_assert(sizeof(GpuParticleEmitterUniform) == 8336,
+static_assert(sizeof(GpuParticleEmitterUniform) == 8416,
               "particle emitter UBO must match particle_emitter.comp std140 ABI");
 static_assert(offsetof(GpuParticleEmitterUniform, color_lut) == 144,
               "particle emitter scalar prefix must stay 144 bytes");
 static_assert(offsetof(GpuParticleEmitterUniform, over_life_lut) == 4240,
               "particle over-life LUT must follow the color LUT");
+static_assert(offsetof(GpuParticleEmitterUniform, transform) == 8336,
+              "particle transform must follow the over-life LUT");
+static_assert(offsetof(GpuParticleEmitterUniform, source) == 8400,
+              "particle source metadata must follow the transform");
 
 // Keep the instance storage 256-byte aligned so the same buffer can back both
 // the uniform descriptor (offset 0) and the storage descriptor (offset N).

@@ -386,6 +386,32 @@ namespace chronon3d::backends::vulkan {
         ++stats.vk_cmd_dispatch_count;
     }
 
+    void VulkanBackend::Impl::record_halation_prepare(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& source,
+        const HalationParams& params, int mode) {
+        (void)source;
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::HalationPrepare)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float tint[4];
+            float threshold;
+            float softness;
+            float intensity;
+            std::int32_t mode;
+        } push{{params.tint.r, params.tint.g, params.tint.b, params.tint.a},
+               params.threshold, params.softness, params.intensity,
+               static_cast<std::int32_t>(mode)};
+        static_assert(sizeof(push) == 32, "Halation prepare push must be 32 bytes");
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(push), &push);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
     void VulkanBackend::Impl::record_color_adjust(VkCommandBuffer command, VkDescriptorSet descriptors,
                              const Image& destination, const Image& source,
                              float brightness, float contrast,
@@ -482,7 +508,9 @@ namespace chronon3d::backends::vulkan {
         const Color& multiplier, Vec3 normal, float layer_z,
         int origin_x, int origin_y, float diffuse,
         std::uint32_t light_count, VkBuffer light_buffer,
-        VkDeviceSize light_buffer_bytes) {
+        VkDeviceSize light_buffer_bytes,
+        const Vec4& relight_params,
+        const Vec4& relight_specular) {
         const VkDescriptorBufferInfo light_info{light_buffer, 0, light_buffer_bytes};
         const VkWriteDescriptorSet light_write{
             VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 3, 0, 1,
@@ -496,10 +524,14 @@ namespace chronon3d::backends::vulkan {
             float multiplier[4];
             float normal_z[4];
             float origin_diffuse_count[4];
+            float relight_params[4];
+            float relight_specular[4];
         } params{{multiplier.r, multiplier.g, multiplier.b, multiplier.a},
                  {normal.x, normal.y, normal.z, layer_z},
                  {static_cast<float>(origin_x), static_cast<float>(origin_y),
-                  diffuse, static_cast<float>(light_count)}};
+                  diffuse, static_cast<float>(light_count)},
+                 {relight_params.x, relight_params.y, relight_params.z, relight_params.w},
+                 {relight_specular.x, relight_specular.y, relight_specular.z, relight_specular.w}};
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         const VkBufferMemoryBarrier2KHR light_upload_barrier{

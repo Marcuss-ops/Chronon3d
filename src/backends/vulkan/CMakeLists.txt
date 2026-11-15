@@ -23,6 +23,7 @@ set(_chronon3d_shaders
     bloom_upsample
     bloom_composite
     glow_prepare
+    halation_prepare
     color_adjust
     color_matrix
     chromatic_aberration
@@ -80,6 +81,7 @@ set(_chronon3d_shader_abi_prefixes
     bloom_upsample:BloomUpsample
     bloom_composite:BloomComposite
     glow_prepare:GlowPrepare
+    halation_prepare:HalationPrepare
     color_adjust:ColorAdjust
     color_matrix:ColorMatrix
     chromatic_aberration:ChromaticAberration

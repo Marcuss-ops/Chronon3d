@@ -13,6 +13,16 @@ namespace chronon3d {
 
 namespace color_detail {
 
+// Canonical float sRGB OETF. The writer uses this when a sub-LSB dither must
+// be applied before integer quantization; the LUT below remains the fast path
+// for non-dithered output.
+[[nodiscard]] inline f32 linear_to_srgb_float(f32 linear) {
+    const f32 clamped = std::clamp(linear, 0.0f, 1.0f);
+    return (clamped <= 0.0031308f)
+        ? (clamped * 12.92f)
+        : (1.055f * std::pow(clamped, 1.0f / 2.4f) - 0.055f);
+}
+
 [[nodiscard]] inline const std::array<u8, 4096>& linear_to_srgb8_lut() {
     static const std::array<u8, 4096> lut = [] {
         std::array<u8, 4096> values{};

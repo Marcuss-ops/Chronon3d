@@ -61,6 +61,46 @@ TEST_CASE("GPU particle marker: fresh graph build fails closed without a marker"
         std::runtime_error);
 }
 
+TEST_CASE("GPU particle marker carries the authored emitter payload") {
+    Layer layer;
+    layer.name = "dust";
+    layer.kind = LayerKind::Normal;
+    RenderNode marker;
+    marker.gpu_particle_instances.push_back(RenderNode::GpuParticleInstance{});
+    ParticleEmitterParams emitter;
+    emitter.count = 8;
+    emitter.seed = 4242;
+    emitter.shape = EmitterShape::Box;
+    emitter.blend_mode = BlendMode::Add;
+    emitter.sprite_asset = "spark";
+    marker.gpu_particle_emitter = emitter;
+    layer.nodes.push_back(marker);
+
+    auto sampled = make_sampled_dust();
+    ResolvedLayer resolved;
+    resolved.layer = &layer;
+    const std::unordered_map<std::string_view, const ResolvedLayer*> resolved_by_name{
+        {std::string_view{"dust"}, &resolved}};
+    const std::unordered_map<std::string_view, const RenderNode*> root_nodes;
+    const std::unordered_map<std::string, bool> static_cache;
+
+    graph::RenderGraphContext ctx;
+    ctx.policy.require_native_gpu = true;
+    graph::SourceNode source("dust_source", RenderNode{}, cache::NodeCacheKey{});
+    source.set_layer_id("dust");
+    graph::detail::refresh_source_node(
+        source, resolved_by_name, root_nodes, static_cache, ctx, nullptr, &sampled);
+
+    const auto& refreshed = source.render_node();
+    REQUIRE(refreshed.gpu_particle_emitter.has_value());
+    CHECK(refreshed.gpu_particle_emitter->count == 8);
+    CHECK(refreshed.gpu_particle_emitter->seed == 4242);
+    CHECK(refreshed.gpu_particle_emitter->shape == EmitterShape::Box);
+    CHECK(refreshed.gpu_particle_emitter->blend_mode == BlendMode::Add);
+    CHECK(refreshed.gpu_particle_emitter->sprite_asset == "spark");
+    CHECK(refreshed.gpu_particle_instances.size() == 1);
+}
+
 TEST_CASE("GPU particle marker: refresh fails closed without a marker") {
     Layer layer = make_dust_layer_without_marker();
     auto sampled = make_sampled_dust();

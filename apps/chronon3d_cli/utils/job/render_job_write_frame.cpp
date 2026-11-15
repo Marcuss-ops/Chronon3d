@@ -269,6 +269,9 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
 
     ImageWriteOptions write_options;
     write_options.format = image_format_from_path(path);
+    // Final 8-bit deliverables use the deterministic sub-LSB dither; EXR is
+    // floating point and ignores this flag.
+    write_options.dither_8bit = write_options.format == ImageFormat::Png;
     write_options.exr_white_luminance_nits = exr_white_luminance_nits;
     if (tone_map_requested(tone_map_options) &&
         write_options.format != ImageFormat::Png) {

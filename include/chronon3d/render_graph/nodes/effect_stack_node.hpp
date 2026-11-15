@@ -120,6 +120,11 @@ private:
                         effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
                 break;
             }
+            case Halation: {
+                if (auto* p = std::get_if<HalationParams>(&inst.params))
+                    max_spread = std::max(max_spread, std::ceil(p->radius_px * 1.5f));
+                break;
+            }
             case Offset: {
                 if (auto* p = std::get_if<OffsetParams>(&inst.params)) {
                     const auto halo = effects::offset_spatial_halo(*p);

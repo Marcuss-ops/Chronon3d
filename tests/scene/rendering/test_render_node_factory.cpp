@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/graphics/gradient.hpp>
+#include <chronon3d/scene/model/shape/particles.hpp>
 
 #include <array>
 #include <vector>
@@ -228,4 +229,25 @@ TEST_CASE("RenderNode content hash ignores placement but honors policy") {
 
     node_b.surface_policy = SurfacePolicy::ViewportSize;
     CHECK(graph::hash_render_node_content_v2(node_b) != content_a);
+}
+
+TEST_CASE("RenderNode content hash tracks the GPU particle emitter payload") {
+    RenderNode baseline;
+    const auto without_emitter = graph::hash_render_node_content_v2(baseline);
+
+    baseline.gpu_particle_emitter = ParticleEmitterParams{};
+    const auto with_emitter = graph::hash_render_node_content_v2(baseline);
+    CHECK(with_emitter != without_emitter);
+
+    auto changed = baseline;
+    changed.gpu_particle_emitter->seed = 4242;
+    CHECK(graph::hash_render_node_content_v2(changed) != with_emitter);
+
+    changed = baseline;
+    changed.gpu_particle_emitter->count = 8;
+    CHECK(graph::hash_render_node_content_v2(changed) != with_emitter);
+
+    changed = baseline;
+    changed.gpu_particle_emitter.reset();
+    CHECK(graph::hash_render_node_content_v2(changed) == without_emitter);
 }

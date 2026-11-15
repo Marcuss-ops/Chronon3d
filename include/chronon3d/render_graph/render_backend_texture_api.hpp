@@ -9,6 +9,10 @@
 #include <cstdint>
 #include <optional>
 
+namespace chronon3d {
+struct ParticleEmitterParams;
+}
+
 namespace chronon3d::graph {
 
 /// Per-pixel material payload for the inline-mesh rasterizer.
@@ -70,6 +74,20 @@ public:
         runtime::RenderSurfaceHandle destination, const runtime::GpuLayerBatch& batch,
         std::span<const runtime::RenderSurfaceHandle> resources,
         std::span<const float> transforms, std::span<const float> paints);
+    /// Stateless GPU-native particle emitter. `transform` maps emitter-local
+    /// pixels to the destination framebuffer, `opacity` applies the source
+    /// layer opacity, and `clip` is an optional destination-surface-local
+    /// rectangle limiting the raster dispatch. The default backend
+    /// implementation fails closed and the caller keeps the sampled
+    /// CPU-oracle layer batch as fallback.
+    virtual RenderOpResult execute_gpu_particle_batch(
+        runtime::RenderSurfaceHandle destination,
+        runtime::RenderSurfaceHandle transparent_source,
+        const ::chronon3d::ParticleEmitterParams& emitter,
+        double seconds,
+        const glm::mat4& transform = glm::mat4(1.0f),
+        float opacity = 1.0f,
+        const std::optional<raster::BBox>& clip = std::nullopt);
     /// Rasterize a projected indexed textured mesh into a native surface.
     /// Each vertex is eleven floats (screen x/y, inverse depth, UV x/y, the
     /// host-evaluated light RGB, then the world-space normal xyz used by the

@@ -87,6 +87,7 @@ void decode_layer_backdrop_filter(LayerPlan&, const nlohmann::json&);
 void validate_adjustment_layer(LayerPlan&, const nlohmann::json&);
 void decode_layer_render_flags(LayerPlan&, const nlohmann::json&);
 void decode_layer_frame_crop_fields(LayerPlan&, const nlohmann::json&);
+void decode_layer_image_lighting(LayerPlan&, const nlohmann::json&);
 void decode_layer_animation(LayerPlan&, const nlohmann::json&);
 void decode_layer_motion_blur(LayerPlan&, const nlohmann::json&);
 void decode_layer_final_fields(LayerPlan&, const nlohmann::json&);

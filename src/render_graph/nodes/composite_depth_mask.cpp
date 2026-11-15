@@ -108,14 +108,17 @@ std::shared_ptr<Framebuffer> build_depth_aware_top(
         // Malformed attached map: treat the layer has having none.
         top_depth = nullptr;
     }
-    const float layer_depth = camera_space_depth(
-        camera_2_5d,
-        has_world_position
-            ? world_position
-            : Vec3{0.0f, 0.0f, world_z});
+    // For planar 2D/2.5D layers without a per-pixel depth map, evaluate depth on
+    // the optical axis at the layer's Z plane rather than at its (x, y) anchor;
+    // otherwise a yawed/pitched camera assigns different depths to coplanar
+    // layers with different anchors and occludes one with the other.
+    const float plane_z = has_world_position ? world_position.z : world_z;
+    const Vec3 plane_sample{camera_2_5d.position.x, camera_2_5d.position.y, plane_z};
+    const float layer_depth = camera_space_depth(camera_2_5d, plane_sample);
     const bool finite_layer_depth =
         std::isfinite(layer_depth) && layer_depth > 0.0f;
     if (!has_pixel_depth && !finite_layer_depth) return nullptr;
+    if (!has_world_position && !has_pixel_depth) return nullptr;
 
     // 2) Bounds of the top coverage overlap in frame coordinates.
     const i32 gx0 = std::max(0, top.origin_x());
@@ -274,6 +277,17 @@ bool apply_native_occlusion(
         !api->is_native_surface_valid(top.surface_handle())) {
         return false;
     }
+    // 2D / screen-space layers withhold world_position intentionally so they
+    // follow authored submission order instead of participating in 3D depth
+    // occlusion (a screen_space backdrop at world_z=0 would otherwise stamp
+    // z=0 across the full frame and occlude layers at z > 0).
+    const auto top_depth_handle = top.native_depth_handle();
+    const bool has_native_depth =
+        top_depth_handle != runtime::kInvalidRenderSurfaceHandle &&
+        api->is_native_surface_valid(top_depth_handle);
+    if (!has_world_position && !has_native_depth) {
+        return false;
+    }
     const i32 width = ctx.frame_input.width;
     const i32 height = ctx.frame_input.height;
     if (width <= 0 || height <= 0) return false;
@@ -320,9 +334,13 @@ bool apply_native_occlusion(
         // No per-pixel depth: stamp the layer's constant camera depth over its
         // covered pixels, then reset the scratch for the next layer. The
         // radius slot doubles as the coverage marker (>= 0 = present).
+        const float plane_z = has_world_position ? world_position.z : world_z;
+        const Vec3 plane_sample{
+            ctx.frame_input.camera_2_5d.position.x,
+            ctx.frame_input.camera_2_5d.position.y,
+            plane_z};
         const float depth = camera_space_depth(
-            ctx.frame_input.camera_2_5d,
-            has_world_position ? world_position : Vec3{0.0f, 0.0f, world_z});
+            ctx.frame_input.camera_2_5d, plane_sample);
         if (!(std::isfinite(depth) && depth > 0.0f)) return false;
         const auto stamp = api->dof_depth_stamp_surface(
             state.layer_depth->surface_handle(), top.surface_handle(),

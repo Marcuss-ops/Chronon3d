@@ -2,8 +2,9 @@
 
 // Stateless particle emitter: one invocation per particle, derived only from
 // (seed, particle index, absolute time).  The output is the exact billboard
-// record consumed by layer_batch.comp, so the CPU sampler remains the oracle
-// and the existing procedural-disc rasterizer is reused unchanged.
+// record consumed by layer_batch.comp, so the CPU sampler remains the oracle.
+// Procedural discs and sprite billboards are both emitted here; a sprite
+// emitter binds its prepared sprite surface as layer_batch's source image.
 
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
@@ -28,7 +29,7 @@ layout(binding = 0, std430) writeonly buffer ParticleInstances {
 // 144 bytes of scalar fields followed by the colour LUT and the over-life LUT.
 // std140 gives every vec4 a 16-byte stride, matching the C++ struct.
 layout(binding = 1, std140) uniform ParticleEmitter {
-    uvec4 header;          // count, seed, shape, flags
+    uvec4 header;          // count, seed, shape, flags (1=bokeh, 2=environment, 4=sprite)
     vec4 emitter;          // size.xy, lifetime_min, lifetime_max
     vec4 velocity_size;    // velocity_min.xy, size_min, size_max
     vec4 velocity_gravity; // velocity_max.xy, gravity, turbulence
@@ -39,6 +40,8 @@ layout(binding = 1, std140) uniform ParticleEmitter {
     vec4 dynamics;         // air_drag, emitter_velocity.xy, emissive
     vec4 color_lut[256];
     vec4 over_life_lut[256]; // r = size multiplier, g = opacity multiplier
+    mat4 transform;          // emitter-local -> destination pixels
+    vec4 source;             // x = layer opacity, y/z = sprite source size
 } u;
 
 const float kTau = 6.2831853071795864769;
@@ -158,6 +161,35 @@ vec4 sample_over_life(float t) {
     return mix(u.over_life_lut[i], u.over_life_lut[j], x - floor(x));
 }
 
+// 2D affine extracted from the column-major emitter transform. Projected and
+// native-3D particle layers stay on the CPU-oracle layer batch; this lane is
+// deliberately restricted to affine canvas placement.
+mat3 emitter_affine() {
+    return mat3(vec3(u.transform[0].xy, 0.0),
+                vec3(u.transform[1].xy, 0.0),
+                vec3(u.transform[3].xy, 1.0));
+}
+
+mat3 translate2(vec2 p) {
+    return mat3(1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                p.x, p.y, 1.0);
+}
+
+mat3 rotate2(float angle) {
+    const float c = cos(angle);
+    const float s = sin(angle);
+    return mat3(c, s, 0.0,
+                -s, c, 0.0,
+                0.0, 0.0, 1.0);
+}
+
+mat3 scale2(float scale) {
+    return mat3(scale, 0.0, 0.0,
+                0.0, scale, 0.0,
+                0.0, 0.0, 1.0);
+}
+
 float drag_axis(float value, float k, float time) {
     if (k <= 0.0 || value == 0.0) return value * time;
     return sign(value) * log(1.0 + k * abs(value) * time) / k;
@@ -188,6 +220,7 @@ void main() {
     const uint flags = u.header.w;
     const bool bokeh = (flags & 1u) != 0u;
     const bool environment = (flags & 2u) != 0u;
+    const bool sprite = (flags & 4u) != 0u;
     const uvec2 seed = uvec2(u.header.y, 0u);
 
     const uint stable_base = index * 8u;
@@ -288,23 +321,104 @@ void main() {
         return;
     }
 
-    const float alpha = clamp(color.a, 0.0, 1.0);
+    const float alpha = clamp(color.a * clamp(u.source.x, 0.0, 1.0),
+                              0.0, 1.0);
+    const mat3 canvas_from_local = emitter_affine();
     GpuLayerInstance instance;
-    instance.dst_rect = vec4(position - vec2(size * 0.5),
-                             position + vec2(size * 0.5));
     instance.src_rect = vec4(0.0, 0.0, 1.0, 1.0);
+    instance.blend_mode = uint(u.angular.z);
+    instance.resource_idx = 0u;
+
+    if (sprite) {
+        const float sprite_scale = random_range(
+            index, cycle, 11u, u.sprite.x, u.sprite.y);
+        const float angle = random_range(
+            index, cycle, 9u, u.sprite.z, u.sprite.w) +
+            random_range(index, cycle, 10u, u.angular.x, u.angular.y) * age;
+        const float sprite_size = size * sprite_scale;
+        if (!(sprite_size > 0.0) || !finite(sprite_size)) {
+            emit_empty(index);
+            return;
+        }
+        // Compose the emitter's placement with the per-particle billboard.
+        // The CPU source path applies the same T * R * S chain before it
+        // computes the AABB and the inverse texture mapping.
+        const mat3 local_to_canvas =
+            canvas_from_local * translate2(position) *
+            rotate2(angle) * translate2(vec2(-sprite_size * 0.5));
+        const vec2 corner0 = (local_to_canvas * vec3(0.0, 0.0, 1.0)).xy;
+        const vec2 corner1 = (local_to_canvas * vec3(sprite_size, 0.0, 1.0)).xy;
+        const vec2 corner2 = (local_to_canvas * vec3(0.0, sprite_size, 1.0)).xy;
+        const vec2 corner3 = (local_to_canvas * vec3(sprite_size, sprite_size, 1.0)).xy;
+        const vec2 lo = min(min(corner0, corner1), min(corner2, corner3));
+        const vec2 hi = max(max(corner0, corner1), max(corner2, corner3));
+        if (!(hi.x > lo.x) || !(hi.y > lo.y) ||
+            !finite(lo.x) || !finite(lo.y) ||
+            !finite(hi.x) || !finite(hi.y)) {
+            emit_empty(index);
+            return;
+        }
+
+        const mat3 canvas_to_local = inverse(local_to_canvas);
+        const float src_width = max(u.source.y, 1.0);
+        const float src_height = max(u.source.z, 1.0);
+        const float cover = max(sprite_size / src_width,
+                                sprite_size / src_height);
+        if (!(cover > 0.0) || !finite(cover)) {
+            emit_empty(index);
+            return;
+        }
+        // compute_media_placement(Cover) keeps the destination square and
+        // crops a centred source rect. Fold that crop into the inverse map so
+        // layer_batch still samples the prepared sprite surface directly.
+        const vec2 crop_size = min(vec2(sprite_size) / cover,
+                                   vec2(src_width, src_height));
+        const vec2 crop_origin = (vec2(src_width, src_height) - crop_size) * 0.5;
+        const vec3 row0 = vec3(canvas_to_local[0][0],
+                               canvas_to_local[1][0],
+                               canvas_to_local[2][0]) / cover;
+        const vec3 row1 = vec3(canvas_to_local[0][1],
+                               canvas_to_local[1][1],
+                               canvas_to_local[2][1]) / cover;
+        instance.dst_rect = vec4(lo, hi);
+        instance.affine_row0 = vec4(row0.x, row0.y,
+                                    row0.z + crop_origin.x, 0.0);
+        instance.affine_row1 = vec4(row1.x, row1.y,
+                                    row1.z + crop_origin.y, 0.0);
+        instance.limits = vec4(src_width, src_height, alpha, 1.0);
+        instance.has_affine = 1u;
+        instance.primitive_kind = 2u;
+        instance.particle_color = vec4(color.rgb, 1.0);
+        instance.particle_motion = vec4(0.0);
+        instances[index] = instance;
+        return;
+    }
+
+    // Keep the same 4x4 arithmetic as SourceNode's CPU-oracle instances:
+    // the extra z term is what environment emitters use for their fake depth.
+    const float particle_z = environment ? (1.0 - depth) * 100.0 : 0.0;
+    const vec3 canvas_position =
+        (u.transform * vec4(position, particle_z, 1.0)).xyz;
+    const float axis_x_scale = length(vec2(u.transform[0][0], u.transform[1][0]));
+    const float axis_y_scale = length(vec2(u.transform[0][1], u.transform[1][1]));
+    const vec2 half_size = vec2(size * 0.5 * axis_x_scale,
+                                size * 0.5 * axis_y_scale);
+    instance.dst_rect = vec4(canvas_position.xy - half_size,
+                             canvas_position.xy + half_size);
     instance.affine_row0 = vec4(0.0);
     instance.affine_row1 = vec4(0.0);
     instance.limits = vec4(0.0, 0.0, 1.0, bokeh ? 1.0 : 0.0);
     instance.has_affine = 0u;
-    instance.blend_mode = uint(u.angular.z);
-    instance.resource_idx = 0u;
     instance.primitive_kind = 1u;
     instance.particle_color = vec4(color.rgb * alpha, alpha);
     // Mirror SourceNode's CPU exposure: motion * seconds, bounded by both a
     // size-relative and an absolute pixel cap. layer_batch.comp renders this
     // as the capsule from the head to the previous exposure position.
-    vec2 trail = drag_velocity * max(u.angular.w, 0.0);
+    vec2 trail = vec2(
+        u.transform[0][0] * drag_velocity.x +
+            u.transform[1][0] * drag_velocity.y,
+        u.transform[0][1] * drag_velocity.x +
+            u.transform[1][1] * drag_velocity.y) * max(u.angular.w, 0.0);
     float trail_limit = max(size * 6.0, 24.0);
     float trail_length = length(trail);
     if (trail_length > trail_limit && trail_length > 0.0)

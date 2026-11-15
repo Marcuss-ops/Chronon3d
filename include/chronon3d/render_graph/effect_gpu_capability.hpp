@@ -27,7 +27,7 @@ struct NativeRoute {
 
 // Effects with a certified native Vulkan implementation.  Everything else in
 // the catalog is Unsupported and fails closed under strict native-GPU policy.
-inline constexpr std::array<NativeRoute, 64> kNativeRoutes{{
+inline constexpr std::array<NativeRoute, 65> kNativeRoutes{{
     {effects::EffectType::Blur, "Vulkan separable blur dispatch"},
     {effects::EffectType::DropShadow,
      "Vulkan alpha-mask, offset, dual-blur and source-over shadow dispatch"},
@@ -37,6 +37,7 @@ inline constexpr std::array<NativeRoute, 64> kNativeRoutes{{
      "Vulkan separable blur plus pointwise unsharp-mask combine dispatch"},
     {effects::EffectType::Glow, "Vulkan glow dispatch"},
     {effects::EffectType::Bloom, "Vulkan bright-pass and separable bloom dispatch"},
+    {effects::EffectType::Halation, "Vulkan highlight-mask, separable blur and screen halation dispatch"},
     {effects::EffectType::Tint, "Vulkan tint dispatch"},
     {effects::EffectType::Brightness, "Vulkan color-matrix dispatch (brightness)"},
     {effects::EffectType::Contrast, "Vulkan color-matrix dispatch (contrast)"},

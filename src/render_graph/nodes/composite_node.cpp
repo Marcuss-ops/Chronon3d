@@ -359,7 +359,9 @@ NodeExecResult CompositeNode::execute(
             m_mode == BlendMode::Normal &&
             m_operator == CompositeOperator::SourceOver &&
             ctx.frame_input.has_camera_2_5d &&
-            ctx.frame_input.camera_2_5d.enabled) {
+            ctx.frame_input.camera_2_5d.enabled &&
+            (m_has_world_position ||
+             result->native_depth_handle() != runtime::kInvalidRenderSurfaceHandle)) {
             auto& mutable_result = const_cast<Framebuffer&>(*result);
             const bool published = apply_native_occlusion(
                 ctx, mutable_result, mutable_result,

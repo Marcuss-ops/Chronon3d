@@ -436,7 +436,9 @@ vec3 shade_composite_gel_surface(
     float texel_to_screen,
     vec4 base_color,
     uint effect_flags,
-    uint light_params) {
+    uint light_params,
+    out vec2 out_refract_offset) {
+    out_refract_offset = vec2(0.0);
     // Stroke half-width in screen pixels scales with texel_to_screen
     // (canonical MTSDF em_px = 64 -> bold stroke half-width is ~3.6 texels).
     // The reference profile keeps the razor-tight 1.25-texel bevel that was
@@ -501,6 +503,11 @@ vec3 shade_composite_gel_surface(
     float dhdx = dh_dd * sdf_gradient.x;
     float dhdy = dh_dd * sdf_gradient.y;
     vec3 N = normalize(vec3(-dhdx, -dhdy, 1.0));
+    if ((effect_flags & 512u) != 0u && diagnostic_mode == 0u) {
+        // Snell's law optical refraction through the dome (IOR ~1.45).
+        vec3 refracted = refract(vec3(0.0, 0.0, -1.0), N, 1.0 / 1.45);
+        out_refract_offset = refracted.xy * radius_px * (0.6 + 0.8 * dome);
+    }
     if (diagnostic_mode == 3u) {
         return N * 0.5 + 0.5;
     }
@@ -1137,6 +1144,8 @@ void main() {
         return;
     }
 
+    bool gel_refract_active = false;
+    vec2 gel_refract_offset = vec2(0.0);
     if (s_has_gel != 0u) {
         int lx = int(gl_LocalInvocationID.x);
         int ly = int(gl_LocalInvocationID.y);
@@ -1194,10 +1203,15 @@ void main() {
                 (1.0 + (owner_run.animator_opacity - 1.0) * owner_reveal);
             float owner_v_grad = s_gel_v_coord[cy][cx];
 
+            vec2 step_refract_offset = vec2(0.0);
             vec3 lit = shade_composite_gel_surface(
                 d_surf, sdf_gradient, curvature_variance, owner_v_grad,
                 owner_texel_to_screen, owner_fill, owner_run.effect_flags,
-                owner_run.animator_reserved5);
+                owner_run.animator_reserved5, step_refract_offset);
+            if ((owner_run.effect_flags & 512u) != 0u && diagnostic_mode == 0u) {
+                gel_refract_active = true;
+                gel_refract_offset = step_refract_offset;
+            }
             float body_alpha = composite_gel_body_alpha(
                 d_surf, clamp(0.85 * owner_texel_to_screen, 1.0, 32.0),
                 owner_run.effect_flags);
@@ -1238,7 +1252,26 @@ void main() {
     current_color = glow_layer + current_color * (1.0 - glow_layer.a);
     current_color = background_layer + current_color * (1.0 - background_layer.a);
     current_color = stroke_layer + current_color * (1.0 - stroke_layer.a);
-    current_color = fill_layer + current_color * (1.0 - fill_layer.a);
+    if (gel_refract_active && destination_color.a > 0.0 && fill_layer.a > 0.0 &&
+        dot(gel_refract_offset, gel_refract_offset) > 0.0025) {
+        ivec2 img_dims = imageSize(dst_image);
+        ivec2 refracted_coord = clamp(
+            pixel_coord + ivec2(round(gel_refract_offset)),
+            ivec2(0), max(img_dims - ivec2(1), ivec2(0)));
+        vec4 refracted_dst = imageLoad(dst_image, refracted_coord);
+        if (refracted_dst.a > 0.0) {
+            float eff_alpha = clamp(fill_layer.a, 0.0, 1.0);
+            float red_tr = max(1.0 - eff_alpha, 1e-6);
+            vec3 tr = pow(vec3(red_tr), vec3(1.0, 0.4 / 1.2, 0.05 / 1.2));
+            current_color = vec4(
+                fill_layer.rgb + refracted_dst.rgb * tr,
+                eff_alpha + refracted_dst.a * (1.0 - eff_alpha));
+        } else {
+            current_color = fill_layer + current_color * (1.0 - fill_layer.a);
+        }
+    } else {
+        current_color = fill_layer + current_color * (1.0 - fill_layer.a);
+    }
     // P1-10: caret last, so it is never covered by a glyph. The caret rect is
     // authored in layout space; run[0] carries the run transform. The backend
     // clears the flag on every other run so a per-glyph compatibility batch

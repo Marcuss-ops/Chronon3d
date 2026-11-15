@@ -38,6 +38,19 @@ ResolvedLayerMediaAssets resolve_layer_media_assets(
             throw std::runtime_error("particle sprite asset was not prepared: " + asset);
         result.particle_sprite_paths[index] = path->string();
     }
+    // Image-lighting textures are optional, but when authored they must be
+    // resolvable here so a missing gobo/background fails before the first frame
+    // instead of silently flattening the relight pass.
+    for (const auto& layer : plan.layers) {
+        if (!layer.image_lighting) continue;
+        for (const auto& asset : {layer.image_lighting->gobo_asset,
+                                  layer.image_lighting->light_wrap_asset}) {
+            if (asset.empty()) continue;
+            if (!resolver.resolve_logical(std::filesystem::path(asset)))
+                throw std::runtime_error(
+                    "image lighting texture asset was not prepared: " + asset);
+        }
+    }
     return result;
 }
 

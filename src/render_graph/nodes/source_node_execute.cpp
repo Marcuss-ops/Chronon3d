@@ -60,7 +60,7 @@ NodeExecResult SourceNode::execute(
         return NodeExecResult{ctx.acquire_owned_fb(*m_cached_result)};
     }
     const bool full_frame_seed = can_seed_full_frame(ctx);
-    const Mat4 base_matrix = ctx.node_exec.sampled_layer
+    const Mat4 base_matrix = (!m_defer_camera_projection && ctx.node_exec.sampled_layer)
         ? detail::implicit_canvas_center_matrix(ctx) *
           ctx.node_exec.sampled_layer->matrix * m_node.world_transform.to_mat4()
         : m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -287,11 +287,29 @@ NodeExecResult SourceNode::execute(
                     "strict GPU particle instancing requires native Vulkan surfaces and layer batches"}};
             }
 
-            // The stored instances are local to the emitter. Remove the
-            // marker node's transform (its last CPU particle) from the
-            // resolved source transform before applying each particle pose.
-            const Mat4 particle_matrix = placement->render_matrix *
-                glm::inverse(m_node.world_transform.to_mat4());
+            std::optional<raster::BBox> gpu_clip;
+            if (ctx.node_exec.clip_rect) {
+                raster::BBox local_clip = *ctx.node_exec.clip_rect;
+                local_clip.x0 -= fb->origin_x();
+                local_clip.y0 -= fb->origin_y();
+                local_clip.x1 -= fb->origin_x();
+                local_clip.y1 -= fb->origin_y();
+                local_clip.clip_to(fb->width(), fb->height());
+                if (local_clip.is_empty()) {
+                    fb->set_opaque(false);
+                    fb->set_content_cleared(true);
+                    return NodeExecResult{std::move(fb)};
+                }
+                gpu_clip = local_clip;
+            }
+
+            // The stored instances are emitter-local and centred on (0,0).
+            // `placement->render_matrix` already carries the layer/canvas
+            // centre. Do not multiply by the inverse of the marker node's
+            // transform: for a screen-space particle layer that transform IS
+            // the centre (960,540), so cancelling it leaves only the positive
+            // quadrant of the emitter visible in the top-left half-frame.
+            const Mat4 particle_matrix = placement->render_matrix;
             const float axis_x_scale = glm::length(Vec2{
                 particle_matrix[0][0], particle_matrix[1][0]});
             const float axis_y_scale = glm::length(Vec2{
@@ -338,6 +356,60 @@ NodeExecResult SourceNode::execute(
                 }
                 sprite_surface = acquired.handle;
             }
+
+            // Production GPU-native lane. Keep the sampled instance stream
+            // below as the CPU-oracle fallback for path emitters, projected
+            // layers, oversized emitters, or a backend without the kernel.
+            if (m_node.gpu_particle_emitter &&
+                m_node.gpu_particle_emitter->shape != EmitterShape::Path &&
+                m_node.gpu_particle_emitter->count > 0 &&
+                m_node.gpu_particle_emitter->count <= 4096U &&
+                !m_apply_camera_projection &&
+                !m_defer_camera_projection &&
+                !m_native_3d) {
+                // The source surface is composited with the layer's authored
+                // blend mode. Draw the particles normally *inside* that
+                // surface; using the emitter blend here would apply Add /
+                // Multiply / Screen twice. Sprite selection follows the
+                // resolved path, exactly like the CPU instance fallback.
+                ParticleEmitterParams gpu_emitter = *m_node.gpu_particle_emitter;
+                gpu_emitter.sprite_asset = m_node.gpu_particle_sprite_path;
+                gpu_emitter.blend_mode = BlendMode::Normal;
+                runtime::RenderSurfaceHandle gpu_source = sprite_surface;
+                OwnedFB transparent_gpu_source;
+                if (gpu_source == runtime::kInvalidRenderSurfaceHandle) {
+                    transparent_gpu_source = ctx.acquire_owned_fb(1, 1, false);
+                    if (!transparent_gpu_source ||
+                        !ensure_empty_native_surface(ctx, *transparent_gpu_source)) {
+                        return NodeExecResult{NodeExecutionError{
+                            RenderBackendErrorCode::ExecutionFailure,
+                            m_name,
+                            "failed to allocate the native GPU particle source"}};
+                    }
+                    gpu_source = transparent_gpu_source->surface_handle();
+                }
+                const auto gpu_rendered =
+                    ctx.backend_texture_api()->execute_gpu_particle_batch(
+                        fb->surface_handle(), gpu_source, gpu_emitter,
+                        static_cast<double>(ctx.frame_input.time_seconds),
+                        particle_matrix, opacity, gpu_clip);
+                if (gpu_rendered.ok()) {
+                    fb->set_opaque(false);
+                    // The compute lane wrote the native surface; keep the CPU
+                    // shadow's transparent metadata consistent with the
+                    // existing instanced-particle path.
+                    fb->set_content_cleared(true);
+                    return NodeExecResult{std::move(fb)};
+                }
+                if (gpu_rendered.error().code !=
+                    RenderBackendErrorCode::UnsupportedCapability) {
+                    return NodeExecResult{NodeExecutionError{
+                        gpu_rendered.error().code, m_name,
+                        "native GPU particle emitter failed: " +
+                            gpu_rendered.error().message}};
+                }
+            }
+
             std::vector<runtime::LayerInstance> instances;
             std::vector<float> transforms(16, 0.0f);
             instances.reserve(m_node.gpu_particle_instances.size());
@@ -683,7 +755,7 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexce
     }
 
     const auto& image = m_node.shape.image();
-    const Mat4 source_matrix = ctx.node_exec.sampled_layer
+    const Mat4 source_matrix = (!m_defer_camera_projection && ctx.node_exec.sampled_layer)
         ? detail::implicit_canvas_center_matrix(ctx) *
           ctx.node_exec.sampled_layer->matrix * m_node.world_transform.to_mat4()
         : m_matrix_override.value_or(m_node.world_transform.to_mat4());

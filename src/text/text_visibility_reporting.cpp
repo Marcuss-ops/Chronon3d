@@ -68,11 +68,12 @@ TextVisibilityAudit verify_text_visibility(
     const Framebuffer*  rendered_output,
     const char*         node_name,
     WarnOnceDeduper&    deduper,
-    float               effect_padding
+    float               effect_padding,
+    const Rect*         rendered_alpha_bbox_override
 ) {
     const auto audit = audit_text_visibility(
         shape, world_matrix, predicted_bbox, clip_rect, rendered_output,
-        effect_padding);
+        effect_padding, rendered_alpha_bbox_override);
 
     // ── F1.E — 6 invariants with per-scope warn-once dedup ────────
     // Replaces the prior 6 file-scope `static bool` one-shots
@@ -112,14 +113,14 @@ TextVisibilityAudit verify_text_visibility(
         }
     }
 
-    if (rendered_output && !audit.clip_contains_visible_ink) {
+    if (audit.alpha_measured && !audit.clip_contains_visible_ink) {
         const TextWarningKey key = make_warning_key(nm, TextWarningKind::ClipDropsInk);
         if (deduper.mark_warned(key)) {
             spdlog::warn("[text-vis] CLIP_DROPS_INK node={}", nm);
         }
     }
 
-    if (rendered_output && audit.shaping_succeeded) {
+    if (audit.alpha_measured && audit.shaping_succeeded) {
         const bool alpha_empty =
             audit.rendered_alpha_bbox.size.x <= 0.0f ||
             audit.rendered_alpha_bbox.size.y <= 0.0f;

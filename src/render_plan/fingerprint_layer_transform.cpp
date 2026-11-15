@@ -31,6 +31,24 @@ void add_layer_transform_and_timing(CanonicalPlanWriter& out, const LayerPlan& l
         add_optional(out, layer.shadow_opacity,
                      [](auto& writer, float value) { writer.add_float(value); });
     }
+    // Preserve byte-for-byte fingerprints for plans authored before image
+    // lighting existed; the extension is only emitted when present.
+    if (layer.image_lighting) {
+        out.add_bool(true);
+        out.add_float(layer.image_lighting->bump_strength);
+        out.add_float(layer.image_lighting->rim_strength);
+        out.add_float(layer.image_lighting->rim_width_px);
+        add_optional(out, layer.image_lighting->roughness,
+                     [](auto& writer, float value) { writer.add_float(value); });
+        add_optional(out, layer.image_lighting->specular,
+                     [](auto& writer, float value) { writer.add_float(value); });
+        out.add_string(layer.image_lighting->gobo_asset);
+        out.add_float(layer.image_lighting->gobo_scale);
+        out.add_float(layer.image_lighting->gobo_offset[0]);
+        out.add_float(layer.image_lighting->gobo_offset[1]);
+        out.add_string(layer.image_lighting->light_wrap_asset);
+        out.add_float(layer.image_lighting->light_wrap_strength);
+    }
     out.add_bool(layer.screen_space);
     // Preserve byte-for-byte fingerprints for plans authored before safe
     // insets existed; the presence marker is only emitted for this extension.

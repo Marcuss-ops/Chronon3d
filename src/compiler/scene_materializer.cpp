@@ -1,4 +1,6 @@
 #include <chronon3d/scene/model/shape/path_operator.hpp>
+#include <spdlog/spdlog.h>
+#include <cstdlib>
 #include <cmath>
 #include <string>
 #include <chronon3d/compiler/scene_materializer.hpp>
@@ -80,7 +82,21 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                      meta.environment_light->rotation_y,
                                      meta.environment_probe);
     }
+    std::vector<rendering::PointLightSource> point_sources;
     for (const auto& layer : program.layers()) {
+        if (layer.kind == NodeKind::Light && layer.light &&
+            layer.light->kind != render_plan::LightKindPlan::Radial) {
+            render_plan::LayerPlan light_view;
+            light_view.id = layer.name;
+            light_view.type = render_plan::LayerType::Light;
+            light_view.position = layer.position;
+            light_view.position_dimensions = layer.position_dimensions;
+            light_view.light = layer.light;
+            light_view.animation = layer.light_animation;
+            point_sources.push_back(render_plan::detail::build_point_light_source(
+                light_view, meta.width, meta.height, 0.0, canvas_fps));
+            continue;
+        }
         const std::string name = layer.name.empty()
             ? ("layer_" + std::to_string(layer.id)) : layer.name;
         Transform transform;
@@ -158,10 +174,49 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     params.fit = static_cast<chronon3d::FitMode>(layer.fit);
                     params.radius = layer.radius;
                     builder.image("image", std::move(params));
+                    if (layer.image_lighting) {
+                        const std::string owner = name.empty() ? "image_lighting" : name;
+                        if (!layer.image_lighting->gobo_asset.empty())
+                            builder.asset_image(layer.image_lighting->gobo_asset,
+                                                owner + "/image_lighting.gobo");
+                        if (!layer.image_lighting->light_wrap_asset.empty())
+                            builder.asset_image(layer.image_lighting->light_wrap_asset,
+                                                owner + "/image_lighting.light_wrap");
+                        Material2_5D material;
+                        material.accepts_lights = true;
+                        material.image_bump_strength = layer.image_lighting->bump_strength;
+                        material.image_rim_strength = layer.image_lighting->rim_strength;
+                        material.image_rim_width_px = layer.image_lighting->rim_width_px;
+                        if (layer.image_lighting->roughness)
+                            material.roughness = *layer.image_lighting->roughness;
+                        if (layer.image_lighting->specular)
+                            material.specular = *layer.image_lighting->specular;
+                        material.image_gobo_asset = layer.image_lighting->gobo_asset;
+                        material.image_gobo_scale = layer.image_lighting->gobo_scale;
+                        material.image_gobo_offset = {
+                            layer.image_lighting->gobo_offset[0],
+                            layer.image_lighting->gobo_offset[1]};
+                        material.image_light_wrap_asset = layer.image_lighting->light_wrap_asset;
+                        material.image_light_wrap_strength =
+                            layer.image_lighting->light_wrap_strength;
+                        builder.material(std::move(material))
+                            .enable_3d(true)
+                            .accepts_lights(true);
+                    }
+                    if (layer.casts_shadows) builder.casts_shadows(*layer.casts_shadows);
+                    if (layer.accepts_shadows) builder.accepts_shadows(*layer.accepts_shadows);
                     break;
                 }
                 case NodeKind::Video: {
-                    video::VideoSource source{.path = layer.source.empty() ? layer.asset : layer.source};
+                    // The canvas frame rate is the source sampling rate: a
+                    // VideoSource left at its 30 fps default plays 24 fps
+                    // content at 0.8x while the audio runs at 100%.
+                    const float source_fps = static_cast<float>(canvas_fps.numerator) /
+                        (canvas_fps.denominator > 0
+                            ? static_cast<float>(canvas_fps.denominator) : 1.0f);
+                    video::VideoSource source{
+                        .path = layer.source.empty() ? layer.asset : layer.source,
+                        .source_fps = source_fps};
                     if (layer.size_dimensions == 2) source.size = {layer.size[0], layer.size[1]};
                     if (layer.loop) source.loop_mode = video::VideoLoopMode::Loop;
                     builder.video(std::move(source));
@@ -240,7 +295,8 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             !text_run->animated_doc) {
                             auto mesh = chronon3d::graph::detail::build_extruded_text_mesh(
                                 *text_run,
-                                definition.style.material.extrusion_depth);
+                                definition.style.material.extrusion_depth,
+                                definition.style.material.extrusion_bevel);
                             // Glyph outlines are baseline-local. Center the
                             // mesh on the layer origin so the authored text
                             // position is its visual center, matching the 2D
@@ -383,6 +439,20 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             "' has no compiled emitter payload");
                     const auto& emitter = *layer.particle_emitter;
                     const auto initial = sample_particles(emitter, 0.0);
+                    // `sample_particles` is emitter-local and centred on
+                    // (0,0). A screen-space particle layer is authored with
+                    // top-left position/size, so its CPU children must be
+                    // shifted by half the layer box. The GPU instance marker
+                    // below stays local: SourceNode applies the resolved
+                    // placement exactly once.
+                    const Vec2 emitter_center = layer.screen_space
+                        ? Vec2{layer.size[0] * 0.5f, layer.size[1] * 0.5f}
+                        : Vec2{0.0f, 0.0f};
+                    if (std::getenv("CHRONON3D_PARTICLE_DEBUG") != nullptr) {
+                        spdlog::info("[particle-mat] route=typed id={} screen={} size=({},{}) center=({},{}) count={}",
+                            layer.name, layer.screen_space ? 1 : 0, layer.size[0], layer.size[1],
+                            emitter_center.x, emitter_center.y, initial.particles.size());
+                    }
                     if (!initial.ok())
                         throw std::runtime_error(
                             "compiled particle initialization failed: " + initial.error);
@@ -392,13 +462,14 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     for (const auto& particle : initial.particles) {
                         const float z = emitter.environment
                             ? (1.0f - particle.depth) * 100.0f : 0.0f;
+                        const Vec2 particle_center = particle.position + emitter_center;
                         if (!emitter.sprite_asset.empty()) {
                             ImageParams sprite;
                             sprite.asset_path = emitter.sprite_asset;
                             sprite.size = Vec2{
                                 particle.size * particle.sprite_scale,
                                 particle.size * particle.sprite_scale};
-                            sprite.pos = Vec3{particle.position.x, particle.position.y, z};
+                            sprite.pos = Vec3{particle_center.x, particle_center.y, z};
                             sprite.opacity = particle.color.a;
                             sprite.tint = Color{
                                 particle.color.r, particle.color.g,
@@ -424,7 +495,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     const float angle = 6.2831853071795864769f *
                                         static_cast<float>(segment) /
                                         static_cast<float>(segments);
-                                    const Vec2 point = particle.position + Vec2{
+                                    const Vec2 point = particle_center + Vec2{
                                         std::cos(angle) * radius,
                                         std::sin(angle) * radius};
                                     if (segment == 0)
@@ -451,7 +522,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                         {{0.0f, particle.color}, {1.0f, transparent}});
                                 }
                                 circle.pos = Vec3{
-                                    particle.position.x, particle.position.y, z};
+                                    particle_center.x, particle_center.y, z};
                                 builder.circle(
                                     "particle_" + std::to_string(particle.index),
                                     std::move(circle));
@@ -459,7 +530,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             if (emitter.environment) {
                                 builder.last_node_handle().node().software_environment_particle =
                                     RenderNode::GpuParticleInstance{
-                                        particle.position, particle.color, particle.size,
+                                        particle_center, particle.color, particle.size,
                                         particle.rotation, particle.sprite_scale, z,
                                         particle.velocity};
                             }
@@ -891,6 +962,25 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     }
                     break;
                 }
+                case NodeKind::Light: {
+                    if (layer.light && layer.light->kind == render_plan::LightKindPlan::Radial) {
+                        const auto& light = *layer.light;
+                        const Color color{
+                            light.color[0] * light.intensity,
+                            light.color[1] * light.intensity,
+                            light.color[2] * light.intensity,
+                            light.color[3]};
+                        CircleParams params;
+                        params.radius = light.radius;
+                        params.color = color;
+                        params.fill = graphics::FillStyle::radial(
+                            {0.5f, 0.5f}, 0.5f,
+                            {{0.0f, color}, {1.0f, Color{color.r, color.g, color.b, 0.0f}}});
+                        builder.accepts_lights(false).accepts_shadows(false);
+                        builder.circle("radial_light", std::move(params));
+                    }
+                    break;
+                }
                 case NodeKind::Unknown:
                     break;
             }
@@ -1029,6 +1119,9 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                 }
             }
         });
+    }
+    for (const auto& source : point_sources) {
+        scene.point_light_source(source);
     }
     return scene.build();
 }

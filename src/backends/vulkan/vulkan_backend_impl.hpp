@@ -607,6 +607,9 @@ struct VulkanBackend::Impl {
     void record_glow_prepare_advanced(VkCommandBuffer command, VkDescriptorSet descriptors,
                                       const Image& destination, const Image& source,
                                       const GlowAdvancedParams& params);
+    void record_halation_prepare(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                 const Image& destination, const Image& source,
+                                 const HalationParams& params, int mode);
     void record_bloom_threshold(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& destination, const Image& source,
                                 float threshold);
@@ -639,7 +642,9 @@ struct VulkanBackend::Impl {
                          const Color& multiplier, Vec3 normal, float layer_z,
                          int origin_x, int origin_y, float diffuse,
                          std::uint32_t light_count, VkBuffer light_buffer,
-                         VkDeviceSize light_buffer_bytes);
+                         VkDeviceSize light_buffer_bytes,
+                         const Vec4& relight_params = Vec4{0.0f},
+                         const Vec4& relight_specular = Vec4{0.0f});
     void record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
                       const Image& destination, const Image& target,
                       const Image& matte, bool luma, bool inverted,
@@ -783,6 +788,11 @@ struct VulkanBackend::Impl {
                        runtime::RenderSurfaceHandle scratch_horizontal,
                        runtime::RenderSurfaceHandle scratch_vertical,
                        const GlowAdvancedParams& params);
+    void halation(runtime::RenderSurfaceHandle destination,
+                  runtime::RenderSurfaceHandle source,
+                  runtime::RenderSurfaceHandle scratch_horizontal,
+                  runtime::RenderSurfaceHandle scratch_vertical,
+                  const HalationParams& params);
     void inner_glow_composite(runtime::RenderSurfaceHandle destination,
                               runtime::RenderSurfaceHandle source,
                               const Color& tint, float intensity);
@@ -815,7 +825,9 @@ struct VulkanBackend::Impl {
                          std::span<const float> packed_lights,
                          std::uint32_t light_count,
                          Vec3 normal, float layer_z,
-                         int origin_x, int origin_y, float diffuse);
+                         int origin_x, int origin_y, float diffuse,
+                         const Vec4& relight_params = Vec4{0.0f},
+                         const Vec4& relight_specular = Vec4{0.0f});
     void matte(runtime::RenderSurfaceHandle destination,
                runtime::RenderSurfaceHandle target,
                runtime::RenderSurfaceHandle matte_surface,
@@ -840,7 +852,9 @@ struct VulkanBackend::Impl {
     void execute_gpu_particle_batch(
         runtime::RenderSurfaceHandle destination,
         runtime::RenderSurfaceHandle transparent_source,
-        const ParticleEmitterParams& emitter, double seconds);
+        const ParticleEmitterParams& emitter, double seconds,
+        const Mat4& transform, float opacity,
+        const std::optional<raster::BBox>& clip);
     void draw_inline_mesh(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle texture,
                               std::span<const float> projected_lit_vertices,

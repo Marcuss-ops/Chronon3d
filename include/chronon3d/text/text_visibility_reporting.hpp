@@ -175,7 +175,8 @@ struct TextVisibilityAudit;
     const Framebuffer*  rendered_output,
     const char*         node_name,
     WarnOnceDeduper&    deduper,
-    float               effect_padding = 0.0f
+    float               effect_padding = 0.0f,
+    const Rect*         rendered_alpha_bbox_override = nullptr
 );
 
 } // namespace chronon3d

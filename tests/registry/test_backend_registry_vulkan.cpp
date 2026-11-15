@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include <glm/gtc/matrix_transform.hpp>
 #include <chronon3d/render_graph/backend_registry.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
@@ -1102,6 +1103,238 @@ TEST_CASE("Vulkan GPU particle flow and twinkle match the CPU sampler oracle") {
     (void)backend.release_surface(cpu_destination);
     (void)backend.release_surface(gpu_destination);
     (void)backend.release_surface(transparent_source);
+}
+
+TEST_CASE("Vulkan GPU particle emitter draws sprite billboards from the source surface") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+    backends::vulkan::VulkanBackend backend;
+    constexpr RenderSurfaceHandle cpu_destination = 497;
+    constexpr RenderSurfaceHandle gpu_destination = 498;
+    constexpr RenderSurfaceHandle sprite_source = 499;
+    const auto canvas = SurfaceDesc::make(
+        64, 64, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    const auto sprite = SurfaceDesc::make(
+        1, 1, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    REQUIRE(backend.create_surface(cpu_destination, canvas).ok());
+    REQUIRE(backend.create_surface(gpu_destination, canvas).ok());
+    REQUIRE(backend.create_surface(sprite_source, sprite).ok());
+    REQUIRE(backend.initialize_transparent_surface(cpu_destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(gpu_destination).ok());
+    const std::array<float, 4> sprite_pixel{0.25f, 0.5f, 0.75f, 1.0f};
+    REQUIRE(backend.upload_surface(sprite_source, sprite, sprite_pixel).ok());
+
+    ParticleEmitterParams emitter;
+    emitter.count = 1;
+    emitter.seed = 4242;
+    emitter.emitter_size = {32.0f, 0.0f};
+    emitter.velocity_min = {0.0f, 0.0f};
+    emitter.velocity_max = {0.0f, 0.0f};
+    emitter.lifetime_min = 10.0f;
+    emitter.lifetime_max = 10.0f;
+    emitter.size_min = 8.0f;
+    emitter.size_max = 8.0f;
+    emitter.gravity = 0.0f;
+    emitter.turbulence = 0.0f;
+    emitter.shape = EmitterShape::Box;
+    emitter.blend_mode = BlendMode::Normal;
+    emitter.sprite_asset = "test_sprite";
+    emitter.sprite_scale_min = 1.0f;
+    emitter.sprite_scale_max = 1.0f;
+    emitter.rotation_min = 0.0f;
+    emitter.rotation_max = 0.0f;
+    emitter.angular_velocity_min = 0.0f;
+    emitter.angular_velocity_max = 0.0f;
+    emitter.color_ramp = graphics::GradientDefinition::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f},
+        {{0.0f, Color{1.0f, 1.0f, 1.0f, 1.0f}},
+         {1.0f, Color{1.0f, 1.0f, 1.0f, 1.0f}}});
+
+    const auto sampled = sample_particles(emitter, 1.0);
+    REQUIRE(sampled.ok());
+    REQUIRE(sampled.particles.size() == 1);
+    const auto& particle = sampled.particles.front();
+
+    LayerInstance oracle;
+    oracle.kind = PrimitiveKind::ParticleSprite;
+    oracle.resource_index = 0;
+    oracle.dst_x0 = particle.position.x - particle.size * 0.5f;
+    oracle.dst_y0 = particle.position.y - particle.size * 0.5f;
+    oracle.dst_x1 = particle.position.x + particle.size * 0.5f;
+    oracle.dst_y1 = particle.position.y + particle.size * 0.5f;
+    oracle.opacity = particle.color.a;
+    oracle.tint = Color{particle.color.r, particle.color.g,
+                        particle.color.b, 1.0f};
+    oracle.blend = BlendMode::Normal;
+    const std::array<LayerInstance, 1> instances{oracle};
+    const std::array<RenderSurfaceHandle, 1> resources{sprite_source};
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_layer_batch(
+        cpu_destination, instances, resources, {}, {}).ok());
+    backend.end_frame_batch();
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_gpu_particle_batch(
+        gpu_destination, sprite_source, emitter, 1.0).ok());
+    backend.end_frame_batch();
+
+    std::vector<float> cpu_pixels(64U * 64U * 4U, 0.0f);
+    std::vector<float> gpu_pixels(64U * 64U * 4U, 0.0f);
+    REQUIRE(backend.download_surface(cpu_destination, cpu_pixels).ok());
+    REQUIRE(backend.download_surface(gpu_destination, gpu_pixels).ok());
+
+    float max_difference = 0.0f;
+    float cpu_energy = 0.0f;
+    float gpu_energy = 0.0f;
+    for (std::size_t i = 0; i < cpu_pixels.size(); ++i) {
+        max_difference = std::max(
+            max_difference, std::abs(cpu_pixels[i] - gpu_pixels[i]));
+        cpu_energy += cpu_pixels[i];
+        gpu_energy += gpu_pixels[i];
+    }
+    CHECK(cpu_energy > 0.0f);
+    CHECK(gpu_energy > 0.0f);
+    CHECK(max_difference < 2.0e-4f);
+
+    (void)backend.release_surface(cpu_destination);
+    (void)backend.release_surface(gpu_destination);
+    (void)backend.release_surface(sprite_source);
+}
+
+TEST_CASE("Vulkan GPU particle emitter applies the production transform and opacity") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+    backends::vulkan::VulkanBackend backend;
+    constexpr RenderSurfaceHandle cpu_destination = 501;
+    constexpr RenderSurfaceHandle gpu_destination = 502;
+    constexpr RenderSurfaceHandle transparent_source = 503;
+    const auto canvas = SurfaceDesc::make(
+        64, 64, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    const auto source = SurfaceDesc::make(
+        1, 1, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    REQUIRE(backend.create_surface(cpu_destination, canvas).ok());
+    REQUIRE(backend.create_surface(gpu_destination, canvas).ok());
+    REQUIRE(backend.create_surface(transparent_source, source).ok());
+    REQUIRE(backend.initialize_transparent_surface(cpu_destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(gpu_destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(transparent_source).ok());
+
+    ParticleEmitterParams emitter;
+    emitter.count = 16;
+    emitter.seed = 7123;
+    emitter.emitter_size = {8.0f, 8.0f};
+    emitter.velocity_min = {-2.0f, -1.0f};
+    emitter.velocity_max = {2.0f, 1.0f};
+    emitter.lifetime_min = 10.0f;
+    emitter.lifetime_max = 10.0f;
+    emitter.size_min = 3.0f;
+    emitter.size_max = 5.0f;
+    emitter.shape = EmitterShape::Box;
+    emitter.blend_mode = BlendMode::Normal;
+    emitter.color_ramp = graphics::GradientDefinition::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f},
+        {{0.0f, Color{1.0f, 0.35f, 0.1f, 1.0f}},
+         {1.0f, Color{0.2f, 0.6f, 1.0f, 1.0f}}});
+
+    const Mat4 transform =
+        glm::translate(Mat4(1.0f), Vec3{32.0f, 32.0f, 0.0f}) *
+        glm::rotate(Mat4(1.0f), 0.35f, Vec3{0.0f, 0.0f, 1.0f}) *
+        glm::scale(Mat4(1.0f), Vec3{1.25f, 0.75f, 1.0f});
+    constexpr float opacity = 0.4f;
+    constexpr double seconds = 1.0;
+    const auto sampled = sample_particles(emitter, seconds);
+    REQUIRE(sampled.ok());
+
+    std::vector<LayerInstance> oracle;
+    oracle.reserve(sampled.particles.size());
+    for (const auto& particle : sampled.particles) {
+        const Vec4 position = transform * Vec4{
+            particle.position.x, particle.position.y, 0.0f, 1.0f};
+        const float axis_x_scale = glm::length(Vec2{
+            transform[0][0], transform[1][0]});
+        const float axis_y_scale = glm::length(Vec2{
+            transform[0][1], transform[1][1]});
+        const float alpha = std::clamp(particle.color.a * opacity, 0.0f, 1.0f);
+        LayerInstance instance;
+        instance.kind = PrimitiveKind::Particle;
+        instance.resource_index = 0;
+        instance.dst_x0 = position.x - particle.size * 0.5f * axis_x_scale;
+        instance.dst_y0 = position.y - particle.size * 0.5f * axis_y_scale;
+        instance.dst_x1 = position.x + particle.size * 0.5f * axis_x_scale;
+        instance.dst_y1 = position.y + particle.size * 0.5f * axis_y_scale;
+        instance.tint = Color{particle.color.r * alpha,
+                              particle.color.g * alpha,
+                              particle.color.b * alpha, alpha};
+        instance.blend = BlendMode::Normal;
+        Vec2 trail{
+            transform[0][0] * particle.velocity.x +
+                transform[1][0] * particle.velocity.y,
+            transform[0][1] * particle.velocity.x +
+                transform[1][1] * particle.velocity.y};
+        trail *= kParticleTrailSeconds;
+        const float trail_limit = std::max(
+            particle.size * kParticleTrailMaxSizeFactor,
+            kParticleTrailMinPixels);
+        const float trail_length = glm::length(trail);
+        if (trail_length > trail_limit && trail_length > 0.0f)
+            trail *= trail_limit / trail_length;
+        instance.motion_x = trail.x;
+        instance.motion_y = trail.y;
+        oracle.push_back(instance);
+    }
+    const std::array<RenderSurfaceHandle, 1> resources{transparent_source};
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_layer_batch(
+        cpu_destination, oracle, resources, {}, {}).ok());
+    backend.end_frame_batch();
+
+    backend.begin_frame_batch();
+    REQUIRE(backend.execute_gpu_particle_batch(
+        gpu_destination, transparent_source, emitter, seconds,
+        transform, opacity).ok());
+    backend.end_frame_batch();
+
+    std::vector<float> cpu_pixels(64U * 64U * 4U, 0.0f);
+    std::vector<float> gpu_pixels(64U * 64U * 4U, 0.0f);
+    REQUIRE(backend.download_surface(cpu_destination, cpu_pixels).ok());
+    REQUIRE(backend.download_surface(gpu_destination, gpu_pixels).ok());
+
+    float max_difference = 0.0f;
+    for (std::size_t i = 0; i < cpu_pixels.size(); ++i) {
+        max_difference = std::max(
+            max_difference, std::abs(cpu_pixels[i] - gpu_pixels[i]));
+    }
+    CHECK_MESSAGE(max_difference < 2.0e-4f,
+                  "transform/opacity max_difference = " << max_difference);
+
+    (void)backend.release_surface(cpu_destination);
+    (void)backend.release_surface(gpu_destination);
+    (void)backend.release_surface(transparent_source);
+}
+
+TEST_CASE("Vulkan GPU particle emitter keeps path emitters fail-closed") {
+    using namespace chronon3d;
+    backends::vulkan::VulkanBackend backend;
+    ParticleEmitterParams emitter;
+    emitter.count = 1;
+    emitter.seed = 1;
+    emitter.lifetime_min = 1.0f;
+    emitter.lifetime_max = 1.0f;
+    emitter.size_min = 1.0f;
+    emitter.size_max = 1.0f;
+    emitter.shape = EmitterShape::Path;
+    emitter.path_id = "path";
+    emitter.path_points = {Vec2{0.0f, 0.0f}, Vec2{1.0f, 1.0f}};
+    const auto rendered = backend.execute_gpu_particle_batch(
+        runtime::kInvalidRenderSurfaceHandle,
+        runtime::kInvalidRenderSurfaceHandle, emitter, 0.0);
+    CHECK_FALSE(rendered.ok());
 }
 
 TEST_CASE("Vulkan text-run kernel samples a packed glyph atlas into the canvas") {

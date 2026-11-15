@@ -567,6 +567,14 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                         .rotate({resolved.rotation_deg[0], resolved.rotation_deg[1], resolved.rotation_deg[2]})
                         .opacity(resolved.opacity).cache_static(false);
                 }
+                // Adjustment layers are effect-only and carry no timing fields
+                // in the v3 wire contract. Their semantics are nevertheless
+                // full-canvas: without this default the layer would be built
+                // with duration 0, culled as never visible, and the clip effects
+                // would silently never run.
+                if (layer.type == LayerType::Adjustment) {
+                    builder.from(Frame{0}).duration(plan.canvas.duration);
+                }
             };
             const bool full_canvas_backdrop = has_3d_layer &&
                 layer.type != LayerType::Text &&

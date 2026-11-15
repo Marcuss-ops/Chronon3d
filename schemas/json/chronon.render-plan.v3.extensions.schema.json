@@ -8339,6 +8339,64 @@
               }
             }
           },
+          "image_lighting": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Opt-in 2.5D relighting for image and video layers: synthetic normals, alpha-edge rim and HDR specular.",
+            "properties": {
+              "bump_strength": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 4
+              },
+              "rim_strength": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 4
+              },
+              "rim_width_px": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 64
+              },
+              "roughness": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "specular": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "gobo_asset": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "gobo_scale": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 0.1
+              },
+              "gobo_offset": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {"type": "number", "minimum": -8, "maximum": 8}
+              },
+              "light_wrap_asset": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "light_wrap_strength": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 4
+              }
+            }
+          },
           "style": {
             "type": "object",
             "properties": {
@@ -8406,6 +8464,18 @@
                 "exclusiveMinimum": 0,
                 "maximum": 10000,
                 "default": 12
+              },
+              "extrusion_bevel": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 64,
+                "description": "Optional front chamfer width in pixels for extruded_text (0 disables bevel)."
+              },
+              "bevel_px": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 32,
+                "description": "Optional 2.5D/3D-like bevel thickness in pixels on text layers."
               },
               "gel_surface": {
                 "type": "boolean",

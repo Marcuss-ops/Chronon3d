@@ -2,11 +2,32 @@
 
 #include <chronon3d/render_plan/render_plan_effects.hpp>
 #include <chronon3d/render_plan/render_plan_layer_types.hpp>
+#include <array>
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace chronon3d::render_plan {
+
+// Opt-in 2.5D image relighting authored on image/video layers. The compiler
+// lowers this to Material2_5D; absent keeps the historical flat material.
+struct ImageLightingPlan {
+    float bump_strength{0.0f};   // synthetic normal relief [0, 4]
+    float rim_strength{0.0f};    // alpha-edge rim [0, 4]
+    float rim_width_px{4.0f};    // alpha blur radius [0, 64]
+    std::optional<float> roughness; // [0, 1]; absent keeps the material default
+    std::optional<float> specular;  // [0, 1]; absent keeps the material default
+    // Optional texture assets, resolved through the mounted asset root. A
+    // gobo projects a world-space mask onto the light; a light-wrap plate is
+    // the background sampled behind the layer's alpha edge.
+    std::string gobo_asset{};
+    float gobo_scale{0.0008f}; // canvas pixels -> gobo UV, (0, 0.1]
+    std::array<float, 2> gobo_offset{0.0f, 0.0f}; // UV offset, [-8, 8]
+    std::string light_wrap_asset{};
+    float light_wrap_strength{0.0f}; // [0, 4]; >0 requires light_wrap_asset
+};
+
 struct LayerPlan {
     // Internal metadata for isolated Bodymovin precomp groups. It is lowered
     // into Chronon's scene/compositor contracts and is not serialized.
@@ -102,6 +123,7 @@ struct LayerPlan {
     std::vector<EffectParamTrackPlan> effect_param_tracks;
     std::vector<EffectPlan> effects;
     std::optional<BackdropFilterPlan> backdrop_filter;
+    std::optional<ImageLightingPlan> image_lighting;
 
     std::array<float, 2> size{0.0f, 0.0f};
     std::size_t size_dimensions{0};

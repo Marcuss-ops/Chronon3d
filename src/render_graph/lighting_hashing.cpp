@@ -89,6 +89,21 @@ std::uint64_t hash_material_2_5d_v2(const Material2_5D& material) {
     add_float(h, material.specular);
     add_float(h, material.shininess);
     add_float(h, material.ambient_multiplier);
+    add_float(h, material.image_bump_strength);
+    add_float(h, material.image_rim_strength);
+    add_float(h, material.image_rim_width_px);
+    // Keep the legacy hash stable when no gobo/light-wrap plate is authored.
+    if (!material.image_gobo_asset.empty() ||
+        !material.image_light_wrap_asset.empty() ||
+        material.image_light_wrap_strength > 0.0f) {
+        h.add(true);
+        h.add(material.image_gobo_asset);
+        add_float(h, material.image_gobo_scale);
+        add_float(h, material.image_gobo_offset.x);
+        add_float(h, material.image_gobo_offset.y);
+        h.add(material.image_light_wrap_asset);
+        add_float(h, material.image_light_wrap_strength);
+    }
     add_color(h, material.emissive_color);
     h.add(material.emissive_enabled).add(material.double_sided);
     h.add(material.alpha_cutoff.has_value());

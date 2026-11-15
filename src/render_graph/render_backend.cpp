@@ -413,6 +413,17 @@ RenderOpResult RenderBackendSurfaceApi::glow_advanced_surfaces(
             "RenderBackend::glow_advanced_surfaces: native surfaces are not supported"));
     }
 
+RenderOpResult RenderBackendSurfaceApi::halation_surfaces(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*scratch_horizontal*/,
+        runtime::RenderSurfaceHandle /*scratch_vertical*/,
+        const HalationParams& /*params*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::halation_surfaces: native surfaces are not supported"));
+    }
+
 RenderOpResult RenderBackendSurfaceApi::inner_glow_composite_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
@@ -502,7 +513,9 @@ RenderOpResult RenderBackendSurfaceApi::lighting_surface_points(
         float /*layer_z*/,
         int /*origin_x*/,
         int /*origin_y*/,
-        float /*diffuse*/) {
+        float /*diffuse*/,
+        const Vec4& /*relight_params*/,
+        const Vec4& /*relight_specular*/) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::lighting_surface_points: native per-pixel lighting is not supported"));
@@ -623,6 +636,17 @@ RenderOpResult RenderBackendTextureApi::execute_layer_batch(
         return execute_layer_batch(
             destination, std::span<const runtime::LayerInstance>(batch.instances),
             resources, transforms, paints);
+    }
+
+RenderOpResult RenderBackendTextureApi::execute_gpu_particle_batch(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*transparent_source*/,
+        const ::chronon3d::ParticleEmitterParams& /*emitter*/,
+        double /*seconds*/, const glm::mat4& /*transform*/,
+        float /*opacity*/, const std::optional<raster::BBox>& /*clip*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::execute_gpu_particle_batch: not supported by this backend"));
     }
 
 } // namespace chronon3d::graph

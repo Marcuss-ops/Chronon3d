@@ -542,6 +542,10 @@ public:
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const GlowAdvancedParams&) override;
+    graph::RenderOpResult halation_surfaces(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        const HalationParams&) override;
     graph::RenderOpResult inner_glow_composite_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const Color&, float) override;
@@ -569,7 +573,9 @@ public:
     graph::RenderOpResult lighting_surface_points(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const Color&, std::span<const float>, std::uint32_t,
-        Vec3, float, int, int, float) override;
+        Vec3, float, int, int, float,
+        const Vec4& relight_params = Vec4{0.0f},
+        const Vec4& relight_specular = Vec4{0.0f}) override;
     graph::RenderOpResult matte_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, bool, bool,
@@ -605,13 +611,18 @@ public:
 
     /// First GPU-driven particle step: a stateless compute pass derives
     /// billboard instances from the emitter and absolute time, then reuses the
-    /// layer-batch procedural-disc rasterizer.  The CPU sampler remains the
-    /// oracle; path/sprite emitters and unsupported blends fail closed.
+    /// layer-batch rasterizer.  The CPU sampler remains the oracle; procedural
+    /// and sprite billboards are supported (sprite emitters bind the prepared
+    /// sprite surface as `transparent_source`), while path emitters and
+    /// unsupported blends fail closed.
     graph::RenderOpResult execute_gpu_particle_batch(
         runtime::RenderSurfaceHandle destination,
         runtime::RenderSurfaceHandle transparent_source,
         const ParticleEmitterParams& emitter,
-        double seconds);
+        double seconds,
+        const glm::mat4& transform = glm::mat4(1.0f),
+        float opacity = 1.0f,
+        const std::optional<raster::BBox>& clip = std::nullopt);
     graph::RenderOpResult draw_inline_mesh_surface(
         runtime::RenderSurfaceHandle destination,
         runtime::RenderSurfaceHandle texture,

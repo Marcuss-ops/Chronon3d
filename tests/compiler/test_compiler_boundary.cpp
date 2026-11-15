@@ -496,6 +496,101 @@ TEST_CASE("Shape plans lower, sample and materialize all five shape contents") {
     }
 }
 
+TEST_CASE("screen-space shape samples convert top-left to centre-relative for SourceNode") {
+    using namespace chronon3d;
+    render_plan::RenderPlan plan;
+    plan.schema = render_plan::kRenderPlanSchemaV3;
+    plan.job_id = "shape-centre-relative";
+    plan.canvas.width = 1920;
+    plan.canvas.height = 1080;
+    plan.canvas.duration = Frame{2};
+
+    render_plan::LayerPlan layer;
+    layer.id = "badge";
+    layer.type = render_plan::LayerType::Shape;
+    // V3 screen-space Shape positions are the top-left of the unscaled box.
+    // This badge is 640x180, so its intended centre is [640,400].
+    layer.position = {320.0f, 310.0f, 0.0f};
+    layer.position_dimensions = 2;
+    layer.size = {640.0f, 180.0f};
+    layer.size_dimensions = 2;
+    layer.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    layer.screen_space = true;
+    layer.shape = render_plan::ShapeContentPlan{};
+    layer.shape->type = render_plan::ShapeContentTypePlan::Rect;
+    layer.shape->fill_color = layer.color;
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    auto compiled = compiler::compile(plan, resolver);
+    REQUIRE(compiled);
+    auto program = std::move(compiled).value();
+
+    const auto sampled = compiler::TypedProgramSampler{}.sample(
+        program, Frame{0});
+    REQUIRE(sampled.layers.size() == 1);
+    // SourceNode applies the implicit canvas centre once. The lowered sample
+    // must therefore be canvas-centre-relative and already include the half
+    // box, so adding the canvas centre lands the badge centre at [640,400].
+    const auto& matrix = sampled.layers.front().matrix;
+    CHECK(matrix[3][0] == doctest::Approx(-320.0f));
+    CHECK(matrix[3][1] == doctest::Approx(-140.0f));
+    CHECK(matrix[3][0] + 1920.0f * 0.5f == doctest::Approx(640.0f));
+    CHECK(matrix[3][1] + 1080.0f * 0.5f == doctest::Approx(400.0f));
+}
+
+TEST_CASE("screen-space shape vector scale track is sampled per axis") {
+    using namespace chronon3d;
+    render_plan::RenderPlan plan;
+    plan.schema = render_plan::kRenderPlanSchemaV3;
+    plan.job_id = "shape-scale-track";
+    plan.canvas.width = 1920;
+    plan.canvas.height = 1080;
+    plan.canvas.duration = Frame{13};
+
+    render_plan::LayerPlan layer;
+    layer.id = "badge";
+    layer.type = render_plan::LayerType::Shape;
+    layer.position = {320.0f, 310.0f, 0.0f};
+    layer.position_dimensions = 2;
+    layer.size = {640.0f, 180.0f};
+    layer.size_dimensions = 2;
+    layer.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    layer.screen_space = true;
+    layer.shape = render_plan::ShapeContentPlan{};
+    layer.shape->type = render_plan::ShapeContentTypePlan::Rect;
+    layer.shape->fill_color = layer.color;
+
+    render_plan::AnimationTrackPlan scale;
+    scale.property = "scale";
+    scale.easing = "out_cubic";
+    scale.keyframes.push_back({Frame{0}, {0.0f, 0.0f, 1.0f}});
+    scale.keyframes.push_back({Frame{4}, {0.9f, 0.9f, 1.0f}});
+    scale.keyframes.push_back({Frame{8}, {1.12f, 1.12f, 1.0f}});
+    scale.keyframes.push_back({Frame{12}, {1.0f, 1.0f, 1.0f}});
+    layer.animation = render_plan::AnimationPlan{.tracks = {scale}};
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    auto compiled = compiler::compile(plan, resolver);
+    REQUIRE(compiled);
+    auto program = std::move(compiled).value();
+
+    auto sampled = compiler::TypedProgramSampler{}.sample(program, Frame{8});
+    REQUIRE(sampled.layers.size() == 1);
+    const auto& peak = sampled.layers.front().matrix;
+    CHECK(peak[0][0] == doctest::Approx(1.12f));
+    CHECK(peak[1][1] == doctest::Approx(1.12f));
+    CHECK(peak[2][2] == doctest::Approx(1.0f));
+
+    sampled = compiler::TypedProgramSampler{}.sample(program, Frame{12});
+    REQUIRE(sampled.layers.size() == 1);
+    const auto& settle = sampled.layers.front().matrix;
+    CHECK(settle[0][0] == doctest::Approx(1.0f));
+    CHECK(settle[1][1] == doctest::Approx(1.0f));
+    CHECK(settle[2][2] == doctest::Approx(1.0f));
+}
+
 TEST_CASE("JobSession and FrameExecution enforce job and frame lifetimes") {
     chronon3d::runtime::RuntimeContext runtime{chronon3d::Config{}};
     auto program = shared_program();

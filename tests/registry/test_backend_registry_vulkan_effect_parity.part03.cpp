@@ -62,7 +62,7 @@ TEST_CASE("Strict Vulkan DropShadow matches software and invalid parameters fail
     }
 
     const auto oversized_shadow = vulkan_strict(
-        DropShadowParams{.offset = {2.0f, 2.0f}, .color = Color{0, 0, 0, 0.5f}, .radius = 32.1f},
+        DropShadowParams{.offset = {2.0f, 2.0f}, .color = Color{0, 0, 0, 0.5f}, .radius = 64.1f},
         std::nullopt);
     CHECK_FALSE(oversized_shadow.ok);
 

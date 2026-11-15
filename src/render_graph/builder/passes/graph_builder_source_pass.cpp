@@ -337,7 +337,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     // FreeType outlines into the existing native 3D mesh path.
                     node.shape = Shape(MeshShape{});
                     node.shape.mesh_shape().inline_mesh =
-                        build_extruded_text_mesh(*run, run->material.extrusion_depth);
+                        build_extruded_text_mesh(
+                            *run,
+                            run->material.extrusion_depth,
+                            run->material.extrusion_bevel);
                     node.inline_mesh_material = RenderNode::InlineMeshMaterial{};
                     // The native mesh renderer multiplies node.color by the
                     // material base color; carrying the fill in both squares it.
@@ -681,14 +684,14 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // PR2-cleanup: VideoNode is intrinsically frame-variant per its ctor;
         // the cache policy is baked in by the factory.
         //
-        // A rounded video is masked on the CPU. The native decoder's GPU
-        // surface is not the decoded CPU shadow, so masking that shadow
-        // produced an all-black frame. Decode this one layer through the
-        // reference/software lane; mask, transform, border and GPU encode
-        // keep the normal graph path.
-        const bool cpu_decode_for_mask = layer.mask.enabled();
+        // Keep the native decoder as the authority for video pixels. When the
+        // layer is masked, MaskNode is created with source_surface_coordinates
+        // and downloads that decoded native surface before applying the alpha;
+        // forcing the reference/software decoder here reintroduces the
+        // chroma-corrupted (magenta/black) card seen in clip renders.
         return graph.add_node(std::make_unique<VideoNode>(
-            *layer.video_source, ctx.video_decoder, layer.from, cpu_decode_for_mask,
+            *layer.video_source, ctx.video_decoder, layer.from,
+            false,
             Vec2{layer.video_source->size.x, layer.video_source->size.y}
         ), node_ctx);
     }

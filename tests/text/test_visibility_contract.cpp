@@ -63,7 +63,6 @@ TextRunShape make_test_shape(bool with_engine = true,
     layout->font_size = 16.0f;
     layout->placed.ascent = 10.0f;
     layout->placed.descent = 5.0f;
-    shape.layout = std::move(layout);
 
     if (with_glyphs) {
         // Populate the runtime `shape.glyphs` vector so the canonical
@@ -73,15 +72,16 @@ TextRunShape make_test_shape(bool with_engine = true,
         // non-zero local_ink_bbox from this data.
         shape.glyphs.resize(glyph_count);
         for (std::size_t i = 0; i < glyph_count; ++i) {
-            shape.glyphs[i].position = {static_cast<float>(i * 20), 0.0f};
-            shape.glyphs[i].layout_position = {static_cast<float>(i * 20), 0.0f};
-            shape.glyphs[i].rotation = {0.0f, 0.0f, 0.0f};
-            shape.glyphs[i].scale = {1.0f, 1.0f, 1.0f};
+            shape.glyphs[i].position = Vec3{static_cast<float>(i * 20), 0.0f, 0.0f};
+            shape.glyphs[i].layout_position = Vec2{static_cast<float>(i * 20), 0.0f};
+            shape.glyphs[i].rotation = Vec3{0.0f, 0.0f, 0.0f};
+            shape.glyphs[i].scale = Vec3{1.0f, 1.0f, 1.0f};
             shape.glyphs[i].blur = 0.0f;
             shape.glyphs[i].stroke_width = 0.0f;
-            shape.layout->placed.glyphs[i].advance_x = 20.0f;
+            layout->placed.glyphs[i].advance_x = 20.0f;
         }
     }
+    shape.layout = std::move(layout);
     return shape;
 }
 
@@ -353,6 +353,37 @@ TEST_CASE("Visibility contract #6: violation response with non-zero local_ink_bb
     CHECK(audit.expanded_predicted_bbox.origin.y == doctest::Approx(-40.8f));
     CHECK(audit.expanded_predicted_bbox.size.x   == doctest::Approx(156.0f));
     CHECK(audit.expanded_predicted_bbox.size.y   == doctest::Approx(73.8f));
+}
+
+// #7 — renderer-authoritative actual ink bbox inside the clip must PASS,
+// and the same bbox outside the clip must FAIL. This locks the text-vis
+// false-positive fix: intermediate framebuffers with no alpha are not the
+// source of truth when the draw reported an actual canvas ink bbox.
+TEST_CASE("Visibility contract #7: actual ink override respects clip containment") {
+    const auto shape = make_test_shape(/*with_engine=*/true, /*glyph_count=*/3,
+                                        /*with_glyphs=*/true);
+    const Mat4 identity{};
+    const Rect predicted_bbox{{-20.0f, -30.0f}, {200.0f, 100.0f}};
+    const Rect clip_rect{{0.0f, 0.0f}, {200.0f, 200.0f}};
+
+    const Rect inside{{10.0f, 10.0f}, {80.0f, 30.0f}};
+    const auto pass = audit_text_visibility(
+        shape, identity, predicted_bbox, clip_rect,
+        /*rendered_output=*/nullptr, /*effect_padding=*/4.0f,
+        /*rendered_alpha_bbox_override=*/&inside);
+    CHECK(pass.alpha_measured);
+    CHECK(pass.clip_contains_visible_ink);
+    CHECK(pass.rendered_alpha_bbox.origin.x == doctest::Approx(10.0f));
+    CHECK(pass.status == TextVisibilityStatus::PASS);
+
+    const Rect outside{{300.0f, 300.0f}, {50.0f, 20.0f}};
+    const auto fail = audit_text_visibility(
+        shape, identity, predicted_bbox, clip_rect,
+        /*rendered_output=*/nullptr, /*effect_padding=*/4.0f,
+        /*rendered_alpha_bbox_override=*/&outside);
+    CHECK(fail.alpha_measured);
+    CHECK_FALSE(fail.clip_contains_visible_ink);
+    CHECK(fail.status == TextVisibilityStatus::FAIL);
 }
 
 #else  // !CHRONON3D_BUILD_DIAGNOSTICS

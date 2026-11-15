@@ -356,6 +356,8 @@
               "gel_soft_fusion": { "type": "boolean", "default": true, "description": "Use smooth union for contacting glyphs on gel text; requires gel_surface." },
               "extruded_text": { "type": "boolean", "default": false, "description": "Render the shaped TextRun as a native 3D mesh with front/back caps and side walls; requires enable_3d." },
               "extrusion_depth": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000, "default": 12 },
+              "extrusion_bevel": { "type": "number", "minimum": 0, "maximum": 64, "description": "Optional front chamfer width in pixels for extruded_text (0 disables bevel)." },
+              "bevel_px": { "type": "number", "minimum": 0, "maximum": 32, "description": "Optional 2.5D/3D-like bevel thickness in pixels on text layers." },
               "gel_transmission": { "type": "boolean", "default": true, "description": "Enable local destination-color transmission for gel text; set false for diagnostic ablation." },
               "gel_core": { "type": "boolean", "default": false, "description": "Render text with the composite MTSDF core/body/edge gradient without specular or rim reflections." },
               "gel_debug_mode": { "type": "integer", "minimum": 0, "maximum": 7, "default": 0, "description": "Diagnostic visualization: 1 composite signed distance, 2 height, 3 surface normals, 4 normal validity heat map, 5 transmission flag and destination alpha, 6 binary silhouette at d=0, 7 plateau (N.z>=0.999) vs bevel. Requires gel_surface." },

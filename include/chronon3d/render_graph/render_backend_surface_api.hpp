@@ -143,6 +143,11 @@ public:
         runtime::RenderSurfaceHandle scratch_horizontal,
         runtime::RenderSurfaceHandle scratch_vertical,
         const GlowAdvancedParams& params);
+    virtual RenderOpResult halation_surfaces(
+        runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle scratch_horizontal,
+        runtime::RenderSurfaceHandle scratch_vertical,
+        const HalationParams& params);
     virtual RenderOpResult inner_glow_composite_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         const Color& tint, float intensity);
@@ -189,7 +194,9 @@ public:
         float layer_z,
         int origin_x,
         int origin_y,
-        float diffuse);
+        float diffuse,
+        const Vec4& relight_params = Vec4{0.0f},
+        const Vec4& relight_specular = Vec4{0.0f});
     /// Per-pixel cross-layer occlusion tag for device-local surfaces.
     /// `layer_depth` and `frame_depth` share one encoding: r = positive
     /// camera depth, g > 0 = covered. Writes `mask` (a = 1 visible, 0

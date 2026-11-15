@@ -66,6 +66,34 @@ std::array<float, 3> inline_mesh_normal_at(
 }
 } // namespace
 
+namespace {
+
+// Lower the optional authored 2.5D image-lighting block onto the material the
+// LightingNode consumes. Image and video layers otherwise use the default
+// Material2_5D, so replacing it here does not discard any authored material.
+void apply_image_lighting_material(LayerBuilder& builder, const LayerPlan& layer) {
+    if (!layer.image_lighting) return;
+    Material2_5D material;
+    material.image_bump_strength = layer.image_lighting->bump_strength;
+    material.image_rim_strength = layer.image_lighting->rim_strength;
+    material.image_rim_width_px = layer.image_lighting->rim_width_px;
+    if (layer.image_lighting->roughness)
+        material.roughness = *layer.image_lighting->roughness;
+    if (layer.image_lighting->specular)
+        material.specular = *layer.image_lighting->specular;
+    material.image_gobo_asset = layer.image_lighting->gobo_asset;
+    material.image_gobo_scale = layer.image_lighting->gobo_scale;
+    material.image_gobo_offset = Vec2{
+        layer.image_lighting->gobo_offset[0],
+        layer.image_lighting->gobo_offset[1]};
+    material.image_light_wrap_asset = layer.image_lighting->light_wrap_asset;
+    material.image_light_wrap_strength =
+        layer.image_lighting->light_wrap_strength;
+    builder.material(material);
+}
+
+} // namespace
+
 void append_image_layer_for_scene(
     LayerBuilder& builder,
     const LayerPlan& layer,
@@ -103,7 +131,17 @@ void append_image_layer_for_scene(
         params.crop.flip_x = layer.crop->flip_x;
     }
     params.radius = layer.radius.value_or(0.0f);
+    if (layer.image_lighting) {
+        const std::string owner = layer.id.empty() ? "image_lighting" : layer.id;
+        if (!layer.image_lighting->gobo_asset.empty())
+            builder.asset_image(layer.image_lighting->gobo_asset,
+                                owner + "/image_lighting.gobo");
+        if (!layer.image_lighting->light_wrap_asset.empty())
+            builder.asset_image(layer.image_lighting->light_wrap_asset,
+                                owner + "/image_lighting.light_wrap");
+    }
     builder.image("image", std::move(params));
+    apply_image_lighting_material(builder, layer);
     return;
 
 }
@@ -210,6 +248,7 @@ void append_video_layer_for_scene(
         }
     }
     builder.video(std::move(source));
+    apply_image_lighting_material(builder, layer);
     return;
 
 }
@@ -280,6 +319,18 @@ void append_particles_layer_for_scene(
     const auto sampled = sample_particles(*layer.particle_emitter, seconds);
     if (!sampled.ok())
         throw std::runtime_error("particle sampling failed: " + sampled.error);
+    // Match the typed materializer: CPU particle children are authored in
+    // the emitter-local centred basis, while a screen-space layer carries a
+    // top-left position. Shift only the CPU node positions; the GPU marker
+    // stays local because SourceNode applies placement->render_matrix.
+    const Vec2 emitter_center = layer.screen_space
+        ? Vec2{layer.size[0] * 0.5f, layer.size[1] * 0.5f}
+        : Vec2{0.0f, 0.0f};
+    if (std::getenv("CHRONON3D_PARTICLE_DEBUG") != nullptr) {
+        spdlog::info("[particle-mat] route=legacy id={} screen={} size=({},{}) center=({},{}) count={}",
+            layer.id, layer.screen_space ? 1 : 0, layer.size[0], layer.size[1],
+            emitter_center.x, emitter_center.y, sampled.particles.size());
+    }
     const bool extruded_text = layer.style && layer.style->extruded_text;
     builder.accepts_lights(extruded_text).accepts_shadows(extruded_text);
     const auto attach_gpu_instances = [&] {
@@ -332,9 +383,10 @@ void append_particles_layer_for_scene(
             }
             const float radius = particle.size * 0.5f;
             if (radius <= 0.0f) continue;
+            const Vec2 particle_center = particle.position + emitter_center;
             const std::size_t segments = radius <= 4.0f ? 16U :
                 (radius <= 20.0f ? 32U : 64U);
-            const Vec2 center{particle.position.x, particle.position.y};
+            const Vec2 center{particle_center.x, particle_center.y};
             for (std::size_t segment = 0; segment < segments; ++segment) {
                 const float angle = tau * static_cast<float>(segment) /
                     static_cast<float>(segments);
@@ -350,11 +402,12 @@ void append_particles_layer_for_scene(
         return;
     }
     for (const auto& particle : sampled.particles) {
+        const Vec2 particle_center = particle.position + emitter_center;
         if (!resolved_particle_sprite_paths[index].empty()) {
             ImageParams sprite;
             sprite.asset_path=resolved_particle_sprite_paths[index];
             sprite.size=Vec2{particle.size*particle.sprite_scale,particle.size*particle.sprite_scale};
-            sprite.pos=Vec3{particle.position.x,particle.position.y,
+            sprite.pos=Vec3{particle_center.x,particle_center.y,
                 layer.particle_emitter->environment ? (1.0f - particle.depth) * 100.0f : 0.0f};
             sprite.opacity=particle.color.a;
             sprite.tint=Color{particle.color.r,particle.color.g,particle.color.b,1.0f};
@@ -374,14 +427,14 @@ void append_particles_layer_for_scene(
                 {0.5f, 0.5f}, 0.5f,
                 {{0.0f, particle.color}, {1.0f, transparent}});
         }
-        params.pos = Vec3{particle.position.x, particle.position.y,
+        params.pos = Vec3{particle_center.x, particle_center.y,
             layer.particle_emitter->environment ? (1.0f - particle.depth) * 100.0f : 0.0f};
         builder.circle("particle_" + std::to_string(particle.index),
                        std::move(params));
         if (layer.particle_emitter->environment) {
             builder.last_node_handle().node().software_environment_particle =
                 RenderNode::GpuParticleInstance{
-                    particle.position, particle.color, particle.size,
+                    particle_center, particle.color, particle.size,
                     particle.rotation, particle.sprite_scale,
                     (1.0f - particle.depth) * 100.0f, particle.velocity};
         }
@@ -389,6 +442,60 @@ void append_particles_layer_for_scene(
     attach_gpu_instances();
     return;
 
+}
+
+chronon3d::rendering::PointLightSource build_point_light_source(
+    const LayerPlan& layer,
+    std::uint32_t canvas_width,
+    std::uint32_t canvas_height,
+    double frame,
+    FrameRate fps) {
+    if (!layer.light)
+        throw std::runtime_error("light layer '" + layer.id + "' has no light payload");
+    const auto& light = *layer.light;
+    float intensity = light.intensity;
+    Color light_color{light.color[0], light.color[1], light.color[2], light.color[3]};
+    if (layer.animation) {
+        if (const auto track = std::find_if(layer.animation->tracks.begin(),
+                layer.animation->tracks.end(), [](const auto& value) {
+                    return value.property == "light_intensity";
+                }); track != layer.animation->tracks.end()) {
+            intensity = detail::evaluate_scalar_track(*track, frame, light.intensity, fps);
+        }
+        if (const auto animated = detail::shadow_color_at(layer, "light_color", frame, light_color, fps))
+            light_color = *animated;
+    }
+    if (!std::isfinite(intensity) || intensity < 0.0f || intensity > 16.0f)
+        throw std::runtime_error("animated light_intensity must be in [0, 16]");
+    const Color color{
+        light_color.r * intensity,
+        light_color.g * intensity,
+        light_color.b * intensity,
+        light_color.a};
+    rendering::PointLightSource source;
+    source.kind = light.kind == LightKindPlan::Point ? rendering::PointLightKind::Point
+        : light.kind == LightKindPlan::Spot ? rendering::PointLightKind::Spot
+        : rendering::PointLightKind::Directional;
+    const float default_x = static_cast<float>(canvas_width) * 0.5f;
+    const float default_y = static_cast<float>(canvas_height) * 0.5f;
+    source.position = detail::light_position_at(layer, frame, Vec3{
+        layer.position_dimensions >= 2 ? layer.position[0] : default_x,
+        layer.position_dimensions >= 2 ? layer.position[1] : default_y,
+        layer.position_dimensions >= 3 ? layer.position[2] : light.radius}, fps);
+    source.direction = detail::light_direction_at(layer, frame, fps);
+    source.color = color;
+    source.radius = light.radius;
+    source.range = light.range;
+    source.decay = light.decay;
+    source.falloff = light.falloff == LightFalloffPlan::AeInverseSquareClamped
+        ? rendering::PointLightFalloff::AeInverseSquareClamped
+        : rendering::PointLightFalloff::SmoothInversePower;
+    source.angle = light.angle;
+    source.penumbra = light.penumbra;
+    source.casts_shadow = light.cast_shadow;
+    source.shadow_radius = light.shadow_radius;
+    source.shadow_bias = light.shadow_bias;
+    return source;
 }
 
 void append_light_layer_for_scene(
@@ -400,6 +507,16 @@ void append_light_layer_for_scene(
     if (!layer.light)
         throw std::runtime_error("light layer '" + layer.id + "' has no light payload");
     const auto& light = *layer.light;
+    if (light.kind != LightKindPlan::Radial) {
+        // Point, spot and directional lights are sources, not
+        // geometry: they shade the lit layers per pixel and draw nothing.
+        point_sources.push_back(build_point_light_source(
+            layer, static_cast<std::uint32_t>(plan.canvas.width),
+            static_cast<std::uint32_t>(plan.canvas.height),
+            static_cast<double>(ctx.effective_frame()), plan.canvas.fps));
+        builder.accepts_lights(false).accepts_shadows(false);
+        return;
+    }
     float intensity = light.intensity;
     Color light_color{light.color[0], light.color[1], light.color[2], light.color[3]};
     if (layer.animation) {
@@ -423,39 +540,6 @@ void append_light_layer_for_scene(
         light_color.g * intensity,
         light_color.b * intensity,
         light_color.a};
-    if (light.kind != LightKindPlan::Radial) {
-        // Point, spot and directional lights are sources, not
-        // geometry: they shade the lit layers per pixel and draw nothing.
-        rendering::PointLightSource source;
-        source.kind = light.kind == LightKindPlan::Point ? rendering::PointLightKind::Point
-            : light.kind == LightKindPlan::Spot ? rendering::PointLightKind::Spot
-            : rendering::PointLightKind::Directional;
-        const float default_x = static_cast<float>(plan.canvas.width) * 0.5f;
-        const float default_y = static_cast<float>(plan.canvas.height) * 0.5f;
-        source.position = detail::light_position_at(layer, ctx.effective_frame(), Vec3{
-            layer.position_dimensions >= 2 ? layer.position[0] : default_x,
-            layer.position_dimensions >= 2 ? layer.position[1] : default_y,
-            // A 2D light has no height: default to its radius so it
-            // lights the plane below it instead of grazing it at z=0.
-            layer.position_dimensions >= 3 ? layer.position[2] : light.radius}, plan.canvas.fps);
-        source.direction = detail::light_direction_at(
-            layer, ctx.effective_frame(), plan.canvas.fps);
-        source.color = color;
-        source.radius = light.radius;
-        source.range = light.range;
-        source.decay = light.decay;
-        source.falloff = light.falloff == LightFalloffPlan::AeInverseSquareClamped
-            ? rendering::PointLightFalloff::AeInverseSquareClamped
-            : rendering::PointLightFalloff::SmoothInversePower;
-        source.angle = light.angle;
-        source.penumbra = light.penumbra;
-        source.casts_shadow = light.cast_shadow;
-        source.shadow_radius = light.shadow_radius;
-        source.shadow_bias = light.shadow_bias;
-        point_sources.push_back(source);
-        builder.accepts_lights(false).accepts_shadows(false);
-        return;
-    }
     CircleParams params;
     params.radius = light.radius;
     params.color = color;
@@ -604,7 +688,9 @@ void append_text_layer_for_scene(
             chronon3d::SampleTime::from_frame(0.0, plan.canvas.fps), nullptr);
         if (text_run && text_run->animators.empty() && !text_run->animated_doc) {
             auto mesh = chronon3d::graph::detail::build_extruded_text_mesh(
-                *text_run, layer.style->extrusion_depth);
+                *text_run,
+                layer.style->extrusion_depth,
+                layer.style->extrusion_bevel);
             // Glyph outlines are baseline-local.  Center them on the layer
             // origin so the authored position is the visual center instead
             // of pinning the left edge to the camera axis.

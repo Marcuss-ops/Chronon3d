@@ -61,3 +61,91 @@ Nel commit locale in fase di compilazione:
 2. Risolto il tracciamento dinamico di `world_z` durante le animazioni per consentire il DoF ottico corretto.
 3. Garantita la residency nativa Vulkan GPU per i layer proiettati 2.5D.
 4. Generato piano di verifica a 1080p: `gel-25d-abstract-camera-1080p.plan.json`.
+
+---
+
+## Aggiornamento 2026-11-14 — Image lighting 2.5D (software lane)
+
+Chiusa la parte del gap «la luce scolpisce immagini piatte» che non richiede
+nuovi asset o parità GPU: il modello di relighting per layer immagine ora vive
+in `include/chronon3d/rendering/image_lighting.hpp` ed è opt-in tramite
+`Material2_5D`.
+
+**Implementato**
+
+- Normale sintetica dal luminance dell'immagine con kernel Scharr
+  (`compute_image_normal`): immagine piatta → `(0,0,1)`, gradiente → normale
+  unitaria inclinata; la convenzione Y screen-down è coperta da test.
+- Valutazione Blinn-Phong in luce lineare **senza clamp**
+  (`evaluate_image_lighting`): il risultato può superare `1.0` e viene
+  compresso solo dall'output transform ACES/sRGB esistente.
+- Rim light da gradiente alpha con blur separabile
+  (`blur_alpha_box`, `sample_alpha_edge`, `alpha_rim_alignment`): illumina solo
+  il lato della silhouette esposto alla luce.
+- Light wrap da sfondo sfocato, gobo campionato in spazio mondo (stabile
+  durante pan/zoom del layer) e dither interleaved-gradient sub-LSB per l'uscita
+  8-bit.
+- `Material2_5D::image_bump_strength`, `image_rim_strength`,
+  `image_rim_width_px` (default `0` = percorso piatto storico invariato) e
+  inclusione nei due hash materiale.
+- `LightingNode` esegue il relighting per-pixel su CPU quando i controlli sono
+  attivi; input solo-GPU fallisce con `UnsupportedCapability` invece di
+  produrre un frame piatto silenzioso.
+
+**Accettazione raggiunta**
+
+- [x] Normale sintetica deterministica e unitaria, con test su piano, gradiente
+      orizzontale e verticale.
+- [x] HDR lineare non clampato (test: albedo 0.5 × intensità 3 = 1.5).
+- [x] Rim alpha: lato illuminato > lato in ombra; edge mask e direzione
+      outward coperte da test.
+- [x] Light wrap additivo sui bordi scuri e gobo in coordinate mondo.
+- [x] Dither deterministico e limitato a ±0.5/255.
+- [x] Hash materiale sensibile ai tre nuovi controlli.
+- [x] Integrazione `LightingNode`: rim sul lato luce, normale da gradiente,
+      fail-closed su superficie GPU-only.
+- [x] Le ombre Z-soft restano di `ShadowNode` (`blur_per_z`,
+      `opacity_falloff`, offset direzionale): nessuna seconda implementazione.
+- [x] Authoring RenderPlan: blocco opzionale `image_lighting` sui layer
+      `image`/`video`, validato fail-closed e lowerato su `Material2_5D`.
+
+**Verifica eseguita (2026-11-14)**
+
+`cmake --build build/chronon/linux-video-release --target
+chronon3d_renderer_core_tests -j 12` → PASS. Test mirati sullo stesso
+binario: `-tc='ImageLighting*'` 17/17 casi, 70/70 assertion (13 casi
+matematici/node-level + 4 casi RenderPlan); `-tc='LightingRig*'` 9/9 casi,
+53/53 assertion; `-tc='ShadowSettings*'` 7/7 casi, 24/24 assertion. Tutti
+PASS. `python3 -m json.tool` sullo schema V3 → PASS; `git diff --check`
+pulito.
+
+### Authoring RenderPlan (chiuso 2026-11-14)
+
+- `ImageLightingPlan` opzionale top-level sul layer in
+  `include/chronon3d/render_plan/render_plan_layer.hpp`, valido solo per
+  `image`/`video`.
+- Decoder fail-closed in `src/render_plan/render_plan_decoder_layer_fields.cpp`:
+  chiavi strict; range `bump_strength`/`rim_strength` `[0,4]`,
+  `rim_width_px` `[0,64]`, `roughness`/`specular` `[0,1]`; il blocco su altri
+  tipi layer è rifiutato.
+- Schema V3 aggiornato e proiezione V2 allineata in
+  `src/render_plan/render_plan_validator_v2_projection.cpp`: i piani legacy
+  restano validi.
+- Fingerprint: il blocco emette il proprio marker solo se presente, quindi i
+  fingerprint dei piani senza `image_lighting` non cambiano.
+- Compiler in `src/render_plan/render_plan_compiler_scene_materializers.cpp`:
+  dopo `builder.image`/`builder.video` il materiale di default viene sostituito
+  con un `Material2_5D` che porta bump, rim, larghezza rim, roughness e
+  specular autorati.
+- Test `tests/renderer/lighting/test_image_lighting_render_plan.cpp`: decode
+  valido, range/chiavi invalide, gating `image`/`video`, fingerprint e lowering
+  sul materiale.
+
+**Non raggiungibile su questo host / follow-up**
+
+- Parità strict-native Vulkan del relighting per-pixel e golden GPU: richiede
+  l'host NVIDIA e il pass GPU dedicato; il percorso CPU è fail-closed, non
+  silenziosamente degradato.
+- Gobo e light wrap sono primitive valutate e testate; il cablaggio di una
+  texture gobo/background nel graph richiede il plumbing asset/background del
+  RenderPlan.

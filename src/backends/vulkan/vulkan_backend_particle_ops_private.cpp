@@ -15,6 +15,8 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <optional>
 #include <stdexcept>
 
 namespace chronon3d::backends::vulkan {
@@ -64,13 +66,16 @@ std::uint32_t layer_blend_mode(BlendMode mode) {
 }
 
 GpuParticleEmitterUniform make_particle_uniform(
-    const ParticleEmitterParams& emitter, float seconds) {
+    const ParticleEmitterParams& emitter, float seconds,
+    const Mat4& transform, float opacity,
+    std::uint32_t source_width, std::uint32_t source_height) {
     GpuParticleEmitterUniform uniform{};
     uniform.header[0] = emitter.count;
     uniform.header[1] = emitter.seed;
     uniform.header[2] = static_cast<std::uint32_t>(emitter.shape);
     uniform.header[3] = (emitter.bokeh ? 1u : 0u) |
-                        (emitter.environment ? 2u : 0u);
+                        (emitter.environment ? 2u : 0u) |
+                        (emitter.sprite_asset.empty() ? 0u : 4u);
 
     uniform.emitter[0] = emitter.emitter_size.x;
     uniform.emitter[1] = emitter.emitter_size.y;
@@ -140,6 +145,11 @@ GpuParticleEmitterUniform make_particle_uniform(
         uniform.over_life_lut[i][2] = 0.0f;
         uniform.over_life_lut[i][3] = 1.0f;
     }
+    std::memcpy(uniform.transform, &transform[0][0], sizeof(uniform.transform));
+    uniform.source[0] = std::clamp(opacity, 0.0f, 1.0f);
+    uniform.source[1] = static_cast<float>(source_width);
+    uniform.source[2] = static_cast<float>(source_height);
+    uniform.source[3] = 0.0f;
     return uniform;
 }
 
@@ -164,7 +174,9 @@ void write_particle_emitter_descriptors(
 void VulkanBackend::Impl::execute_gpu_particle_batch(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle transparent_source,
-    const ParticleEmitterParams& emitter, double seconds) {
+    const ParticleEmitterParams& emitter, double seconds,
+    const Mat4& transform, float opacity,
+    const std::optional<raster::BBox>& clip) {
     if (emitter.count == 0) return;
     if (emitter.count > kGpuParticleMaxCount) {
         throw std::invalid_argument(
@@ -173,10 +185,6 @@ void VulkanBackend::Impl::execute_gpu_particle_batch(
     if (emitter.shape == EmitterShape::Path) {
         throw std::invalid_argument(
             "GPU particle emitter does not yet support path emitters");
-    }
-    if (!emitter.sprite_asset.empty()) {
-        throw std::invalid_argument(
-            "GPU particle emitter does not yet support sprite assets");
     }
     if (!std::isfinite(seconds) || seconds < 0.0) {
         throw std::invalid_argument(
@@ -187,6 +195,8 @@ void VulkanBackend::Impl::execute_gpu_particle_batch(
     }
 
     auto& dst_image = resolve_image(destination);
+    // Sprite emitters bind the prepared sprite surface here; procedural
+    // emitters bind a transparent source used only for pass synchronization.
     auto& src_image = resolve_image(transparent_source);
     if (dst_image.width == 0 || dst_image.height == 0) {
         throw std::invalid_argument(
@@ -199,6 +209,18 @@ void VulkanBackend::Impl::execute_gpu_particle_batch(
     if (!frame_batch.active) {
         throw std::logic_error(
             "GPU particle emitter requires an active frame batch");
+    }
+
+    std::int32_t dispatch_x0 = 0;
+    std::int32_t dispatch_y0 = 0;
+    std::int32_t dispatch_x1 = static_cast<std::int32_t>(dst_image.width);
+    std::int32_t dispatch_y1 = static_cast<std::int32_t>(dst_image.height);
+    if (clip) {
+        dispatch_x0 = std::clamp<std::int32_t>(clip->x0, 0, dispatch_x1);
+        dispatch_y0 = std::clamp<std::int32_t>(clip->y0, 0, dispatch_y1);
+        dispatch_x1 = std::clamp<std::int32_t>(clip->x1, dispatch_x0, dispatch_x1);
+        dispatch_y1 = std::clamp<std::int32_t>(clip->y1, dispatch_y0, dispatch_y1);
+        if (dispatch_x0 >= dispatch_x1 || dispatch_y0 >= dispatch_y1) return;
     }
 
     const std::size_t count = emitter.count;
@@ -216,7 +238,8 @@ void VulkanBackend::Impl::execute_gpu_particle_batch(
 
     const auto command = active_command_buffer();
     const GpuParticleEmitterUniform uniform =
-        make_particle_uniform(emitter, static_cast<float>(seconds));
+        make_particle_uniform(emitter, static_cast<float>(seconds), transform,
+                              opacity, src_image.width, src_image.height);
     vkCmdUpdateBuffer(command, instance_buffer, 0, sizeof(uniform), &uniform);
     emit_particle_buffer_barrier(
         command, instance_buffer,
@@ -268,8 +291,7 @@ void VulkanBackend::Impl::execute_gpu_particle_batch(
         record_layer_batch(
             command, descriptors, dst_image,
             static_cast<std::int32_t>(chunk), instance_buffer, false,
-            0, 0, static_cast<std::int32_t>(dst_image.width),
-            static_cast<std::int32_t>(dst_image.height));
+            dispatch_x0, dispatch_y0, dispatch_x1, dispatch_y1);
         if (first + chunk < count) {
             runtime::ResourceTransition transition;
             transition.range = runtime::image_range(runtime::ResourceAspect::Color);

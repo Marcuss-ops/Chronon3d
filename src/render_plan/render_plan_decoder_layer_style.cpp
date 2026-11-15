@@ -64,6 +64,8 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
         style_plan.gel_soft_fusion = optional_value<bool>(style, "gel_soft_fusion");
         style_plan.extruded_text = style.value("extruded_text", false);
         style_plan.extrusion_depth = style.value("extrusion_depth", 12.0f);
+        style_plan.extrusion_bevel = optional_value<float>(style, "extrusion_bevel");
+        style_plan.bevel_px = optional_value<float>(style, "bevel_px");
         style_plan.gel_transmission_enabled = style.value("gel_transmission", true);
         style_plan.gel_material_profile =
             style.value("gel_material_profile", std::string{"current"});
@@ -157,6 +159,22 @@ void decode_layer_style_fields(LayerPlan& layer, const nlohmann::json& value) {
              style_plan.extrusion_depth <= 0.0f ||
              style_plan.extrusion_depth > 10000.0f))
             throw std::runtime_error("style.extrusion_depth must be finite and in (0, 10000]");
+        if (style_plan.extrusion_bevel) {
+            if (!style_plan.extruded_text)
+                throw std::runtime_error("style.extrusion_bevel requires extruded_text");
+            if (!std::isfinite(*style_plan.extrusion_bevel) ||
+                *style_plan.extrusion_bevel < 0.0f ||
+                *style_plan.extrusion_bevel > 64.0f)
+                throw std::runtime_error("style.extrusion_bevel must be finite and in [0, 64]");
+        }
+        if (style_plan.bevel_px) {
+            if (layer.type != LayerType::Text)
+                throw std::runtime_error("style.bevel_px is only valid for text layers");
+            if (!std::isfinite(*style_plan.bevel_px) ||
+                *style_plan.bevel_px < 0.0f ||
+                *style_plan.bevel_px > 32.0f)
+                throw std::runtime_error("style.bevel_px must be finite and in [0, 32]");
+        }
         if (style_plan.gel_debug_mode > 7 ||
             (style_plan.gel_debug_mode != 0 &&
              (!style_plan.gel_surface || layer.type != LayerType::Text)))

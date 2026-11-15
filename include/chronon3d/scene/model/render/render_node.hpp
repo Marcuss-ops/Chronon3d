@@ -6,6 +6,7 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/scene/model/shape/fill.hpp>
+#include <chronon3d/scene/model/shape/particles.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/scene/model/render/render_node_params.hpp>
 #include <vector>
@@ -82,6 +83,10 @@ struct RenderNode {
     std::optional<GpuParticleInstance> software_environment_particle;
     bool gpu_particle_bokeh{false};
     std::string gpu_particle_sprite_path;
+    // Full emitter payload for the production GPU-native lane. The sampled
+    // instances above remain the CPU oracle / fallback; this field lets the
+    // source node derive the same billboards on-device from (seed, time).
+    std::optional<ParticleEmitterParams> gpu_particle_emitter;
     struct SvgGroupIsolation {
         struct OpacityAnimation {
             std::int64_t start_frame{0};

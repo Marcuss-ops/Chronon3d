@@ -1,0 +1,36 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+
+layout(push_constant) uniform HalationParams {
+    vec4 tint;
+    float threshold;
+    float softness;
+    float intensity;
+    int mode; // 0 = extract highlight mask, 1 = screen composite onto destination
+} params;
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(destination_image);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    if (params.mode == 0) {
+        vec4 c = imageLoad(source_image, pixel);
+        float luma = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+        float knee = max(params.softness, 1.0e-3);
+        float t = clamp((luma - params.threshold) / knee, 0.0, 1.0);
+        float m = t * t * (3.0 - 2.0 * t);
+        imageStore(destination_image, pixel, vec4(m, m, m, m));
+    } else {
+        vec4 m = imageLoad(source_image, pixel);
+        vec4 dst = imageLoad(destination_image, pixel);
+        vec3 halo = clamp(m.rgb * params.tint.rgb * params.intensity, 0.0, 1.0);
+        vec3 out_rgb = clamp(1.0 - (1.0 - dst.rgb) * (1.0 - halo), 0.0, 1.0);
+        float halo_alpha = max(halo.r, max(halo.g, halo.b));
+        float out_a = max(dst.a, halo_alpha);
+        imageStore(destination_image, pixel, vec4(out_rgb, out_a));
+    }
+}

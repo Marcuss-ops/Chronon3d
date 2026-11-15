@@ -35,7 +35,7 @@
 namespace chronon3d::graph {
 
 Mat4 SourceNode::effective_matrix(const RenderGraphContext& ctx) const {
-    if (ctx.frame_parameters && layer_index() != UINT32_MAX) {
+    if (!m_defer_camera_projection && ctx.frame_parameters && layer_index() != UINT32_MAX) {
         if (const auto* sampled = compiler::find_layer(
                 *ctx.frame_parameters, layer_index())) {
             // Typed program transforms are authored in the canonical

@@ -22,6 +22,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include "../render_graph/pipeline/temporal/temporal_render_pipeline.hpp"
 #include "../render_plan/render_plan_camera_adapter.hpp"
+#include "../render_plan/render_plan_compiler_detail.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/cache/node_cache.hpp>
@@ -203,12 +204,42 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     // The cached topology is immutable. Only animated-camera programs need a
     // per-render scene copy so all graph consumers (including dirty/reuse
     // policy) observe the same resolved camera without mutating the cache.
+    const bool has_animated_lights = std::any_of(
+        program.layers().begin(), program.layers().end(),
+        [](const auto& l) {
+            return l.kind == compiler::NodeKind::Light && l.light &&
+                   l.light->kind != render_plan::LightKindPlan::Radial &&
+                   l.light_animation.has_value();
+        });
     std::optional<Scene> camera_scene;
-    if (!metadata.camera_samples.empty()) camera_scene.emplace(topology->clone());
+    if (!metadata.camera_samples.empty() || has_animated_lights) {
+        camera_scene.emplace(topology->clone());
+    }
     const auto scene_at = [&](double sample_frame) -> const Scene& {
         if (!camera_scene) return *topology;
-        camera_scene->set_camera_2_5d(render_plan::detail::sample_resolved_camera(
-            metadata.camera_samples, sample_frame, metadata.camera_cut_frames));
+        if (!metadata.camera_samples.empty()) {
+            camera_scene->set_camera_2_5d(render_plan::detail::sample_resolved_camera(
+                metadata.camera_samples, sample_frame, metadata.camera_cut_frames));
+        }
+        if (has_animated_lights) {
+            auto& point_lights = camera_scene->light_context().point_lights;
+            point_lights.clear();
+            for (const auto& layer : program.layers()) {
+                if (layer.kind != compiler::NodeKind::Light || !layer.light ||
+                    layer.light->kind == render_plan::LightKindPlan::Radial) {
+                    continue;
+                }
+                render_plan::LayerPlan light_view;
+                light_view.id = layer.name;
+                light_view.type = render_plan::LayerType::Light;
+                light_view.position = layer.position;
+                light_view.position_dimensions = layer.position_dimensions;
+                light_view.light = layer.light;
+                light_view.animation = layer.light_animation;
+                point_lights.push_back(render_plan::detail::build_point_light_source(
+                    light_view, metadata.width, metadata.height, sample_frame, canvas_fps));
+            }
+        }
         return *camera_scene;
     };
 

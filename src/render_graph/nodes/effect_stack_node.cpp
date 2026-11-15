@@ -389,6 +389,11 @@ NodeExecResult EffectStackNode::execute(
                         ctx, one_effect, *result, native_clip, current_source,
                         current_source_framebuffer);
                     break;
+                case effects::EffectType::Halation:
+                    stage_handled = native_effects::try_native_full_frame_halation(
+                        ctx, one_effect, *result, native_clip, current_source,
+                        current_source_framebuffer);
+                    break;
                 case effects::EffectType::InnerGlow:
                     stage_handled = native_effects::try_native_full_frame_inner_glow(
                         ctx, one_effect, *result, native_clip, current_source,

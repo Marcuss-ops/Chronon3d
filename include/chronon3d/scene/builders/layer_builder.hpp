@@ -215,6 +215,10 @@ public:
     LayerBuilder& callout(std::string name, CalloutParams params);
     LayerBuilder& image(std::string name, ImageParams params);
     LayerBuilder& tiled_image(std::string name, ImageParams params);
+    /// Register an auxiliary image dependency (gobo, light-wrap plate, mask)
+    /// in this layer's asset manifest without creating a render node.
+    LayerBuilder& asset_image(std::string path, std::string owner,
+                              int max_dimension = 0);
     /// Add a logical mesh dependency and an unloaded Mesh render node.
     /// No filesystem access, parsing, or runtime resolution occurs here.
     LayerBuilder& mesh(std::string name, assets::MeshRef ref);

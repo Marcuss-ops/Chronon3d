@@ -151,8 +151,12 @@ struct TextVisibilityAudit {
     Rect clip_rect{};                       // Caller-provided (compositor clip).
     Rect rendered_alpha_bbox{};             // Measured alpha-bbox of the
                                             // rasterized output (only valid
-                                            // when `rendered_output != nullptr`);
+                                            // when `alpha_measured`);
                                             // zero-rect if unscanned.
+    bool alpha_measured{false};             // True when the alpha bbox came
+                                            // from a framebuffer or from the
+                                            // renderer's authoritative
+                                            // actual_ink_bbox override.
 
     // ── containment + sanity invariants ──────────────────────────────────
     bool finite{false};                     // All 5 bboxes have finite
@@ -252,7 +256,8 @@ struct TextVisibilityAudit {
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
     const Framebuffer*  rendered_output = nullptr,
-    float               effect_padding  = 0.0f
+    float               effect_padding  = 0.0f,
+    const Rect*         rendered_alpha_bbox_override = nullptr
 ) noexcept;
 
 } // namespace chronon3d

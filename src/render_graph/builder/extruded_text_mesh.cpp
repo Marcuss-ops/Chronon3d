@@ -162,7 +162,9 @@ Vec3 front_cap_normal(Vec2 point, Vec2 centre, Vec2 half_extent) {
 } // namespace
 
 std::shared_ptr<Mesh> build_extruded_text_mesh(
-    const TextRunShape& shape, float depth) {
+    const TextRunShape& shape,
+    float depth,
+    std::optional<float> bevel_width_override) {
     if (!shape.layout || !shape.engine)
         throw std::runtime_error("ExtrudedText3D requires a prepared TextRun and FontEngine");
     if (!std::isfinite(depth) || depth <= 0.0f || depth > 10000.0f)
@@ -248,8 +250,9 @@ std::shared_ptr<Mesh> build_extruded_text_mesh(
         // plateau, then bridge that inset to the original rim. The width is
         // proportional to both depth and type size, so short and tall runs
         // keep the same visual edge.
-        const float bevel_width = std::clamp(
-            std::min(depth * 0.14f, font_size * 0.10f), 1.0f, 32.0f);
+        const float bevel_width = bevel_width_override
+            ? std::clamp(*bevel_width_override, 0.0f, 64.0f)
+            : std::clamp(std::min(depth * 0.14f, font_size * 0.10f), 1.0f, 32.0f);
         const float bevel_depth = bevel_width * 0.85f;
         const float rim_z = front_z + bevel_depth;
 

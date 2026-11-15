@@ -493,6 +493,13 @@ struct EvaluatedSourcePlacement {
             // the layer to the top-left corner. Re-apply the centre exactly once
             // for unpinned screen-space primitives; projected/native/pinned
             // layers keep their own placement basis.
+            // The compiled and RenderPlan lowering paths both produce
+            // centre-relative matrices for text and shape samples; SourceNode
+            // applies the implicit canvas centre once when it executes. Mirror
+            // that single bake here so predicted bbox, dirty analysis and the
+            // source stage agree. Passing an absolute shape matrix through
+            // this branch (or dropping the bake for centre-relative samples)
+            // shifts animated shapes by canvas/2 and clips callouts.
             if (!resolved_layer.has_parent && layer.screen_space &&
                 (layer.kind == LayerKind::Text || layer.kind == LayerKind::Shape) &&
                 !layer.uses_2_5d_projection && !native_3d &&
@@ -555,7 +562,28 @@ struct EvaluatedSourcePlacement {
             return item;
         }
 
+        // Painter's-order key. The origin depth of a layer depends on where
+        // its anchor sits on its plane, so a yawed/orbiting camera made two
+        // COPLANAR layers (e.g. a full-frame backdrop and a title, both at
+        // z=0) sort by their in-plane X offset: the backdrop could flip in
+        // front of the title. Measure the plane where the optical axis
+        // crosses it instead: coplanar layers then share one key and fall
+        // back to authored order, while distinct planes still sort by depth.
         item.depth = projected.depth;
+        {
+            const Mat4 view = camera_math::view_matrix_for_camera(
+                ctx.frame_input.camera_2_5d);
+            const Vec4 p = view * Vec4(Vec3(placed_world[3]), 1.0f);
+            const Vec3 n = glm::mat3(view) * Vec3(placed_world[2]);
+            const f32 n_len = glm::length(n);
+            if (n_len > 1e-6f && std::abs(n.z) > 0.05f * n_len) {
+                const f32 axis_depth = glm::dot(n, Vec3(p)) / n.z;
+                if (std::isfinite(axis_depth) && axis_depth > 0.0f) {
+                    // Quantize so float noise between coplanar layers is a tie.
+                    item.depth = std::round(axis_depth * 64.0f) / 64.0f;
+                }
+            }
+        }
         item.world_z = placed_transform.position.z;
         // Native 3D keeps camera ownership in the source processor.  Its
         // graph item therefore carries identity for transform/shadow users;

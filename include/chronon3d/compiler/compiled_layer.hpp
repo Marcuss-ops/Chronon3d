@@ -84,6 +84,11 @@ struct StaticLayerProgram {
     bool has_transform_animation{false};
     bool enable_3d{false};
     bool screen_space{false};
+    std::optional<render_plan::ImageLightingPlan> image_lighting;
+    std::optional<render_plan::LightLayerPlan> light;
+    std::optional<render_plan::AnimationPlan> light_animation;
+    std::optional<bool> casts_shadows;
+    std::optional<bool> accepts_shadows;
 };
 
 }  // namespace chronon3d::compiler

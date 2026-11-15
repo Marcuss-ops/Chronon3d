@@ -230,7 +230,13 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
     }
     out.add_bool(style.gel_surface);
     out.add_bool(style.extruded_text);
-    if (style.extruded_text) out.add_float(style.extrusion_depth);
+    if (style.extruded_text) {
+        out.add_float(style.extrusion_depth);
+        add_optional(out, style.extrusion_bevel,
+                     [](auto& writer, float value) { writer.add_float(value); });
+    }
+    add_optional(out, style.bevel_px,
+                 [](auto& writer, float value) { writer.add_float(value); });
     if (style.gel_surface) {
         out.add_bool(style.gel_transmission_enabled);
         out.add_bool(style.gel_soft_fusion.value_or(true));

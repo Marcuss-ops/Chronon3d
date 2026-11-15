@@ -114,6 +114,53 @@ void lower_animation(const render_plan::RenderPlan& plan, CompiledProgramData& o
                         continue;
                     }
 
+                    if (kind == chronon3d::AnimationPropertyKind::PositionVector ||
+                        kind == chronon3d::AnimationPropertyKind::UniformScale) {
+                        if (track.keyframes.empty())
+                            throw std::runtime_error(
+                                "vector transform animation requires at least one keyframe");
+                        const auto components = track.keyframes.front().value.size();
+                        for (const auto& keyframe : track.keyframes) {
+                            if (keyframe.value.size() != components)
+                                throw std::runtime_error(
+                                    "vector transform animation keyframes must use a consistent component count");
+                        }
+                        if (components == 2 || components == 3) {
+                            // The typed program stores one scalar curve per
+                            // channel. Flattening a vector `scale`/`position`
+                            // track into a single channel made the sampler drop
+                            // it (UniformScale/PositionVector have no scalar
+                            // sampler case), so a 112% overshoot stayed at 100%.
+                            // Split the vector into the absolute component
+                            // tracks the sampler evaluates.
+                            const bool is_position =
+                                kind == chronon3d::AnimationPropertyKind::PositionVector;
+                            append_scalar_track(
+                                is_position ? "position.x" : "scale.x",
+                                is_position ? AnimationProperty::PositionX
+                                            : AnimationProperty::ScaleX,
+                                track, 0);
+                            append_scalar_track(
+                                is_position ? "position.y" : "scale.y",
+                                is_position ? AnimationProperty::PositionY
+                                            : AnimationProperty::ScaleY,
+                                track, 1);
+                            if (components == 3) {
+                                append_scalar_track(
+                                    is_position ? "position.z" : "scale.z",
+                                    is_position ? AnimationProperty::PositionZ
+                                                : AnimationProperty::ScaleZ,
+                                    track, 2);
+                            }
+                            continue;
+                        }
+                        if (kind == chronon3d::AnimationPropertyKind::PositionVector)
+                            throw std::runtime_error(
+                                "position animation requires 2 or 3 components per keyframe");
+                        // A scalar `scale` track is the uniform-scale case;
+                        // fall through to the generic one-channel lowering.
+                    }
+
                     const auto first_keyframe = static_cast<std::uint32_t>(out.curve_keyframes.size());
                     for (const auto& keyframe : track.keyframes) {
                         for (const float value : keyframe.value) {

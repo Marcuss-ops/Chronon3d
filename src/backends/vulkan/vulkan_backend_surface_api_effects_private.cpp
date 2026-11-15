@@ -294,6 +294,28 @@ graph::RenderOpResult VulkanBackend::glow_advanced_surfaces(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::halation_surfaces(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle scratch_horizontal,
+    runtime::RenderSurfaceHandle scratch_vertical,
+    const HalationParams& params) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 4> touched{
+        destination, source, scratch_horizontal, scratch_vertical};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->halation(destination, source, scratch_horizontal,
+                         scratch_vertical, params);
+    });
+#else
+    (void)destination; (void)source; (void)scratch_horizontal;
+    (void)scratch_vertical; (void)params;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::halation_surfaces: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::inner_glow_composite_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
@@ -438,18 +460,22 @@ graph::RenderOpResult VulkanBackend::lighting_surface_points(
     float layer_z,
     int origin_x,
     int origin_y,
-    float diffuse) {
+    float diffuse,
+    const Vec4& relight_params,
+    const Vec4& relight_specular) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
     return run_batched_surface_op(touched, {}, [&] {
         m_impl->lighting_points(destination, source, scene_multiplier,
                                 packed_lights, light_count, normal, layer_z,
-                                origin_x, origin_y, diffuse);
+                                origin_x, origin_y, diffuse,
+                                relight_params, relight_specular);
     });
 #else
     (void)destination; (void)source; (void)scene_multiplier;
     (void)packed_lights; (void)light_count; (void)normal; (void)layer_z;
     (void)origin_x; (void)origin_y; (void)diffuse;
+    (void)relight_params; (void)relight_specular;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::lighting_surface_points: Vulkan support is disabled"));
@@ -578,7 +604,9 @@ graph::RenderOpResult VulkanBackend::execute_layer_batch(
 graph::RenderOpResult VulkanBackend::execute_gpu_particle_batch(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle transparent_source,
-    const ParticleEmitterParams& emitter, double seconds) {
+    const ParticleEmitterParams& emitter, double seconds,
+    const glm::mat4& transform, float opacity,
+    const std::optional<raster::BBox>& clip) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!std::isfinite(seconds) || seconds < 0.0) {
         return graph::RenderOpResult(graph::make_render_backend_error(
@@ -589,12 +617,11 @@ graph::RenderOpResult VulkanBackend::execute_gpu_particle_batch(
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     }
     if (emitter.count > kGpuParticleMaxCount ||
-        emitter.shape == EmitterShape::Path ||
-        !emitter.sprite_asset.empty()) {
+        emitter.shape == EmitterShape::Path) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "VulkanBackend::execute_gpu_particle_batch: bounded procedural "
-            "emitters only (count <= 4096, no path or sprite assets)"));
+            "or sprite emitters only (count <= 4096, no path emitters)"));
     }
     if (const auto error = validate_particle_emitter(emitter); !error.empty()) {
         return graph::RenderOpResult(graph::make_render_backend_error(
@@ -609,15 +636,22 @@ graph::RenderOpResult VulkanBackend::execute_gpu_particle_batch(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "VulkanBackend::execute_gpu_particle_batch: blend mode is unsupported"));
     }
+    if (!std::isfinite(opacity)) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::InvalidInput,
+            "VulkanBackend::execute_gpu_particle_batch: invalid opacity"));
+    }
 
     const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
     const std::array<runtime::RenderSurfaceHandle, 1> read{transparent_source};
     return run_batched_surface_op(touched, read, [&] {
         m_impl->execute_gpu_particle_batch(
-            destination, transparent_source, emitter, seconds);
+            destination, transparent_source, emitter, seconds, transform,
+            std::clamp(opacity, 0.0f, 1.0f), clip);
     });
 #else
     (void)destination; (void)transparent_source; (void)emitter; (void)seconds;
+    (void)transform; (void)opacity; (void)clip;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::execute_gpu_particle_batch: Vulkan support is disabled"));

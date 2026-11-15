@@ -17,7 +17,65 @@ layout(push_constant) uniform LightingParams {
     vec4 multiplier;
     vec4 normal_layer_z;
     vec4 origin_diffuse_count;
+    vec4 relight_params;
+    vec4 relight_specular;
 } params;
+
+float sample_luminance(ivec2 coord, ivec2 size) {
+    ivec2 c = clamp(coord, ivec2(0), size - ivec2(1));
+    vec3 rgb = imageLoad(source_image, c).rgb;
+    return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+}
+
+float sample_alpha(ivec2 coord, ivec2 size) {
+    if (coord.x < 0 || coord.y < 0 || coord.x >= size.x || coord.y >= size.y) {
+        return 0.0;
+    }
+    return imageLoad(source_image, coord).a;
+}
+
+vec3 compute_bump_normal(ivec2 coord, ivec2 size, float bump_strength) {
+    float tl = sample_luminance(coord + ivec2(-1, -1), size);
+    float tc = sample_luminance(coord + ivec2( 0, -1), size);
+    float tr = sample_luminance(coord + ivec2( 1, -1), size);
+    float ml = sample_luminance(coord + ivec2(-1,  0), size);
+    float mr = sample_luminance(coord + ivec2( 1,  0), size);
+    float bl = sample_luminance(coord + ivec2(-1,  1), size);
+    float bc = sample_luminance(coord + ivec2( 0,  1), size);
+    float br = sample_luminance(coord + ivec2( 1,  1), size);
+
+    float gx = (3.0 * (tr - tl) + 10.0 * (mr - ml) + 3.0 * (br - bl)) / 32.0;
+    float gy = (3.0 * (bl - tl) + 10.0 * (bc - tc) + 3.0 * (br - tr)) / 32.0;
+    return normalize(vec3(-gx * bump_strength, gy * bump_strength, 1.0));
+}
+
+void compute_alpha_rim(ivec2 coord, ivec2 size, float a_center, float width_px,
+                       out float edge_factor, out vec2 outward_dir) {
+    vec2 dirs[8] = vec2[8](
+        vec2( 1.0,  0.0), vec2(-1.0,  0.0), vec2( 0.0,  1.0), vec2( 0.0, -1.0),
+        vec2( 0.7071,  0.7071), vec2(-0.7071,  0.7071),
+        vec2( 0.7071, -0.7071), vec2(-0.7071, -0.7071)
+    );
+    float fracs[5] = float[5](0.12, 0.25, 0.45, 0.70, 1.00);
+    float weights[5] = float[5](0.30, 0.25, 0.20, 0.15, 0.10);
+    float avg_a = 0.0;
+    vec2 grad = vec2(0.0);
+    for (int ring = 0; ring < 5; ++ring) {
+        float r = max(1.0, width_px * fracs[ring]);
+        float w = weights[ring];
+        for (int i = 0; i < 8; ++i) {
+            ivec2 o = ivec2(round(dirs[i] * r));
+            float a = sample_alpha(coord + o, size);
+            avg_a += a * w;
+            grad += dirs[i] * (a * w);
+        }
+    }
+    avg_a /= 8.0;
+    edge_factor = clamp((a_center - avg_a) / max(a_center, 1e-4) * 1.4, 0.0, 1.0);
+    edge_factor = edge_factor * edge_factor * (3.0 - 2.0 * edge_factor);
+    float glen = length(grad);
+    outward_dir = glen > 1e-4 ? (-grad / glen) : vec2(0.0);
+}
 
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
@@ -30,12 +88,41 @@ void main() {
         return;
     }
 
+    bool relight_enabled = params.relight_specular.z > 0.5;
+    float bump_strength = params.relight_params.x;
+    float rim_strength = params.relight_params.y;
+    float rim_width_px = params.relight_params.z;
+    float roughness = clamp(params.relight_params.w, 0.04, 1.0);
+    float specular_intensity = params.relight_specular.x;
+    float rim_power = max(params.relight_specular.y, 0.5);
+
     vec3 factor = params.multiplier.rgb;
+    vec3 specular_total = vec3(0.0);
+    vec3 rim_total = vec3(0.0);
     uint light_count = uint(max(params.origin_diffuse_count.w, 0.0));
     if (light_count > 0u) {
         vec3 normal = params.normal_layer_z.xyz;
         float normal_length = length(normal);
         normal = normal_length > 1e-8 ? normal / normal_length : vec3(0.0, 0.0, 1.0);
+        if (relight_enabled && bump_strength > 0.0) {
+            vec3 local_n = compute_bump_normal(coord, size, bump_strength);
+            vec3 tangent = vec3(1.0, 0.0, 0.0);
+            vec3 bitangent = vec3(0.0, 1.0, 0.0);
+            if (abs(normal.z) < 0.999) {
+                vec3 up = vec3(0.0, 0.0, 1.0);
+                tangent = normalize(cross(up, normal));
+                bitangent = cross(normal, tangent);
+            }
+            normal = normalize(tangent * local_n.x + bitangent * local_n.y + normal * local_n.z);
+        }
+
+        float edge_factor = 0.0;
+        vec2 outward_dir = vec2(0.0);
+        if (relight_enabled && rim_strength > 0.0 && rim_width_px > 0.0) {
+            compute_alpha_rim(coord, size, source.a, rim_width_px, edge_factor, outward_dir);
+        }
+
+        float shininess = max(2.0 / (roughness * roughness) - 2.0, 1.0);
         vec3 position = vec3(
             params.origin_diffuse_count.x + float(coord.x) + 0.5,
             params.origin_diffuse_count.y + float(coord.y) + 0.5,
@@ -87,12 +174,33 @@ void main() {
                     attenuation *= cone;
                 }
             }
-            float k = attenuation * max(dot(normal, to_light), 0.0) *
-                params.origin_diffuse_count.z;
+            float ndotl = max(dot(normal, to_light), 0.0);
+            float k = attenuation * ndotl * params.origin_diffuse_count.z;
             total += light.color_radius.rgb * k;
+
+            if (relight_enabled && specular_intensity > 0.0 && ndotl > 0.0) {
+                vec3 half_vec = normalize(to_light + vec3(0.0, 0.0, 1.0));
+                float ndoth = max(dot(normal, half_vec), 0.0);
+                float spec = pow(ndoth, shininess) * specular_intensity * attenuation;
+                specular_total += light.color_radius.rgb * spec;
+            }
+            if (relight_enabled && edge_factor > 0.0) {
+                float align = (length(outward_dir) > 1e-4 && dot(to_light.xy, to_light.xy) > 1e-8)
+                    ? max(dot(normalize(to_light.xy), outward_dir), 0.0)
+                    : 1.0;
+                float rim_k = attenuation * rim_strength * pow(edge_factor, rim_power) *
+                    (0.25 + 0.75 * align);
+                rim_total += light.color_radius.rgb * rim_k;
+            }
         }
-        factor = clamp(factor + total, vec3(0.0), vec3(1.0));
+        if (relight_enabled) {
+            factor = max(factor + total, vec3(0.0));
+        } else {
+            factor = clamp(factor + total, vec3(0.0), vec3(1.0));
+        }
     }
-    vec3 rgb = clamp(source.rgb * factor, vec3(0.0), vec3(1.0));
+    vec3 rgb = relight_enabled
+        ? max(source.rgb * factor + (specular_total + rim_total) * source.a, vec3(0.0))
+        : clamp(source.rgb * factor, vec3(0.0), vec3(1.0));
     imageStore(destination_image, coord, vec4(rgb, source.a));
 }

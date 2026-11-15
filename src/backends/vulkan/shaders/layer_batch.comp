@@ -32,6 +32,7 @@ layout(push_constant) uniform LayerBatchParams {
     int instance_count;
     int padding0;
     ivec2 dispatch_origin;
+    ivec2 dispatch_end;
 } params;
 
 vec4 sample_nearest(vec2 source, ivec2 size) {
@@ -67,7 +68,9 @@ vec4 blend_separable(vec4 src, vec4 dst, uint mode) {
 void main() {
     ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
     ivec2 dst_size = imageSize(dst_image);
-    if (pixel.x >= dst_size.x || pixel.y >= dst_size.y) return;
+    if (pixel.x < params.dispatch_origin.x || pixel.y < params.dispatch_origin.y ||
+        pixel.x >= params.dispatch_end.x || pixel.y >= params.dispatch_end.y ||
+        pixel.x >= dst_size.x || pixel.y >= dst_size.y) return;
 
     vec4 accum = imageLoad(dst_image, pixel);
     ivec2 src_size = imageSize(src_image);

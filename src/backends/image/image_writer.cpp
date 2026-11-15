@@ -2,6 +2,7 @@
 #include <stb_image_write.h>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/rendering/image_lighting.hpp>
 
 #ifdef CHRONON3D_ENABLE_EXR
 #include <OpenEXR/ImfOutputFile.h>

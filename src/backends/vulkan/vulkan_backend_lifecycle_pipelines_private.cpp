@@ -24,6 +24,7 @@
 #include "bloom_upsample_comp_spv.hpp"
 #include "bloom_composite_comp_spv.hpp"
 #include "glow_prepare_comp_spv.hpp"
+#include "halation_prepare_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
 #include "color_matrix_comp_spv.hpp"
 #include "chromatic_aberration_comp_spv.hpp"
@@ -512,6 +513,34 @@ void VulkanBackend::Impl::init_core_kernel_pipelines() {
         if (debug_context)
             debug_context->set_pipeline_name(glow_prepare_pipeline,
                                              "Chronon3D.Pipeline.GlowPrepare");
+
+        {
+            const VkShaderModuleCreateInfo halation_prepare_shader_info{
+                VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+                shaders::chronon3d_halation_prepare_comp_spv_size,
+                reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_halation_prepare_comp_spv)};
+            VkShaderModule halation_prepare_shader = VK_NULL_HANDLE;
+            check(vkCreateShaderModule(device, &halation_prepare_shader_info, nullptr,
+                                      &halation_prepare_shader),
+                  "vkCreateShaderModule(halation prepare)");
+            const VkPipelineShaderStageCreateInfo halation_prepare_stage{
+                VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+                VK_SHADER_STAGE_COMPUTE_BIT, halation_prepare_shader, "main", nullptr};
+            const VkComputePipelineCreateInfo halation_prepare_pipeline_info{
+                VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+                halation_prepare_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+            VkPipeline halation_prepare_pipeline = VK_NULL_HANDLE;
+            const VkResult halation_prepare_result = vkCreateComputePipelines(
+                device, kernels.pipeline_cache, 1, &halation_prepare_pipeline_info, nullptr,
+                &halation_prepare_pipeline);
+            vkDestroyShaderModule(device, halation_prepare_shader, nullptr);
+            check(halation_prepare_result, "vkCreateComputePipelines(halation prepare)");
+            register_kernel_or_throw(kernels.registry, device,
+                    GpuKernelId::HalationPrepare, halation_prepare_pipeline, "HalationPrepare");
+            if (debug_context)
+                debug_context->set_pipeline_name(halation_prepare_pipeline,
+                                                 "Chronon3D.Pipeline.HalationPrepare");
+        }
 
         const VkShaderModuleCreateInfo color_adjust_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

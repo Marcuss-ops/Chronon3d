@@ -188,6 +188,12 @@ void append_particles_layer_for_scene(
     chronon3d::LayerBuilder&, const LayerPlan&, const RenderPlan&, std::size_t,
     const std::vector<std::string>& resolved_particle_sprite_paths,
     const chronon3d::FrameContext&);
+[[nodiscard]] chronon3d::rendering::PointLightSource build_point_light_source(
+    const LayerPlan& layer,
+    std::uint32_t canvas_width,
+    std::uint32_t canvas_height,
+    double frame,
+    FrameRate fps);
 void append_light_layer_for_scene(
     chronon3d::LayerBuilder&, const LayerPlan&, const RenderPlan&,
     const chronon3d::FrameContext&,

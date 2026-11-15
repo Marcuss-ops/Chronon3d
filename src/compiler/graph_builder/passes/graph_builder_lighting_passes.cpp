@@ -23,7 +23,12 @@ void append_lighting_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outpu
                                     const BuilderContext& node_ctx) {
     const Layer& layer = *item.layer;
 
-    if (!item.projected) {
+    const bool has_image_relight =
+        layer.material().image_bump_strength > 0.0f ||
+        layer.material().image_rim_strength > 0.0f ||
+        layer.material().image_light_wrap_strength > 0.0f ||
+        !layer.material().image_gobo_asset.empty();
+    if (!item.projected && !has_image_relight) {
         return;
     }
     if (!ctx.frame_input.light_context.enabled && !ctx.frame_input.light_context.has_point_lights()) {

@@ -102,6 +102,54 @@ namespace chronon3d::graph {
 
 namespace {
 
+// Semantic identity for the production GPU emitter payload. The sampled
+// instance array above is the runtime fallback/oracle; this hash covers the
+// authored emitter so a seed/ranges/ramp change invalidates the graph even
+// when the current frame's sampled billboards happen to be identical.
+u64 hash_gpu_particle_emitter_identity(const ParticleEmitterParams& p) {
+    u64 h = hash_string("chronon.gpu-particle-emitter.v1");
+    h = hash_combine(h, hash_value(p.count));
+    h = hash_combine(h, hash_value(p.seed));
+    h = hash_combine(h, hash_vec2(p.emitter_size));
+    h = hash_combine(h, hash_vec2(p.velocity_min));
+    h = hash_combine(h, hash_vec2(p.velocity_max));
+    h = hash_combine(h, hash_value(p.lifetime_min));
+    h = hash_combine(h, hash_value(p.lifetime_max));
+    h = hash_combine(h, hash_gradient_v2(p.color_ramp));
+    h = hash_combine(h, hash_value(p.size_min));
+    h = hash_combine(h, hash_value(p.size_max));
+    h = hash_combine(h, hash_value(p.gravity));
+    h = hash_combine(h, hash_value(p.turbulence));
+    h = hash_combine(h, hash_value(p.air_drag));
+    h = hash_combine(h, hash_value(p.emissive));
+    h = hash_combine(h, hash_vec2(p.emitter_velocity));
+    h = hash_combine(h, hash_gradient_v2(p.size_over_life));
+    h = hash_combine(h, hash_gradient_v2(p.opacity_over_life));
+    h = hash_combine(h, hash_value(p.flow.strength));
+    h = hash_combine(h, hash_value(p.flow.scale));
+    h = hash_combine(h, hash_value(p.flow.speed));
+    h = hash_combine(h, hash_value(p.twinkle.amount));
+    h = hash_combine(h, hash_value(p.twinkle.speed));
+    h = hash_combine(h, hash_value(static_cast<int>(p.shape)));
+    h = hash_combine(h, hash_string(p.path_id));
+    h = hash_combine(h, hash_value(p.path_points.size()));
+    for (const auto& point : p.path_points)
+        h = hash_combine(h, hash_vec2(point));
+    h = hash_combine(h, hash_string(p.sprite_asset));
+    h = hash_combine(h, hash_value(p.sprite_scale_min));
+    h = hash_combine(h, hash_value(p.sprite_scale_max));
+    h = hash_combine(h, hash_value(p.rotation_min));
+    h = hash_combine(h, hash_value(p.rotation_max));
+    h = hash_combine(h, hash_value(p.angular_velocity_min));
+    h = hash_combine(h, hash_value(p.angular_velocity_max));
+    h = hash_combine(h, hash_value(static_cast<int>(p.blend_mode)));
+    h = hash_combine(h, hash_value(p.environment));
+    h = hash_combine(h, hash_value(p.depth_min));
+    h = hash_combine(h, hash_value(p.depth_max));
+    h = hash_combine(h, hash_value(p.bokeh));
+    return h;
+}
+
 u64 hash_render_node_content_impl(const RenderNode& n, bool semantic_v2) {
     u64 seed = semantic_v2
         ? hash_string("chronon.render-node.content.v2")
@@ -124,6 +172,10 @@ u64 hash_render_node_content_impl(const RenderNode& n, bool semantic_v2) {
         seed = hash_combine(seed, hash_vec2(particle.velocity));
     }
     seed = hash_combine(seed, hash_string(n.gpu_particle_sprite_path));
+    seed = hash_combine(seed, hash_value(n.gpu_particle_emitter.has_value()));
+    if (n.gpu_particle_emitter)
+        seed = hash_combine(seed, hash_gpu_particle_emitter_identity(
+            *n.gpu_particle_emitter));
     seed = hash_combine(seed, hash_value(n.gpu_particle_instances.size()));
     for (const auto& particle : n.gpu_particle_instances) {
         seed = hash_combine(seed, hash_vec2(particle.position));

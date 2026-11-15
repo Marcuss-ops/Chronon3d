@@ -287,6 +287,128 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         existing_source_framebuffer);
 }
 
+bool try_native_full_frame_halation(RenderGraphContext& ctx,
+                                    const EffectStack& effect_stack,
+                                    Framebuffer& result,
+                                    const std::optional<raster::BBox>& clip,
+                                    runtime::RenderSurfaceHandle existing_source,
+                                    const Framebuffer* existing_source_framebuffer) {
+    (void)clip;
+    if (!ctx.backend || !ctx.backend_stats_api()->supports_native_surfaces() ||
+        !ctx.surface_registry || effect_stack.size() != 1) {
+        return false;
+    }
+    const auto& instance = effect_stack[0];
+    if (!instance.enabled || instance.effect_type != effects::EffectType::Halation) {
+        return false;
+    }
+    const auto* p = std::get_if<HalationParams>(&instance.params);
+    if (!p) return false;
+    try {
+        p->validate();
+    } catch (...) {
+        return false;
+    }
+
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
+    const bool source_is_existing =
+        existing_source != runtime::kInvalidRenderSurfaceHandle;
+    const bool source_needs_expansion = source_is_existing &&
+        existing_source_framebuffer &&
+        (existing_source_framebuffer->width() != result.width() ||
+         existing_source_framebuffer->height() != result.height() ||
+         existing_source_framebuffer->origin_x() != result.origin_x() ||
+         existing_source_framebuffer->origin_y() != result.origin_y());
+    std::vector<float> packed_rgba;
+    const auto rgba = source_is_existing
+        ? std::span<const float>{}
+        : framebuffer_rgba_view(result, packed_rgba);
+    const auto source = source_is_existing && !source_needs_expansion
+        ? existing_source
+        : ctx.surface_registry->create(desc);
+    const auto output = ctx.surface_registry->create(desc);
+    const auto horizontal = ctx.surface_registry->create(desc);
+    const auto vertical = ctx.surface_registry->create(desc);
+    if (source == runtime::kInvalidRenderSurfaceHandle ||
+        output == runtime::kInvalidRenderSurfaceHandle ||
+        horizontal == runtime::kInvalidRenderSurfaceHandle ||
+        vertical == runtime::kInvalidRenderSurfaceHandle) {
+        if ((!source_is_existing || source_needs_expansion) &&
+            source != runtime::kInvalidRenderSurfaceHandle)
+            ctx.surface_registry->release(source);
+        if (output != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(output);
+        if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(horizontal);
+        if (vertical != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(vertical);
+        return false;
+    }
+    const auto cleanup = [&] {
+        if (!source_is_existing || source_needs_expansion)
+            (void)ctx.backend_surface_api()->release_surface(source);
+        (void)ctx.backend_surface_api()->release_surface(output);
+        (void)ctx.backend_surface_api()->release_surface(horizontal);
+        (void)ctx.backend_surface_api()->release_surface(vertical);
+        if (!source_is_existing || source_needs_expansion)
+            ctx.surface_registry->release(source);
+        ctx.surface_registry->release(output);
+        ctx.surface_registry->release(horizontal);
+        ctx.surface_registry->release(vertical);
+    };
+
+    const auto source_ready = source_is_existing && !source_needs_expansion
+        ? RenderOpResult(RenderOpOutcome{})
+        : ctx.backend_surface_api()->create_surface(source, desc);
+    RenderOpResult upload = source_ready;
+    if (source_needs_expansion && source_ready.ok()) {
+        upload = ctx.backend_surface_api()->initialize_transparent_surface(source);
+        if (upload.ok()) {
+            const int offset_x = existing_source_framebuffer->origin_x() - result.origin_x();
+            const int offset_y = existing_source_framebuffer->origin_y() - result.origin_y();
+            upload = ctx.backend_surface_api()->transform_surface(
+                source, existing_source, offset_x, offset_y, 1.0f);
+        }
+    } else if (!source_is_existing && source_ready.ok()) {
+        upload = ctx.backend_surface_api()->upload_surface(source, desc, rgba);
+    }
+    const auto create_output = upload.ok()
+        ? ctx.backend_surface_api()->create_surface(output, desc)
+        : upload;
+    RenderOpResult upload_output = create_output;
+    if (create_output.ok()) {
+        if (source_is_existing) {
+            upload_output = ctx.backend_surface_api()->copy_surface(output, source);
+        } else {
+            upload_output = ctx.backend_surface_api()->upload_surface(output, desc, rgba);
+        }
+    }
+    const auto create_horizontal = upload_output.ok()
+        ? ctx.backend_surface_api()->create_surface(horizontal, desc)
+        : upload_output;
+    const auto create_vertical = create_horizontal.ok()
+        ? ctx.backend_surface_api()->create_surface(vertical, desc)
+        : create_horizontal;
+    if (!create_vertical.ok()) {
+        cleanup();
+        return false;
+    }
+    const auto native_effect = ctx.backend_surface_api()->halation_surfaces(
+        output, source, horizontal, vertical, *p);
+    if (!native_effect.ok()) {
+        cleanup();
+        return false;
+    }
+    if (!source_is_existing || source_needs_expansion)
+        (void)ctx.backend_surface_api()->release_surface(source);
+    (void)ctx.backend_surface_api()->release_surface(horizontal);
+    (void)ctx.backend_surface_api()->release_surface(vertical);
+    if (!source_is_existing || source_needs_expansion)
+        ctx.surface_registry->release(source);
+    ctx.surface_registry->release(horizontal);
+    ctx.surface_registry->release(vertical);
+    result.set_surface_handle(output);
+    result.mark_gpu_authoritative();
+    return true;
+}
+
 // Native Inner Glow certified window: choke == 0 and size <= 16. It reuses
 // the warp-bulk alpha erosion (mode 13), the separable Gaussian blur and a
 // screen-inside-alpha composite; unsupported choke/size values fail closed and
@@ -425,8 +547,8 @@ bool try_native_full_frame_inner_glow(
 
 // Native drop shadow keeps the two authored alpha silhouettes on Vulkan:
 // offset + blur the contact and ambient maps, combine them, then composite the
-// original source over the shadow. Radius 32 is the current image-motion
-// catalog maximum; its ambient lobe reaches 64 pixels.
+// original source over the shadow. The native blur, including the ambient
+// lobe at 2x radius, is certified through radius 64.
 bool try_native_full_frame_drop_shadow(
     RenderGraphContext& ctx, const EffectStack& effect_stack,
     Framebuffer& result, const std::optional<raster::BBox>& clip,
@@ -439,7 +561,7 @@ bool try_native_full_frame_drop_shadow(
     const auto* params = std::get_if<DropShadowParams>(&instance.params);
     if (!instance.enabled || instance.effect_type != effects::EffectType::DropShadow ||
         !params || !std::isfinite(params->radius) || params->radius < 0.0f ||
-        params->radius > 32.0f || !std::isfinite(params->offset.x) ||
+        params->radius > 64.0f || !std::isfinite(params->offset.x) ||
         !std::isfinite(params->offset.y) || std::abs(params->offset.x) > 100000.0f ||
         std::abs(params->offset.y) > 100000.0f ||
         !std::isfinite(params->color.r) || !std::isfinite(params->color.g) ||

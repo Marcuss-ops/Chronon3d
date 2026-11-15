@@ -320,22 +320,76 @@ NodeExecResult TextRunNode::execute(
                 {static_cast<float>(ctx.frame_input.width),
                  static_cast<float>(ctx.frame_input.height)}};
         }
-        // clip_rect = predicted_r: matches compositor behavior for TextRun
-        Rect clip_r = predicted_r;
+        // The post-render clip is the actual output framebuffer. The predicted
+        // bbox is still used for the geometric predicted_contains_world check,
+        // but it must not be reported as the clip that dropped ink: the text
+        // can legitimately be laid out beyond the predicted box while the
+        // compositor still writes it (the 12 false positive). A genuinely
+        // clipped output is caught by the framebuffer's own bounds / override.
+        Rect clip_r = fb
+            ? Rect{{0.0f, 0.0f},
+                   {static_cast<float>(fb->width()),
+                    static_cast<float>(fb->height())}}
+            : predicted_r;
         const Rect local_ink_bbox = local_bounds_to_rect(
             renderer::compute_text_run_visual_bounds(*m_shape));
         (void)local_ink_bbox;  // audit now reads it internally; see
                                 // TICKET-VISIBILITY-OVERRIDE-DEDUP.
+        // The draw outcome may already carry the authoritative canvas-space
+        // ink bbox. Prefer it: the framebuffer can be an intermediate pass
+        // with no alpha yet (the 12 false positive), and a native surface is
+        // GPU-authoritative with no CPU pixels. Only scan the CPU framebuffer
+        // when the draw actually reported ink but did not provide a bbox.
+        Rect actual_ink_r{};
+        const Rect* actual_ink_override = nullptr;
+        if (ctx.node_exec.actual_ink_bbox) {
+            const auto& ab = *ctx.node_exec.actual_ink_bbox;
+            actual_ink_r = Rect{
+                {static_cast<float>(ab.x0), static_cast<float>(ab.y0)},
+                {static_cast<float>(ab.x1 - ab.x0),
+                 static_cast<float>(ab.y1 - ab.y0)}};
+            actual_ink_override = &actual_ink_r;
+        }
         // A native Vulkan text surface is GPU-authoritative: its CPU pixel
         // allocation is intentionally absent. The pixel-side audit cannot
         // scan it, so pass nullptr and keep the geometric audit only. Passing
         // the surface here made alpha_bbox_scan() walk a null pixel buffer.
         const Framebuffer* audit_fb =
-            (fb && !fb->is_gpu_authoritative()) ? fb.get() : nullptr;
+            (!actual_ink_override && items_drawn > 0 && fb &&
+             !fb->is_gpu_authoritative())
+                ? fb.get() : nullptr;
         const auto audit = verify_text_visibility(
             *m_shape, world_matrix, predicted_r, clip_r,
             audit_fb, m_name.c_str(),
-            /*deduper=*/s_warn_deduper);
+            /*deduper=*/s_warn_deduper,
+            /*effect_padding=*/0.0f, actual_ink_override);
+
+        // Temporary, env-gated coordinate-space probe for the text-vis
+        // false-positive ticket. Kept out of the hot path unless requested.
+        if (std::getenv("CHRONON3D_TEXT_VIS_DEBUG") != nullptr) {
+            const auto& a = audit.rendered_alpha_bbox;
+            spdlog::info(
+                "[text-vis-debug] node={} tight={} fb={}x{} origin=({},{}) "
+                "gpu={} cpu={} pred=({},{},{},{}) clip=({},{},{},{}) "
+                "alpha=({},{},{},{}) measured={} actual=({},{},{},{})",
+                m_name, tight_surface ? 1 : 0,
+                fb ? fb->width() : 0, fb ? fb->height() : 0,
+                fb ? fb->origin_x() : 0, fb ? fb->origin_y() : 0,
+                fb && fb->is_gpu_authoritative() ? 1 : 0,
+                fb && fb->data() != nullptr ? 1 : 0,
+                predicted_r.origin.x, predicted_r.origin.y,
+                predicted_r.origin.x + predicted_r.size.x,
+                predicted_r.origin.y + predicted_r.size.y,
+                clip_r.origin.x, clip_r.origin.y,
+                clip_r.origin.x + clip_r.size.x,
+                clip_r.origin.y + clip_r.size.y,
+                a.origin.x, a.origin.y,
+                a.origin.x + a.size.x, a.origin.y + a.size.y,
+                audit.alpha_measured ? 1 : 0,
+                actual_ink_r.origin.x, actual_ink_r.origin.y,
+                actual_ink_r.origin.x + actual_ink_r.size.x,
+                actual_ink_r.origin.y + actual_ink_r.size.y);
+        }
 
         // Emit structured geometric diagnostics (layout/ink/effect bounds,
         // baseline, anchor point, canvas position) when diagnostics are on.

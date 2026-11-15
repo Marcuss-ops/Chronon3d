@@ -86,6 +86,14 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path,
             // fringes on export.
             const Color straight_linear = linear_c.unpremultiplied();
             const auto encode_rgb = [&](float value) {
+                if (options.dither_8bit) {
+                    float display = options.convert_png_to_srgb
+                        ? color_detail::linear_to_srgb_float(value)
+                        : value;
+                    display += rendering::dither_offset_8bit(x, y);
+                    return static_cast<uint8_t>(std::clamp(
+                        std::round(display * 255.0f), 0.0f, 255.0f));
+                }
                 if (options.convert_png_to_srgb)
                     return Color::linear_to_srgb8(value);
                 return static_cast<uint8_t>(std::clamp(

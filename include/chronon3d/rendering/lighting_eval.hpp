@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <string>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 
@@ -293,6 +295,22 @@ using namespace chronon3d::graph;
     seed = hash_combine(seed, hash_value(material.ambient_multiplier));
     seed = hash_combine(seed, hash_value(material.specular));
     seed = hash_combine(seed, hash_value(material.shininess));
+    seed = hash_combine(seed, hash_value(material.image_bump_strength));
+    seed = hash_combine(seed, hash_value(material.image_rim_strength));
+    seed = hash_combine(seed, hash_value(material.image_rim_width_px));
+    if (!material.image_gobo_asset.empty() ||
+        !material.image_light_wrap_asset.empty() ||
+        material.image_light_wrap_strength > 0.0f) {
+        seed = hash_combine(seed, hash_value(true));
+        seed = hash_combine(seed, hash_value(
+            static_cast<u64>(std::hash<std::string>{}(material.image_gobo_asset))));
+        seed = hash_combine(seed, hash_value(material.image_gobo_scale));
+        seed = hash_combine(seed, hash_value(material.image_gobo_offset.x));
+        seed = hash_combine(seed, hash_value(material.image_gobo_offset.y));
+        seed = hash_combine(seed, hash_value(
+            static_cast<u64>(std::hash<std::string>{}(material.image_light_wrap_asset))));
+        seed = hash_combine(seed, hash_value(material.image_light_wrap_strength));
+    }
     const bool has_extended_material = material.emissive_enabled || material.double_sided || material.alpha_cutoff.has_value();
     if (has_extended_material) {
         seed = hash_combine(seed, hash_value(true));

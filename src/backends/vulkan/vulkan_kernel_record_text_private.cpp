@@ -133,7 +133,8 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
             std::int32_t instance_count;
             std::int32_t padding0;
             std::int32_t dispatch_origin[2];
-        } params{instance_count, 0, {dispatch_origin_x, dispatch_origin_y}};
+            std::int32_t dispatch_end[2];
+        } params{instance_count, 0, {0, 0}, {0, 0}};
         const auto x0 = std::clamp(dispatch_origin_x, 0,
                                    static_cast<std::int32_t>(destination.width));
         const auto y0 = std::clamp(dispatch_origin_y, 0,
@@ -144,6 +145,8 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
                                    static_cast<std::int32_t>(destination.height));
         params.dispatch_origin[0] = x0;
         params.dispatch_origin[1] = y0;
+        params.dispatch_end[0] = x1;
+        params.dispatch_end[1] = y1;
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (x1 - x0 + 15) / 16,

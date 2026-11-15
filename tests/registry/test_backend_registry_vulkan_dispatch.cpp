@@ -20,6 +20,7 @@
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
+#include <chronon3d/scene/model/shape/particles.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
@@ -139,6 +140,175 @@ TEST_CASE("SourceNode dispatches a solid rect through Vulkan fill_rect_surface")
 
     REQUIRE(backend.release_surface(handle).ok());
     CHECK(surfaces.release(handle));
+}
+
+TEST_CASE("SourceNode selects the GPU particle emitter in strict native mode") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    backends::vulkan::VulkanBackend backend;
+    runtime::RenderSurfaceRegistry surfaces;
+
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 64;
+    ctx.frame_input.height = 64;
+    ctx.frame_input.time_seconds = 1.0f;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
+    ctx.policy.require_native_gpu = true;
+
+    ParticleEmitterParams emitter;
+    emitter.count = 1;
+    emitter.seed = 4242;
+    emitter.emitter_size = {32.0f, 0.0f};
+    emitter.lifetime_min = 10.0f;
+    emitter.lifetime_max = 10.0f;
+    emitter.size_min = 8.0f;
+    emitter.size_max = 8.0f;
+    emitter.shape = EmitterShape::Box;
+    emitter.blend_mode = BlendMode::Normal;
+
+    RenderNode node;
+    node.shape = Shape(RectShape{{1.0f, 1.0f}, {}});
+    // The sampled fallback is deliberately off-screen. A source node that
+    // ignores the authored emitter draws nothing; the GPU-native lane draws
+    // the visible particle derived from (seed, absolute time).
+    node.gpu_particle_instances.push_back(RenderNode::GpuParticleInstance{
+        Vec2{1000.0f, 1000.0f}, Color{1.0f, 1.0f, 1.0f, 1.0f},
+        1.0f, 0.0f, 1.0f, 0.0f, Vec2{0.0f, 0.0f}});
+    node.gpu_particle_emitter = emitter;
+
+    SourceNode source("particles", node, cache::NodeCacheKey{},
+                      std::optional<Mat4>(Mat4(1.0f)),
+                      std::optional<f32>(1.0f),
+                      static_memory_cache("source"),
+                      /*apply_camera_projection=*/false);
+
+    const std::span<const FramebufferRef> no_inputs;
+    const std::span<const std::optional<raster::BBox>> no_bboxes;
+    backend.begin_frame_batch();
+    const auto result = source.execute(ctx, no_inputs, no_bboxes);
+    backend.end_frame_batch();
+
+    REQUIRE(result.ok());
+    REQUIRE(result.value() != nullptr);
+    const auto handle = result.value()->surface_handle();
+    REQUIRE(handle != runtime::kInvalidRenderSurfaceHandle);
+
+    std::vector<float> pixels(64U * 64U * 4U, 0.0f);
+    REQUIRE(backend.download_surface(handle, pixels).ok());
+    std::size_t covered = 0;
+    for (std::size_t i = 3; i < pixels.size(); i += 4) {
+        if (pixels[i] > 1.0e-4f) ++covered;
+    }
+    CHECK(covered > 0);
+
+    REQUIRE(backend.release_surface(handle).ok());
+    CHECK(surfaces.release(handle));
+}
+
+TEST_CASE("SourceNode clips the GPU particle emitter and matches the CPU fallback") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    backends::vulkan::VulkanBackend backend;
+    runtime::RenderSurfaceRegistry surfaces;
+
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 64;
+    ctx.frame_input.height = 64;
+    ctx.frame_input.time_seconds = 1.0f;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
+    ctx.policy.require_native_gpu = true;
+
+    ParticleEmitterParams emitter;
+    emitter.count = 1;
+    emitter.seed = 4242;
+    emitter.emitter_size = {32.0f, 0.0f};
+    emitter.lifetime_min = 10.0f;
+    emitter.lifetime_max = 10.0f;
+    emitter.size_min = 8.0f;
+    emitter.size_max = 8.0f;
+    emitter.shape = EmitterShape::Box;
+    emitter.blend_mode = BlendMode::Normal;
+
+    const auto sampled = sample_particles(emitter, 1.0);
+    REQUIRE(sampled.ok());
+    REQUIRE(sampled.particles.size() == 1);
+    const auto& particle = sampled.particles.front();
+
+    RenderNode gpu_node;
+    gpu_node.shape = Shape(RectShape{{1.0f, 1.0f}, {}});
+    // The sampled fallback is off-screen, so the GPU lane must run for the
+    // clipped frame to contain the visible emitter particle.
+    gpu_node.gpu_particle_instances.push_back(RenderNode::GpuParticleInstance{
+        Vec2{1000.0f, 1000.0f}, Color{1.0f, 1.0f, 1.0f, 1.0f},
+        1.0f, 0.0f, 1.0f, 0.0f, Vec2{0.0f, 0.0f}});
+    gpu_node.gpu_particle_emitter = emitter;
+
+    RenderNode cpu_node = gpu_node;
+    cpu_node.gpu_particle_instances.clear();
+    RenderNode::GpuParticleInstance oracle{};
+    oracle.position = particle.position;
+    oracle.color = particle.color;
+    oracle.size = particle.size;
+    oracle.rotation = 0.0f;
+    oracle.sprite_scale = 1.0f;
+    oracle.z = 0.0f;
+    oracle.velocity = particle.velocity;
+    cpu_node.gpu_particle_instances.push_back(oracle);
+    // Force the sampled CPU-oracle lane; Box would take the GPU lane too.
+    cpu_node.gpu_particle_emitter->shape = EmitterShape::Path;
+
+    const int clip_x1 = std::clamp(
+        static_cast<int>(std::floor(particle.position.x)), 1, 63);
+    ctx.node_exec.clip_rect = raster::BBox{0, 0, clip_x1, 14};
+
+    const std::span<const FramebufferRef> no_inputs;
+    const std::span<const std::optional<raster::BBox>> no_bboxes;
+    const auto render = [&](const RenderNode& node) {
+        SourceNode source("particles", node, cache::NodeCacheKey{},
+                          std::optional<Mat4>(Mat4(1.0f)),
+                          std::optional<f32>(1.0f),
+                          static_memory_cache("source"),
+                          /*apply_camera_projection=*/false);
+        backend.begin_frame_batch();
+        const auto result = source.execute(ctx, no_inputs, no_bboxes);
+        backend.end_frame_batch();
+        REQUIRE(result.ok());
+        REQUIRE(result.value() != nullptr);
+        const auto handle = result.value()->surface_handle();
+        REQUIRE(handle != runtime::kInvalidRenderSurfaceHandle);
+        std::vector<float> pixels(64U * 64U * 4U, 0.0f);
+        REQUIRE(backend.download_surface(handle, pixels).ok());
+        REQUIRE(backend.release_surface(handle).ok());
+        CHECK(surfaces.release(handle));
+        return pixels;
+    };
+
+    const auto gpu_pixels = render(gpu_node);
+    const auto cpu_pixels = render(cpu_node);
+
+    float max_difference = 0.0f;
+    for (int y = 0; y < 14; ++y) {
+        for (int x = 0; x < clip_x1; ++x) {
+            const std::size_t base = static_cast<std::size_t>(y * 64 + x) * 4U;
+            for (int channel = 0; channel < 4; ++channel) {
+                max_difference = std::max(
+                    max_difference,
+                    std::abs(gpu_pixels[base + channel] - cpu_pixels[base + channel]));
+            }
+        }
+    }
+    CHECK_MESSAGE(max_difference < 2.0e-4f,
+                  "clipped GPU/CPU max_difference = " << max_difference);
+
+    const int outside_x = std::min(63, clip_x1 + 2);
+    const std::size_t outside =
+        static_cast<std::size_t>(2 * 64 + outside_x) * 4U + 3U;
+    CHECK(cpu_pixels[outside] > 1.0e-4f);
+    CHECK(gpu_pixels[outside] < 1.0e-6f);
 }
 
 TEST_CASE("SourceNode renders inline mesh on Vulkan without strict native policy") {

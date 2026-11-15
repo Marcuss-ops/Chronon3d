@@ -147,7 +147,8 @@ TextVisibilityAudit audit_text_visibility(
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
     const Framebuffer*  rendered_output,
-    float               effect_padding) noexcept
+    float               effect_padding,
+    const Rect*         rendered_alpha_bbox_override) noexcept
 {
     TextVisibilityAudit audit{};
 
@@ -217,19 +218,27 @@ TextVisibilityAudit audit_text_visibility(
         audit.world_ink_bbox,
         kTextAuditBBoxTolerance);
 
-    // ── alpha-bbox (only when framebuffer provided) ──────────
+    // ── alpha-bbox (framebuffer or authoritative renderer override) ──
+    const bool override_supplied = rendered_alpha_bbox_override != nullptr;
     const bool framebuffer_supplied =
         (rendered_output != nullptr
          && rendered_output->width() > 0
          && rendered_output->height() > 0);
-    if (framebuffer_supplied) {
+    audit.alpha_measured = override_supplied || framebuffer_supplied;
+    if (override_supplied) {
+        audit.rendered_alpha_bbox = *rendered_alpha_bbox_override;
+        audit.clip_contains_visible_ink =
+            rect_is_finite(audit.rendered_alpha_bbox) &&
+            rect_uses_containment(clip_rect, audit.rendered_alpha_bbox,
+                                 kTextAuditBBoxTolerance);
+    } else if (framebuffer_supplied) {
         audit.rendered_alpha_bbox = alpha_bbox_scan(*rendered_output);  // canonical scanner (Step 9 §A)
         // Step 2 fix (b): CONTAINMENT check (with `kTextAuditBBoxTolerance`
         // sub-pixel slack) instead of intersection. Closes the
         // TICKET-TEXT-CLIP-19-PIXEL-SLIVER regression: a clip that keeps
         // only 1 pixel of ink used to pass `rect_intersects`; only true
         // containment earns `clip_contains_visible_ink == true`.
-        if (!rect_is_finite(audit.rendered_alpha_bbox)) {
+        if (!audit.alpha_measured || !rect_is_finite(audit.rendered_alpha_bbox)) {
             audit.clip_contains_visible_ink = false;
         } else {
             audit.clip_contains_visible_ink =
@@ -258,7 +267,7 @@ TextVisibilityAudit audit_text_visibility(
                             && audit.predicted_contains_world;
     if (!critical_pass) {
         audit.status = TextVisibilityStatus::FAIL;
-    } else if (framebuffer_supplied && !audit.clip_contains_visible_ink) {
+    } else if (audit.alpha_measured && !audit.clip_contains_visible_ink) {
         audit.status = TextVisibilityStatus::FAIL;
     } else {
         audit.status = TextVisibilityStatus::PASS;

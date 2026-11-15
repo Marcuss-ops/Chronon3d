@@ -170,6 +170,99 @@ void decode_layer_render_flags(LayerPlan& layer, const nlohmann::json& value) {
 
 }
 
+void decode_layer_image_lighting(LayerPlan& layer, const nlohmann::json& value) {
+    if (!value.contains("image_lighting")) return;
+    if (layer.type != LayerType::Image && layer.type != LayerType::Video)
+        throw std::runtime_error(
+            "image_lighting is only valid for image or video layers");
+    const auto& raw = value.at("image_lighting");
+    if (!raw.is_object())
+        throw std::runtime_error("layer.image_lighting must be an object");
+    for (auto it = raw.begin(); it != raw.end(); ++it) {
+        const std::string& key = it.key();
+        if (key != "bump_strength" && key != "rim_strength" &&
+            key != "rim_width_px" && key != "roughness" && key != "specular" &&
+            key != "gobo_asset" && key != "gobo_scale" && key != "gobo_offset" &&
+            key != "light_wrap_asset" && key != "light_wrap_strength")
+            throw std::runtime_error(
+                "unsupported image_lighting field '" + key + "'");
+    }
+
+    const auto read_asset = [&](const char* key) {
+        if (!raw.contains(key)) return std::string{};
+        const auto& field = raw.at(key);
+        if (!field.is_string())
+            throw std::runtime_error(
+                std::string("image_lighting.") + key + " must be a string");
+        auto path = field.get<std::string>();
+        if (path.empty() || path.size() > 4096 || path.find('\0') != std::string::npos)
+            throw std::runtime_error(
+                std::string("image_lighting.") + key +
+                " must be a non-empty path of at most 4096 bytes");
+        return path;
+    };
+
+    ImageLightingPlan lighting;
+    lighting.bump_strength = raw.value("bump_strength", lighting.bump_strength);
+    lighting.rim_strength = raw.value("rim_strength", lighting.rim_strength);
+    lighting.rim_width_px = raw.value("rim_width_px", lighting.rim_width_px);
+    if (raw.contains("roughness"))
+        lighting.roughness = raw.at("roughness").get<float>();
+    if (raw.contains("specular"))
+        lighting.specular = raw.at("specular").get<float>();
+    lighting.gobo_asset = read_asset("gobo_asset");
+    lighting.gobo_scale = raw.value("gobo_scale", lighting.gobo_scale);
+    if (raw.contains("gobo_offset")) {
+        const auto& offset = raw.at("gobo_offset");
+        if (!offset.is_array() || offset.size() != 2)
+            throw std::runtime_error(
+                "image_lighting.gobo_offset must contain exactly two numbers");
+        lighting.gobo_offset = offset.get<std::array<float, 2>>();
+    }
+    lighting.light_wrap_asset = read_asset("light_wrap_asset");
+    lighting.light_wrap_strength =
+        raw.value("light_wrap_strength", lighting.light_wrap_strength);
+
+    if (!std::isfinite(lighting.bump_strength) || lighting.bump_strength < 0.0f ||
+        lighting.bump_strength > 4.0f)
+        throw std::runtime_error(
+            "image_lighting.bump_strength must be finite and in [0, 4]");
+    if (!std::isfinite(lighting.rim_strength) || lighting.rim_strength < 0.0f ||
+        lighting.rim_strength > 4.0f)
+        throw std::runtime_error(
+            "image_lighting.rim_strength must be finite and in [0, 4]");
+    if (!std::isfinite(lighting.rim_width_px) || lighting.rim_width_px < 0.0f ||
+        lighting.rim_width_px > 64.0f)
+        throw std::runtime_error(
+            "image_lighting.rim_width_px must be finite and in [0, 64]");
+    if (lighting.roughness &&
+        (!std::isfinite(*lighting.roughness) || *lighting.roughness < 0.0f ||
+         *lighting.roughness > 1.0f))
+        throw std::runtime_error(
+            "image_lighting.roughness must be finite and in [0, 1]");
+    if (lighting.specular &&
+        (!std::isfinite(*lighting.specular) || *lighting.specular < 0.0f ||
+         *lighting.specular > 1.0f))
+        throw std::runtime_error(
+            "image_lighting.specular must be finite and in [0, 1]");
+    if (!std::isfinite(lighting.gobo_scale) || lighting.gobo_scale <= 0.0f ||
+        lighting.gobo_scale > 0.1f)
+        throw std::runtime_error(
+            "image_lighting.gobo_scale must be finite and in (0, 0.1]");
+    for (const float offset : lighting.gobo_offset)
+        if (!std::isfinite(offset) || offset < -8.0f || offset > 8.0f)
+            throw std::runtime_error(
+                "image_lighting.gobo_offset values must be finite and in [-8, 8]");
+    if (!std::isfinite(lighting.light_wrap_strength) ||
+        lighting.light_wrap_strength < 0.0f || lighting.light_wrap_strength > 4.0f)
+        throw std::runtime_error(
+            "image_lighting.light_wrap_strength must be finite and in [0, 4]");
+    if (lighting.light_wrap_strength > 0.0f && lighting.light_wrap_asset.empty())
+        throw std::runtime_error(
+            "image_lighting.light_wrap_strength requires light_wrap_asset");
+    layer.image_lighting = lighting;
+}
+
 void decode_layer_frame_crop_fields(LayerPlan& layer, const nlohmann::json& value) {
     layer.start_frame = optional_frame(value, "start_frame");
     layer.duration_frames = optional_frame(value, "duration_frames");

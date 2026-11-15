@@ -162,6 +162,83 @@ void VulkanBackend::Impl::glow_advanced(
     throw std::logic_error("Vulkan glow requires an active frame batch");
 }
 
+void VulkanBackend::Impl::halation(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle scratch_horizontal,
+    runtime::RenderSurfaceHandle scratch_vertical,
+    const HalationParams& params) {
+    params.validate();
+    auto& dst = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    auto& horizontal = resolve_image(scratch_horizontal);
+    auto& vertical = resolve_image(scratch_vertical);
+    if (!src_image.initialized || !dst.initialized ||
+        src_image.width != dst.width || src_image.height != dst.height ||
+        horizontal.width != vertical.width || horizontal.height != vertical.height ||
+        horizontal.width <= 0 || horizontal.height <= 0 ||
+        horizontal.width > src_image.width || horizontal.height > src_image.height) {
+        throw std::invalid_argument("Vulkan halation surfaces have incompatible dimensions");
+    }
+    if (params.intensity <= 0.0f) return;
+
+    if (!frame_batch.active) {
+        throw std::logic_error("Vulkan halation requires an active frame batch");
+    }
+
+    const auto prepare_descriptor = allocate_pass_descriptor_set();
+    write_descriptors(prepare_descriptor, horizontal, src_image);
+    const auto composite_descriptor = allocate_pass_descriptor_set();
+    write_descriptors(composite_descriptor, dst, horizontal);
+    const auto cmd = active_command_buffer();
+
+    emit_pass_sync(cmd, {&dst, &src_image, &horizontal, &vertical}, runtime::GpuPassKind::Glow);
+    record_halation_prepare(cmd, prepare_descriptor, horizontal, src_image, params, 0);
+    horizontal.initialized = true;
+
+    runtime::ResourceTransition writable_to_readable;
+    writable_to_readable.range = runtime::image_range(runtime::ResourceAspect::Color);
+    writable_to_readable.before = runtime::ResourceState{
+        .stages = runtime::PipelineStage::ComputeShader,
+        .access = runtime::AccessMask::ShaderWrite,
+        .layout = runtime::ResourceLayout::General,
+        .queue = runtime::QueueClass::Compute,
+    };
+    writable_to_readable.after = runtime::ResourceState{
+        .stages = runtime::PipelineStage::ComputeShader,
+        .access = runtime::AccessMask::ShaderRead,
+        .layout = runtime::ResourceLayout::General,
+        .queue = runtime::QueueClass::Compute,
+    };
+    emit_resource_transition(cmd, horizontal.image, writable_to_readable);
+
+    if (params.radius_px >= 0.5f) {
+        const auto horizontal_blur_descriptor = allocate_pass_descriptor_set();
+        write_descriptors(horizontal_blur_descriptor, vertical, horizontal);
+        const auto vertical_blur_descriptor = allocate_pass_descriptor_set();
+        write_descriptors(vertical_blur_descriptor, horizontal, vertical);
+
+        const float sigma = std::max(0.5f, params.radius_px * 0.57735027f);
+        record_blur(cmd, horizontal_blur_descriptor, vertical, horizontal,
+                    sigma, true, false, true);
+        vertical.initialized = true;
+        emit_resource_transition(cmd, vertical.image, writable_to_readable);
+
+        runtime::ResourceTransition horizontal_for_write = writable_to_readable;
+        horizontal_for_write.before = writable_to_readable.after;
+        horizontal_for_write.after = writable_to_readable.before;
+        emit_resource_transition(cmd, horizontal.image, horizontal_for_write);
+        record_blur(cmd, vertical_blur_descriptor, horizontal, vertical,
+                    sigma, false, false, true);
+        emit_resource_transition(cmd, horizontal.image, writable_to_readable);
+    }
+
+    record_halation_prepare(cmd, composite_descriptor, dst, horizontal, params, 1);
+    dst.initialized = true;
+    ++frame_batch.pass_count;
+    ++stats.passes_executed;
+}
+
 void VulkanBackend::Impl::inner_glow_composite(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
@@ -565,7 +642,9 @@ void VulkanBackend::Impl::lighting_points(
     float layer_z,
     int origin_x,
     int origin_y,
-    float diffuse) {
+    float diffuse,
+    const Vec4& relight_params,
+    const Vec4& relight_specular) {
     constexpr std::size_t kFloatsPerLight = 16;
     constexpr std::uint32_t kMaxGpuLights = 64;
     if (light_count > kMaxGpuLights ||
@@ -636,7 +715,8 @@ void VulkanBackend::Impl::lighting_points(
         emit_pass_sync(cmd, {&dst, &src_image}, runtime::GpuPassKind::ColorAdjust);
         record_lighting(cmd, descriptors, dst, src_image, multiplier, normal,
                         layer_z, origin_x, origin_y, diffuse, light_count,
-                        light_buffer.buffer, light_bytes);
+                        light_buffer.buffer, light_bytes,
+                        relight_params, relight_specular);
         dst.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;

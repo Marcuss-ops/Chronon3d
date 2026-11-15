@@ -417,7 +417,11 @@ chronon3d::TextDefinition materialize_text(
     }
     if (layer.style->extruded_text) {
         definition.style.material = chronon3d::TextMaterial::extruded_3d(
-            layer.style->extrusion_depth);
+            layer.style->extrusion_depth,
+            layer.style->extrusion_bevel);
+    } else if (layer.style->bevel_px && *layer.style->bevel_px > 0.0f) {
+        definition.style.material.enabled = true;
+        definition.style.material.bevel_px = *layer.style->bevel_px;
     }
     definition.style.paint.fill_pattern = layer.style->fill_pattern;
     if (layer.style->wear) {

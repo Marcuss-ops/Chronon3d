@@ -181,6 +181,14 @@ LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::asset_image(std::string path, std::string owner,
+                                        int max_dimension) {
+    if (!path.empty())
+        m_layer.asset_manifest.add_image(
+            std::move(path), std::move(owner), true, max_dimension);
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::tiled_image(std::string name, ImageParams p) {
     // Sequence V2: collect image asset reference.
     // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — symmetric

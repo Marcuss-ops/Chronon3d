@@ -29,6 +29,7 @@ struct TextMaterial {
     // This is independent of the screen-space GlossyGelText surface path.
     bool extruded_text{false};
     float extrusion_depth{12.0f};
+    std::optional<float> extrusion_bevel;
     // Allows the native Vulkan gel pass to sample and tint the already
     // composited destination locally. Kept enabled by default for compatibility.
     bool gel_transmission_enabled{true};
@@ -143,11 +144,14 @@ struct TextMaterial {
     }
 
     /// Real TextRun outline mesh with front/back caps and side walls.
-    static TextMaterial extruded_3d(float depth = 12.0f) {
+    static TextMaterial extruded_3d(
+        float depth = 12.0f,
+        std::optional<float> bevel = std::nullopt) {
         TextMaterial m;
         m.enabled = true;
         m.extruded_text = true;
         m.extrusion_depth = depth;
+        m.extrusion_bevel = bevel;
         return m;
     }
 
