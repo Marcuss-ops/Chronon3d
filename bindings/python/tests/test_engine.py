@@ -54,6 +54,11 @@ class TestChronon3d(unittest.TestCase):
             frames = list(self.engine.render_sequence(plan))
         self.assertEqual([f.index for f in frames], [0, 1, 2])
 
+    def test_close_releases_all_compiled_plans(self):
+        plans = [self.engine.compile(PLAN) for _ in range(3)]
+        self.engine.close()
+        self.assertTrue(all(plan._handle is None for plan in plans))
+
     def test_invalid_plan_raises_mapped_error(self):
         with self.assertRaises(chronon3d.ChrononError) as cm:
             self.engine.compile({"schema": "chronon.render-plan.v2", "version": 2})

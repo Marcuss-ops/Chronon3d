@@ -105,6 +105,32 @@ std::string codec_name(render_plan::VideoCodec codec) {
     return "auto";
 }
 
+#if defined(_WIN32)
+std::string quote_windows_argument(const std::string& argument) {
+    std::string quoted;
+    quoted.reserve(argument.size() + 2U);
+    quoted.push_back('"');
+    std::size_t backslashes = 0;
+    for (const char value : argument) {
+        if (value == '\\') {
+            ++backslashes;
+            continue;
+        }
+        if (value == '"') {
+            quoted.append(backslashes * 2U + 1U, '\\');
+            quoted.push_back('"');
+        } else {
+            quoted.append(backslashes, '\\');
+            quoted.push_back(value);
+        }
+        backslashes = 0;
+    }
+    quoted.append(backslashes * 2U, '\\');
+    quoted.push_back('"');
+    return quoted;
+}
+#endif
+
 bool video_output(const std::string& path) {
     const auto extension = std::filesystem::path(path).extension().string();
     return extension == ".mp4" || extension == ".mkv" || extension == ".webm" || extension == ".gif" ||
@@ -118,7 +144,20 @@ int run_ffmpeg_child(const std::vector<std::string>& arguments) {
     for (const auto& argument : arguments) argv.push_back(argument.c_str());
     argv.push_back(nullptr);
 #if defined(_WIN32)
-    const intptr_t status = _spawnvp(_P_WAIT, "ffmpeg", argv.data());
+    // The CRT concatenates argv into a Windows command line. Quote every
+    // argument using the CommandLineToArgvW-compatible backslash rules so
+    // paths containing spaces (and embedded quotes) remain a single value.
+    std::vector<std::string> quoted_arguments;
+    std::vector<const char*> quoted_argv;
+    quoted_arguments.reserve(arguments.size() + 1U);
+    quoted_argv.reserve(arguments.size() + 2U);
+    quoted_arguments.push_back("ffmpeg");
+    for (const auto& argument : arguments)
+        quoted_arguments.push_back(quote_windows_argument(argument));
+    for (const auto& argument : quoted_arguments)
+        quoted_argv.push_back(argument.c_str());
+    quoted_argv.push_back(nullptr);
+    const intptr_t status = _spawnvp(_P_WAIT, "ffmpeg", quoted_argv.data());
     return status < 0 ? 127 : static_cast<int>(status);
 #else
     const pid_t child = fork();

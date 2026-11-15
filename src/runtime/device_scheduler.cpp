@@ -2,6 +2,13 @@
 
 #include <spdlog/spdlog.h>
 
+// spdlog's Windows headers reintroduce the SDK's DeviceCapabilitiesA macro
+// after the public header undefines it. Keep the out-of-line definitions on
+// the same C++ type name declared by device_scheduler.hpp.
+#if defined(_WIN32) && defined(DeviceCapabilities)
+#undef DeviceCapabilities
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <exception>

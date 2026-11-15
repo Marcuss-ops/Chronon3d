@@ -40,7 +40,15 @@ struct RequestedAsset {
     auto root_it = root.begin();
     auto candidate_it = candidate.begin();
     for (; root_it != root.end() && candidate_it != candidate.end(); ++root_it, ++candidate_it) {
+#if defined(_WIN32)
+        const auto root_component = root_it->wstring();
+        const auto candidate_component = candidate_it->wstring();
+        if (CompareStringOrdinal(root_component.data(), static_cast<int>(root_component.size()),
+                                 candidate_component.data(), static_cast<int>(candidate_component.size()),
+                                 TRUE) != CSTR_EQUAL) return false;
+#else
         if (*root_it != *candidate_it) return false;
+#endif
     }
     return root_it == root.end() && candidate_it != candidate.end();
 }

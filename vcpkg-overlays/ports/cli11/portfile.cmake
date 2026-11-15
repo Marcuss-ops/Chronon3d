@@ -23,5 +23,9 @@ vcpkg_cmake_install()
 vcpkg_cmake_config_fixup(CONFIG_PATH share/cmake/CLI11)
 vcpkg_fixup_pkgconfig()
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include" "${CURRENT_PACKAGES_DIR}/debug/share")
-vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/include/CLI/CLI.hpp" "#pragma once" "#pragma once\n#ifndef CLI11_COMPILE\n#define CLI11_COMPILE\n#endif")  # drift-class: third-party — sibling-repo citation
+vcpkg_replace_string(
+    "${CURRENT_PACKAGES_DIR}/share/cli11/CLI11Config.cmake"
+    "INTERFACE_COMPILE_DEFINITIONS \"CLI11_COMPILE\""
+    "INTERFACE_COMPILE_DEFINITIONS \"\""
+)
 vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")

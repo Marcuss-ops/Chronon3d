@@ -63,7 +63,6 @@ TextRunShape make_test_shape(bool with_engine = true,
     layout->font_size = 16.0f;
     layout->placed.ascent = 10.0f;
     layout->placed.descent = 5.0f;
-
     if (with_glyphs) {
         // Populate the runtime `shape.glyphs` vector so the canonical
         // `compute_text_run_visual_bounds()` returns a real bbox. The
@@ -79,6 +78,12 @@ TextRunShape make_test_shape(bool with_engine = true,
             shape.glyphs[i].blur = 0.0f;
             shape.glyphs[i].stroke_width = 0.0f;
             layout->placed.glyphs[i].advance_x = 20.0f;
+            // Give the synthetic glyph a deterministic FreeType-style ink
+            // box. The audit uses outline bounds when present, not advances.
+            layout->placed.glyphs[i].bbox_x0 = -8.0f;
+            layout->placed.glyphs[i].bbox_x1 = 68.0f;
+            layout->placed.glyphs[i].bbox_y0 = 20.8f;
+            layout->placed.glyphs[i].bbox_y1 = -13.0f;
         }
     }
     shape.layout = std::move(layout);
@@ -95,7 +100,7 @@ TextRunShape make_test_shape(bool with_engine = true,
 // (10,10)→(20,20). Status must be FAIL.
 TEST_CASE("Visibility contract #1: FAIL on invalid bbox (world out of predicted)") {
     const auto shape = make_test_shape(/*with_engine=*/true, /*glyph_count=*/3);
-    const Mat4 identity{};  // identity world matrix
+    const Mat4 identity{1.0f};  // identity world matrix
     // Identity matrix transforms (0,0) to (0,0). The world_ink_bbox is
     // therefore a point at (0,0).
     const Rect predicted_bbox{{10.0f, 10.0f}, {10.0f, 10.0f}};  // (10..20) × (10..20)
@@ -117,11 +122,11 @@ TEST_CASE("Visibility contract #1: FAIL on invalid bbox (world out of predicted)
     // Violation response: flag set + expansion computed
     CHECK(audit.should_disable_tile_pruning);
     // expanded_predicted_bbox should be the world_ink_bbox (point at 0,0)
-    // expanded by effect_padding=4: (0-4, 0-4) size (1+8, 1+8) = (-4, -4, 9, 9)
+    // expanded by effect_padding=4: origin (-4, -4), size (8, 8).
     CHECK(audit.expanded_predicted_bbox.origin.x == doctest::Approx(-4.0f));
     CHECK(audit.expanded_predicted_bbox.origin.y == doctest::Approx(-4.0f));
-    CHECK(audit.expanded_predicted_bbox.size.x == doctest::Approx(9.0f));
-    CHECK(audit.expanded_predicted_bbox.size.y == doctest::Approx(9.0f));
+    CHECK(audit.expanded_predicted_bbox.size.x == doctest::Approx(8.0f));
+    CHECK(audit.expanded_predicted_bbox.size.y == doctest::Approx(8.0f));
 }
 
 // #2 — PASS on nominal bbox (predicted_bbox ⊇ world_ink_bbox).
@@ -131,7 +136,7 @@ TEST_CASE("Visibility contract #1: FAIL on invalid bbox (world out of predicted)
 // Status must be PASS.
 TEST_CASE("Visibility contract #2: PASS on nominal bbox (predicted contains world)") {
     const auto shape = make_test_shape(/*with_engine=*/true, /*glyph_count=*/3);
-    const Mat4 identity{};
+    const Mat4 identity{1.0f};
     const Rect predicted_bbox{{0.0f, 0.0f}, {10.0f, 10.0f}};  // (0..10) × (0..10)
     const Rect clip_rect    {{0.0f, 0.0f}, {100.0f, 100.0f}};
 
@@ -161,7 +166,7 @@ TEST_CASE("Visibility contract #2: PASS on nominal bbox (predicted contains worl
 // fallback path; the non-zero-local path is exercised in #5.
 TEST_CASE("Visibility contract #3: violation response expands world_ink_bbox by effect_padding (empty shape)") {
     const auto shape = make_test_shape(/*with_engine=*/true, /*glyph_count=*/5, /*with_glyphs=*/false);
-    const Mat4 identity{};
+    const Mat4 identity{1.0f};
 
     // Empty shape → audit.local_ink_bbox = Rect{} → world_ink_bbox = point at (0,0).
     const Rect predicted_bbox{{100.0f, 100.0f}, {10.0f, 10.0f}};  // out of range
@@ -182,11 +187,11 @@ TEST_CASE("Visibility contract #3: violation response expands world_ink_bbox by 
     CHECK(audit.world_ink_bbox.size.x == 0.0f);
     CHECK(audit.world_ink_bbox.size.y == 0.0f);
     // expanded_predicted_bbox = (0,0) point + padding 16 on all sides
-    // = origin (-16, -16), size (1+32, 1+32) = (33, 33)
+    // = origin (-16, -16), size (32, 32)
     CHECK(audit.expanded_predicted_bbox.origin.x == doctest::Approx(-16.0f));
     CHECK(audit.expanded_predicted_bbox.origin.y == doctest::Approx(-16.0f));
-    CHECK(audit.expanded_predicted_bbox.size.x == doctest::Approx(33.0f));
-    CHECK(audit.expanded_predicted_bbox.size.y == doctest::Approx(33.0f));
+    CHECK(audit.expanded_predicted_bbox.size.x == doctest::Approx(32.0f));
+    CHECK(audit.expanded_predicted_bbox.size.y == doctest::Approx(32.0f));
 }
 
 // #4 — Edge cases: empty shape (no glyphs) + NaN predicted_bbox + infinite predicted_bbox.
@@ -194,7 +199,7 @@ TEST_CASE("Visibility contract #4: edge cases (empty shape, NaN, infinite)") {
     // 4a: empty shape (no engine + no glyphs) → font_resolved=false, shaping_succeeded=false
     {
         const auto shape = make_test_shape(/*with_engine=*/false, /*glyph_count=*/0);
-        const Mat4 identity{};
+        const Mat4 identity{1.0f};
         const Rect predicted_bbox{{0.0f, 0.0f}, {10.0f, 10.0f}};
         const Rect clip_rect    {{0.0f, 0.0f}, {100.0f, 100.0f}};
 
@@ -210,7 +215,7 @@ TEST_CASE("Visibility contract #4: edge cases (empty shape, NaN, infinite)") {
     // 4b: NaN predicted_bbox → finite=false, status=FAIL
     {
         const auto shape = make_test_shape();
-        const Mat4 identity{};
+        const Mat4 identity{1.0f};
         const Rect predicted_bbox{
             {std::numeric_limits<float>::quiet_NaN(), 0.0f},
             {10.0f, 10.0f}
@@ -227,7 +232,7 @@ TEST_CASE("Visibility contract #4: edge cases (empty shape, NaN, infinite)") {
     // 4c: infinite predicted_bbox → finite=false, status=FAIL
     {
         const auto shape = make_test_shape();
-        const Mat4 identity{};
+        const Mat4 identity{1.0f};
         const Rect predicted_bbox{
             {0.0f, 0.0f},
             {std::numeric_limits<float>::infinity(), 10.0f}
@@ -254,7 +259,7 @@ TEST_CASE("Visibility contract #4: edge cases (empty shape, NaN, infinite)") {
 // computed from the shape, not assumed zero, not inherited from world.
 TEST_CASE("Visibility contract #5: real local_ink_bbox from shape (FU04 contract fix)") {
     const auto shape = make_test_shape(/*with_engine=*/true, /*glyph_count=*/3, /*with_glyphs=*/true);
-    const Mat4 identity{};
+    const Mat4 identity{1.0f};
 
     // Dummy data: 3 glyphs at positions (0,0), (20,0), (40,0); advance=20 each.
     // Canonical compute_text_run_visual_bounds() with font_size=16:
@@ -321,7 +326,7 @@ TEST_CASE("Visibility contract #5: real local_ink_bbox from shape (FU04 contract
 // (not the degenerate point at (0,0) used in #1/#3).
 TEST_CASE("Visibility contract #6: violation response with non-zero local_ink_bbox (FU04 contract fix)") {
     const auto shape = make_test_shape(/*with_engine=*/true, /*glyph_count=*/3, /*with_glyphs=*/true);
-    const Mat4 identity{};
+    const Mat4 identity{1.0f};
 
     // predicted_bbox that does NOT contain the world_ink_bbox
     // (world_ink_bbox is at origin: (-8, -20.8) size (116, 33.8); predicted starts at (500, 500))

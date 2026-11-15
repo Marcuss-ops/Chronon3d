@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 ABI_VERSION = 2
@@ -144,18 +145,22 @@ def _declare(lib: ctypes.CDLL) -> ctypes.CDLL:
     return lib
 
 
-_lib: ctypes.CDLL | None = None
+_libs: dict[str | None, ctypes.CDLL] = {}
+_load_lock = threading.Lock()
 
 
 def load(path: str | None = None) -> ctypes.CDLL:
-    """Load (once) and return the declared C library."""
-    global _lib
-    if _lib is None or path is not None:
+    """Load and cache the default library or each explicitly requested path."""
+    key = os.path.abspath(os.fspath(path)) if path is not None else None
+    with _load_lock:
+        cached = _libs.get(key)
+        if cached is not None:
+            return cached
         lib = _declare(ctypes.CDLL(path or find_library()))
         if lib.chronon_abi_version() != ABI_VERSION:
             raise OSError(
                 f"Chronon3D ABI mismatch: binding expects {ABI_VERSION}, "
                 f"library reports {lib.chronon_abi_version()}"
             )
-        _lib = lib
-    return _lib
+        _libs[key] = lib
+        return lib

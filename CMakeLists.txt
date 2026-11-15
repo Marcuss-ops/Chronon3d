@@ -89,6 +89,8 @@ option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
 option(CHRONON3D_TEST_UNITY_BUILD
     "Enable unity (jumbo) build for test executables (experimental; test fixtures may collide)" OFF)
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" OFF)
+option(CHRONON3D_BUILD_CONTENT
+    "Build and register external content pack compositions when available" OFF)
 option(CHRONON3D_ENABLE_MOTION_ADAPTER
     "Build the optional offline ChrononMotion3D-to-RenderPlan adapter (Motion source required)" OFF)
 set(CHRONONMOTION_SOURCE_DIR "" CACHE PATH
@@ -100,6 +102,7 @@ option(CHRONON3D_ENABLE_TEXT "Enable text rendering support (freetype + harfbuzz
 option(CHRONON3D_ENABLE_SVG "Enable SVG path/document importing" OFF)
 option(CHRONON3D_ENABLE_OCIO "Enable OpenColorIO colour-management transforms" OFF)
 option(CHRONON3D_ENABLE_EXR "Enable OpenEXR image format support" OFF)
+set(CHRONON3D_HAS_FRIBIDI OFF CACHE INTERNAL "Whether FriBidi is available in this build" FORCE)
 option(CHRONON3D_ENABLE_VIDEO "Enable video/media pipeline (frame conversion, video sinks)" ON)
 option(CHRONON3D_ENABLE_TRACING "Enable timeline tracing (Perfetto track-event backend)" OFF)
 option(CHRONON3D_ENABLE_DIAGNOSTICS "Enable engine-level diagnostics code" OFF)
@@ -134,6 +137,7 @@ if(CHRONON3D_ENABLE_SVG)
     FetchContent_Declare(
         svgpp
         URL https://github.com/svgpp/svgpp/archive/refs/tags/v1.3.1.tar.gz
+        URL_HASH SHA256=BE8A89DF72D01CF062CC9815DD64C9576B4D20910D6D7AEE7F0EA26484DC5E76
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     )
     FetchContent_MakeAvailable(svgpp)

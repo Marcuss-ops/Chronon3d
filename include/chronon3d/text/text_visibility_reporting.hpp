@@ -41,7 +41,7 @@
 
 namespace chronon3d {
 
-class TextRunShape;     // forward decl — full definition lives in
+struct TextRunShape;    // forward decl — full definition lives in
                         // `<chronon3d/text/text_run_shape.hpp>`. The reporting
                         // function only reads the immutable struct + the
                         // populated `TextVisibilityAudit`, so a forward

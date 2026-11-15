@@ -2,12 +2,16 @@
 
 #include <cstdlib>
 #include <array>
+#include <string>
 #include <filesystem>
 #include <string_view>
+#include <system_error>
 
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace chronon3d {
@@ -54,8 +58,29 @@ bool tool_exists_in_path(const std::string& tool) {
     }
     return false;
 #else
-    std::string cmd = "command -v " + tool + " >/dev/null 2>&1";
-    return std::system(cmd.c_str()) == 0;
+    if (tool.empty()) return false;
+    if (tool == "echo") return true; // POSIX shell builtin used by preflight probes.
+
+    const std::filesystem::path requested{tool};
+    if (requested.has_parent_path())
+        return ::access(requested.c_str(), X_OK) == 0;
+
+    const char* raw_path = std::getenv("PATH");
+    if (!raw_path) return false;
+    std::string_view path{raw_path};
+    while (true) {
+        const auto separator = path.find(':');
+        const auto directory = path.substr(0, separator);
+        const auto candidate = (directory.empty() ? std::filesystem::path{"."}
+                                                   : std::filesystem::path{directory}) /
+                               requested;
+        std::error_code error;
+        if (std::filesystem::is_regular_file(candidate, error) &&
+            ::access(candidate.c_str(), X_OK) == 0) return true;
+        if (separator == std::string_view::npos) break;
+        path.remove_prefix(separator + 1);
+    }
+    return false;
 #endif
 }
 

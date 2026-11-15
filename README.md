@@ -8,20 +8,14 @@ i requisiti di release sono [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 ## Quick start
 
 ```bash
-bash tools/chronon-linux.sh
-./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli list
+cmake --preset linux-fast-dev
+cmake --build --preset linux-fast-dev --target chronon3d_cli
+mkdir -p output
 
-# Still
-./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli \
-  render BackgroundGrid --frame 0 -o output/test.png
-
-# Sequence
-./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli \
-  render BackgroundGrid --frames 0-90 -o output/frame_####.png
-
-# Video: the output extension selects RenderMode::Video
-./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli \
-  render BackgroundGrid -o output/background_grid.mp4
+# Render the included 64x64 SDK example plan to a PNG.
+./build/fast/apps/chronon3d_cli/chronon3d_cli render \
+  --plan sdk_consumers/01_cpp_minimal/plan.json --frame 0 \
+  --backend software -o output/test.png
 ```
 
 `render` è l’unico comando canonico per still, sequence e video. I precedenti
@@ -29,29 +23,15 @@ comandi separati `still` e `video` sono stati rimossi.
 
 
 
-## Asset authoring
+## C++ SDK example
 
 Gli asset sono path logici. L’authoring non risolve il filesystem e non possiede
 un asset root globale: la risoluzione avviene nel `AssetResolver` del singolo
 runtime configurato tramite `sdk::RenderEngine::set_assets_root(...)`.
 
-```cpp
-#include <chronon3d/authoring/asset.hpp>
-#include <chronon3d/authoring/layer.hpp>
-#include <chronon3d/authoring/text.hpp>
-#include <chronon3d/sdk/render_engine.hpp>
-
-using chronon3d::authoring::asset;
-
-layer.image("logo", asset("images/logo.png"));
-layer.text("HELLO").font(asset("fonts/Inter.ttf"), 100);
-
-chronon3d::sdk::RenderEngine engine;
-engine.set_assets_root("/srv/project/assets");
-```
-
-Gli include restano espliciti e focalizzati: non esiste un nuovo mega-header
-`chronon3d.hpp`, `authoring.hpp`, `render.hpp` o `advanced.hpp`.
+The working consumer example is [`sdk_consumers/01_cpp_minimal`](sdk_consumers/01_cpp_minimal/README.md).
+It uses the installed SDK's real `chronon3d/sdk/render_engine.hpp` API and
+compiles and renders the adjacent `plan.json`.
 
 ## Architettura corrente
 

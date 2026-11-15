@@ -368,3 +368,7 @@ TEST_CASE("tool_exists_in_path: known tools") {
 TEST_CASE("tool_exists_in_path: nonexistent tool") {
     CHECK_FALSE(tool_exists_in_path("chronon3d_nonexistent_tool_xyz"));
 }
+
+TEST_CASE("tool_exists_in_path: shell syntax is treated as a literal tool name") {
+    CHECK_FALSE(tool_exists_in_path("chronon3d_missing_tool_xyz; true"));
+}

@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -57,7 +57,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
 
       - name: Free disk space (Linux)
         if: runner.os == 'Linux'
@@ -156,14 +156,17 @@ jobs:
             --output-on-failure --output-junit "${{ github.workspace }}/test-results-${{ matrix.config.slug }}.xml"
 
       - name: Clang-Tidy (PR, Linux only)
-        if: runner.os == 'Linux' && github.event_name == 'pull_request'
+        if: runner.os == 'Linux' && github.event_name == 'pull_request' && matrix.config.slug == 'linux-debug-ci'
         run: |
-          TIDY=$(command -v clang-tidy-18 || command -v clang-tidy-17 || command -v clang-tidy-16 || command -v clang-tidy || true)
-          if [ -z "$TIDY" ]; then echo "clang-tidy not found; skipping"; exit 0; fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang-tidy
+          TIDY=$(command -v clang-tidy-18 || command -v clang-tidy-17 || command -v clang-tidy-16 || command -v clang-tidy)
+          git fetch --no-tags origin "$GITHUB_BASE_REF"
           BUILD_DIR="build/chronon/${{ matrix.config.preset }}"
-          find src include apps -name '*.cpp' -o -name '*.hpp' | \
-            xargs $TIDY --quiet --config-file=.clang-tidy -p "$BUILD_DIR" 2>&1 | tee clang-tidy-report.txt
-          if grep -q "error:" clang-tidy-report.txt; then exit 1; fi
+          FILES=$(git diff --name-only --diff-filter=ACMR "origin/${GITHUB_BASE_REF}...HEAD" -- src apps | grep -E '\.cpp$' || true)
+          if [ -n "$FILES" ]; then
+            printf '%s\n' "$FILES" | xargs -r -P "$(nproc)" -n 1 "$TIDY" --quiet --config-file=.clang-tidy -p "$BUILD_DIR"
+          fi
 
       - name: Generate CI status JSON
         if: runner.os == 'Linux'
@@ -181,7 +184,8 @@ jobs:
           if-no-files-found: ignore
 
   windows-release:
-    # Manual-only release proof for the preset in cmake/presets/windows.json.
+    # Manual-only Windows release proof for both the lean CI preset and the
+    # production parity preset in cmake/presets/windows.json.
     # It used to run on every push/PR, but a hosted Windows Configure alone
     # takes ~50 minutes and the lane is not part of main-truth. Keep the push
     # lane fast: run this with workflow_dispatch when cutting a release or
@@ -190,6 +194,18 @@ jobs:
     name: Windows (Release)
     runs-on: windows-latest
     timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - configure_preset: win-release
+            build_preset: win
+            test_preset: win-test
+            label: lean
+          - configure_preset: win-prod-release
+            build_preset: win-prod
+            test_preset: win-prod-test
+            label: production
     steps:
       - uses: actions/checkout@v4
         with:
@@ -224,11 +240,13 @@ jobs:
           restore-keys: |
             vcpkg-downloads-${{ runner.os }}-${{ env.VCPKG_COMMIT }}-
 
-      - name: Configure (Windows Release)
+      - name: Configure (${{ matrix.configure_preset }})
         shell: pwsh
         run: |
+          $compiler = (Get-Command cl.exe -ErrorAction Stop).Source
           for ($attempt = 1; $attempt -le 3; $attempt++) {
-            cmake --preset win-release
+            cmake --preset ${{ matrix.configure_preset }} `
+              -DCMAKE_C_COMPILER="$compiler" -DCMAKE_CXX_COMPILER="$compiler"
             if ($LASTEXITCODE -eq 0) { exit 0 }
             Write-Host "::warning::configure attempt $attempt/3 failed; retrying in 15s"
             Start-Sleep -Seconds 15
@@ -236,24 +254,11 @@ jobs:
           Write-Error "configure failed after 3 attempts"
           exit 1
 
-      - name: Build release CLI and focused tests (PR / push)
-        if: github.event_name != 'workflow_dispatch'
-        run: cmake --build --preset win --target chronon3d_cli chronon3d_tests_fast
+      - name: Build CLI and full test target
+        run: cmake --build --preset ${{ matrix.build_preset }} --target chronon3d_cli chronon3d_tests
 
-      - name: Build release CLI and full tests (manual dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        run: cmake --build --preset win --target chronon3d_cli chronon3d_tests
-
-      - name: Run focused release tests (PR / push)
-        if: github.event_name != 'workflow_dispatch'
-        run: >-
-          ctest --preset win-test
-          -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_render_job_contract_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests|chronon3d_motion_plan_adapter_tests|chronon3d_backend_registry_tests"
-          --output-on-failure --output-junit "${{ github.workspace }}/windows-test-results.xml"
-
-      - name: Run full release suite (manual dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        run: ctest --preset win-test --output-on-failure --output-junit "${{ github.workspace }}/windows-test-results.xml"
+      - name: Run release suite
+        run: ctest --preset ${{ matrix.test_preset }} --output-on-failure --output-junit "${{ github.workspace }}/windows-test-results.xml"
 
       - name: Generate same-SHA test status
         run: >-
@@ -266,17 +271,17 @@ jobs:
       - name: Generate SHA-256 release manifest
         run: >-
           python tools/windows_release_manifest.py
-          --build-dir build/chronon/win-release
+          --build-dir build/chronon/${{ matrix.configure_preset }}
           --commit "${{ github.sha }}"
           --version-file version.txt
-          --preset win-release
-          --out-dir windows-release-receipt
+          --preset ${{ matrix.configure_preset }}
+          --out-dir windows-release-receipt-${{ matrix.label }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-release-${{ github.sha }}
+          name: windows-release-${{ matrix.label }}-${{ github.sha }}
           path: |
-            windows-release-receipt/
+            windows-release-receipt-${{ matrix.label }}/
             windows-test-results.xml
           retention-days: 90
           if-no-files-found: error
@@ -349,7 +354,6 @@ jobs:
             -R '^chronon3d_golden_e2e_tests$' --output-on-failure
 
   core-build:
-    if: github.event_name != 'push'
     name: Gate 1 / core-build
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -361,7 +365,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
       - name: Install Linux vcpkg prerequisites
         if: runner.os == 'Linux'
         uses: ./.github/actions/linux-vcpkg-prerequisites
@@ -374,7 +378,6 @@ jobs:
       - run: ctest --preset linux-ci-core-gate-test --output-on-failure
 
   sdk-build:
-    if: github.event_name != 'push'
     name: Gate 2 / sdk-build
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -386,7 +389,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
       - name: Install Linux vcpkg prerequisites
         if: runner.os == 'Linux'
         uses: ./.github/actions/linux-vcpkg-prerequisites
@@ -399,7 +402,6 @@ jobs:
       - run: ctest --preset linux-ci-lean-gate-test --output-on-failure
 
   public-header-check:
-    if: github.event_name != 'push'
     name: Gate 3 / public-header-check
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -411,7 +413,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
       - name: Install Linux vcpkg prerequisites
         if: runner.os == 'Linux'
         uses: ./.github/actions/linux-vcpkg-prerequisites
@@ -438,7 +440,6 @@ jobs:
           fi
 
   install-consumer-check:
-    if: github.event_name != 'push'
     name: Gate 4 / install-consumer-check
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -450,7 +451,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
       - name: Install Linux vcpkg prerequisites
         if: runner.os == 'Linux'
         uses: ./.github/actions/linux-vcpkg-prerequisites
@@ -489,7 +490,6 @@ jobs:
           cmake --build consumer/build
 
   architecture-check:
-    if: github.event_name != 'push'
     name: Gate 5 / architecture-check
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -502,8 +502,27 @@ jobs:
       - name: Public-target rule (Chronon3D::SDK / Chronon3D::C only)
         run: bash tools/check_public_targets.sh
 
+  repository-size-check:
+    name: Gate / repository-size-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject newly added oversized files
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git fetch --no-tags origin "$BASE_REF"
+            BASE="origin/$BASE_REF...HEAD"
+          else
+            BASE="HEAD^..HEAD"
+          fi
+          python3 tools/check_added_file_size.py --base "$BASE" --max-mib 1
+
   install-consumer-script:
-    if: github.event_name != 'push'
     name: Gate 6 / install-consumer
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -515,7 +534,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
       - name: Install Linux vcpkg prerequisites
         if: runner.os == 'Linux'
         uses: ./.github/actions/linux-vcpkg-prerequisites
@@ -526,7 +545,6 @@ jobs:
       - run: bash tools/install_consumer_test.sh
 
   sdk-product-certification:
-    if: github.event_name != 'push'
     name: Gate 7 / sdk-product-certification
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -538,7 +556,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
       - name: Install Linux vcpkg prerequisites
         if: runner.os == 'Linux'
         uses: ./.github/actions/linux-vcpkg-prerequisites
@@ -553,7 +571,6 @@ jobs:
       - run: bash tools/verify_sdk_product.sh
 
   fuzz-regressions:
-    if: github.event_name != 'push'
     name: Fuzz regressions
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -564,7 +581,7 @@ jobs:
       - name: Install fuzz toolchain
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq clang ninja-build ccache pkg-config
       - name: Install Linux vcpkg prerequisites
         if: runner.os == 'Linux'
         uses: ./.github/actions/linux-vcpkg-prerequisites
@@ -578,8 +595,8 @@ jobs:
 
   gate-status:
     name: Gate Status Summary
-    if: ${{ !cancelled() && github.event_name != 'push' }}
-    needs: [core-build, sdk-build, public-header-check, install-consumer-check, architecture-check, install-consumer-script, fuzz-regressions]
+    if: ${{ !cancelled() }}
+    needs: [core-build, sdk-build, public-header-check, install-consumer-check, architecture-check, repository-size-check, install-consumer-script, sdk-product-certification, fuzz-regressions]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -594,7 +611,9 @@ jobs:
               'public-header-check':    '${{ needs.public-header-check.result }}',
               'install-consumer-check': '${{ needs.install-consumer-check.result }}',
               'architecture-check':     '${{ needs.architecture-check.result }}',
+              'repository-size-check':  '${{ needs.repository-size-check.result }}',
               'install-consumer-script':'${{ needs.install-consumer-script.result }}',
+              'sdk-product-certification':'${{ needs.sdk-product-certification.result }}',
               'fuzz-regressions':       '${{ needs.fuzz-regressions.result }}',
           }
           passed = sum(1 for v in gates.values() if v == 'success')
@@ -636,7 +655,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
       - name: Canonical architecture and test registration gate
         run: python3 tools/check_architecture.py
       - name: Install Linux vcpkg prerequisites
@@ -717,7 +736,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
       - name: Architecture regression guard
         run: python3 tools/check_architecture.py
       - name: Install Linux vcpkg prerequisites
@@ -749,7 +768,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
       - name: Install Linux vcpkg prerequisites
         if: runner.os == 'Linux'
         uses: ./.github/actions/linux-vcpkg-prerequisites

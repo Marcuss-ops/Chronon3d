@@ -295,7 +295,8 @@ BLPath GlyphOutlineBuilder::build_path(
 
     std::lock_guard<std::mutex> lock(mutex_);
 
-    if (FT_Load_Glyph(ft_face, glyph_id, FT_LOAD_NO_BITMAP) != 0) return path;
+    if (FT_Load_Glyph(ft_face, glyph_id,
+                      FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING) != 0) return path;
     if (ft_face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) return path;
 
     constexpr float kScale = 1.0f / 64.0f;

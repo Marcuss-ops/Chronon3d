@@ -24,7 +24,10 @@
 
 #include <chrono>
 #include <cstdlib>
-#ifndef _WIN32
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
 #include <dlfcn.h>
 #endif
 #include <filesystem>
@@ -37,7 +40,28 @@ namespace chronon3d::media::video {
 namespace {
 
 void ensure_nvrtc_builtins_loaded() {
-#ifndef _WIN32
+#if defined(_WIN32)
+    HMODULE nvrtc_module = nullptr;
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCWSTR>(&nvrtcCompileProgram),
+                            &nvrtc_module)) return;
+    std::wstring module_path(32768, L'\0');
+    const DWORD length = GetModuleFileNameW(nvrtc_module, module_path.data(),
+                                             static_cast<DWORD>(module_path.size()));
+    if (length == 0 || length >= module_path.size()) return;
+    module_path.resize(length);
+    const auto directory = std::filesystem::path(module_path).parent_path();
+    std::error_code error;
+    for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
+        if (error || !entry.is_regular_file(error)) continue;
+        const auto filename = entry.path().filename().wstring();
+        if (filename.rfind(L"nvrtc-builtins64_", 0) != 0 ||
+            entry.path().extension() != L".dll") continue;
+        (void)LoadLibraryW(entry.path().c_str());
+        break;
+    }
+#else
     Dl_info info{};
     if (dladdr(reinterpret_cast<void*>(&nvrtcCompileProgram), &info) == 0 ||
         !info.dli_fname) return;
@@ -51,6 +75,34 @@ void ensure_nvrtc_builtins_loaded() {
         break;
     }
 #endif
+}
+
+std::string nvrtc_architecture() {
+    CUdevice device{};
+    int major = 0;
+    int minor = 0;
+    if (cuCtxGetDevice(&device) != CUDA_SUCCESS ||
+        cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device) != CUDA_SUCCESS ||
+        cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
+                             device) != CUDA_SUCCESS) {
+        return CHRONON3D_NVRTC_ARCHITECTURE;
+    }
+
+    int arch_count = 0;
+    if (nvrtcGetNumSupportedArchs(&arch_count) != NVRTC_SUCCESS || arch_count <= 0)
+        return CHRONON3D_NVRTC_ARCHITECTURE;
+    std::vector<int> supported_archs(static_cast<std::size_t>(arch_count));
+    if (nvrtcGetSupportedArchs(supported_archs.data()) != NVRTC_SUCCESS)
+        return CHRONON3D_NVRTC_ARCHITECTURE;
+
+    const int device_arch = major * 10 + minor;
+    int selected_arch = 0;
+    for (const int arch : supported_archs) {
+        if (arch <= device_arch && arch > selected_arch) selected_arch = arch;
+    }
+    if (selected_arch == 0) return CHRONON3D_NVRTC_ARCHITECTURE;
+    return "compute_" + std::to_string(selected_arch);
 }
 
 } // namespace
@@ -115,6 +167,7 @@ std::string nvrtc_version() {
 }
 
 cache::ProgramArtifactKey nv12_program_key() {
+    const auto architecture = nvrtc_architecture();
     const auto semantic_program_fingerprint =
         chronon3d::core::hash::HashBuilder{}
             .add("chronon3d.semantic-program.nv12.v1")
@@ -124,22 +177,24 @@ cache::ProgramArtifactKey nv12_program_key() {
         semantic_program_fingerprint,
         "nvrtc-ptx",
         "cuda-driver",
-        CHRONON3D_NVRTC_ARCHITECTURE,
+        architecture,
         "NVRTC",
         nvrtc_version(),
-        "--std=c++17 --gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE,
+        "--std=c++17 --gpu-architecture=" + architecture,
         1};
 }
 
 std::string compile_nv12_ptx() {
     ensure_nvrtc_builtins_loaded();
+    const auto architecture = nvrtc_architecture();
 
     nvrtcProgram program{};
     check_nvrtc(nvrtcCreateProgram(&program, kNv12Kernel.c_str(), "chronon_nv12.cu",
                                    0, nullptr, nullptr), "nvrtcCreateProgram");
+    const auto architecture_option = "--gpu-architecture=" + architecture;
     const char* options[] = {
         "--std=c++17",
-        "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE};
+        architecture_option.c_str()};
     const nvrtcResult compile = nvrtcCompileProgram(program, 2, options);
     if (compile != NVRTC_SUCCESS) {
         size_t log_size = 0;
@@ -241,7 +296,7 @@ std::shared_ptr<SharedCudaNv12Module> load_module_for_program_artifact(
             detail += description;
             detail += ")";
         }
-        detail += "; arch=" CHRONON3D_NVRTC_ARCHITECTURE;
+        detail += "; arch=" + nvrtc_architecture();
         detail += "; ptx_bytes=" + std::to_string(ptx.size());
         fail("cuModuleLoadData", detail);
     }

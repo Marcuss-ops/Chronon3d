@@ -158,7 +158,7 @@ if(TARGET chronon3d_c)
     # install prefix, so the generated .pc stays relocatable via ${pcfiledir}
     # (see cmake/chronon3d.pc.in).
     file(RELATIVE_PATH _chronon3d_pc_prefix_rel
-         "/${CMAKE_INSTALL_LIBDIR}/pkgconfig" "/")
+         "${CMAKE_INSTALL_FULL_LIBDIR}/pkgconfig" "${CMAKE_INSTALL_PREFIX}")
     configure_file(
         "${CMAKE_SOURCE_DIR}/cmake/chronon3d.pc.in"
         "${CMAKE_CURRENT_BINARY_DIR}/chronon3d.pc"

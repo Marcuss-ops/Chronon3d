@@ -8,8 +8,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <limits>
 #include <memory>
+#include <new>
 #include <optional>
 #include <string>
 #include <utility>
@@ -66,4 +68,37 @@ void clear_error(chronon_engine* engine);
 chronon_status set_error(chronon_engine* engine, chronon_status status, std::string message);
 chronon_status set_render_error(chronon_engine* engine,
                                 const chronon3d::sdk::RenderError& error);
+
+inline chronon_status set_error_noexcept(chronon_engine* engine,
+                                         chronon_status status,
+                                         const char* fallback_message) noexcept {
+    try {
+        return set_error(engine, status, fallback_message ? fallback_message : "");
+    } catch (...) {
+        if (engine) {
+            engine->last_status = status;
+            engine->last_error.clear();
+            engine->last_code.clear();
+            engine->last_component.clear();
+            engine->last_node_id.clear();
+            engine->last_asset.clear();
+        }
+        return status;
+    }
+}
+
+template <typename Function>
+chronon_status c_abi_guard(chronon_engine* engine, Function&& function) noexcept {
+    try {
+        return std::forward<Function>(function)();
+    } catch (const std::bad_alloc&) {
+        return set_error_noexcept(engine, CHRONON_ERROR_OUT_OF_MEMORY,
+                                  "out of memory at C ABI boundary");
+    } catch (const std::exception& error) {
+        return set_error_noexcept(engine, CHRONON_ERROR_UNKNOWN, error.what());
+    } catch (...) {
+        return set_error_noexcept(engine, CHRONON_ERROR_UNKNOWN,
+                                  "unknown C++ exception at C ABI boundary");
+    }
+}
 } // namespace chronon_c_api_detail

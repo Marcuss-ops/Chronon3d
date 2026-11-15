@@ -62,7 +62,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS": "-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
         "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined",
         "CHRONON3D_BUILD_TESTS": "ON",
@@ -70,6 +70,9 @@
         "CHRONON3D_BUILD_CLI_DEV": "ON",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_DEV_SPLIT_DWARF": "ON",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
       }
     },
@@ -101,7 +104,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "CMAKE_CXX_FLAGS": "-fsanitize=thread -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS": "-O1 -g -fsanitize=thread -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=thread",
         "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=thread",
         "CHRONON3D_BUILD_TESTS": "ON",
@@ -109,6 +112,9 @@
         "CHRONON3D_BUILD_CLI_DEV": "ON",
         "CHRONON3D_ENABLE_TEXT": "ON",
         "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_DEV_SPLIT_DWARF": "ON",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
       }
     },
@@ -156,37 +162,37 @@
       "name": "linux-ci-core-gate",
       "configurePreset": "linux-ci-core-gate",
       "targets": ["chronon3d_tests_fast"],
-      "jobs": 14
+      "jobs": 8
     },
     {
       "name": "linux-ci-lean-gate",
       "configurePreset": "linux-ci-lean-gate",
       "targets": ["chronon3d_cli", "chronon3d_tests_fast"],
-      "jobs": 14
+      "jobs": 8
     },
     {
       "name": "linux-asan",
       "configurePreset": "linux-asan",
       "targets": ["chronon3d_cli", "chronon3d_tests"],
-      "jobs": 14
+      "jobs": 8
     },
     {
       "name": "linux-asan-native",
       "configurePreset": "linux-asan-native",
       "targets": ["chronon3d_native_decoder_teardown_tests"],
-      "jobs": 14
+      "jobs": 8
     },
     {
       "name": "linux-tsan",
       "configurePreset": "linux-tsan",
       "targets": ["chronon3d_cli", "chronon3d_tests"],
-      "jobs": 14
+      "jobs": 8
     },
     {
       "name": "linux-content-dev",
       "configurePreset": "linux-content-dev",
       "targets": ["chronon3d_cli"],
-      "jobs": 14
+      "jobs": 8
     }
   ],
   "testPresets": [

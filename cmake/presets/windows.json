@@ -36,6 +36,25 @@
         "CHRONON3D_BUILD_C_API": "ON",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;tests;native-ffmpeg"
       }
+    },
+    {
+      "name": "win-prod-release",
+      "inherits": "win-gpu-release",
+      "binaryDir": "${sourceDir}/build/chronon/win-prod-cl-release",
+      "displayName": "Windows Production Parity Release",
+      "description": "Windows release with the same major rendering, color, text, SVG, mesh, HDR, Vulkan and video features enabled as the production Linux profile.",
+      "cacheVariables": {
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_SVG": "ON",
+        "CHRONON3D_ENABLE_OCIO": "ON",
+        "CHRONON3D_ENABLE_MESH": "ON",
+        "CHRONON3D_ENABLE_EXR": "ON",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
+        "CHRONON3D_ENABLE_VULKAN": "ON",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;tests;native-ffmpeg;svg;ocio;mesh;exr"
+      }
     }
   ],
   "buildPresets": [
@@ -47,7 +66,12 @@
     {
       "name": "win-gpu",
       "configurePreset": "win-gpu-release",
-      "jobs": 14
+      "jobs": 8
+    },
+    {
+      "name": "win-prod",
+      "configurePreset": "win-prod-release",
+      "jobs": 8
     }
   ],
   "testPresets": [
@@ -61,6 +85,13 @@
     {
       "name": "win-gpu-test",
       "configurePreset": "win-gpu-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "win-prod-test",
+      "configurePreset": "win-prod-release",
       "output": {
         "outputOnFailure": true
       }

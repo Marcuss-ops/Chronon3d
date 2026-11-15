@@ -317,8 +317,9 @@ TEST_CASE("C ABI exposes a per-engine structured log callback") {
                 fixture.engine, capture_log, &logs) == CHRONON_OK);
 
     const auto output = unique_output_path("log_callback");
+    const auto output_string = output.string();
     const auto status = chronon_render_file(
-        fixture.engine, fixture.plan, output.c_str(), 1, 0, 30, 1, nullptr);
+        fixture.engine, fixture.plan, output_string.c_str(), 1, 0, 30, 1, nullptr);
     CHECK(status == CHRONON_ERROR_RENDER_FAILED);
     CHECK(logs.calls >= 1);
     CHECK(logs.last_level == 4); // sdk::LogLevel::Error
@@ -333,6 +334,7 @@ TEST_CASE("C ABI exposes a per-engine structured log callback") {
 TEST_CASE("C ABI v2 cancellation leaves no output or SDK temp sibling") {
     EngineFixture fixture;
     const auto output = unique_output_path("cancel");
+    const auto output_string = output.string();
     CancellationState cancellation;
     chronon_render_callbacks callbacks{};
     callbacks.is_cancelled = [](void* user) {
@@ -341,7 +343,7 @@ TEST_CASE("C ABI v2 cancellation leaves no output or SDK temp sibling") {
     callbacks.user = &cancellation;
 
     const auto status = chronon_render_file(
-        fixture.engine, fixture.plan, output.c_str(), 0, 1, 30, 1, &callbacks);
+        fixture.engine, fixture.plan, output_string.c_str(), 0, 1, 30, 1, &callbacks);
     CHECK(status == CHRONON_ERROR_CANCELLED);
     CHECK_FALSE(std::filesystem::exists(output));
     CHECK_FALSE(has_sdk_temp_sibling(output));
@@ -354,11 +356,12 @@ TEST_CASE("C ABI v2 cancellation leaves no output or SDK temp sibling") {
 TEST_CASE("C ABI v2 invalid file range leaves no output or SDK temp sibling") {
     EngineFixture fixture;
     const auto output = unique_output_path("unsupported");
+    const auto output_string = output.string();
     chronon_render_callbacks callbacks{};
     callbacks.is_cancelled = [](void*) { return 0; };
 
     const auto status = chronon_render_file(
-        fixture.engine, fixture.plan, output.c_str(), 1, 0, 30, 1, &callbacks);
+        fixture.engine, fixture.plan, output_string.c_str(), 1, 0, 30, 1, &callbacks);
     CHECK(status != CHRONON_OK);
     CHECK_FALSE(std::filesystem::exists(output));
     CHECK_FALSE(has_sdk_temp_sibling(output));

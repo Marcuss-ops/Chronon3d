@@ -74,8 +74,10 @@ class Plan:
         return self._handle
 
     def close(self) -> None:
-        if self._handle is not None:
-            _lib.load().chronon_plan_destroy(self._handle)
+        with self._engine._lock:
+            if self._handle is None:
+                return
+            self._engine._lib.chronon_plan_destroy(self._handle)
             self._handle = None
             try:
                 self._engine._plans.remove(self)
@@ -139,9 +141,8 @@ class RenderEngine:
 
     def close(self) -> None:
         with self._lock:
-            for p in self._plans:
+            for p in self._plans.copy():
                 p.close()
-            self._plans.clear()
             if self._handle is not None:
                 self._lib.chronon_engine_destroy(self._handle)
                 self._handle = None
@@ -194,9 +195,10 @@ class RenderEngine:
             except Exception:  # never propagate into C
                 pass
 
-        cb = _lib.LOG_FN(tramp) if fn else _lib.LOG_FN()
-        self._check(self._lib.chronon_engine_set_log_callback(self.handle, cb, None))
-        self._log_cb = cb if fn else None  # keep alive
+        with self._lock:
+            cb = _lib.LOG_FN(tramp) if fn else _lib.LOG_FN()
+            self._check(self._lib.chronon_engine_set_log_callback(self.handle, cb, None))
+            self._log_cb = cb if fn else None  # keep alive
 
     # ── errors ──────────────────────────────────────────────────────────
     def last_error(self) -> ChrononError | None:

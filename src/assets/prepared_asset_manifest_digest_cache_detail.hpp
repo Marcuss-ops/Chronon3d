@@ -13,7 +13,18 @@ struct FileIdentity {
                 static_cast<std::uint64_t>(info.st_ino)};
     }
 #else
-    (void)path;
+    const HANDLE file = CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES,
+                                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                    nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return {};
+    BY_HANDLE_FILE_INFORMATION info{};
+    const BOOL ok = GetFileInformationByHandle(file, &info);
+    CloseHandle(file);
+    if (ok) {
+        const auto index = (static_cast<std::uint64_t>(info.nFileIndexHigh) << 32U) |
+                           static_cast<std::uint64_t>(info.nFileIndexLow);
+        return {static_cast<std::uint64_t>(info.dwVolumeSerialNumber), index};
+    }
 #endif
     return {};
 }

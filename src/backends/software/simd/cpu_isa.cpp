@@ -28,6 +28,10 @@
     (defined(__GNUC__) || (defined(__clang__) && !defined(_MSC_VER)))
 #include <cpuid.h>   // __builtin_cpu_init() declaration (GCC/Clang)
 #endif
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+#include <intrin.h>
+#include <immintrin.h>
+#endif
 
 namespace chronon3d {
 namespace simd {
@@ -150,14 +154,38 @@ CpuCapabilities detect_cpu_capabilities() noexcept {
     // (runtime CPUID query, no inline assembly); `__builtin_cpu_init()`
     // primes the CPU model in GCC. Platform-abstracted: non-x86/aarch64
     // hosts conservatively report the scalar route.
-#if defined(__x86_64__) || defined(__i386__)
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
 #if defined(__GNUC__) || (defined(__clang__) && !defined(_MSC_VER))
     __builtin_cpu_init();
     caps.has_sse42  = __builtin_cpu_supports("sse4.2");
     caps.has_avx2   = __builtin_cpu_supports("avx2");
     caps.has_avx512 = __builtin_cpu_supports("avx512f");
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+    int registers[4]{};
+    __cpuid(registers, 0);
+    const int max_leaf = registers[0];
+    if (max_leaf >= 1) {
+        __cpuidex(registers, 1, 0);
+        const unsigned int ecx = static_cast<unsigned int>(registers[2]);
+        caps.has_sse42 = (ecx & (1u << 20)) != 0;
+
+        constexpr unsigned int kOsXsave = 1u << 27;
+        constexpr unsigned int kAvx = 1u << 28;
+        if ((ecx & (kOsXsave | kAvx)) == (kOsXsave | kAvx)) {
+            const unsigned __int64 xcr0 = _xgetbv(0);
+            constexpr unsigned __int64 kAvxState = 0x6;
+            constexpr unsigned __int64 kAvx512State = 0xE6;
+            if ((xcr0 & kAvxState) == kAvxState && max_leaf >= 7) {
+                __cpuidex(registers, 7, 0);
+                const unsigned int ebx = static_cast<unsigned int>(registers[1]);
+                caps.has_avx2 = (ebx & (1u << 5)) != 0;
+                caps.has_avx512 = (ebx & (1u << 16)) != 0 &&
+                                  (xcr0 & kAvx512State) == kAvx512State;
+            }
+        }
+    }
 #else
-    // MSVC / other toolchains: conservative default (scalar route).
+    // Unknown x86 toolchains: conservative scalar route.
 #endif
 #elif defined(__aarch64__) || defined(_M_ARM64)
     caps.has_neon = true;   // all current aarch64 implementations expose NEON

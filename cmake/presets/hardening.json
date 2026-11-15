@@ -48,9 +48,9 @@
     }
   ],
   "buildPresets": [
-    {"name": "linux-hardened-release", "configurePreset": "linux-hardened-release", "targets": ["chronon3d_cli", "chronon3d_tests"], "jobs": 12},
-    {"name": "linux-cfi", "configurePreset": "linux-cfi", "targets": ["chronon3d_daemon"], "jobs": 12},
-    {"name": "linux-ocio-certification", "configurePreset": "linux-ocio-certification", "targets": ["chronon3d_ocio_tests"], "jobs": 12}
+    {"name": "linux-hardened-release", "configurePreset": "linux-hardened-release", "targets": ["chronon3d_cli", "chronon3d_tests"], "jobs": 8},
+    {"name": "linux-cfi", "configurePreset": "linux-cfi", "targets": ["chronon3d_daemon"], "jobs": 8},
+    {"name": "linux-ocio-certification", "configurePreset": "linux-ocio-certification", "targets": ["chronon3d_ocio_tests"], "jobs": 8}
   ],
   "testPresets": [
     {"name": "linux-hardened-release-test", "configurePreset": "linux-hardened-release", "output": {"outputOnFailure": true}},

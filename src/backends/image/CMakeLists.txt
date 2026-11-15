@@ -18,12 +18,16 @@ endif()
 # skip the PCH (which is not compatible with these flags) and unity build
 # inclusion (consolidated TUs would re-enable -O2 from the target's flags).
 # No runtime impact: stb parse/encode is I/O bound, not inner-loop bound.
+if(MSVC)
+    set(_chronon3d_stb_low_optimization /Od)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set(_chronon3d_stb_low_optimization -O0 -fno-var-tracking -g0 -pipe)
+endif()
 set_source_files_properties(stb_image_backend.cpp image_writer.cpp
     PROPERTIES
-        COMPILE_OPTIONS "-O0;-fno-var-tracking;-g0;-pipe"
+        COMPILE_OPTIONS "${_chronon3d_stb_low_optimization}"
         SKIP_PRECOMPILE_HEADERS ON
-        SKIP_UNITY_BUILD_INCLUSION ON
-)
+        SKIP_UNITY_BUILD_INCLUSION ON)
 
 target_link_libraries(chronon3d_backend_image PUBLIC
     chronon3d

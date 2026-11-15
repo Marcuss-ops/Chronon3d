@@ -14,26 +14,21 @@ using chronon_c_api_detail::clear_error;
 using chronon_c_api_detail::rendered_byte_size;
 using chronon_c_api_detail::set_error;
 using chronon_c_api_detail::set_render_error;
+using chronon_c_api_detail::c_abi_guard;
 
-extern "C" {
-chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* plan,
-                                    uint64_t frame, chronon_frame_buffer* output) {
-    if (!engine || !plan || !output)
-        return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render arguments");
-    EngineUseGuard use(engine->in_use);
-    if (!use.acquired()) return CHRONON_ERROR_BUSY;
-    std::memset(output, 0, sizeof(*output));
-    engine->engine.set_settings(plan->settings);
-    auto result = engine->engine.render_program(
-        plan->program,
-        chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)});
-    if (!result) return set_render_error(engine, result.error());
-    const auto& rendered = result.value();
+namespace {
+template <typename Rendered>
+chronon_status copy_rendered_to_engine_buffer(chronon_engine* engine,
+                                              const Rendered& rendered,
+                                              chronon_frame_buffer* output) {
     const auto size = rendered_byte_size(rendered);
-    if (!size) return set_error(engine, CHRONON_ERROR_IO_FAILED,
-                                "rendered frame size overflow or invalid dimensions");
+    if (!size)
+        return set_error(engine, CHRONON_ERROR_IO_FAILED,
+                         "rendered frame size overflow or invalid dimensions");
     auto* data = static_cast<std::uint8_t*>(std::realloc(engine->buffer, *size));
-    if (!data) return set_error(engine, CHRONON_ERROR_IO_FAILED, "frame buffer allocation failed");
+    if (!data)
+        return set_error(engine, CHRONON_ERROR_OUT_OF_MEMORY,
+                         "frame buffer allocation failed");
     engine->buffer = data;
     engine->buffer_size = *size;
     std::memcpy(engine->buffer, rendered.pixels, *size);
@@ -46,6 +41,25 @@ chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* 
     clear_error(engine);
     return CHRONON_OK;
 }
+} // namespace
+
+extern "C" {
+chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* plan,
+                                    uint64_t frame, chronon_frame_buffer* output) {
+    return c_abi_guard(engine, [&]() -> chronon_status {
+    if (!engine || !plan || !output)
+        return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render arguments");
+    EngineUseGuard use(engine->in_use);
+    if (!use.acquired()) return CHRONON_ERROR_BUSY;
+    std::memset(output, 0, sizeof(*output));
+    engine->engine.set_settings(plan->settings);
+    auto result = engine->engine.render_program(
+        plan->program,
+        chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)});
+    if (!result) return set_render_error(engine, result.error());
+    return copy_rendered_to_engine_buffer(engine, result.value(), output);
+    });
+}
 
 chronon_status chronon_render_frame_with_layers_and_elements(
                                                 chronon_engine* engine,
@@ -56,6 +70,7 @@ chronon_status chronon_render_frame_with_layers_and_elements(
                                                 const chronon_element_state* elements,
                                                 uint64_t element_count,
                                                 chronon_frame_buffer* out_buffer) {
+    return c_abi_guard(engine, [&]() -> chronon_status {
     if (!engine || !plan || !out_buffer)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render arguments");
     if ((state_count != 0 && !states) || (element_count != 0 && !elements))
@@ -77,22 +92,8 @@ chronon_status chronon_render_frame_with_layers_and_elements(
         states, static_cast<std::size_t>(state_count),
         elements, static_cast<std::size_t>(element_count));
     if (!result) return set_render_error(engine, result.error());
-    const auto& rendered = result.value();
-    const auto size = rendered_byte_size(rendered);
-    if (!size) return set_error(engine, CHRONON_ERROR_IO_FAILED, "invalid rendered frame size");
-    auto* data = static_cast<std::uint8_t*>(std::realloc(engine->buffer, *size));
-    if (!data) return set_error(engine, CHRONON_ERROR_IO_FAILED, "frame buffer allocation failed");
-    engine->buffer = data;
-    engine->buffer_size = *size;
-    std::memcpy(engine->buffer, rendered.pixels, *size);
-    out_buffer->data = engine->buffer;
-    out_buffer->size = *size;
-    out_buffer->width = static_cast<uint32_t>(rendered.width);
-    out_buffer->height = static_cast<uint32_t>(rendered.height);
-    out_buffer->stride = static_cast<uint32_t>(rendered.bytes_per_row);
-    out_buffer->pixel_format = static_cast<uint32_t>(rendered.format);
-    clear_error(engine);
-    return CHRONON_OK;
+    return copy_rendered_to_engine_buffer(engine, result.value(), out_buffer);
+    });
 }
 
 chronon_status chronon_render_frame_with_layers(chronon_engine* engine,
@@ -101,6 +102,7 @@ chronon_status chronon_render_frame_with_layers(chronon_engine* engine,
                                                 const chronon_layer_state* states,
                                                 uint64_t state_count,
                                                 chronon_frame_buffer* out_buffer) {
+    return c_abi_guard(engine, [&]() -> chronon_status {
     if (!engine || !plan || !out_buffer)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render arguments");
     if (state_count != 0 && !states)
@@ -132,23 +134,8 @@ chronon_status chronon_render_frame_with_layers(chronon_engine* engine,
         chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)},
         states, static_cast<std::size_t>(state_count));
     if (!result) return set_render_error(engine, result.error());
-    const auto& rendered = result.value();
-    const auto size = rendered_byte_size(rendered);
-    if (!size) return set_error(engine, CHRONON_ERROR_IO_FAILED,
-                                "rendered frame size overflow or invalid dimensions");
-    auto* data = static_cast<std::uint8_t*>(std::realloc(engine->buffer, *size));
-    if (!data) return set_error(engine, CHRONON_ERROR_IO_FAILED, "frame buffer allocation failed");
-    engine->buffer = data;
-    engine->buffer_size = *size;
-    std::memcpy(engine->buffer, rendered.pixels, *size);
-    out_buffer->data = engine->buffer;
-    out_buffer->size = *size;
-    out_buffer->width = static_cast<uint32_t>(rendered.width);
-    out_buffer->height = static_cast<uint32_t>(rendered.height);
-    out_buffer->stride = static_cast<uint32_t>(rendered.bytes_per_row);
-    out_buffer->pixel_format = static_cast<uint32_t>(rendered.format);
-    clear_error(engine);
-    return CHRONON_OK;
+    return copy_rendered_to_engine_buffer(engine, result.value(), out_buffer);
+    });
 }
 
 chronon_status chronon_render_frame_into(chronon_engine* engine,
@@ -156,6 +143,7 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
                                           uint64_t frame, void* destination,
                                           uint64_t destination_size,
                                           chronon_frame_info* output) {
+    return c_abi_guard(engine, [&]() -> chronon_status {
     if (!engine || !plan || !output)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render-into arguments");
     EngineUseGuard use(engine->in_use);
@@ -181,12 +169,14 @@ chronon_status chronon_render_frame_into(chronon_engine* engine,
     std::memcpy(destination, rendered.pixels, *size);
     clear_error(engine);
     return CHRONON_OK;
+    });
 }
 
 chronon_status chronon_render_file(chronon_engine* engine, const chronon_plan* plan,
                                    const char* output_path, uint64_t start_frame,
                                    uint64_t end_frame, uint32_t fps_num,
                                    uint32_t fps_den, const chronon_render_callbacks* cb) {
+    return c_abi_guard(engine, [&]() -> chronon_status {
     if (!engine || !plan || !output_path || fps_num == 0 || fps_den == 0)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid file render arguments");
     EngineUseGuard use(engine->in_use);
@@ -209,6 +199,7 @@ chronon_status chronon_render_file(chronon_engine* engine, const chronon_plan* p
     if (!result) return set_render_error(engine, result.error());
     clear_error(engine);
     return CHRONON_OK;
+    });
 }
 void chronon_buffer_free(chronon_engine* engine, chronon_frame_buffer* buffer) {
     if (!engine || !buffer) return;

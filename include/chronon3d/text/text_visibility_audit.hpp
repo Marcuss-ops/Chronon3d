@@ -57,7 +57,7 @@
 
 namespace chronon3d {
 
-class TextRunShape;     // forward decl — full definition lives in
+struct TextRunShape;    // forward decl — full definition lives in
                         // `<chronon3d/text/text_run_shape.hpp>`. The audit
                         // function only reads `engine`, `cache`, and the
                         // immutable `layout.placed.glyphs` size, so a

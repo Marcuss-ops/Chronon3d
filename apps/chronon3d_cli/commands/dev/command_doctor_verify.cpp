@@ -2,6 +2,7 @@
 #include "../../utils/job/cli_render_utils.hpp"
 #include "doctor_report.hpp"
 
+#include <chronon3d/simd/cpu_isa.hpp>
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
@@ -75,9 +76,32 @@ int command_doctor(const CompositionRegistry& /*registry*/,
             },
             {"build_sha", git_sha}
         };
+        const auto cpu = simd::detect_cpu_capabilities();
+        const nlohmann::json features = {
+            {"blend2d", CHRONON3D_DOCTOR_HAS_BLEND2D != 0},
+            {"text", CHRONON3D_DOCTOR_HAS_TEXT != 0},
+            {"svg", CHRONON3D_DOCTOR_HAS_SVG != 0},
+            {"mesh", CHRONON3D_DOCTOR_HAS_MESH != 0},
+            {"ocio", CHRONON3D_DOCTOR_HAS_OCIO != 0},
+            {"exr", CHRONON3D_DOCTOR_HAS_EXR != 0},
+            {"video", CHRONON3D_DOCTOR_HAS_VIDEO != 0},
+            {"vulkan", CHRONON3D_DOCTOR_HAS_VULKAN != 0},
+            {"native_ffmpeg", CHRONON3D_DOCTOR_HAS_NATIVE_FFMPEG != 0},
+            {"fribidi", CHRONON3D_DOCTOR_HAS_FRIBIDI != 0},
+        };
+        const nlohmann::json cpu_isa = {
+            {"highest", simd::cpu_isa_name(cpu.highest_isa)},
+            {"sse42", cpu.has_sse42},
+            {"avx2", cpu.has_avx2},
+            {"avx512", cpu.has_avx512},
+            {"neon", cpu.has_neon},
+        };
         std::cout << nlohmann::json{
                          {"ready", report.ready},
                          {"capabilities", std::move(caps)},
+                         {"features", features},
+                         {"backend_default_preference", "auto"},
+                         {"cpu_isa", cpu_isa},
                          {"checks", std::move(checks)}}
                          .dump(2)
                   << '\n';

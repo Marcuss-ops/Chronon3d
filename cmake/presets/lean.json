@@ -28,7 +28,7 @@
     {
       "name": "chronon-lean",
       "configurePreset": "chronon-lean",
-      "jobs": 14
+      "jobs": 8
     }
   ]
 }

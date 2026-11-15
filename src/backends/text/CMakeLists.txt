@@ -51,8 +51,23 @@ endif()
 if(FRIBIDI_FOUND)
     target_link_libraries(chronon3d_backend_text PUBLIC PkgConfig::FRIBIDI)
     target_compile_definitions(chronon3d_backend_text PUBLIC CHRONON3D_HAS_FRIBIDI)
+    set(CHRONON3D_HAS_FRIBIDI ON CACHE INTERNAL "Whether FriBidi is available in this build" FORCE)
 else()
-    message(WARNING "FriBidi not found — bidi text segmentation will use LTR-only fallback")
+    # vcpkg's Windows port installs headers and a library but pkg-config may
+    # not be available to the active CMake environment. Resolve those files
+    # directly before falling back to LTR-only segmentation.
+    find_path(FRIBIDI_INCLUDE_DIR NAMES fribidi.h PATH_SUFFIXES fribidi)
+    find_library(FRIBIDI_LIBRARY NAMES fribidi)
+    if(FRIBIDI_INCLUDE_DIR AND FRIBIDI_LIBRARY)
+        target_include_directories(chronon3d_backend_text PUBLIC
+            "${FRIBIDI_INCLUDE_DIR}")
+        target_link_libraries(chronon3d_backend_text PUBLIC
+            "${FRIBIDI_LIBRARY}")
+        target_compile_definitions(chronon3d_backend_text PUBLIC CHRONON3D_HAS_FRIBIDI)
+        set(CHRONON3D_HAS_FRIBIDI ON CACHE INTERNAL "Whether FriBidi is available in this build" FORCE)
+    else()
+        message(WARNING "FriBidi not found — bidi text segmentation will use LTR-only fallback")
+    endif()
 endif()
 
 target_include_directories(chronon3d_backend_text PRIVATE ${CMAKE_SOURCE_DIR})

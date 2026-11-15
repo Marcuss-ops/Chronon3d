@@ -328,6 +328,31 @@ TEST_CASE("PreparedAssetManifest digest cache hits and invalidates safely") {
           only_asset(warm.value()).content_digest);
 }
 
+TEST_CASE("PreparedAssetManifest digest cache notices same-size atomic replacement") {
+    const auto asset_path = g_temp.path / "images/identity-cache.png";
+    const auto replacement_path = g_temp.path / "images/identity-cache.new";
+    write_file(g_temp.path, "images/identity-cache.png", "same-size-a");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(g_temp.path);
+    const auto plan = image_plan("images/identity-cache.png");
+    const auto first = chronon3d::assets::prepare_asset_manifest(plan, resolver);
+    REQUIRE(first);
+    const auto timestamp = std::filesystem::last_write_time(asset_path);
+
+    write_file(g_temp.path, "images/identity-cache.new", "same-size-b");
+    std::filesystem::last_write_time(replacement_path, timestamp);
+    std::filesystem::remove(asset_path);
+    std::filesystem::rename(replacement_path, asset_path);
+    std::filesystem::last_write_time(asset_path, timestamp);
+
+    const auto replaced = chronon3d::assets::prepare_asset_manifest(plan, resolver);
+    REQUIRE(replaced);
+    CHECK(only_asset(replaced.value()).byte_size ==
+          only_asset(first.value()).byte_size);
+    CHECK(only_asset(replaced.value()).content_digest !=
+          only_asset(first.value()).content_digest);
+}
+
 TEST_CASE("PreparedAssetManifest hashes font references as Font assets") {
     write_file(g_temp.path, "fonts/custom.ttf", "font-bytes");
     chronon3d::assets::AssetResolver resolver;

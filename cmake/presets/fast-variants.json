@@ -89,7 +89,7 @@
       "name": "linux-render-fast-native",
       "configurePreset": "linux-render-fast-native",
       "targets": ["chronon3d_cli"],
-      "jobs": 14
+      "jobs": 8
     }
   ]
 }

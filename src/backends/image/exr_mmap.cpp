@@ -6,10 +6,16 @@
 #include <Imath/half.h>
 #include <spdlog/spdlog.h>
 
+#if defined(_WIN32)
+#include <filesystem>
+#include <fstream>
+#include <vector>
+#else
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#endif
 
 #include <stdexcept>
 #include <cstring>
@@ -142,6 +148,19 @@ std::optional<Matrix3> linear_exr_to_bt709(const Imf::Chromaticities& chroma) {
 class MmapIStream : public Imf::IStream {
 public:
     MmapIStream(const std::string& fileName) : Imf::IStream(fileName.c_str()), _data(nullptr), _size(0), _pos(0) {
+#if defined(_WIN32)
+        std::ifstream input(std::filesystem::u8path(fileName),
+                            std::ios::binary | std::ios::ate);
+        if (!input) throw std::runtime_error("Cannot open file: " + fileName);
+        const auto end = input.tellg();
+        if (end < 0) throw std::runtime_error("Cannot stat file: " + fileName);
+        _size = static_cast<std::size_t>(end);
+        _storage.resize(_size);
+        input.seekg(0, std::ios::beg);
+        if (_size != 0 && !input.read(_storage.data(), static_cast<std::streamsize>(_size)))
+            throw std::runtime_error("Cannot read file: " + fileName);
+        _data = _storage.data();
+#else
         int fd = open(fileName.c_str(), O_RDONLY);
         if (fd == -1) {
             throw std::runtime_error("Cannot open file: " + fileName);
@@ -160,12 +179,15 @@ public:
         if (_data == MAP_FAILED) {
             throw std::runtime_error("Cannot mmap file: " + fileName);
         }
+#endif
     }
 
     ~MmapIStream() override {
+#if !defined(_WIN32)
         if (_data != MAP_FAILED && _data != nullptr) {
             munmap(const_cast<char*>(_data), _size);
         }
+#endif
     }
 
     bool read(char c[/*n*/], int n) override {
@@ -188,6 +210,9 @@ public:
     void clear() override {}
 
 private:
+#if defined(_WIN32)
+    std::vector<char> _storage;
+#endif
     const char* _data;
     size_t _size;
     size_t _pos;

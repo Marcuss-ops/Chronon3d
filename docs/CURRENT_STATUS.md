@@ -81,13 +81,11 @@ the floor-based `mod()`, covered by a 32-sample regression that runs the whole
 Vulkan instance per binary. Closed ticket:
 `docs/tickets/archive/TICKET-POOL-SURFACE-REUSE.md`.
 
-The whole registry binary still reports **1,906,529/1,906,529 assertions
-passing, 0 failed** while aborting 81 of its 130 cases with `vkCreateInstance
--9`. A pure-Vulkan probe creates and destroys 200 instance+device pairs without
-an error, so this is not the driver's ceiling; `VK_ICD_FILENAMES` (deprecated)
-reproduces the failure at `#26` and must not be used in scripts. It is tracked
-as `docs/tickets/TICKET-REGISTRY-HARNESS-VK-INSTANCES.md` and is the only reason
-a full `ctest` cannot be claimed green.
+The latest whole-registry run completed Vulkan instance creation successfully:
+130/139 cases ran, with 9 effect-parity mismatches remaining and no
+`vkCreateInstance -9` failures. These mismatches are tracked in
+`docs/tickets/TICKET-REGISTRY-HARNESS-VK-INSTANCES.md`; the earlier 81/130
+abort report is historical and no longer describes the current harness.
 
 > **Single v0.1 release contract:** [`RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md). This file reports observed state; it does not redefine release identity.
 >

@@ -45,7 +45,7 @@
         "chronon3d_tests",
         "chronon3d_sdk_impl"
       ],
-      "jobs": 14
+      "jobs": 8
     }
   ],
   "testPresets": [

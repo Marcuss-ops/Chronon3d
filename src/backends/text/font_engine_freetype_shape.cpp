@@ -196,7 +196,7 @@ std::optional<GlyphRun> FontEngine::shape_text(
             gp.bbox_x1 = cached->x1;
             gp.bbox_y1 = cached->y1;
         } else {
-            FT_Error err = FT_Load_Glyph(face, gp.glyph_id, FT_LOAD_DEFAULT);
+            FT_Error err = FT_Load_Glyph(face, gp.glyph_id, FT_LOAD_NO_HINTING);
             if (err == 0) {
                 FT_GlyphSlot slot = face->glyph;
                 if (slot->format == FT_GLYPH_FORMAT_OUTLINE) {

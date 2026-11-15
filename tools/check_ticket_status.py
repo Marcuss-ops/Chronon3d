@@ -22,8 +22,8 @@ ROOT = Path(__file__).resolve().parent.parent
 TICKETS = ROOT / "docs" / "tickets"
 CMAKE_TESTS = ROOT / "tests"
 
-STATUS_RE = re.compile(r"^\s*(?:\*\*)?(?:Stato|Status)(?:\*\*)?\s*:?\s*(.*)$", re.IGNORECASE)
-BULLET_STATUS_RE = re.compile(r"^\s*[-*]\s+(?:\*\*)?(?:Stato|Status)(?:\*\*)?\s*:\s*(.*)$", re.IGNORECASE)
+STATUS_RE = re.compile(r"^\s*(?:\*\*)?(?:Stato|Status)(?:\*\*)?(?:\s*\([^)]*\))?\s*:?\s*(.*)$", re.IGNORECASE)
+BULLET_STATUS_RE = re.compile(r"^\s*[-*]\s+(?:\*\*)?(?:Stato|Status)(?:\*\*)?(?:\s*\([^)]*\))?\s*:\s*(.*)$", re.IGNORECASE)
 TABLE_STATUS_RE = re.compile(r"^\s*\|\s*\*{0,2}(?:Stato|Status)\*{0,2}\s*\|\s*(.+?)\s*\|", re.IGNORECASE)
 HEADING_STATUS_RE = re.compile(r"^#{1,6}\s*(Stato|Status)\s*$", re.IGNORECASE)
 TARGET_RE = re.compile(r"`(chronon3d_[a-z0-9_]+_tests)`")
@@ -64,12 +64,16 @@ def classify(status_text: str) -> str:
     head = re.split(r"[\s\u2014\u2013\-:;.]+", cleaned, maxsplit=1)[0].lower()
     if head in {
         "closed", "done", "chiuso", "chiusa", "chiusi", "chiuse",
-        "archiviato", "archiviata", "complete", "completed",
+        "archiviato", "archiviata", "complete", "completed", "fixed",
+        "resolved", "retired",
     }:
         return "CLOSED"
-    if head in {"verify", "implemented", "atterrato", "atterrata"}:
+    if head in {"verify", "implemented", "atterrato", "atterrata", "landed"}:
         return "VERIFY"
-    if head in {"open", "deferred", "blocked", "proposed"}:
+    if head in {
+        "open", "deferred", "blocked", "proposed", "active", "partial",
+        "in", "progress", "notrun", "not-run",
+    }:
         return "OPEN"
     return "UNKNOWN"
 

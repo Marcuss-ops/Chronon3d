@@ -237,6 +237,7 @@ chronon_status set_render_error(chronon_engine* engine,
 using chronon_c_api_detail::clear_error;
 using chronon_c_api_detail::set_error;
 using chronon_c_api_detail::set_render_error;
+using chronon_c_api_detail::c_abi_guard;
 
 extern "C" {
 const char* chronon_version_string(void) {
@@ -270,20 +271,6 @@ const char* chronon_status_name(chronon_status status) {
 }
 
 uint32_t chronon_abi_version(void) { return CHRONON_ABI_VERSION; }
-
-/* ADR-032 contract zone. Independent of the engine ABI: bumps only when a
- * contract-zone record (chronon_content_metrics / chronon_layer_state) or
- * the chronon_content_kind enum changes shape or value.
- *
- * The value has one source, chronon3d::motion::kContractZoneVersion, owned by
- * the contract bridge. On ELF the engine already defines the symbol
- * (src/scene/motion_contract_bridge.cpp), so this wrapper re-exports the
- * engine's definition rather than carrying a second copy. Windows keeps the
- * definition here, where CHRONON3D_BUILD_DLL turns abi.h's declaration into an
- * export instead of a dllimport. */
-#if defined(_WIN32)
-uint32_t chronon_contract_version(void) { return chronon3d::motion::kContractZoneVersion; }
-#endif
 
 const char* chronon_engine_last_error(chronon_engine* engine) {
     return engine ? engine->last_error.c_str() : "invalid engine";
@@ -332,7 +319,10 @@ chronon_engine* chronon_engine_create(const chronon_engine_config* config) {
 chronon_status chronon_engine_create_v2(const chronon_engine_config* config,
                                         chronon_engine** out_engine,
                                         chronon_error_info* out_error) {
-    if (out_error && out_error->struct_size >= sizeof(chronon_error_info)) {
+    return c_abi_guard(nullptr, [&]() -> chronon_status {
+    constexpr std::size_t base_size =
+        offsetof(chronon_error_info, message) + sizeof(chronon_error_info::message);
+    if (out_error && out_error->struct_size >= base_size) {
         out_error->status = CHRONON_OK;
         out_error->message = nullptr;
     }
@@ -363,6 +353,7 @@ chronon_status chronon_engine_create_v2(const chronon_engine_config* config,
         write_error_info(out_error, CHRONON_ERROR_UNKNOWN, "unknown engine creation failure");
         return CHRONON_ERROR_UNKNOWN;
     }
+    });
 }
 
 void chronon_engine_destroy(chronon_engine* engine) {
@@ -372,6 +363,7 @@ void chronon_engine_destroy(chronon_engine* engine) {
 }
 chronon_status chronon_engine_set_log_callback(
     chronon_engine* engine, chronon_log_callback callback, void* user) {
+    return c_abi_guard(engine, [&]() -> chronon_status {
     if (!engine) return CHRONON_ERROR_INVALID_ARGUMENT;
     if (!callback) {
         engine->engine.set_log_callback({}, nullptr);
@@ -381,15 +373,22 @@ chronon_status chronon_engine_set_log_callback(
         [callback](chronon3d::sdk::LogLevel level,
                    std::string_view component,
                    std::string_view message, void* callback_user) {
-            callback(static_cast<int>(level),
-                     std::string(component).c_str(),
-                     std::string(message).c_str(), callback_user);
+            try {
+                const std::string component_text(component);
+                const std::string message_text(message);
+                callback(static_cast<int>(level), component_text.c_str(),
+                         message_text.c_str(), callback_user);
+            } catch (...) {
+                // A logging callback must never unwind through the renderer.
+            }
         }, user);
     return CHRONON_OK;
+    });
 }
 chronon_status chronon_plan_compile_json_n(chronon_engine* engine, const char* source,
                                            uint64_t source_size,
                                            chronon_plan** out_plan) {
+    return c_abi_guard(engine, [&]() -> chronon_status {
     if (!engine || !source || source_size == 0 || !out_plan)
         return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid plan arguments");
     EngineUseGuard use(engine->in_use);
@@ -408,13 +407,19 @@ chronon_status chronon_plan_compile_json_n(chronon_engine* engine, const char* s
         return set_plan_error(engine, error.what(), error.path, error.code, error.component);
     } catch (const std::exception& error) {
         return set_error(engine, CHRONON_ERROR_PARSE_FAILED, error.what());
+    } catch (...) {
+        return set_error(engine, CHRONON_ERROR_UNKNOWN,
+                         "unknown plan compilation failure");
     }
+    });
 }
 
 chronon_status chronon_plan_compile_json(chronon_engine* engine, const char* source,
                                          chronon_plan** out_plan) {
+    return c_abi_guard(engine, [&]() -> chronon_status {
     if (!source) return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid plan arguments");
     return chronon_plan_compile_json_n(engine, source, std::strlen(source), out_plan);
+    });
 }
 
 void chronon_plan_destroy(chronon_plan* plan) { delete plan; }

@@ -17,6 +17,7 @@ on:
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_INSTALL_OPTIONS: "--clean-after-build"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
   CMAKE_BUILD_PARALLEL_LEVEL: "4"
 
@@ -38,10 +39,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Free disk space (Linux)
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+            /usr/share/swift /usr/local/.ghcup
+          sudo apt-get clean
+          df -h
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ccache
+            ${{ env.VCPKG_ROOT }}/downloads
+          key: ${{ runner.os }}-asan-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'vcpkg-overlays/**') }}
+          restore-keys: ${{ runner.os }}-asan-
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: 3.31.10
@@ -69,10 +84,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Free disk space (Linux)
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+            /usr/share/swift /usr/local/.ghcup
+          sudo apt-get clean
+          df -h
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ccache
+            ${{ env.VCPKG_ROOT }}/downloads
+          key: ${{ runner.os }}-tsan-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'vcpkg-overlays/**') }}
+          restore-keys: ${{ runner.os }}-tsan-
       - name: Install Linux vcpkg prerequisites
         if: runner.os == 'Linux'
         uses: ./.github/actions/linux-vcpkg-prerequisites
@@ -86,7 +115,7 @@ jobs:
 
   sanitizer-status:
     name: Sanitizer baseline status
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.event.schedule != '0 4 * * 1' }}
     needs: [asan-ubsan, tsan]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -129,10 +158,24 @@ jobs:
         with:
           submodules: recursive
           lfs: false
+      - name: Free disk space (Linux)
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+            /usr/share/swift /usr/local/.ghcup
+          sudo apt-get clean
+          df -h
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache pkg-config
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ccache
+            ${{ env.VCPKG_ROOT }}/downloads
+          key: ${{ runner.os }}-profile-${{ matrix.profile }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'vcpkg-overlays/**') }}
+          restore-keys: ${{ runner.os }}-profile-${{ matrix.profile }}-
       - name: Install Linux vcpkg prerequisites
         if: runner.os == 'Linux'
         uses: ./.github/actions/linux-vcpkg-prerequisites

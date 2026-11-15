@@ -31,6 +31,10 @@ jobs:
           script: |
             const expected = [
               'Chronon CI',
+              'Developer Gates',
+              'ABI compatibility',
+              'Native Video Certification',
+              'SVG Motion Graphics Pixel Truth',
             ];
             const sha = context.payload.workflow_run.head_sha;
             const statusContext = 'main-truth';

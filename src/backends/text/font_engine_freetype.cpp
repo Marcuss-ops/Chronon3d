@@ -43,12 +43,12 @@ FontEngine::FontMetrics FontEngine::get_font_metrics(const FontSpec& spec, float
     metrics.descent = -static_cast<float>(face->size->metrics.descender) * scale;
     metrics.line_height = static_cast<float>(face->size->metrics.height) * scale;
 
-    FT_Load_Char(face, 'x', FT_LOAD_DEFAULT);
+    FT_Load_Char(face, 'x', FT_LOAD_NO_HINTING);
     if (face->glyph) {
         metrics.x_height = static_cast<float>(face->glyph->metrics.horiBearingY) * scale;
     }
 
-    FT_Load_Char(face, 'H', FT_LOAD_DEFAULT);
+    FT_Load_Char(face, 'H', FT_LOAD_NO_HINTING);
     if (face->glyph) {
         metrics.cap_height = static_cast<float>(face->glyph->metrics.horiBearingY) * scale;
     }
