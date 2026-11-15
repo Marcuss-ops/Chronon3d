@@ -423,7 +423,7 @@ void VulkanBackend::Impl::download(runtime::RenderSurfaceHandle handle, std::spa
         }
         const VkDeviceSize bytes = static_cast<VkDeviceSize>(runtime::tight_surface_bytes(
             runtime::PixelFormat::Rgba32Float, image.width, image.height));
-        spdlog::info("[vulkan-download] handle={} format={} size={}x{} out_bytes={}",
+        spdlog::debug("[vulkan-download] handle={} format={} size={}x{} out_bytes={}",
                      handle, static_cast<int>(image.format), image.width, image.height, bytes);
         if (rgba.size_bytes() != bytes) throw std::invalid_argument("Vulkan download size does not match surface");
         ++stats.readback_calls;
@@ -470,7 +470,7 @@ void VulkanBackend::Impl::download(runtime::RenderSurfaceHandle handle, std::spa
         const auto readback_start = profiling::now();
         std::memcpy(rgba.data(), staging.mapped, static_cast<std::size_t>(bytes));
         const float* sample = rgba.data();
-        spdlog::info("[vulkan-download] first_px=({},{},{},{})",
+        spdlog::debug("[vulkan-download] first_px=({},{},{},{})",
                      sample[0], sample[1], sample[2], sample[3]);
         stats.readback_us += static_cast<std::uint64_t>(profiling::elapsed_us(readback_start));
     }
