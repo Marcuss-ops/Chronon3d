@@ -241,9 +241,13 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         }
 
         // The CPU scene keeps its original shape nodes for software parity.
-        // Strict GPU execution replaces the emitter's per-particle source
+        // GPU execution replaces the emitter's per-particle source
         // nodes with one SourceNode carrying the sampled instance stream.
-        if (ctx.policy.require_native_gpu &&
+        const bool use_gpu_particle_batch = ctx.policy.require_native_gpu ||
+            (ctx.backend && ctx.backend_stats_api()->supports_native_surfaces() &&
+             ctx.execution_backend() &&
+             ctx.execution_backend()->is_batching_supported());
+        if (use_gpu_particle_batch &&
             gpu_particle_node != layer.nodes.end()) {
             auto node = *gpu_particle_node;
             // A fresh graph build is used for every GPU-particle frame.  The

@@ -275,7 +275,14 @@ struct FfmpegPipeOptions {
     PipePixelFormat input_format{PipePixelFormat::RGBA};
     std::string output_pix_fmt{"yuv420p"};
     bool verbose{false};
-    color::OutputTransformOptions color_transform{};
+    // Video is a BT.709 SDR deliverable: the compositor renders Rec.709 and
+    // the canonical assembly contract pins bt709. Keep the image/PNG default
+    // (sRGB) on OutputTransformOptions itself; only video opts into Rec.709.
+    color::OutputTransformOptions color_transform = [] {
+        color::OutputTransformOptions options;
+        options.output = color::ColorSpace::Rec709;
+        return options;
+    }();
     std::string ocio_config_path;
     std::string ocio_source_space;
     std::string ocio_display;

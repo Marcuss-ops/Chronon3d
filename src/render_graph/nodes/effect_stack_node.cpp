@@ -410,7 +410,7 @@ NodeExecResult EffectStackNode::execute(
                     break;
                 case effects::EffectType::ChromaticAberration:
                     stage_handled = native_effects::try_native_full_frame_chromatic(
-                        ctx, one_effect, *result, local_clip, current_source,
+                        ctx, one_effect, *result, native_clip, current_source,
                         current_source_framebuffer);
                     break;
                 case effects::EffectType::Echo:

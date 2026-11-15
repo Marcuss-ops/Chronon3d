@@ -23,8 +23,19 @@ layout(push_constant) uniform LightingParams {
 
 float sample_luminance(ivec2 coord, ivec2 size) {
     ivec2 c = clamp(coord, ivec2(0), size - ivec2(1));
-    vec3 rgb = imageLoad(source_image, c).rgb;
-    return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+    vec4 px = imageLoad(source_image, c);
+    vec3 unpremul = px.a > 1e-4 ? px.rgb / px.a : vec3(0.0);
+    return dot(unpremul, vec3(0.2126, 0.7152, 0.0722));
+}
+
+float sample_smooth_luminance(ivec2 coord, ivec2 size) {
+    // 5-tap Gaussian pre-filter suppresses high-frequency stone grain noise.
+    float c = sample_luminance(coord, size) * 4.0;
+    float n = sample_luminance(coord + ivec2( 0, -1), size);
+    float s = sample_luminance(coord + ivec2( 0,  1), size);
+    float w = sample_luminance(coord + ivec2(-1,  0), size);
+    float e = sample_luminance(coord + ivec2( 1,  0), size);
+    return (c + n + s + w + e) * 0.125;
 }
 
 float sample_alpha(ivec2 coord, ivec2 size) {
@@ -35,17 +46,37 @@ float sample_alpha(ivec2 coord, ivec2 size) {
 }
 
 vec3 compute_bump_normal(ivec2 coord, ivec2 size, float bump_strength) {
-    float tl = sample_luminance(coord + ivec2(-1, -1), size);
-    float tc = sample_luminance(coord + ivec2( 0, -1), size);
-    float tr = sample_luminance(coord + ivec2( 1, -1), size);
-    float ml = sample_luminance(coord + ivec2(-1,  0), size);
-    float mr = sample_luminance(coord + ivec2( 1,  0), size);
-    float bl = sample_luminance(coord + ivec2(-1,  1), size);
-    float bc = sample_luminance(coord + ivec2( 0,  1), size);
-    float br = sample_luminance(coord + ivec2( 1,  1), size);
-
-    float gx = (3.0 * (tr - tl) + 10.0 * (mr - ml) + 3.0 * (br - bl)) / 32.0;
-    float gy = (3.0 * (bl - tl) + 10.0 * (bc - tc) + 3.0 * (br - tr)) / 32.0;
+    // Multi-scale Scharr on pre-smoothed luminance: 1px for curls + 3px for toga folds.
+    float g_fine_x = 0.0;
+    float g_fine_y = 0.0;
+    {
+        float tl = sample_smooth_luminance(coord + ivec2(-1, -1), size);
+        float tc = sample_smooth_luminance(coord + ivec2( 0, -1), size);
+        float tr = sample_smooth_luminance(coord + ivec2( 1, -1), size);
+        float ml = sample_smooth_luminance(coord + ivec2(-1,  0), size);
+        float mr = sample_smooth_luminance(coord + ivec2( 1,  0), size);
+        float bl = sample_smooth_luminance(coord + ivec2(-1,  1), size);
+        float bc = sample_smooth_luminance(coord + ivec2( 0,  1), size);
+        float br = sample_smooth_luminance(coord + ivec2( 1,  1), size);
+        g_fine_x = (3.0 * (tr - tl) + 10.0 * (mr - ml) + 3.0 * (br - bl)) / 32.0;
+        g_fine_y = (3.0 * (bl - tl) + 10.0 * (bc - tc) + 3.0 * (br - tr)) / 32.0;
+    }
+    float g_broad_x = 0.0;
+    float g_broad_y = 0.0;
+    {
+        float tl = sample_smooth_luminance(coord + ivec2(-3, -3), size);
+        float tc = sample_smooth_luminance(coord + ivec2( 0, -3), size);
+        float tr = sample_smooth_luminance(coord + ivec2( 3, -3), size);
+        float ml = sample_smooth_luminance(coord + ivec2(-3,  0), size);
+        float mr = sample_smooth_luminance(coord + ivec2( 3,  0), size);
+        float bl = sample_smooth_luminance(coord + ivec2(-3,  3), size);
+        float bc = sample_smooth_luminance(coord + ivec2( 0,  3), size);
+        float br = sample_smooth_luminance(coord + ivec2( 3,  3), size);
+        g_broad_x = (3.0 * (tr - tl) + 10.0 * (mr - ml) + 3.0 * (br - bl)) / 32.0;
+        g_broad_y = (3.0 * (bl - tl) + 10.0 * (bc - tc) + 3.0 * (br - tr)) / 32.0;
+    }
+    float gx = g_fine_x * 0.45 + g_broad_x * 0.55;
+    float gy = g_fine_y * 0.45 + g_broad_y * 0.55;
     return normalize(vec3(-gx * bump_strength, gy * bump_strength, 1.0));
 }
 
@@ -181,15 +212,23 @@ void main() {
             if (relight_enabled && specular_intensity > 0.0 && ndotl > 0.0) {
                 vec3 half_vec = normalize(to_light + vec3(0.0, 0.0, 1.0));
                 float ndoth = max(dot(normal, half_vec), 0.0);
-                float spec = pow(ndoth, shininess) * specular_intensity * attenuation;
+                float unpremul_luma = dot(source.rgb / max(source.a, 1e-4),
+                                          vec3(0.2126, 0.7152, 0.0722));
+                float ridge_mask = 0.25 + 0.75 * pow(clamp(unpremul_luma, 0.0, 1.0), 2.8);
+                float spec_power = max(shininess * 1.6, 24.0);
+                float spec = pow(ndoth, spec_power) * specular_intensity *
+                    attenuation * ridge_mask;
                 specular_total += light.color_radius.rgb * spec;
             }
             if (relight_enabled && edge_factor > 0.0) {
                 float align = (length(outward_dir) > 1e-4 && dot(to_light.xy, to_light.xy) > 1e-8)
-                    ? max(dot(normalize(to_light.xy), outward_dir), 0.0)
-                    : 1.0;
+                    ? pow(max(dot(normalize(to_light.xy), outward_dir), 0.0), 1.4)
+                    : 0.0;
+                float grazing = clamp(1.0 - 0.65 * max(to_light.z, 0.0), 0.15, 1.0);
+                float pedestal_fade = smoothstep(0.98, 0.76,
+                    float(coord.y) / float(max(size.y, 1)));
                 float rim_k = attenuation * rim_strength * pow(edge_factor, rim_power) *
-                    (0.25 + 0.75 * align);
+                    align * grazing * pedestal_fade;
                 rim_total += light.color_radius.rgb * rim_k;
             }
         }
@@ -199,8 +238,16 @@ void main() {
             factor = clamp(factor + total, vec3(0.0), vec3(1.0));
         }
     }
-    vec3 rgb = relight_enabled
-        ? max(source.rgb * factor + (specular_total + rim_total) * source.a, vec3(0.0))
-        : clamp(source.rgb * factor, vec3(0.0), vec3(1.0));
+    vec3 rgb;
+    if (relight_enabled) {
+        vec3 diffuse_lit = source.rgb * factor;
+        // Soft-shoulder compression keeps diffuse marble/skin below bloom threshold (< 0.90)
+        // so facial features stay sculpted while specular ridges and rim drive HDR bloom.
+        diffuse_lit = diffuse_lit / (vec3(1.0) + diffuse_lit * 0.45);
+        diffuse_lit = min(diffuse_lit, vec3(0.90) * source.a);
+        rgb = max(diffuse_lit + (specular_total + rim_total) * source.a, vec3(0.0));
+    } else {
+        rgb = clamp(source.rgb * factor, vec3(0.0), vec3(1.0));
+    }
     imageStore(destination_image, coord, vec4(rgb, source.a));
 }

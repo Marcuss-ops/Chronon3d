@@ -34,7 +34,7 @@ TEST_CASE("FfmpegExportOptions: default-constructed sub-structs have correct def
     // PipeOptions defaults
     CHECK(opts.pipe.pipe_pixfmt == "rgba");
     CHECK(opts.pipe.pipe_writer == "classic");
-    CHECK(opts.pipe.color_output == "srgb");
+    CHECK(opts.pipe.color_output == "rec709");
     CHECK_FALSE(opts.pipe.ffmpeg_verbose);
 
     // RenderWarmupOptions defaults
@@ -145,7 +145,7 @@ TEST_CASE("PipeOptions: standalone defaults are correct") {
     PipeOptions p;
     CHECK(p.pipe_pixfmt == "rgba");
     CHECK(p.pipe_writer == "classic");
-    CHECK(p.color_output == "srgb");
+    CHECK(p.color_output == "rec709");
     CHECK_FALSE(p.ffmpeg_verbose);
 }
 

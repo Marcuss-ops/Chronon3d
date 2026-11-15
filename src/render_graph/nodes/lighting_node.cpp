@@ -56,7 +56,6 @@ NodeExecResult LightingNode::execute(
                                needs_wrap ||
                                !m_material.image_gobo_asset.empty();
     const bool can_gpu_relight =
-        !needs_wrap &&
         m_material.image_gobo_asset.empty() &&
         (!per_pixel_lights || light_context.point_lights.size() <= 64) &&
         (ctx.policy.require_native_gpu || (ctx.backend && ctx.backend_stats_api()->supports_native_surfaces())) &&
@@ -327,6 +326,82 @@ NodeExecResult LightingNode::execute(
                 relight_params, relight_specular);
         }();
         if (applied.ok()) {
+            if (image_relight && needs_wrap && !m_material.image_light_wrap_asset.empty()) {
+                const auto load_wrap = [&](const std::string& asset) -> std::shared_ptr<const CachedImage> {
+                    if (!ctx.image_cache || asset.empty()) return {};
+                    const ImageDecodeOptions options{};
+                    auto cached = ctx.asset_resolver
+                        ? ctx.image_cache->find(asset, options, *ctx.asset_resolver)
+                        : ctx.image_cache->find(ctx.resolve_asset(asset), options);
+                    if (!cached) {
+                        cached = ctx.asset_resolver
+                            ? ctx.image_cache->get_or_load(asset, options, *ctx.asset_resolver)
+                            : ctx.image_cache->get_or_load(ctx.resolve_asset(asset), options);
+                    }
+                    return cached;
+                };
+                if (auto wrap_image = load_wrap(m_material.image_light_wrap_asset);
+                    wrap_image && wrap_image->fb_img && wrap_image->width > 0 && wrap_image->height > 0) {
+                    rendering::ImageTexelView wrap_view{
+                        .pixels = wrap_image->fb_img->data(),
+                        .width = wrap_image->width,
+                        .height = wrap_image->height,
+                        .stride = static_cast<i32>(wrap_image->fb_img->stride())
+                    };
+                    if (wrap_view.valid()) {
+                        const i32 wrap_radius = std::clamp(
+                            static_cast<i32>(std::lround(std::max(m_material.image_rim_width_px, 1.0f))),
+                            1, 64);
+                        const auto blurred_wrap = rendering::blur_image_box(wrap_view, wrap_radius);
+                        const i32 w = result->width();
+                        const i32 h = result->height();
+                        std::vector<float> rgba(static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 4u, 0.0f);
+                        if (ctx.backend_surface_api()->download_surface(result->surface_handle(), rgba).ok()) {
+                            std::vector<Color> tmp_colors(static_cast<std::size_t>(w) * static_cast<std::size_t>(h));
+                            for (std::size_t i = 0; i < tmp_colors.size(); ++i) {
+                                tmp_colors[i] = Color{rgba[i * 4 + 0], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]};
+                            }
+                            rendering::ImageTexelView alpha_view{
+                                .pixels = tmp_colors.data(),
+                                .width = w,
+                                .height = h,
+                                .stride = w
+                            };
+                            const auto blurred_alpha = rendering::blur_alpha_box(alpha_view, wrap_radius);
+                            const f32 canvas_w = ctx.frame_input.width > 0
+                                ? static_cast<f32>(ctx.frame_input.width) : static_cast<f32>(w);
+                            const f32 canvas_h = ctx.frame_input.height > 0
+                                ? static_cast<f32>(ctx.frame_input.height) : static_cast<f32>(h);
+                            const f32 wrap_str = m_material.image_light_wrap_strength;
+                            for (i32 y = 0; y < h; ++y) {
+                                const f32 cy = static_cast<f32>(result->origin_y() + y) + 0.5f;
+                                const i32 bg_y = std::clamp(static_cast<i32>(cy * static_cast<f32>(wrap_view.height) / canvas_h),
+                                    0, wrap_view.height - 1);
+                                for (i32 x = 0; x < w; ++x) {
+                                    const std::size_t idx = static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x);
+                                    const f32 a = tmp_colors[idx].a;
+                                    if (a <= 0.0f) continue;
+                                    const auto edge = rendering::sample_alpha_edge(blurred_alpha, w, h, x, y, a);
+                                    if (edge.mask <= 0.0f) continue;
+                                    const f32 cx = static_cast<f32>(result->origin_x() + x) + 0.5f;
+                                    const i32 bg_x = std::clamp(static_cast<i32>(cx * static_cast<f32>(wrap_view.width) / canvas_w),
+                                        0, wrap_view.width - 1);
+                                    const Color bg = blurred_wrap[static_cast<std::size_t>(bg_y) *
+                                        static_cast<std::size_t>(wrap_view.width) + static_cast<std::size_t>(bg_x)];
+                                    const f32 k = edge.mask * wrap_str * a;
+                                    // Screen-like soft wrap: adds zero when bg is black.
+                                    rgba[idx * 4 + 0] += bg.r * k * std::max(1.0f - rgba[idx * 4 + 0] * 0.5f, 0.25f);
+                                    rgba[idx * 4 + 1] += bg.g * k * std::max(1.0f - rgba[idx * 4 + 1] * 0.5f, 0.25f);
+                                    rgba[idx * 4 + 2] += bg.b * k * std::max(1.0f - rgba[idx * 4 + 2] * 0.5f, 0.25f);
+                                }
+                            }
+                            if (const auto rec = ctx.surface_registry->lookup(result->surface_handle())) {
+                                (void)ctx.backend_surface_api()->upload_surface(result->surface_handle(), rec->desc, rgba);
+                            }
+                        }
+                    }
+                }
+            }
             result->set_opaque(inputs[0]->is_opaque());
             result->set_content_cleared(inputs[0]->is_content_cleared());
             result->mark_gpu_authoritative();

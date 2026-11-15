@@ -32,8 +32,9 @@ struct PipeOptions {
     /// Pipe writer backend: "classic" (stdio) or "io_uring" (Linux experimental).
     std::string pipe_writer{"classic"};
 
-    /// Output colour space: "srgb", "rec709", "linearsrgb".
-    std::string color_output{"srgb"};
+    /// Output colour space: "rec709" (video default), "srgb", "linearsrgb".
+    /// Video is a BT.709 deliverable; sRGB remains the image/PNG default.
+    std::string color_output{"rec709"};
     /// HDR→SDR tone map: "none", "reinhard", "aces". Applied before the
     /// output transfer function, on scene-linear light.
     std::string tone_map{"none"};

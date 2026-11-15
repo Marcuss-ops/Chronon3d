@@ -272,8 +272,11 @@ NodeExecResult SourceNode::execute(
             state.projection  = ctx.frame_input.projection_ctx;
         }
 
-        if (!m_node.gpu_particle_instances.empty() &&
-            ctx.policy.require_native_gpu) {
+        const bool use_gpu_particles = ctx.policy.require_native_gpu ||
+            (ctx.backend && ctx.backend_stats_api()->supports_native_surfaces() &&
+             ctx.execution_backend() &&
+             ctx.execution_backend()->is_batching_supported());
+        if (!m_node.gpu_particle_instances.empty() && use_gpu_particles) {
             if (!ctx.backend ||
                 !ctx.backend_stats_api()->supports_native_surfaces() ||
                 !ctx.surface_registry ||

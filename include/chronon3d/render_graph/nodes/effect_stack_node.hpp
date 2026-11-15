@@ -93,64 +93,58 @@ public:
 
 private:
     [[nodiscard]] f32 compute_max_effect_spread() const {
-        f32 max_spread = 0.0f;
+        f32 total_spread = 0.0f;
         for (const auto& inst : m_effects) {
             if (!inst.enabled) continue;
 
             using enum effects::EffectType;
+            f32 spread = 0.0f;
             switch (inst.effect_type) {
             case Blur: {
                 if (auto* p = std::get_if<BlurParams>(&inst.params))
-                    max_spread = std::max(max_spread,
-                        effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
+                    spread = effects::spatial_halo_extent(effects::effect_spatial_halo(*p));
                 break;
             }
             case DropShadow: {
                 if (auto* p = std::get_if<DropShadowParams>(&inst.params))
                     {
                         const auto halo = effects::effect_spatial_halo(*p);
-                        max_spread = std::max(max_spread,
-                            std::max({halo.left, halo.top, halo.right, halo.bottom}));
+                        spread = std::max({halo.left, halo.top, halo.right, halo.bottom});
                     }
                 break;
             }
             case SdfBevel: {
                 if (auto* p = std::get_if<SdfBevelParams>(&inst.params))
-                    max_spread = std::max(max_spread,
-                        effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
+                    spread = effects::spatial_halo_extent(effects::effect_spatial_halo(*p));
                 break;
             }
             case Halation: {
                 if (auto* p = std::get_if<HalationParams>(&inst.params))
-                    max_spread = std::max(max_spread, std::ceil(p->radius_px * 1.5f));
+                    spread = std::ceil(p->radius_px * 1.5f);
                 break;
             }
             case Offset: {
                 if (auto* p = std::get_if<OffsetParams>(&inst.params)) {
                     const auto halo = effects::offset_spatial_halo(*p);
-                    max_spread = std::max(max_spread,
-                        std::max({halo.left, halo.top, halo.right, halo.bottom}));
+                    spread = std::max({halo.left, halo.top, halo.right, halo.bottom});
                 }
                 break;
             }
             case DirectionalBlur: {
                 if (auto* p = std::get_if<DirectionalBlurParams>(&inst.params)) {
                     const auto halo = effects::directional_blur_spatial_halo(*p);
-                    max_spread = std::max(max_spread,
-                        std::max({halo.left, halo.top, halo.right, halo.bottom}));
+                    spread = std::max({halo.left, halo.top, halo.right, halo.bottom});
                 }
                 break;
             }
             case Glow: {
                 if (auto* p = std::get_if<GlowParams>(&inst.params))
-                    max_spread = std::max(max_spread,
-                        effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
+                    spread = effects::spatial_halo_extent(effects::effect_spatial_halo(*p));
                 break;
             }
             case Bloom: {
                 if (auto* p = std::get_if<BloomParams>(&inst.params))
-                    max_spread = std::max(max_spread,
-                        effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
+                    spread = effects::spatial_halo_extent(effects::effect_spatial_halo(*p));
                 break;
             }
             case ChromaticAberration: {
@@ -164,16 +158,14 @@ private:
                         std::abs(p->green.translation.y),
                         std::abs(p->blue.translation.x),
                         std::abs(p->blue.translation.y)});
-                    max_spread = std::max(max_spread,
-                        std::ceil(offset_spread + tx_spread));
+                    spread = std::ceil(offset_spread + tx_spread);
                 }
                 break;
             }
             case LensFlare: {
                 if (auto* p = std::get_if<LensFlareParams>(&inst.params)) {
                     if (p->intensity > 0.0f) {
-                        max_spread = std::max(max_spread,
-                            std::ceil(p->radius * 512.0f));
+                        spread = std::ceil(p->radius * 512.0f);
                     }
                 }
                 break;
@@ -182,7 +174,7 @@ private:
                 if (auto* p = std::get_if<LightRaysParams>(&inst.params)) {
                     const f32 length = std::isfinite(p->length)
                         ? std::max(p->length, 0.0f) : 0.0f;
-                    max_spread = std::max(max_spread, length);
+                    spread = length;
                 }
                 break;
             }
@@ -194,7 +186,7 @@ private:
                                       std::abs(p->shadow_offset.y)) + p->shadow_blur;
                     }
                     if (p->expand_bounds) {
-                        max_spread = std::max(max_spread, s);
+                        spread = s;
                     }
                 }
                 break;
@@ -204,15 +196,16 @@ private:
                     if (p->curvature < 0.0f || p->scale < 1.0f) {
                         const f32 c = p->curvature < 0.0f ? std::abs(p->curvature) : 0.0f;
                         const f32 s = p->scale < 1.0f ? (1.0f - p->scale) : 0.0f;
-                        max_spread = std::max(max_spread, std::ceil((c + s) * 260.0f));
+                        spread = std::ceil((c + s) * 260.0f);
                     }
                 }
                 break;
             }
             default: break;
             }
+            total_spread += spread;
         }
-        return max_spread;
+        return total_spread;
     }
 
     EffectStack m_effects;

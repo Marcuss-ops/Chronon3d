@@ -81,6 +81,8 @@ chronon3d_add_test_suite(
         registry/test_backend_registry_vulkan_effect_parity.cpp
         registry/test_backend_registry_vulkan_effect_parity.part02.cpp
         registry/test_backend_registry_vulkan_effect_parity.part03.cpp
+        registry/test_backend_registry_vulkan_effect_parity.part04.cpp
+        registry/test_backend_registry_vulkan_tranche1.cpp
         registry/test_backend_registry_vulkan_transforms.cpp
         registry/test_backend_registry_plan.cpp
         registry/test_backend_registry_batches.cpp

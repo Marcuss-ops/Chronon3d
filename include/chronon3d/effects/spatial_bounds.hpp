@@ -87,6 +87,10 @@ struct SpatialHalo {
 
 [[nodiscard]] inline SpatialHalo effect_spatial_halo(
     const BloomParams& p) noexcept {
+    if (p.radius > 10.0f) {
+        // 6-mip Jimenez downsample + tent upsample pyramid spreads beyond a single blur pass.
+        return uniform_spatial_halo(std::ceil(p.radius * 6.0f) + 32.0f);
+    }
     return blur_spatial_halo(p.radius, 1);
 }
 

@@ -79,6 +79,10 @@ std::unique_ptr<EffectProcessor> create_luminance_response_effect_processor();
 std::unique_ptr<EffectProcessor> create_curves_effect_processor();
 std::unique_ptr<EffectProcessor> create_lut_3d_effect_processor();
 std::unique_ptr<EffectProcessor> create_stroke_effect_processor();
+std::unique_ptr<EffectProcessor> create_camera_ring_effect_processor();
+std::unique_ptr<EffectProcessor> create_inner_glow_effect_processor();
+std::unique_ptr<EffectProcessor> create_glow_advanced_effect_processor();
+std::unique_ptr<EffectProcessor> create_optics_compensation_effect_processor();
 } // namespace chronon3d::renderer
 
 // One Vulkan instance for the whole parity binary: a device per sample hits the
