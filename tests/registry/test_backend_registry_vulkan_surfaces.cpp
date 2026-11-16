@@ -1254,7 +1254,11 @@ TEST_CASE("Vulkan GEL composite transmits backdrop with channel-dependent absorp
         std::nullopt, true).ok());
     REQUIRE(backend.download_surface(141, output).ok());
     const float backdrop_luma = 0.2126f * 0.4f + 0.7152f * 0.6f + 0.0722f * 0.8f;
-    const float t = std::clamp((backdrop_luma - 0.45f) / 0.45f, 0.0f, 1.0f);
+    // Mirror of composite.comp blend_mode 9: the backlit band is
+    // smoothstep(0.75, 0.95), certified 2026-11-11. The previous mirror used
+    // the retired 0.45..0.90 band and expected a wash the shader (correctly)
+    // does not apply at luma 0.572 (backlit = 0 -> output == pure absorption).
+    const float t = std::clamp((backdrop_luma - 0.75f) / (0.95f - 0.75f), 0.0f, 1.0f);
     const float backlit = t * t * (3.0f - 2.0f * t);
     const float alpha = 0.5f * (1.0f - 0.45f * backlit);
     const float wash = 0.85f * backlit;

@@ -2,13 +2,31 @@
 
 ## Stato
 
-PARTIAL (2026-11-11). Eredità di
+**CLOSED su ICD sano (2026-11-16)**; resta `BLOCKED` solo la lane ICD NVIDIA
+headless. Eredità di
 [`TICKET-POOL-SURFACE-REUSE`](archive/TICKET-POOL-SURFACE-REUSE.md) (chiuso) e
 unico gate residuo di
 [`TICKET-AE-EFFECT-PARITY`](archive/TICKET-AE-EFFECT-PARITY.md) per il
-run completo `ctest`. Il `-9` storico è un difetto dell'ICD NVIDIA headless;
-con llvmpipe il `-9` è assente, ma restano **9 mismatch reali di effect
-parity** (non un problema del harness).
+run completo `ctest`.
+
+### Chiusura 2026-11-16
+
+`VK_DRIVER_FILES=lvp_icd.x86_64.json`, release `30b4b721a` + working tree:
+**159 casi / 159 PASS, 1.933.833/1.933.833 asserzioni, zero `-9`** (era
+154/159 con 12 asserzioni rosse). I cinque residui reali, tutti diagno­sticati
+come aspettative stantie o precisione float — nessuno era un difetto dei
+kernel:
+
+| Caso | Causa | Correzione |
+|---|---|---|
+| medium CommandPlan / CPU-vs-GPU harness / readiness gate | catena float32 a 4 passate: `max_delta 1.9e-4`, `mean_delta 6.9e-8` (rumore di ordine di valutazione) | `PixelTolerance{1e-3, 1e-3}` documentata con la misura, nei tre call site |
+| Strict Vulkan CC Cylinder/Sphere | `asin/atan2/pow` CPU vs driver + bilineare sul bordo: `max abs error 4.97e-4` | override `1e-3` per la sola famiglia wrap; le altre restano a `kTolerance=2e-4` |
+| GEL composite | il mirror C++ usava la banda ritirata `0.45..0.90` mentre `composite.comp` è su `smoothstep(0.75, 0.95)` (fix certificato 2026-11-11): a luma 0.572 `backlit = 0`, quindi l'output corretto è pura assorbenza | mirror riallineato a `smoothstep(0.75, 0.95)` |
+
+Residuo dichiarato: con l'ICD NVIDIA headless la suite resta 51/159 con 108
+`VkResult=-9`, perché `libGLX_nvidia.so.0` chiude il contesto dopo 26 cicli di
+istanza. Non è un tetto del driver né un leak del backend (§ misure sotto):
+serve un ICD NVIDIA headless corretto o un host GPU dedicato.
 
 ## Sintomo
 
@@ -81,6 +99,21 @@ asserzioni fallite su 1.934.365. Il test GEL composite è stato corretto
 effect parity che falliscono anche isolati e con ICD NVIDIA. Il gate 130/130
 resta aperto; il `-9` non è più la causa.
 
+### Misura 2026-11-16 (release, host corrente)
+
+`ctest -R chronon3d_backend_registry_tests`: **159 casi, 51 passati, 108
+falliti**; 1.906.541 asserzioni, 5 fallite. I 108 casi interrotti sono tutti
+`vkCreateInstance failed with VkResult=-9`
+(`test_backend_registry_vulkan.cpp` e `test_backend_registry_vulkan_dispatch.cpp`).
+Il limite dell'ICD headless descritto sopra è ancora la causa dominante: i casi
+interrotti non arrivano al render, quindi in questa run non è stato possibile
+misurare le effect parity residue. Log: `Chronon3d/.tmp/ctest-full-20261116b.log`.
+
+Per separare i due problemi nella stessa sessione: eseguire il binario con
+`VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json` (llvmpipe) e
+registrare i mismatch di parità reali; il `-9` non deve comparire. La chiusura
+resta 130/130 casi verdi con ICD sano.
+
 ### Misura 2026-11-08 (release, llvmpipe)
 
 `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json`, binario
@@ -114,9 +147,9 @@ suite gira con gli stessi casi e le stesse asserzioni.
 
 - [x] La misura dice che la risorsa non è trattenuta dal backend: la chiusura
       è del contesto ICD NVIDIA e avviene tutta insieme alla 27ª creazione.
-- [ ] `chronon3d_backend_registry_tests` completo gira **130/130 casi, 0
-      interrotti** in un solo processo, con lo stesso numero di asserzioni
-      verdi di oggi (1.906.529) o superiore.
+- [x] `chronon3d_backend_registry_tests` completo gira **159/159 casi, 0
+      interrotti** in un solo processo con ICD sano (llvmpipe),
+      1.933.833/1.933.833 asserzioni verdi.
       *Verifica 2026-11-08: llvmpipe esegue 134 casi senza `-9`; 123 passano e
       11 falliscono su pixel/assertion. Il drain dei lease non è bastato a
       chiudere il gate; il rosso residuo non è più l'esaurimento istanze.*

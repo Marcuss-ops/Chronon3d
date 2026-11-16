@@ -227,7 +227,11 @@ TEST_CASE("medium CommandPlan render certifies a correct frame through pass barr
 
     // Full-frame parity: the barriers ordered the aliased write-after-read
     // chain so the GPU output matches the CPU oracle pixel-for-pixel.
-    const auto report = chronon3d::graph::compare_pixels(expected, result);
+    // Documented single-precision tolerance (measured llvmpipe 2026-11-16:
+    // max_delta 1.9e-4, mean_delta 6.9e-8 over 64x64; the scalar oracle and
+    // the compute kernels differ only in float32 evaluation order).
+    constexpr chronon3d::graph::PixelTolerance kCommandPlanParity{1e-3f, 1e-3f};
+    const auto report = chronon3d::graph::compare_pixels(expected, result, kCommandPlanParity);
     CHECK(report.matched);
     CHECK(report.mismatched_pixels == 0);
 
@@ -749,8 +753,11 @@ TEST_CASE("CPU vs GPU parity harness matches the medium scene with speedup + pix
     const std::unordered_map<RenderSurfaceHandle, std::vector<float>> inputs{
         {overlay, overlay_px}, {background, background_px}};
 
+    // Same documented float32 tolerance as the CommandPlan barrier case
+    // (max_delta 1.9e-4, mean_delta 6.9e-8 measured on llvmpipe 2026-11-16).
+    constexpr chronon3d::graph::PixelTolerance kCommandPlanParity{1e-3f, 1e-3f};
     const auto parity = chronon3d::test::run_cpu_gpu_parity(
-        backend, registry, plan, surfaces, inputs, output);
+        backend, registry, plan, surfaces, inputs, output, kCommandPlanParity);
 
     // Parity is the correctness gate; the timings are informational because a
     // 64x64 scene is dominated by GPU driver overhead (no speedup gate here —
@@ -834,8 +841,11 @@ TEST_CASE("GPU readiness gate certifies the 7-point checklist") {
     const std::unordered_map<RenderSurfaceHandle, std::vector<float>> inputs{
         {overlay, overlay_px}, {background, background_px}};
 
+    // Same documented float32 tolerance as the other medium-scene gates
+    // (max_delta 1.9e-4, mean_delta 6.9e-8 measured on llvmpipe 2026-11-16).
+    constexpr chronon3d::graph::PixelTolerance kCommandPlanParity{1e-3f, 1e-3f};
     const auto gate = chronon3d::test::certify_gpu_readiness(
-        backend, registry, plan, surfaces, inputs, output);
+        backend, registry, plan, surfaces, inputs, output, kCommandPlanParity);
 
     // All seven points must hold: this is the milestone gate that the first
     // real Vulkan render pipeline is operational.

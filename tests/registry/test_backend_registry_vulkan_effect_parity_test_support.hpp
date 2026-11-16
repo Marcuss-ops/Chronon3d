@@ -286,7 +286,12 @@ void check_parity(renderer::EffectProcessor& processor, const EffectParams& para
                   // Reuse a device across a parameter matrix: creating one
                   // Vulkan instance per sample exhausts the driver
                   // (vkCreateInstance -9) long before the matrix is done.
-                  backends::vulkan::VulkanBackend* shared_backend = nullptr) {
+                  backends::vulkan::VulkanBackend* shared_backend = nullptr,
+                  // Per-effect override for families whose CPU/GPU math differs
+                  // only in transcendental precision. Defaults to the shared
+                  // kTolerance; an override must carry its measurement in the
+                  // call site (never widen globally).
+                  float tolerance = kTolerance) {
     const auto expected = software_oracle(processor, params, clip, origin_x, origin_y,
                                           scratch, frame);
     const auto actual = vulkan_strict(params, clip, origin_x, origin_y, frame, nullptr,
@@ -296,7 +301,7 @@ void check_parity(renderer::EffectProcessor& processor, const EffectParams& para
     REQUIRE(actual.pixels.size() == expected.size());
     float max_err = 0.0f;
     for (std::size_t i = 0; i < expected.size(); ++i) {
-        const float tol = kTolerance * std::max(1.0f, std::abs(expected[i]));
+        const float tol = tolerance * std::max(1.0f, std::abs(expected[i]));
         const float err = std::abs(actual.pixels[i] - expected[i]);
         max_err = std::max(max_err, err);
         if (err > tol) {

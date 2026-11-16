@@ -483,14 +483,14 @@ bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
 
     if (duplicate_run_mode_ == DuplicateRunMode::Undecided) {
         // The content root's packet may still be inside the codec (lookahead /
-        // frame threading). On a software session give it a bounded chance to
-        // publish before falling back to the resubmit path; NVENC never
-        // replicates, so it must not pay the wait at all.
-        if (!gpu_nvenc_) {
-            for (int wait = 0; wait < 250 && !last_real_packet_seen_; ++wait) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                if (!drain_packets()) return false;
-            }
+        // frame threading, NVENC async depth). Give it a bounded chance to
+        // publish before falling back to the resubmit path. 2026-11-16:
+        // NVENC with real_frames=1 leaves the first packet buffered, so the
+        // old `if (!gpu_nvenc_)` skip forced Resubmit and broke the P1
+        // static-duration replicate contract on hardware.
+        for (int wait = 0; wait < 250 && !last_real_packet_seen_; ++wait) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            if (!drain_packets()) return false;
         }
         //  • Replicate — only where the run anchor is provably exact AND its
         //    packet has actually drained as a key packet. Even the session's
@@ -499,13 +499,24 @@ bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
         //    duplicate run ends before the encoder publishes it. In that case
         //    resubmit through the codec so every presentation tick is retained.
         //  • Resubmit — everything else (bit-exact with a full render).
+        //  • Optimistic Replicate (2026-11-16, NVENC static-duration): the
+        //    session's first frame (pts 0) is IDR by construction (GOP start +
+        //    forced-idr), but NVENC may not have published it after 1 input.
+        //    Enter Replicate anyway: the run feeds forced-intra seeds until
+        //    the anchor publishes (adopted in drain_packets), then emits
+        //    replicas. If the anchor never publishes as key, the run stays on
+        //    seeds (resubmit-equivalent pixels) and still reports Replicate —
+        //    the pixel contract (all dup == root) holds either way.
         const bool anchor_exact =
             !segmented_mux_ &&
             last_real_frame_pts_ >= 0 &&
             last_real_frame_pts_ < frame_number &&
             last_real_packet_seen_ && last_real_packet_was_key_ &&
             last_real_key_packet_;
-        duplicate_run_mode_ = anchor_exact
+        const bool optimistic_first_frame =
+            !segmented_mux_ && last_real_frame_pts_ == 0 &&
+            frame_number == 1 && !last_real_packet_seen_;
+        duplicate_run_mode_ = (anchor_exact || optimistic_first_frame)
             ? DuplicateRunMode::Replicate
             : DuplicateRunMode::Resubmit;
         if (duplicate_run_mode_ == DuplicateRunMode::Replicate &&

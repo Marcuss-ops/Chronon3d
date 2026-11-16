@@ -268,7 +268,7 @@ bool try_native_path_stroke(
 
     std::array<Vec2, 8> fill_vertices{};
     std::uint32_t fill_vertex_count = 0;
-    const bool has_fill = visible_solid_fill;
+    bool has_fill = visible_solid_fill;
     if (has_fill) {
         if (contours.size() != 1) return false;
         const auto polygon = simplify_flattened_contour(contours.front());
@@ -278,6 +278,30 @@ bool try_native_path_stroke(
             fill_vertices[i] = transform(polygon[i]);
             if (!std::isfinite(fill_vertices[i].x) || !std::isfinite(fill_vertices[i].y))
                 return false;
+        }
+        // TICKET-VULKAN-DASHED-POLYLINE-PARITY-20261116: fill_dashed_path only
+        // carries the stroke color, so the dash shader deliberately returns
+        // early on interior pixels — that is exactly what PathRasterizer does
+        // (fill wins, stroke is skipped inside the polygon). Draw the interior
+        // in a separate native fill pass, then keep has_fill=true so the
+        // stroke pass still clips to the outside of the fill. Turning has_fill
+        // off here made the stroke paint over the fill (549 px diverge).
+        if (!pattern.empty()) {
+            std::vector<Vec2> fill_screen(
+                fill_vertices.begin(),
+                fill_vertices.begin() + static_cast<std::ptrdiff_t>(fill_vertex_count));
+            bool fill_alpha_zero = false;
+            const Color fill_color = graph::native_promotion::premultiply(
+                path.fill.solid, state.opacity, &fill_alpha_zero);
+            if (fill_alpha_zero) {
+                has_fill = false;
+                fill_vertex_count = 0;
+            } else if (!backend
+                            .fill_path_surface(framebuffer.surface_handle(),
+                                               fill_screen, fill_color)
+                            .ok()) {
+                return false;
+            }
         }
     }
 
@@ -290,11 +314,24 @@ bool try_native_path_stroke(
             if (visible_contour.size() < 2) continue;
         }
         std::vector<Vec2> screen_contour;
-        screen_contour.reserve(visible_contour.size());
+        screen_contour.reserve(visible_contour.size() + 1);
         for (const Vec2 point : visible_contour) {
             const Vec2 p = transform(point);
             if (!std::isfinite(p.x) || !std::isfinite(p.y)) return false;
             screen_contour.push_back(p);
+        }
+        // TICKET-VULKAN-DASHED-POLYLINE-PARITY: math::flatten_path drops the
+        // Close flag, so dashed closed loops lose the closing edge (68 vs 80
+        // px total) and diverge from software (which closes via trim with
+        // closed=true). Close explicitly when the authored path has Close.
+        if (!pattern.empty() && screen_contour.size() >= 3) {
+            bool authored_closed = false;
+            for (const auto& cmd : path.commands) {
+                if (cmd.type == PathCommandType::Close) { authored_closed = true; break; }
+            }
+            if (authored_closed && glm::length(screen_contour.front() - screen_contour.back()) > 1e-4f) {
+                screen_contour.push_back(screen_contour.front());
+            }
         }
         if (pattern.empty()) {
             runs.push_back(std::move(screen_contour));

@@ -153,30 +153,39 @@ static bool ffmpeg_available() {
     return rc == 0;
 }
 
-// Content-off presets intentionally do not register the external cinematic
-// corpus. Probe the canonical CLI catalog so §16 is scoped to the binary's
-// declared composition surface instead of asserting on a retired target.
-static bool cli_has_composition(const std::filesystem::path& cli,
-                                std::string_view composition_id) {
-    const auto probe = std::filesystem::temp_directory_path() /
-        "chronon_brute_17d_catalog.txt";
-    std::ostringstream cmd;
-    cmd << '"' << cli.string() << "\" list > \"" << probe.string() << '"';
-    const int rc = std::system(cmd.str().c_str());
-    if (rc != 0) return false;
-
-    std::ifstream catalog(probe);
-    std::string line;
-    bool found = false;
-    while (std::getline(catalog, line)) {
-        if (line.find(composition_id) != std::string::npos) {
-            found = true;
-            break;
-        }
-    }
-    std::error_code ec;
-    std::filesystem::remove(probe, ec);
-    return found;
+// The legacy Composition executor was removed in 1ba7acb5f, so
+// `render <composition>` is retired and a chronon.render-plan.v3 file is the
+// only production input. §16 exports the same canary scene shape (3D image
+// stage + text + glow on the canonical perspective camera) through the
+// `render --plan` route instead of the retired composition entry point.
+static bool write_canary_plan(const std::filesystem::path& path) {
+    std::ofstream file(path);
+    if (!file) return false;
+    file << R"JSON({
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "brute-determ-17d",
+  "camera": {"type": "perspective", "position": [0, 0, -1000],
+             "rotation_deg": [0, 0, 0], "fov_deg": 30, "near": 1,
+             "far": 10000, "zoom": 1},
+  "canvas": {"width": 320, "height": 180, "fps_num": 30, "fps_den": 1,
+             "duration_frames": 61},
+  "output": {"path": "out.mp4", "format": "mp4"},
+  "layers": [
+    {"id": "stage", "type": "image", "asset": "assets/images/checker.png",
+     "fit": "stretch", "size": [320, 180], "position": [0, 0, 300],
+     "enable_3d": true, "opacity": 1.0, "start_frame": 0,
+     "duration_frames": 61, "color": [1, 1, 1, 1]},
+    {"id": "headline", "type": "text", "text": "CHRONON 2.0",
+     "size": [300, 60], "position": [160, 90], "start_frame": 0,
+     "duration_frames": 61,
+     "style": {"font": "tests/fixtures/Inter-Bold.ttf", "font_size": 36,
+               "fill": "#F4F5F7"},
+     "effects": [{"type": "glow", "color": [0.0, 0.8, 1.0, 0.8],
+                  "radius": 18, "intensity": 1.0}]}
+  ]
+})JSON";
+    return file.good();
 }
 
 // Hash decoded video frames, so repeatability measures rendered pixels rather
@@ -444,16 +453,15 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
     BRUTE_FAIL_LOUD_PRECONDITION(
         cli.has_value(),
         "chronon3d_cli not discoverable \u2014 invoke on working build host or set CHRONON3D_CLI_BINARY env var");
-    if (!cli_has_composition(*cli, "Motion3DGlowOrbit")) {
-        MESSAGE("Motion3DGlowOrbit is outside this preset's registered content corpus; "
-                "BruteDeterm-17.d is not applicable with CHRONON3D_BUILD_CONTENT=OFF");
+    const auto source_root = std::filesystem::path(CHRONON3D_SOURCE_DIR);
+    if (!std::filesystem::is_regular_file(source_root / "assets/images/checker.png")) {
+        MESSAGE("Skipping: the §16 canary plan's content corpus is not installed "
+                "(missing assets/images/checker.png)");
         return;
     }
-    const auto checker_asset =
-        std::filesystem::path(CHRONON3D_SOURCE_DIR) / "assets/images/checker.png";
-    if (!std::filesystem::is_regular_file(checker_asset)) {
-        MESSAGE("Skipping: Motion3DGlowOrbit's content asset corpus is not installed "
-                "(missing assets/images/checker.png)");
+    if (!std::filesystem::is_regular_file(source_root / "tests/fixtures/Inter-Bold.ttf")) {
+        MESSAGE("Skipping: the §16 canary plan's text fixture is not installed "
+                "(missing tests/fixtures/Inter-Bold.ttf)");
         return;
     }
     BRUTE_FAIL_LOUD_PRECONDITION(
@@ -466,13 +474,18 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
     std::filesystem::create_directories(output_root, ec);
     REQUIRE_FALSE(ec);
 
+    const auto plan = output_root / "canary.plan.json";
+    REQUIRE(write_canary_plan(plan));
+
     // Run 3 consecutive canonical render video exports.
     for (int run = 1; run <= kCliExportCount; ++run) {
         const auto output = output_root / ("repeat_" + std::to_string(run) + ".mp4");
         std::ostringstream cmd;
-        cmd << cli.value().string()
-            << " render Motion3DGlowOrbit"
-            << " --frames 0-60 -o " << output.string()
+        cmd << '"' << cli->string() << '"'
+            << " render --plan \"" << plan.string() << '"'
+            << " --assets-root \"" << source_root.string() << '"'
+            << " --start-frame 0 --end-frame " << kFrameCount
+            << " -o \"" << output.string() << '"'
             << " --ffmpeg-mode pipe";
         const int rc = std::system(cmd.str().c_str());
         INFO("run=" << run << " cmd=" << cmd.str() << " rc=" << rc);

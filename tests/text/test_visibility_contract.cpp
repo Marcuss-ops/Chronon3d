@@ -265,20 +265,24 @@ TEST_CASE("Visibility contract #5: real local_ink_bbox from shape (FU04 contract
     // Canonical compute_text_run_visual_bounds() with font_size=16:
     //   ascent  = max(0, placed.ascent=10, 16*0.8=12.8) = 12.8
     //   descent = max(0, placed.descent=5, 16*0.2=3.2)  = 5
+    //   Fixture outline bbox (FreeType-style, 6d939732b):
+    //     bbox_x0=-8, bbox_x1=68, bbox_y0=20.8, bbox_y1=-13
     //   For each glyph i: gx = i*20 + i*20 = i*40 (layout_pos + position are both i*20)
-    //     pad = 0 + 0 + 8 (shear + blur + stroke + safety) = 8
+    //     pad = blur(0) + stroke(0) + shear(0) = 0, fallback_pad = 0 (has_bbox)
     //     scale_x = scale_y = 1.0
-    //     advance = 20 (for last glyph, max(1, max(20, 19.2)) = 20; ink floor doesn't change)
-    //     min_x candidate: gx - pad = i*40 - 8
-    //     max_x candidate: gx + advance + pad = i*40 + 28
-    //     min_y = 0 - 12.8 - 8 = -20.8
-    //     max_y = 0 + 5 + 8 = 13
+    //     glyph_left  = gx + (-8)  = i*40 - 8
+    //     glyph_right = gx + 68    = i*40 + 68
+    //     glyph_top    = 0 - 20.8 = -20.8
+    //     glyph_bottom = 0 - (-13) = 13
     //   Aggregated (3 glyphs):
     //     min_x = min(-8, 32, 72) = -8
-    //     max_x = max(28, 68, 108) = 108
+    //     max_x = max(68, 108, 148) = 148
     //     min_y = -20.8
     //     max_y = 13
-    //   local_ink_bbox = {origin: {-8, -20.8}, size: {116, 33.8}}
+    //   local_ink_bbox = {origin: {-8, -20.8}, size: {156, 33.8}}
+    //   Derivation verified 2026-11-16: 148 - (-8) = 156.
+    //   Old pin 116 was advance-based (gx+advance+pad) and is stale since
+    //   6d939732b switched to outline-bbox source of truth.
     //
     // World (identity): same as local.
 
@@ -298,14 +302,24 @@ TEST_CASE("Visibility contract #5: real local_ink_bbox from shape (FU04 contract
     // local_ink_bbox is now computed from the shape (NOT zero-rect PLACEHOLDER)
     CHECK(audit.local_ink_bbox.origin.x == doctest::Approx(-8.0f));
     CHECK(audit.local_ink_bbox.origin.y == doctest::Approx(-20.8f));
-    CHECK(audit.local_ink_bbox.size.x   == doctest::Approx(116.0f));
+    CHECK(audit.local_ink_bbox.size.x   == doctest::Approx(156.0f));
     CHECK(audit.local_ink_bbox.size.y   == doctest::Approx(33.8f));
 
     // world_ink_bbox = transform_aabb(local_ink_bbox, identity) = local_ink_bbox
     CHECK(audit.world_ink_bbox.origin.x == doctest::Approx(-8.0f));
     CHECK(audit.world_ink_bbox.origin.y == doctest::Approx(-20.8f));
-    CHECK(audit.world_ink_bbox.size.x   == doctest::Approx(116.0f));
+    CHECK(audit.world_ink_bbox.size.x   == doctest::Approx(156.0f));
     CHECK(audit.world_ink_bbox.size.y   == doctest::Approx(33.8f));
+    // Guardia: every synthetic glyph ink interval must be inside the bbox.
+    // glyph i spans [i*40-8, i*40+68] in x and [-20.8, 13] in y.
+    for (int i = 0; i < 3; ++i) {
+        const float gl = static_cast<float>(i * 40) - 8.0f;
+        const float gr = static_cast<float>(i * 40) + 68.0f;
+        CHECK(gl >= audit.local_ink_bbox.origin.x - 1e-5f);
+        CHECK(gr <= audit.local_ink_bbox.origin.x + audit.local_ink_bbox.size.x + 1e-5f);
+    }
+    CHECK(-20.8f >= audit.local_ink_bbox.origin.y - 1e-5f);
+    CHECK(13.0f <= audit.local_ink_bbox.origin.y + audit.local_ink_bbox.size.y + 1e-5f);
 
     // critical invariants: all 4 hold (world_ink_bbox is finite + inside predicted)
     CHECK(audit.finite);
@@ -329,7 +343,7 @@ TEST_CASE("Visibility contract #6: violation response with non-zero local_ink_bb
     const Mat4 identity{1.0f};
 
     // predicted_bbox that does NOT contain the world_ink_bbox
-    // (world_ink_bbox is at origin: (-8, -20.8) size (116, 33.8); predicted starts at (500, 500))
+    // (world_ink_bbox is at origin: (-8, -20.8) size (156, 33.8); predicted starts at (500, 500))
     const Rect predicted_bbox{{500.0f, 500.0f}, {10.0f, 10.0f}};
     const Rect clip_rect    {{0.0f, 0.0f}, {600.0f, 600.0f}};
     const float padding = 20.0f;
@@ -339,11 +353,11 @@ TEST_CASE("Visibility contract #6: violation response with non-zero local_ink_bb
         /*effect_padding=*/padding);
 
     // Sanity: local_ink_bbox is the real value (not zero-rect)
-    CHECK(audit.local_ink_bbox.size.x == doctest::Approx(116.0f));
+    CHECK(audit.local_ink_bbox.size.x == doctest::Approx(156.0f));
     CHECK(audit.local_ink_bbox.size.y == doctest::Approx(33.8f));
 
     // world_ink_bbox = transform_aabb(local_ink_bbox, identity) = local_ink_bbox
-    CHECK(audit.world_ink_bbox.size.x == doctest::Approx(116.0f));
+    CHECK(audit.world_ink_bbox.size.x == doctest::Approx(156.0f));
     CHECK(audit.world_ink_bbox.size.y == doctest::Approx(33.8f));
 
     // Violation triggered (world_ink_bbox extends well past predicted_bbox)
@@ -353,10 +367,10 @@ TEST_CASE("Visibility contract #6: violation response with non-zero local_ink_bb
 
     // expanded_predicted_bbox = world_ink_bbox padded by effect_padding=20
     // origin: (-8 - 20, -20.8 - 20) = (-28, -40.8)
-    // size:   (116 + 40, 33.8 + 40) = (156, 73.8)
+    // size:   (156 + 40, 33.8 + 40) = (196, 73.8)
     CHECK(audit.expanded_predicted_bbox.origin.x == doctest::Approx(-28.0f));
     CHECK(audit.expanded_predicted_bbox.origin.y == doctest::Approx(-40.8f));
-    CHECK(audit.expanded_predicted_bbox.size.x   == doctest::Approx(156.0f));
+    CHECK(audit.expanded_predicted_bbox.size.x   == doctest::Approx(196.0f));
     CHECK(audit.expanded_predicted_bbox.size.y   == doctest::Approx(73.8f));
 }
 
