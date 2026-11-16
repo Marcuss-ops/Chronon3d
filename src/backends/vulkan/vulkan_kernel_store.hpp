@@ -22,6 +22,10 @@ public:
     GpuKernelRegistry registry{};
     VkPipelineCache pipeline_cache{VK_NULL_HANDLE};
     VkPipelineLayout general_layout{VK_NULL_HANDLE};
+    // inline_mesh.comp declares binding 4 as a read-only storage image
+    // (metallic-roughness). The general layout binds a storage buffer there,
+    // so the inline mesh owns this dedicated layout.
+    VkPipelineLayout inline_mesh_layout{VK_NULL_HANDLE};
     VkPipelineLayout particle_emitter_layout{VK_NULL_HANDLE};
     VkPipelineLayout text_tile_bin_layout{VK_NULL_HANDLE};
     VkPipelineLayout text_tile_raster_layout{VK_NULL_HANDLE};
@@ -44,6 +48,9 @@ public:
         if (general_layout != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(device, general_layout, nullptr);
         }
+        if (inline_mesh_layout != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(device, inline_mesh_layout, nullptr);
+        }
         if (particle_emitter_layout != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(device, particle_emitter_layout, nullptr);
         }
@@ -54,6 +61,7 @@ public:
             vkDestroyPipelineLayout(device, text_tile_raster_layout, nullptr);
         }
         general_layout = VK_NULL_HANDLE;
+        inline_mesh_layout = VK_NULL_HANDLE;
         particle_emitter_layout = VK_NULL_HANDLE;
         text_tile_bin_layout = VK_NULL_HANDLE;
         text_tile_raster_layout = VK_NULL_HANDLE;

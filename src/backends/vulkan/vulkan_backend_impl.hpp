@@ -131,6 +131,8 @@ struct VulkanBackend::Impl {
     VkDescriptorSetLayout& descriptor_layout{descriptor_arena.descriptor_layout};
     VkDescriptorSetLayout& particle_emitter_descriptor_layout{
         descriptor_arena.particle_emitter_descriptor_layout};
+    VkDescriptorSetLayout& inline_mesh_descriptor_layout{
+        descriptor_arena.inline_mesh_descriptor_layout};
     VkDescriptorSetLayout& text_tile_bin_descriptor_layout{
         descriptor_arena.text_tile_bin_descriptor_layout};
     VkDescriptorSetLayout& text_tile_raster_descriptor_layout{
@@ -423,6 +425,7 @@ struct VulkanBackend::Impl {
     VkDescriptorSet ensure_glow_descriptor_set(std::size_t index);
     [[nodiscard]] VkCommandBuffer active_command_buffer() const noexcept;
     VkDescriptorSet allocate_pass_descriptor_set();
+    VkDescriptorSet allocate_inline_mesh_descriptor_set();
     VkDescriptorSet allocate_text_tile_bin_descriptor_set();
     VkDescriptorSet allocate_text_tile_raster_descriptor_set();
     void write_text_tile_bin_descriptors(

@@ -112,7 +112,7 @@ void VulkanBackend::Impl::draw_inline_mesh(
         projected_lit_vertices.size_bytes();
     std::memcpy(packed_indices, indices.data(), indices.size_bytes());
 
-    const auto descriptors = allocate_pass_descriptor_set();
+    const auto descriptors = allocate_inline_mesh_descriptor_set();
     const VkDescriptorImageInfo dst_info{
         VK_NULL_HANDLE, dst_image.view, VK_IMAGE_LAYOUT_GENERAL};
     const VkDescriptorImageInfo texture_info{
@@ -205,8 +205,8 @@ void VulkanBackend::Impl::draw_inline_mesh(
         throw std::logic_error("Vulkan inline mesh pipeline was not registered");
     vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
     vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
-    vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                            kernels.inline_mesh_layout, 0, 1, &descriptors, 0, nullptr);
+    vkCmdPushConstants(command, kernels.inline_mesh_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                        0, sizeof(push), &push);
     vkCmdDispatch(command,
         (static_cast<std::uint32_t>(x1 - x0) + 15U) / 16U,

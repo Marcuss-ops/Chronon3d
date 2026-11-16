@@ -64,6 +64,7 @@ struct VulkanSubmissionAuthority {
     std::array<bool, kSlotCount> submitted_frame_valid{};
     std::array<std::int64_t, kSlotCount> submitted_submit_end_trace_ns{};
     std::array<FrameDescriptorAllocator, kSlotCount>& descriptor_allocators;
+    std::array<FrameDescriptorAllocator, kSlotCount>& inline_mesh_allocators;
     std::array<FrameDescriptorAllocator, kSlotCount>& text_tile_bin_allocators;
     std::array<FrameDescriptorAllocator, kSlotCount>& text_tile_raster_allocators;
     std::vector<VkDescriptorSet> descriptor_sets{};
@@ -92,6 +93,7 @@ struct VulkanSubmissionAuthority {
 
     explicit VulkanSubmissionAuthority(VulkanDescriptorAuthority& descriptors)
         : descriptor_allocators(descriptors.pass),
+          inline_mesh_allocators(descriptors.inline_mesh),
           text_tile_bin_allocators(descriptors.text_tile_bin),
           text_tile_raster_allocators(descriptors.text_tile_raster) {}
 

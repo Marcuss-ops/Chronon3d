@@ -174,6 +174,14 @@ VkDescriptorSet VulkanBackend::Impl::allocate_pass_descriptor_set() {
     return set;
 }
 
+VkDescriptorSet VulkanBackend::Impl::allocate_inline_mesh_descriptor_set() {
+    const auto set =
+        frame_batch.inline_mesh_allocators[frame_batch.next_slot].allocate();
+    frame_batch.descriptor_sets.push_back(set);
+    ++stats.descriptor_allocations;
+    return set;
+}
+
 VkDescriptorSet VulkanBackend::Impl::allocate_text_tile_bin_descriptor_set() {
     if (!frame_batch.active) {
         throw std::logic_error("text tile bin requires an active frame batch");

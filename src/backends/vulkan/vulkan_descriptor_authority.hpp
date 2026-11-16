@@ -109,11 +109,13 @@ struct VulkanDescriptorAuthority {
     // Depth matches VulkanSubmissionAuthority::kSlotCount (B2 wave: 6).
     std::array<FrameDescriptorAllocator, 6> pass{};
     std::array<FrameDescriptorAllocator, 6> particle_emitter{};
+    std::array<FrameDescriptorAllocator, 6> inline_mesh{};
     std::array<FrameDescriptorAllocator, 6> text_tile_bin{};
     std::array<FrameDescriptorAllocator, 6> text_tile_raster{};
 
     VkDescriptorSetLayout descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorSetLayout particle_emitter_descriptor_layout{VK_NULL_HANDLE};
+    VkDescriptorSetLayout inline_mesh_descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorSetLayout text_tile_bin_descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorSetLayout text_tile_raster_descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorPool descriptor_pool{VK_NULL_HANDLE};
@@ -123,6 +125,7 @@ struct VulkanDescriptorAuthority {
     void destroy() noexcept {
         for (auto& allocator : pass) allocator.destroy();
         for (auto& allocator : particle_emitter) allocator.destroy();
+        for (auto& allocator : inline_mesh) allocator.destroy();
         for (auto& allocator : text_tile_bin) allocator.destroy();
         for (auto& allocator : text_tile_raster) allocator.destroy();
     }
@@ -130,6 +133,7 @@ struct VulkanDescriptorAuthority {
     void reset(std::size_t slot) {
         pass[slot].reset();
         particle_emitter[slot].reset();
+        inline_mesh[slot].reset();
         text_tile_bin[slot].reset();
         text_tile_raster[slot].reset();
     }

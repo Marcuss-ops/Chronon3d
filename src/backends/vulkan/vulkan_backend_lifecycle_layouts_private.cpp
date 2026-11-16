@@ -104,6 +104,34 @@ void VulkanBackend::Impl::init_descriptor_layouts() {
               "vkCreateDescriptorSetLayout(text tile raster)");
         if (debug_context) debug_context->set_descriptor_set_layout_name(text_tile_raster_descriptor_layout, "Chronon3D.DescriptorSetLayout.TextTileRaster");
 
+        // inline_mesh.comp binds binding 4 to a read-only storage image, so it
+        // cannot share the general layout (buffer at binding 4). Keep the
+        // image/buffer split explicit here instead of relying on a loose
+        // layout that validation rejects at pipeline creation.
+        const VkDescriptorSetLayoutBinding inline_mesh_bindings[] = {
+            {0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
+        const VkDescriptorSetLayoutCreateInfo inline_mesh_layout_info{
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0,
+            5, inline_mesh_bindings};
+        check(vkCreateDescriptorSetLayout(device, &inline_mesh_layout_info, nullptr,
+                                          &inline_mesh_descriptor_layout),
+              "vkCreateDescriptorSetLayout(inline mesh)");
+        if (debug_context) debug_context->set_descriptor_set_layout_name(inline_mesh_descriptor_layout, "Chronon3D.DescriptorSetLayout.InlineMesh");
+
+        const VkPushConstantRange inline_mesh_push{
+            VK_SHADER_STAGE_COMPUTE_BIT, 0, 128};
+        const VkPipelineLayoutCreateInfo inline_mesh_pipeline_layout_info{
+            VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1,
+            &inline_mesh_descriptor_layout, 1, &inline_mesh_push};
+        check(vkCreatePipelineLayout(device, &inline_mesh_pipeline_layout_info, nullptr,
+                                     &kernels.inline_mesh_layout),
+              "vkCreatePipelineLayout(inline mesh)");
+        if (debug_context) debug_context->set_pipeline_layout_name(kernels.inline_mesh_layout, "Chronon3D.PipelineLayout.InlineMesh");
+
         const VkPushConstantRange tile_bin_push{
             VK_SHADER_STAGE_COMPUTE_BIT, 0, 24};
         const VkPipelineLayoutCreateInfo tile_bin_pipeline_layout_info{

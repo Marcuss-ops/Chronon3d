@@ -187,6 +187,9 @@ namespace chronon3d::backends::vulkan {
         for (auto& allocator : descriptor_arena.particle_emitter) {
             allocator.create(device, particle_emitter_descriptor_layout, 0, 1, 1);
         }
+        for (auto& allocator : descriptor_arena.inline_mesh) {
+            allocator.create(device, inline_mesh_descriptor_layout, 4, 1);
+        }
         for (auto& allocator : descriptor_arena.text_tile_bin) {
             allocator.create(device, text_tile_bin_descriptor_layout, 0, 5);
         }
@@ -308,6 +311,9 @@ VulkanBackend::Impl::~Impl() {
         if (descriptor_layout != VK_NULL_HANDLE) vkDestroyDescriptorSetLayout(device, descriptor_layout, nullptr);
         if (particle_emitter_descriptor_layout != VK_NULL_HANDLE) {
             vkDestroyDescriptorSetLayout(device, particle_emitter_descriptor_layout, nullptr);
+        }
+        if (inline_mesh_descriptor_layout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, inline_mesh_descriptor_layout, nullptr);
         }
         if (text_tile_bin_descriptor_layout != VK_NULL_HANDLE) {
             vkDestroyDescriptorSetLayout(device, text_tile_bin_descriptor_layout, nullptr);

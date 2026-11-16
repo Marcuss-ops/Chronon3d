@@ -127,7 +127,7 @@ void VulkanBackend::Impl::init_draw_kernel_pipelines() {
             VK_SHADER_STAGE_COMPUTE_BIT, inline_mesh_shader, "main", nullptr};
         const VkComputePipelineCreateInfo inline_mesh_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            inline_mesh_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+            inline_mesh_stage, kernels.inline_mesh_layout, VK_NULL_HANDLE, -1};
         VkPipeline inline_mesh_pipeline = VK_NULL_HANDLE;
         const VkResult inline_mesh_result = vkCreateComputePipelines(
             device, kernels.pipeline_cache, 1, &inline_mesh_pipeline_info,
