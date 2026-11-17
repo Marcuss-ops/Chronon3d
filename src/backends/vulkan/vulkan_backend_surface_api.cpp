@@ -111,6 +111,26 @@ bool VulkanBackend::wait_for_pending_submissions() noexcept {
 #endif
 }
 
+bool VulkanBackend::wait_for_surface_idle(
+    runtime::RenderSurfaceHandle handle) noexcept {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (!m_impl) return false;
+    try {
+        // Retiring the slot's transient surfaces needs the store lock; the
+        // per-slot fence wait keeps every other slot in flight (P1).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
+        m_impl->wait_for_surface_idle(handle);
+        return true;
+    } catch (const std::exception& error) {
+        spdlog::error("[vulkan] per-surface idle wait failed: {}", error.what());
+        return false;
+    }
+#else
+    (void)handle;
+    return false;
+#endif
+}
+
 std::size_t VulkanBackend::native_surface_ring_capacity() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     return Impl::VulkanSubmissionRing::kSlotCount + 1;

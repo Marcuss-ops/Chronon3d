@@ -161,6 +161,10 @@ struct VulkanBackend::Impl {
     VkCommandPool command_pool{VK_NULL_HANDLE};
     bool calibrated_ts_supported{false};
     PFN_vkGetCalibratedTimestampsEXT pfn_get_calibrated_timestamps{nullptr};
+    // Device-static dispatch entry and physical-device limit, cached at
+    // bootstrap instead of re-queried per frame (sync + geometry paths).
+    PFN_vkCmdPipelineBarrier2KHR pfn_cmd_pipeline_barrier2{nullptr};
+    VkDeviceSize max_storage_buffer_range{0};
     bool gpu_timestamps_calibrated{false};
     std::uint64_t calibration_gpu_ts{0};
     std::int64_t calibration_cpu_trace_ns{0};
@@ -216,6 +220,7 @@ struct VulkanBackend::Impl {
 
     Image dst{};
     Image src{};
+    Image dummy_rg32f_image{};
 
     // Source-compatibility façade only. All state and binding policy live in
     // VulkanSurfaceAuthority; this nested type keeps the existing out-of-line
@@ -436,6 +441,11 @@ struct VulkanBackend::Impl {
         VkBuffer glyph_buffer, VkBuffer glyph_dynamic_buffer, VkBuffer run_buffer,
         VkBuffer tile_counts, VkBuffer tile_indices);
 
+    // Resolved once at device bootstrap: a per-barrier `vkGetDeviceProcAddr`
+    // string lookup has no business on the per-frame path.
+    void cmd_pipeline_barrier2(VkCommandBuffer command,
+                               const VkDependencyInfoKHR* dependency) const;
+
     // Single Vulkan synchronization boundary. Image transitions always arrive
     // as canonical ResourceTransition records; all native emission is Sync2.
     void emit_resource_transition(VkCommandBuffer command,
@@ -456,6 +466,9 @@ struct VulkanBackend::Impl {
     void emit_pass_sync(VkCommandBuffer command,
                         std::initializer_list<const Image*> images,
                         runtime::GpuPassKind pass_kind);
+    void emit_image_barriers2(
+        VkCommandBuffer command,
+        std::span<const VkImageMemoryBarrier2KHR> barriers);
     void emit_buffer_barriers2(
         VkCommandBuffer command,
         std::span<const VkBufferMemoryBarrier2KHR> barriers);
@@ -926,6 +939,12 @@ struct VulkanBackend::Impl {
     void begin_command_buffer();
     void wait_for_standalone();
     void wait_for_pending();
+    // P1 (TICKET-PERF-P1-NVDEC-VULKAN-IMPORT-SLOT-DRAIN-20261117): wait only
+    // the frame-batch slots that referenced `handle`, never the whole ring.
+    void wait_for_surface_idle(runtime::RenderSurfaceHandle handle);
+    // P3 (TICKET-PERF-P3-VULKAN-DEFERRED-SURFACE-RELEASE-OVERFLOW-DRAIN-20261117):
+    // retire the single oldest in-flight slot instead of draining the ring.
+    void wait_for_oldest_in_flight_slot();
     std::uint64_t submit(bool wait_for_completion = true);
 };
 

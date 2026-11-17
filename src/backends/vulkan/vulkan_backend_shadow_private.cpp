@@ -74,9 +74,7 @@ void VulkanBackend::Impl::shadow_caster(
     if (word_count > std::numeric_limits<std::size_t>::max() / sizeof(float))
         throw std::length_error("Vulkan shadow caster byte size overflow");
     const VkDeviceSize bytes = static_cast<VkDeviceSize>(word_count * sizeof(float));
-    VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(physical_device, &properties);
-    if (bytes > properties.limits.maxStorageBufferRange)
+    if (bytes > max_storage_buffer_range)
         throw std::length_error("Vulkan shadow caster exceeds maxStorageBufferRange");
     if (frame_batch.pass_count >= kPathGeometryPassesPerSlot)
         throw std::logic_error("Vulkan shadow caster pass capacity exhausted");

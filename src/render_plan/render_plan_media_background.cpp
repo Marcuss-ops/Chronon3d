@@ -166,8 +166,53 @@ void materialize_media_background_cards(RenderPlan& plan) {
         layer.style->shadows.clear();
         expanded.push_back(std::move(card));
         expanded.push_back(std::move(layer));
-    }
-    plan.layers = std::move(expanded);
+    }    plan.layers = std::move(expanded);
 }
 
-} // namespace chronon3d::render_plan::detail
+void lower_layer_style_shadows(RenderPlan& plan) {
+    for (auto& layer : plan.layers) {
+        if (!layer.style) continue;
+        if (!layer.style->shadow && layer.style->shadows.empty()) continue;
+        // The published style contract owns shadows for authored geometry and
+        // media plates. Text keeps its own paint pipeline, and Adjustment/Light
+        // layers have no surface to cast a drop shadow from.
+        if (layer.type != LayerType::Shape && layer.type != LayerType::Video &&
+            layer.type != LayerType::Image && layer.type != LayerType::Color)
+            continue;
+        const auto lower_one = [&layer](const ShadowStyle& shadow) {
+            if (shadow.offset_dimensions != 2)
+                throw std::runtime_error("layer '" + layer.id +
+                    "' shadow requires a two-dimensional offset");
+            const auto parsed_color = parse_hex_color(shadow.color, 1.0f);
+            if (!parsed_color)
+                throw std::runtime_error("layer '" + layer.id +
+                    "' shadow colour '" + shadow.color + "' is not #RRGGBB");
+            const float opacity = shadow.opacity.value_or(1.0f);
+            const float blur = shadow.blur.value_or(0.0f);
+            if (!std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f)
+                throw std::runtime_error(
+                    "layer '" + layer.id + "' shadow opacity is outside [0,1]");
+            if (!std::isfinite(blur) || blur < 0.0f)
+                throw std::runtime_error("layer '" + layer.id +
+                    "' shadow blur must be finite and non-negative");
+            if (!std::isfinite(shadow.offset[0]) || !std::isfinite(shadow.offset[1]))
+                throw std::runtime_error("layer '" + layer.id +
+                    "' shadow offset must be finite");
+            EffectPlan effect;
+            effect.kind = EffectKindPlan::DropShadow;
+            effect.offset = {shadow.offset[0], shadow.offset[1]};
+            effect.radius = blur;
+            effect.effect_color = {parsed_color->r, parsed_color->g, parsed_color->b,
+                                   parsed_color->a * opacity};
+            layer.effects.push_back(std::move(effect));
+        };
+        if (layer.style->shadow) lower_one(*layer.style->shadow);
+        for (const auto& shadow : layer.style->shadows) lower_one(shadow);
+        // Lowered once: leaving the declaration in place would materialize the
+        // same shadow twice on any later pass over this plan.
+        layer.style->shadow.reset();
+        layer.style->shadows.clear();
+    }
+}
+
+}  // namespace chronon3d::render_plan::detail

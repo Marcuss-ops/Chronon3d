@@ -10,6 +10,7 @@
 
 #include <cuda.h>
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -140,6 +141,9 @@ public:
         std::uint64_t& converted_plane_bytes);
 
 private:
+    /// P2: create this compositor's per-slot layer-batch events.
+    void create_layer_batch_events();
+
     bool composite_surface_to_nv12_impl(
         CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
         std::uint32_t width, std::uint32_t height, CUstream stream,
@@ -161,16 +165,22 @@ private:
     CUfunction direct_p010_batch_kernel_{nullptr};
     CUfunction rgba_to_nv12_kernel_{nullptr};
     CUfunction rgba_u8_to_nv12_kernel_{nullptr};
-    // AUDIT-02A/02B: per-slot pinned host staging + device buffers in a
-    // ping-pong pair. Host storage is allocated once (pinned, never per
-    // frame); the two device slots alternate so a caller that switches
-    // streams between frames can never overwrite a device slot whose
-    // H2D copy + kernel read is still in flight on the previous stream.
-    static constexpr int kLayerBatchSlots = 2;
-    CUdeviceptr layer_batch_buffer_[kLayerBatchSlots]{0, 0};
-    std::size_t layer_batch_capacity_dev_[kLayerBatchSlots]{0, 0};
-    CUdeviceptr layer_batch_host_[kLayerBatchSlots]{0, 0};
-    std::size_t layer_batch_capacity_[kLayerBatchSlots]{0, 0};
+    // AUDIT-02A/02B: per-slot pinned host staging + device buffers. Host
+    // storage is allocated once (pinned, never per frame); slots rotate so a
+    // caller that submits faster than the GPU drains never overwrites a slot
+    // whose H2D copy or kernel read is still in flight.
+    // P2 (TICKET-PERF-P2-DIRECT-YUV-PINNED-HOST-BUFFER-SYNC-20261117): the
+    // staging ring is as deep as the submission ring (6) and every slot has a
+    // recorded CUevent.  With only two slots and no event, a third in-flight
+    // frame overwrote pinned host memory that the DMA for frame N-2 had not
+    // read yet; the event also makes the capacity realloc safe.
+    static constexpr int kLayerBatchSlots = 6;
+    CUdeviceptr layer_batch_buffer_[kLayerBatchSlots]{};
+    std::size_t layer_batch_capacity_dev_[kLayerBatchSlots]{};
+    CUdeviceptr layer_batch_host_[kLayerBatchSlots]{};
+    std::size_t layer_batch_capacity_[kLayerBatchSlots]{};
+    std::array<CUevent, kLayerBatchSlots> layer_batch_ready_events_{};
+    std::array<bool, kLayerBatchSlots> layer_batch_slot_in_flight_{};
     int layer_batch_slot_{0};
     CUstream stream_{nullptr};
     bool first_write_{true};

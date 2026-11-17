@@ -161,6 +161,11 @@ bool acquire_pending_cuda_surface(std::size_t slot);
         std::uint8_t slot_mask{0};
     };
     std::vector<DeferredSurfaceRelease> deferred_surface_releases{};
+    // P5 (TICKET-PERF-P5-VULKAN-DEFERRED-RELEASE-VECTOR-MOVE-ALLOC-20261117):
+    // persistent swap partner for flush_deferred_surface_releases().  Both
+    // vectors keep their high-water heap block, so the steady-state flush is
+    // allocation-free.
+    std::vector<DeferredSurfaceRelease> deferred_surface_releases_scratch{};
     // Per-handle recording-slot masks (see frame_slot_bit). Written only on the
     // recording path, which holds the submission domain, and read by the
     // release/retire paths, which hold both domains.

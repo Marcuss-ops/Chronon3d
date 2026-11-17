@@ -252,7 +252,19 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
 
     entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
     if (entry->fb_img) {
-        entry->gpu_rgba.resize(static_cast<std::size_t>(entry->width) * entry->height * 4);
+        // A11: when the width is already a cache-line multiple of Colors the
+        // framebuffer stride equals the width, so its storage IS the dense
+        // RGBA32F upload buffer. Allocating `gpu_rgba` as well would duplicate
+        // 16 bytes/pixel (132 MB per 4K image) and double the decode writes.
+        const bool dense_alias =
+            entry->width % static_cast<int>(k_colors_per_cache_line) == 0;
+        if (!dense_alias) {
+            entry->gpu_rgba.resize(
+                static_cast<std::size_t>(entry->width) * entry->height * 4);
+        } else {
+            entry->gpu_rgba.clear();
+            entry->gpu_rgba.shrink_to_fit();
+        }
         std::atomic<bool> all_alpha_opaque{true};
         // Each row is independent. Parallelizing this conversion is
         // safe because both destinations are pre-sized and indexed
@@ -263,8 +275,9 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
                 bool rows_alpha_opaque = true;
                 for (int y = rows.begin(); y < rows.end(); ++y) {
                     Color* dst_row = entry->fb_img->pixels_row(y);
-                    float* gpu_row = entry->gpu_rgba.data() +
-                        static_cast<std::size_t>(y) * entry->width * 4;
+                    float* gpu_row = dense_alias ? nullptr
+                        : entry->gpu_rgba.data() +
+                              static_cast<std::size_t>(y) * entry->width * 4;
                     for (int x = 0; x < entry->width; ++x) {
                         const auto index = static_cast<std::size_t>(y) * entry->width + x;
                         const auto color = decode_image_pixel(
@@ -275,10 +288,12 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
                             );
                         rows_alpha_opaque = rows_alpha_opaque && color.a == 1.0f;
                         dst_row[x] = color;
-                        gpu_row[x * 4 + 0] = color.r;
-                        gpu_row[x * 4 + 1] = color.g;
-                        gpu_row[x * 4 + 2] = color.b;
-                        gpu_row[x * 4 + 3] = color.a;
+                        if (gpu_row != nullptr) {
+                            gpu_row[x * 4 + 0] = color.r;
+                            gpu_row[x * 4 + 1] = color.g;
+                            gpu_row[x * 4 + 2] = color.b;
+                            gpu_row[x * 4 + 3] = color.a;
+                        }
                     }
                 }
                 if (!rows_alpha_opaque) {
@@ -287,16 +302,17 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
             });
         entry->decoded_alpha_is_opaque =
             all_alpha_opaque.load(std::memory_order_relaxed);
+        const auto rgba_span = entry->gpu_rgba_span();
 #ifdef CHRONON3D_ENABLE_OCIO
-        if (ocio_transform && std::any_of(entry->gpu_rgba.begin(),
-            entry->gpu_rgba.end(), [](float value) { return !std::isfinite(value); })) {
+        if (ocio_transform && std::any_of(rgba_span.begin(),
+            rgba_span.end(), [](float value) { return !std::isfinite(value); })) {
             spdlog::error("ImageCache: OCIO input transform produced invalid pixels for '{}'", path);
             return {std::make_shared<CachedImage>(), 1};
         }
 #endif
         const std::string_view bytes(
-            reinterpret_cast<const char*>(entry->gpu_rgba.data()),
-            entry->gpu_rgba.size() * sizeof(float));
+            reinterpret_cast<const char*>(rgba_span.data()),
+            rgba_span.size() * sizeof(float));
         spdlog::warn("[imgprof] convert={:.1f}ms", profiling::elapsed_ms(t0));
         entry->gpu_key = runtime::GpuAssetKey{
             assets::sha256_string(bytes), runtime::PixelFormat::Rgba32Float,
@@ -320,7 +336,9 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
 #ifdef CHRONON3D_USE_BLEND2D
                         + static_cast<size_t>(entry->width) * entry->height * 16 // Framebuffer float
 #endif
-                        + entry->gpu_rgba.size() * sizeof(float);
+                        + (entry->gpu_rgba_is_dense_alias()
+                               ? 0
+                               : entry->gpu_rgba.size() * sizeof(float));
     return {entry, weight};
 }
 

@@ -29,6 +29,11 @@ namespace assets { class AssetResolver; }
 namespace chronon3d::render_plan::detail {
 
 void materialize_media_background_cards(RenderPlan& plan);
+// A layer's published style.shadow(s) declaration is not a graph node of its
+// own: both the RenderPlan builder lane and the compiler/CompiledProgram lane
+// must turn it into a DropShadow effect on the layer surface, otherwise a card
+// authored with a shadow renders without one.
+void lower_layer_style_shadows(RenderPlan& plan);
 [[nodiscard]] std::optional<PlanDecodeError> prepare_data_feed_assets(
     RenderPlan& plan, chronon3d::assets::AssetResolver& resolver);
 [[nodiscard]] std::optional<PlanDecodeError> expand_lottie_assets(

@@ -70,15 +70,15 @@ bool try_native_inline_mesh(
     if (!draw_node->inline_mesh_texture_asset.empty()) {
         cached = ctx.image_cache->find(draw_node->inline_mesh_texture_asset);
         if (!cached) cached = ctx.image_cache->get_or_load(draw_node->inline_mesh_texture_asset);
-        if (!cached || !cached->valid() || cached->gpu_rgba.empty())
+        if (!cached || !cached->valid() || cached->gpu_rgba_span().empty())
             throw std::runtime_error("inline mesh native texture could not be prepared: " +
                                      draw_node->inline_mesh_texture_asset);
         const auto& key = cached->gpu_key;
         const runtime::SurfaceDesc desc{
             key.width, key.height, key.format, runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::JobPersistent,
-            cached->gpu_rgba.size() * sizeof(float)};
-        const auto acquired = ctx.gpu_asset_cache->acquire(key, desc, cached->gpu_rgba);
+            cached->gpu_rgba_span().size_bytes()};
+        const auto acquired = ctx.gpu_asset_cache->acquire(key, desc, cached->gpu_rgba_span());
         if (!acquired.ok())
             throw std::runtime_error("inline mesh native texture residency failed: " +
                                      acquired.error);
@@ -110,7 +110,7 @@ bool try_native_inline_mesh(
         if (!mr_cached)
             mr_cached = ctx.image_cache->get_or_load(
                 draw_node->inline_mesh_metallic_roughness_texture_asset, mr_options);
-        if (!mr_cached || !mr_cached->valid() || mr_cached->gpu_rgba.empty())
+        if (!mr_cached || !mr_cached->valid() || mr_cached->gpu_rgba_span().empty())
             throw std::runtime_error(
                 "inline mesh native metallic-roughness texture could not be prepared: " +
                 draw_node->inline_mesh_metallic_roughness_texture_asset);
@@ -118,8 +118,8 @@ bool try_native_inline_mesh(
         const runtime::SurfaceDesc desc{
             key.width, key.height, key.format, runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::JobPersistent,
-            mr_cached->gpu_rgba.size() * sizeof(float)};
-        const auto acquired = ctx.gpu_asset_cache->acquire(key, desc, mr_cached->gpu_rgba);
+            mr_cached->gpu_rgba_span().size_bytes()};
+        const auto acquired = ctx.gpu_asset_cache->acquire(key, desc, mr_cached->gpu_rgba_span());
         if (!acquired.ok())
             throw std::runtime_error(
                 "inline mesh native metallic-roughness residency failed: " + acquired.error);
@@ -152,7 +152,9 @@ bool try_native_inline_mesh(
                 if (*depth_owner)
                     release_native_surface(ctx, **depth_owner);
                 *depth_owner = std::make_shared<Framebuffer>(fb.width(), fb.height());
-                if (!ensure_empty_native_surface(ctx, **depth_owner)) {
+                if (!ensure_empty_native_surface(
+                        ctx, **depth_owner, true,
+                        runtime::PixelFormat::Rg32Float)) {
                     depth_owner->reset();
                     occlusion.unusable = true;
                 }

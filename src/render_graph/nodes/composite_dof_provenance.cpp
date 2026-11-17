@@ -30,7 +30,8 @@ void publish_dof_provenance_native(
     if (native.unusable) return;
     if (!native.surface) {
         auto depth = std::make_shared<Framebuffer>(framebuffer_width, framebuffer_height);
-        bool ready = ensure_empty_native_surface(ctx, *depth);
+        bool ready = ensure_empty_native_surface(
+            ctx, *depth, true, runtime::PixelFormat::Rg32Float);
         // Empty clip rect + reset: every pixel becomes the "no depth" sentinel.
         ready = ready && ctx.backend_surface_api()->dof_depth_stamp_surface(
             depth->surface_handle(), layer.surface_handle(),

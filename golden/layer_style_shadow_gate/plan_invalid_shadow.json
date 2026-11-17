@@ -1,0 +1,55 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "layer-style-shadow-gate-invalid",
+  "canvas": {
+    "width": 320,
+    "height": 240,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "photo",
+      "type": "image",
+      "asset": "source.png",
+      "position": [
+        50,
+        40
+      ],
+      "screen_space": true,
+      "start_frame": 0,
+      "duration_frames": 1,
+      "size": [
+        200,
+        120
+      ],
+      "style": {
+        "background": {
+          "color": "#101820",
+          "opacity": 1.0,
+          "padding": [
+            18,
+            18
+          ],
+          "radius": 12
+        },
+        "shadow": {
+          "color": "not-a-colour",
+          "opacity": 0.85,
+          "blur": 16,
+          "offset": [
+            0,
+            18
+          ]
+        }
+      }
+    }
+  ],
+  "output": {
+    "path": "gate.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

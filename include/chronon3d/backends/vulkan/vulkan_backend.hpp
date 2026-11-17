@@ -409,6 +409,11 @@ public:
     /// Waits for all Vulkan work that may reference native CUDA surfaces,
     /// without retiring or destroying those surfaces.
     [[nodiscard]] bool wait_for_pending_submissions() noexcept;
+    /// Waits only the frame-batch slots that recorded ``handle``, leaving the
+    /// rest of the submission ring in flight.  Used when a native-import slot
+    /// is recycled: five other frames may still be running on the GPU.
+    [[nodiscard]] bool wait_for_surface_idle(
+        runtime::RenderSurfaceHandle handle) noexcept;
     /// Capacity of the native-import ring derived from the backend's actual
     /// frame-batch in-flight window.
     [[nodiscard]] std::size_t native_surface_ring_capacity() const noexcept;

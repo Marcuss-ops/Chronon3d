@@ -1,6 +1,6 @@
 # TICKET-VULKAN-DROP-SHADOW-BLACK — drop_shadow on a screen-space shape blacks out the Vulkan frame
 
-**Stato:** FIXED (2026-11-14)
+**Stato:** CLOSED (2026-11-17) — FIXED 2026-11-14; test Vulkan strict 1/1 con 522/522 asserzioni e piano 12 con 13/13 frame non neri; nessun workaround.
 **Priorità:** P1
 **Ambito:** Chronon3d Vulkan backend / native effect-stack drop shadow
 **Origine:** ChrononTemplate motion-design stress, case 12 (`12_overshoot`)

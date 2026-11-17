@@ -8,13 +8,12 @@ namespace chronon3d::backends::vulkan {
 
 namespace {
 
-void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buffer,
+void emit_buffer_barrier2(PFN_vkCmdPipelineBarrier2KHR pipeline_barrier2,
+                          VkCommandBuffer command, VkBuffer buffer,
                           VkPipelineStageFlags2KHR src_stage, VkAccessFlags2KHR src_access,
                           VkPipelineStageFlags2KHR dst_stage, VkAccessFlags2KHR dst_access) {
     if (buffer == VK_NULL_HANDLE) return;
-    const auto pipeline_barrier2 = reinterpret_cast<PFN_vkCmdPipelineBarrier2KHR>(
-        vkGetDeviceProcAddr(device, "vkCmdPipelineBarrier2KHR"));
-    if (!pipeline_barrier2) {
+    if (pipeline_barrier2 == nullptr) {
         throw std::runtime_error(
             "Vulkan: vkCmdPipelineBarrier2KHR unavailable after synchronization2 enablement");
     }
@@ -61,13 +60,13 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
         // Keep both halves of that dependency on Synchronization2.
         if (instance_updated) {
             emit_buffer_barrier2(
-                device, command, instance_buffer,
+                pfn_cmd_pipeline_barrier2, command, instance_buffer,
                 VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
                 VK_ACCESS_2_SHADER_READ_BIT_KHR,
                 VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
                 VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
             emit_buffer_barrier2(
-                device, command, instance_buffer,
+                pfn_cmd_pipeline_barrier2, command, instance_buffer,
                 VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
                 VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
                 VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
@@ -113,13 +112,13 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
                             std::int32_t dispatch_end_y) {
         if (instance_updated) {
             emit_buffer_barrier2(
-                device, command, instance_buffer,
+                pfn_cmd_pipeline_barrier2, command, instance_buffer,
                 VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
                 VK_ACCESS_2_SHADER_READ_BIT_KHR,
                 VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
                 VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
             emit_buffer_barrier2(
-                device, command, instance_buffer,
+                pfn_cmd_pipeline_barrier2, command, instance_buffer,
                 VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
                 VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
                 VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,

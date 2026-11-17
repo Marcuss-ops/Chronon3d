@@ -10,11 +10,11 @@
 
 namespace chronon3d::cli {
 
-RenderLoopResult run_render_job_loop(
+RenderJobLoopResult run_render_job_loop(
     const RenderJob& job,
     SoftwareRenderer& renderer)
 {
-    RenderLoopResult result;
+    RenderJobLoopResult result;
 
     if (job.mode == RenderMode::Video) {
         spdlog::error("run_render_job_loop cannot execute Video mode");

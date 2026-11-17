@@ -24,6 +24,12 @@ namespace chronon3d::cli::detail {
 using NativeAvClock = std::chrono::steady_clock;
 [[nodiscard]] double elapsed_ms(const NativeAvClock::time_point& start) noexcept;
 
+// P7 (TICKET-FIX-P7-NVENC-CUDA-QUEUE-EAGAIN-HANDLING-20261117): bounded retry
+// budget for AVERROR(EAGAIN) on the CUDA queue, matching the host-frame lane.
+// 12 retries at one drain each is the same budget write_frame_impl uses; a
+// codec that stays full beyond it is a real error, not backpressure.
+inline constexpr int kMaxCudaEagainRetries = 12;
+
 // ── Cross-item codec session (TICKET-RESIDENT-RENDER-ENGINE (P2) item 2 /
 // TICKET-BATCH-SUPERJOB (P4) item 1) ──────────────────────────────────────
 //

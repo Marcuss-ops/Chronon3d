@@ -40,7 +40,7 @@ std::optional<NodeExecutionError> apply_native_layer_dof(
     if (!ensure_native_surface(ctx, const_cast<Framebuffer&>(layer), "LayerDoF.source") ||
         !ensure_empty_native_surface(ctx, *expanded) ||
         !ensure_empty_native_surface(ctx, *output) ||
-        !ensure_empty_native_surface(ctx, *depth))
+        !ensure_empty_native_surface(ctx, *depth, true, runtime::PixelFormat::Rg32Float))
         return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
             "LayerDoF", "failed to materialize Vulkan layer DOF surfaces"};
 

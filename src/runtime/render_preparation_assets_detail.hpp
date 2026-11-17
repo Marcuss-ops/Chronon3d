@@ -166,7 +166,7 @@ RenderPreparationResult prepare_render_scene(
             decode_options.max_dimension = ref.max_dimension;
             decode_options.color_space = ref.color_space;
             const auto image = renderer->execution_context().runtime->image_cache().find(ref.path, decode_options);
-            if (!image || !image->valid() || image->gpu_rgba.empty()) {
+            if (!image || !image->valid() || image->gpu_rgba_span().empty()) {
                 continue;
             }
             const auto& key = image->gpu_key;
@@ -181,8 +181,8 @@ RenderPreparationResult prepare_render_scene(
                 key.width, key.height, key.format,
                 runtime::ResourceUsage::Storage,
                 runtime::LifetimeClass::JobPersistent,
-                image->gpu_rgba.size() * sizeof(float)};
-            const auto acquired = cache.acquire(key, desc, image->gpu_rgba);
+                image->gpu_rgba_span().size_bytes()};
+            const auto acquired = cache.acquire(key, desc, image->gpu_rgba_span());
             if (!acquired.ok()) {
                 result.preparation_error = make_preparation_error(
                     PreparationError::Code::CorruptedAsset,

@@ -6,12 +6,59 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <string_view>
 
 namespace chronon3d::compiler {
 namespace {
+
+// ── O(1) animation-track cursor ─────────────────────────────────────────────
+// Sequential video export walks frames in order, so the keyframe segment that
+// bracketed the previous frame is almost always the one that brackets this
+// frame too. A direct-mapped thread-local cache turns the per-track
+// `std::upper_bound` into one validated compare pair. The cache only ever
+// supplies an INDEX HINT: the bracket is re-validated against the keys passed
+// in this call, so a stale/unrelated program address can never change the
+// sampled value.
+struct TrackSegmentCursor {
+    const CurveKeyframeProgram* base{nullptr};
+    std::size_t count{0};
+    std::size_t right{0};
+};
+
+constexpr std::size_t kTrackSegmentCursorSlots = 128;
+
+[[nodiscard]] TrackSegmentCursor* track_segment_cursors() noexcept {
+    static thread_local TrackSegmentCursor slots[kTrackSegmentCursorSlots];
+    return slots;
+}
+
+/// Returns the index of the first keyframe with `frame <= value` (value is
+/// guaranteed to sit strictly inside `[base[0].frame, base[count-1].frame]`).
+[[nodiscard]] std::size_t locate_track_segment(const CurveKeyframeProgram* base,
+                                               std::size_t count,
+                                               double value) noexcept {
+    auto* slot = track_segment_cursors() +
+        ((reinterpret_cast<std::uintptr_t>(base) >> 5) % kTrackSegmentCursorSlots);
+    if (slot->base == base && slot->count == count && slot->right < count &&
+        slot->right > 0 &&
+        static_cast<double>(base[slot->right - 1].frame) <= value &&
+        value < static_cast<double>(base[slot->right].frame)) {
+        return slot->right;
+    }
+    const auto* right_it = std::upper_bound(
+        base, base + count, value,
+        [](double lhs, const CurveKeyframeProgram& key) {
+            return lhs < static_cast<double>(key.frame);
+        });
+    const std::size_t right = static_cast<std::size_t>(right_it - base);
+    slot->base = base;
+    slot->count = count;
+    slot->right = right;
+    return right;
+}
 
 float sample_track(const CompiledProgram& program,
                    const AnimationTrackProgram& track,
@@ -26,15 +73,10 @@ float sample_track(const CompiledProgram& program,
         begin + track.keyframe_count, program.curve_keyframes().size());
     const auto& keys = program.curve_keyframes();
     if (end <= begin) return fallback;
-    if (frame_number <= keys[begin].frame) return keys[begin].value;
-    if (frame_number >= keys[end - 1].frame) return keys[end - 1].value;
-    const auto right_it = std::upper_bound(
-        keys.begin() + static_cast<std::ptrdiff_t>(begin),
-        keys.begin() + static_cast<std::ptrdiff_t>(end), frame_number,
-        [](double value, const CurveKeyframeProgram& key) {
-            return value < key.frame;
-        });
-    const auto right_index = static_cast<std::size_t>(right_it - keys.begin());
+    if (frame_number <= static_cast<double>(keys[begin].frame)) return keys[begin].value;
+    if (frame_number >= static_cast<double>(keys[end - 1].frame)) return keys[end - 1].value;
+    const auto right_index = begin + locate_track_segment(
+        keys.data() + begin, end - begin, frame_number);
     const auto& left = keys[right_index - 1];
     const auto& right = keys[right_index];
     const auto span = static_cast<float>(right.frame - left.frame);
@@ -61,16 +103,27 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
         frame_number >= static_cast<double>(std::numeric_limits<std::int64_t>::max()))
         throw std::out_of_range("typed program sample frame exceeds the integral frame range");
     block.frame = Frame{static_cast<std::int64_t>(std::floor(frame_number))};
-    block.layers.clear();
-    if (block.layers.capacity() < program.layers().size()) {
-        block.layers.reserve(program.layers().size());
-    }
+    // Reuse the per-layer slots in place: `clear()` + `push_back` would destroy
+    // every `SampledLayerParameters` (freeing the `elements` buffer) and
+    // reallocate it from scratch on every frame.
+    block.layers.resize(program.layers().size());
 
+    std::size_t layer_slot = 0;
     for (const auto& layer : program.layers()) {
-        SampledLayerParameters sampled;
+        SampledLayerParameters& sampled = block.layers[layer_slot++];
+        // Reset to exactly the value a freshly constructed slot would hold, so
+        // nothing from the previous frame's payload/elements survives.
         sampled.id = layer.id;
         sampled.kind = layer.kind;
+        sampled.matrix = Mat4{1.0f};
+        sampled.opacity = 1.0f;
+        sampled.active = false;
+        sampled.dirty = true;
+        sampled.time_dependent = false;
+        sampled.local_time_frame = 0.0;
         sampled.text_index = 0;
+        sampled.payload = std::monostate{};
+        sampled.elements.clear();  // keeps the capacity grown on earlier frames
         sampled.dirty = program.temporal_schedule().dirty(
             layer.id, frame_number);
 
@@ -154,7 +207,6 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                 if (!result.ok())
                     throw std::invalid_argument(
                         "compiled particle sampling failed: " + result.error);
-                sampled.elements.reserve(result.particles.size());
                 for (const auto& particle : result.particles) {
                     SampledElementParameters element;
                     element.id = particle.index;
@@ -268,7 +320,6 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
             transform.opacity = sampled.opacity;
             sampled.matrix = transform.to_matrix();
         }
-        block.layers.push_back(std::move(sampled));
     }
 }
 

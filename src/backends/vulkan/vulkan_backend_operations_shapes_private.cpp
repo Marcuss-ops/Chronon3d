@@ -46,9 +46,19 @@ void VulkanBackend::Impl::initialize_transparent_surface(
     if (!frame_batch.active) {
         throw std::logic_error("Vulkan transparent initialization requires an active frame batch");
     }
+    const auto cmd = active_command_buffer();
+    if (dst_image.format == VK_FORMAT_R32G32_SFLOAT) {
+        emit_unplanned_compute_sync(cmd, {&dst_image});
+        const VkClearColorValue clear_color{{0.0f, 0.0f, 0.0f, 0.0f}};
+        const VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        vkCmdClearColorImage(cmd, dst_image.image, VK_IMAGE_LAYOUT_GENERAL,
+                             &clear_color, 1, &range);
+        dst_image.initialized = true;
+        emit_unplanned_compute_sync(cmd, {&dst_image});
+        return;
+    }
     const auto descriptors = allocate_pass_descriptor_set();
     write_fill_rect_descriptors(descriptors, dst_image);
-    const auto cmd = active_command_buffer();
     // Initialization is deliberately not part of the compiled pass index.
     // It establishes transparent untouched pixels before the first planned
     // affine/composite operation without shifting plan transitions.
@@ -86,9 +96,7 @@ void VulkanBackend::Impl::fill_solid_shape(
             if (mask_words.size() > std::numeric_limits<std::size_t>::max() / sizeof(std::uint32_t))
                 throw std::length_error("Vulkan shape mask size overflow");
             geometry_bytes = static_cast<VkDeviceSize>(mask_words.size() * sizeof(std::uint32_t));
-            VkPhysicalDeviceProperties properties{};
-            vkGetPhysicalDeviceProperties(physical_device, &properties);
-            if (geometry_bytes > properties.limits.maxStorageBufferRange)
+            if (geometry_bytes > max_storage_buffer_range)
                 throw std::length_error("Vulkan shape mask exceeds maxStorageBufferRange");
             if (frame_batch.pass_count >= kPathGeometryPassesPerSlot)
                 throw std::logic_error("Vulkan shape mask pass capacity exhausted");
@@ -206,9 +214,7 @@ void VulkanBackend::Impl::fill_dashed_path(
         }
     }
     const VkDeviceSize bytes = static_cast<VkDeviceSize>(words.size() * sizeof(std::uint32_t));
-    VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(physical_device, &properties);
-    if (bytes > properties.limits.maxStorageBufferRange)
+    if (bytes > max_storage_buffer_range)
         throw std::length_error("Vulkan dashed path exceeds maxStorageBufferRange");
     if (frame_batch.pass_count >= kPathGeometryPassesPerSlot)
         throw std::logic_error("Vulkan dashed path pass capacity exhausted");
@@ -322,9 +328,7 @@ void VulkanBackend::Impl::fill_polygon(
         }
     }
     const VkDeviceSize bytes = static_cast<VkDeviceSize>(words.size() * sizeof(std::uint32_t));
-    VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(physical_device, &properties);
-    if (bytes > properties.limits.maxStorageBufferRange)
+    if (bytes > max_storage_buffer_range)
         throw std::length_error("Vulkan polygon fill exceeds maxStorageBufferRange");
     if (frame_batch.pass_count >= kPathGeometryPassesPerSlot)
         throw std::logic_error("Vulkan polygon fill pass capacity exhausted");

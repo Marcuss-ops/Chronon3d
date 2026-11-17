@@ -93,9 +93,7 @@ void VulkanBackend::Impl::draw_inline_mesh(
     if (word_count > std::numeric_limits<std::size_t>::max() / sizeof(float))
         throw std::length_error("Vulkan inline mesh byte size overflow");
     const VkDeviceSize bytes = static_cast<VkDeviceSize>(word_count * sizeof(float));
-    VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(physical_device, &properties);
-    if (bytes > properties.limits.maxStorageBufferRange)
+    if (bytes > max_storage_buffer_range)
         throw std::length_error("Vulkan inline mesh exceeds maxStorageBufferRange");
     if (frame_batch.pass_count >= kPathGeometryPassesPerSlot)
         throw std::logic_error("Vulkan inline mesh geometry pass capacity exhausted");
@@ -113,14 +111,17 @@ void VulkanBackend::Impl::draw_inline_mesh(
     std::memcpy(packed_indices, indices.data(), indices.size_bytes());
 
     const auto descriptors = allocate_inline_mesh_descriptor_set();
+    if (!write_depth && dummy_rg32f_image.image == VK_NULL_HANDLE) {
+        make_image(dummy_rg32f_image, 1, 1, false, VK_FORMAT_R32G32_SFLOAT);
+    }
     const VkDescriptorImageInfo dst_info{
         VK_NULL_HANDLE, dst_image.view, VK_IMAGE_LAYOUT_GENERAL};
     const VkDescriptorImageInfo texture_info{
         VK_NULL_HANDLE, texture_image.view, VK_IMAGE_LAYOUT_GENERAL};
-    // The shader always declares binding 2; when this draw does not publish
-    // depth it is bound to the destination (unused, but a valid descriptor).
+    // The shader always declares binding 2 as rg32f; when this draw does not
+    // publish depth it is bound to a 1x1 RG32F dummy image (unused, valid).
     const VkDescriptorImageInfo depth_info{
-        VK_NULL_HANDLE, write_depth ? depth_image->view : dst_image.view,
+        VK_NULL_HANDLE, write_depth ? depth_image->view : dummy_rg32f_image.view,
         VK_IMAGE_LAYOUT_GENERAL};
     // Binding 4 is likewise always declared: without a per-pixel material the
     // base-color image is bound and the shader's flag gate never samples it.
@@ -146,7 +147,11 @@ void VulkanBackend::Impl::draw_inline_mesh(
     if (write_depth && depth_image != mr_image)
         emit_pass_sync(command, {&dst_image, &texture_image, mr_image, depth_image},
                        runtime::GpuPassKind::Composite);
-    else
+    else if (!write_depth && !dummy_rg32f_image.initialized) {
+        emit_pass_sync(command, {&dst_image, &texture_image, mr_image, &dummy_rg32f_image},
+                       runtime::GpuPassKind::Composite);
+        dummy_rg32f_image.initialized = true;
+    } else
         emit_pass_sync(command, {&dst_image, &texture_image, mr_image},
                        runtime::GpuPassKind::Composite);
     const VkBufferMemoryBarrier2KHR upload_barrier{

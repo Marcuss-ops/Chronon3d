@@ -264,14 +264,11 @@ void VulkanBackend::Impl::sdf_bevel(
         params.shadow_opacity, static_cast<float>(dst_image.width),
         static_cast<float>(dst_image.height), 0.0f};
 
-    const auto d0 = allocate_pass_descriptor_set();
-    write_matte_descriptors(d0, a_image, src_image, src_image);
+    // Fused SDF bevel: 3 dispatches instead of 5 (row L+R -> col F+B -> shade).
     const auto d1 = allocate_pass_descriptor_set();
-    write_matte_descriptors(d1, b_image, a_image, src_image);
-    const auto d2 = allocate_pass_descriptor_set();
-    write_matte_descriptors(d2, c_image, b_image, b_image);
+    write_matte_descriptors(d1, b_image, src_image, src_image);
     const auto d3 = allocate_pass_descriptor_set();
-    write_matte_descriptors(d3, a_image, c_image, b_image);
+    write_matte_descriptors(d3, a_image, b_image, b_image);
     const auto d4 = allocate_pass_descriptor_set();
     write_matte_descriptors(d4, dst_image, src_image, a_image);
 
@@ -285,10 +282,8 @@ void VulkanBackend::Impl::sdf_bevel(
         ++frame_batch.pass_count;
         ++stats.passes_executed;
     };
-    dispatch(d0, a_image, src_image, src_image, 0);
-    dispatch(d1, b_image, a_image, src_image, 1);
-    dispatch(d2, c_image, b_image, b_image, 2);
-    dispatch(d3, a_image, c_image, b_image, 3);
+    dispatch(d1, b_image, src_image, src_image, 1);
+    dispatch(d3, a_image, b_image, b_image, 3);
     dispatch(d4, dst_image, src_image, a_image, 4);
 }
 

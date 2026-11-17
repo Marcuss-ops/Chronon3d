@@ -14,7 +14,7 @@ layout(binding = 1, rgba32f) uniform readonly image2D texture_image;
 // Optional per-pixel camera-depth companion (r = positive camera depth,
 // g = coverage marker). Bound to the destination when the caller is not
 // publishing depth, so the descriptor is always valid.
-layout(binding = 2, rgba32f) uniform image2D depth_image;
+layout(binding = 2, rg32f) uniform image2D depth_image;
 layout(binding = 3, std430) readonly buffer MeshData { float data[]; } mesh;
 // glTF metallic-roughness: G = roughness, B = metallic. Bound to the base
 // color image when the material has no metallic-roughness map, so the
@@ -184,7 +184,15 @@ void main() {
 
     vec2 p = vec2(pixel) + vec2(0.5);
     float nearest_depth = 3.402823e+38;
-    vec4 nearest_color = vec4(0.0);
+    uint best_ia = 0u;
+    uint best_ib = 0u;
+    uint best_ic = 0u;
+    float best_w0 = 0.0;
+    float best_w1 = 0.0;
+    float best_w2 = 0.0;
+    float best_inv_depth = 0.0;
+    vec2 best_uv = vec2(0.0);
+    vec4 best_texel = vec4(0.0);
     bool covered = false;
     for (int i = 0; i + 2 < params.index_count; i += 3) {
         uint ia = mesh_index(uint(i));
@@ -209,32 +217,46 @@ void main() {
         vec2 uv = (w0 * vertex_inverse_depth(ia) * vertex_uv(ia) +
                    w1 * vertex_inverse_depth(ib) * vertex_uv(ib) +
                    w2 * vertex_inverse_depth(ic) * vertex_uv(ic)) / inverse_depth;
-        vec3 light = (w0 * vertex_inverse_depth(ia) * vertex_light(ia) +
-                      w1 * vertex_inverse_depth(ib) * vertex_light(ib) +
-                      w2 * vertex_inverse_depth(ic) * vertex_light(ic)) / inverse_depth;
-        vec3 normal = (w0 * vertex_inverse_depth(ia) * vertex_normal(ia) +
-                       w1 * vertex_inverse_depth(ib) * vertex_normal(ib) +
-                       w2 * vertex_inverse_depth(ic) * vertex_normal(ic)) / inverse_depth;
         vec4 texel = sample_texture(uv);
         float alpha = texel.a * params.tint_a;
         if (params.has_alpha_cutoff != 0 && alpha < params.alpha_cutoff) continue;
         if (alpha <= 1e-6) continue;
-        vec3 shading = light;
-        if ((params.shading_flags & 1) != 0)
-            shading = evaluate_material_shading(uv, normal);
         nearest_depth = depth;
-        vec3 color = texel.rgb * shading *
+        best_ia = ia;
+        best_ib = ib;
+        best_ic = ic;
+        best_w0 = w0;
+        best_w1 = w1;
+        best_w2 = w2;
+        best_inv_depth = inverse_depth;
+        best_uv = uv;
+        best_texel = texel;
+        covered = true;
+    }
+
+    if (covered) {
+        vec3 shading;
+        if ((params.shading_flags & 1) != 0) {
+            vec3 normal = (best_w0 * vertex_inverse_depth(best_ia) * vertex_normal(best_ia) +
+                           best_w1 * vertex_inverse_depth(best_ib) * vertex_normal(best_ib) +
+                           best_w2 * vertex_inverse_depth(best_ic) * vertex_normal(best_ic)) /
+                          best_inv_depth;
+            shading = evaluate_material_shading(best_uv, normal);
+        } else {
+            shading = (best_w0 * vertex_inverse_depth(best_ia) * vertex_light(best_ia) +
+                       best_w1 * vertex_inverse_depth(best_ib) * vertex_light(best_ib) +
+                       best_w2 * vertex_inverse_depth(best_ic) * vertex_light(best_ic)) /
+                      best_inv_depth;
+        }
+        float alpha = best_texel.a * params.tint_a;
+        vec3 color = best_texel.rgb * shading *
                      vec3(params.tint_r, params.tint_g, params.tint_b) * params.tint_a;
         if ((params.shading_flags & 16) != 0) {
             color = clamp(color + vec3(params.emissive_r, params.emissive_g,
                                        params.emissive_b) * alpha,
                           vec3(0.0), vec3(1.0));
         }
-        nearest_color = vec4(color, alpha);
-        covered = true;
-    }
-
-    if (covered) {
+        vec4 nearest_color = vec4(color, alpha);
         vec4 destination = imageLoad(destination_image, pixel);
         imageStore(destination_image, pixel,
                    nearest_color + destination * (1.0 - nearest_color.a));

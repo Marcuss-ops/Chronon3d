@@ -107,3 +107,10 @@ jobs:
         env:
           CHRONON_GATE_REQUIRE_VULKAN: '1'
         run: python3 scripts/ci/check_vulkan_stroke_only_parity_gate.py
+
+      # style.shadow was decoded, validated and fingerprinted but never lowered,
+      # so a card declared with a shadow rendered exactly like the same card
+      # without one. This gate renders both card paths and fails closed when the
+      # declaration produces no pixels.
+      - name: Layer style shadow lowering gate
+        run: python3 scripts/ci/check_layer_style_shadow_gate.py

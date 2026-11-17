@@ -336,7 +336,7 @@ NodeExecResult SourceNode::execute(
                         m_node.shape.image().decode_options, *ctx.asset_resolver);
                 }
                 if (!sprite_image || !sprite_image->valid() ||
-                    sprite_image->gpu_rgba.empty()) {
+                    sprite_image->gpu_rgba_span().empty()) {
                     return NodeExecResult{NodeExecutionError{
                         RenderBackendErrorCode::InvalidInput,
                         m_name,
@@ -348,9 +348,9 @@ NodeExecResult SourceNode::execute(
                     key.width, key.height, key.format,
                     runtime::ResourceUsage::Storage,
                     runtime::LifetimeClass::JobPersistent,
-                    sprite_image->gpu_rgba.size() * sizeof(float)};
+                    sprite_image->gpu_rgba_span().size_bytes()};
                 const auto acquired = ctx.gpu_asset_cache->acquire(
-                    key, desc, sprite_image->gpu_rgba);
+                    key, desc, sprite_image->gpu_rgba_span());
                 if (!acquired.ok()) {
                     return NodeExecResult{NodeExecutionError{
                         RenderBackendErrorCode::ExecutionFailure,

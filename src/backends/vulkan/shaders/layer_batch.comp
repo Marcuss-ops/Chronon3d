@@ -65,18 +65,65 @@ vec4 blend_separable(vec4 src, vec4 dst, uint mode) {
     return vec4(blended, sa + da * (1.0 - sa));
 }
 
+shared uint s_tile_mask;
+
+bool instance_intersects_tile(GpuLayerInstance inst, vec2 tile_min, vec2 tile_max) {
+    if (inst.primitive_kind == 1u || inst.has_affine == 0u) {
+        return inst.dst_rect.z > tile_min.x && inst.dst_rect.x < tile_max.x &&
+               inst.dst_rect.w > tile_min.y && inst.dst_rect.y < tile_max.y;
+    }
+    // Affine transform maps destination canvas (pixel + 0.5) linearly to source.
+    // Extrema over the 16x16 tile occur at the 4 corner pixel centers.
+    float x0 = tile_min.x + 0.5;
+    float x1 = tile_max.x - 0.5;
+    float y0 = tile_min.y + 0.5;
+    float y1 = tile_max.y - 0.5;
+    vec2 s00 = vec2(dot(inst.affine_row0.xyz, vec3(x0, y0, 1.0)),
+                    dot(inst.affine_row1.xyz, vec3(x0, y0, 1.0)));
+    vec2 s10 = vec2(dot(inst.affine_row0.xyz, vec3(x1, y0, 1.0)),
+                    dot(inst.affine_row1.xyz, vec3(x1, y0, 1.0)));
+    vec2 s01 = vec2(dot(inst.affine_row0.xyz, vec3(x0, y1, 1.0)),
+                    dot(inst.affine_row1.xyz, vec3(x0, y1, 1.0)));
+    vec2 s11 = vec2(dot(inst.affine_row0.xyz, vec3(x1, y1, 1.0)),
+                    dot(inst.affine_row1.xyz, vec3(x1, y1, 1.0)));
+    vec2 s_min = min(min(s00, s10), min(s01, s11));
+    vec2 s_max = max(max(s00, s10), max(s01, s11));
+    return s_max.x >= inst.affine_row0.w && s_min.x < inst.limits.x &&
+           s_max.y >= inst.affine_row1.w && s_min.y < inst.limits.y;
+}
+
 void main() {
     ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
     ivec2 dst_size = imageSize(dst_image);
-    if (pixel.x < params.dispatch_origin.x || pixel.y < params.dispatch_origin.y ||
-        pixel.x >= params.dispatch_end.x || pixel.y >= params.dispatch_end.y ||
-        pixel.x >= dst_size.x || pixel.y >= dst_size.y) return;
+    bool in_bounds = !(pixel.x < params.dispatch_origin.x || pixel.y < params.dispatch_origin.y ||
+                       pixel.x >= params.dispatch_end.x || pixel.y >= params.dispatch_end.y ||
+                       pixel.x >= dst_size.x || pixel.y >= dst_size.y);
 
-    vec4 accum = imageLoad(dst_image, pixel);
+    vec4 accum = in_bounds ? imageLoad(dst_image, pixel) : vec4(0.0);
     ivec2 src_size = imageSize(src_image);
 
-    for (int i = 0; i < params.instance_count; ++i) {
-        GpuLayerInstance inst = instances[i];
+    vec2 tile_min = vec2(params.dispatch_origin + ivec2(gl_WorkGroupID.xy) * 16);
+    vec2 tile_max = tile_min + vec2(16.0);
+    uint tid = gl_LocalInvocationIndex;
+
+    for (int base = 0; base < params.instance_count; base += 32) {
+        if (tid == 0u) s_tile_mask = 0u;
+        barrier();
+        if (tid < 32u) {
+            int idx = base + int(tid);
+            if (idx < params.instance_count &&
+                instance_intersects_tile(instances[idx], tile_min, tile_max)) {
+                atomicOr(s_tile_mask, 1u << tid);
+            }
+        }
+        barrier();
+
+        uint mask = s_tile_mask;
+        if (in_bounds) {
+            while (mask != 0u) {
+                int bit = findLSB(mask);
+                mask &= mask - 1u;
+                GpuLayerInstance inst = instances[base + bit];
         vec4 src_col = vec4(0.0);
         bool hit = false;
 
@@ -157,8 +204,13 @@ void main() {
                 // Normal Source-Over (premultiplied RGBA)
                 accum = src_col + accum * (1.0 - src_col.a);
             }
+            }
+            }
         }
+        barrier();
     }
 
-    imageStore(dst_image, pixel, accum);
+    if (in_bounds) {
+        imageStore(dst_image, pixel, accum);
+    }
 }

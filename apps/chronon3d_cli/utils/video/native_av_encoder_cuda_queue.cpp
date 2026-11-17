@@ -90,23 +90,40 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
                 ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
         }
         const auto send_t0 = Clock::now();
-        const int send_ret = avcodec_send_frame(codec_, pending.frame);
-        const double send_dur = elapsed_ms(send_t0);
-        if (send_ret == 0) session_restart_intra_pending_ = false;
+        int send_ret = avcodec_send_frame(codec_, pending.frame);
+        double send_dur = elapsed_ms(send_t0);
+        // P7 (TICKET-FIX-P7-NVENC-CUDA-QUEUE-EAGAIN-HANDLING-20261117):
+        // AVERROR(EAGAIN) is ordinary NVENC output backpressure — the frame was
+        // NOT accepted. Drain packets and retry with the SAME frame, exactly as
+        // the host-frame lane does. The previous code released the frame, popped
+        // it and returned false, turning backpressure into a lost frame and a
+        // failed export.
+        int eagain_retries = 0;
+        double backpressure_ms = 0.0;
+        while (send_ret == AVERROR(EAGAIN) &&
+               eagain_retries < detail::kMaxCudaEagainRetries) {
+            ++eagain_retries;
+            const auto bp_t0 = Clock::now();
+            if (!drain_packets()) {
+                spdlog::error(
+                    "[native_av] NVENC packet drain failed during EAGAIN on GPU frame {}",
+                    frames_written_);
+                return false;
+            }
+            backpressure_ms += elapsed_ms(bp_t0);
+            const auto retry_t0 = Clock::now();
+            send_ret = avcodec_send_frame(codec_, pending.frame);
+            send_dur += elapsed_ms(retry_t0);
+        }
         native_send_frame_ms_ += send_dur;
         encoder_nvenc_submit_ms_ += send_dur;
-        const int64_t popped_pts = pending.frame ? pending.frame->pts : -1;
-        (void)popped_pts;
-        // P1: remember the submitted content for run-anchor seeding (the
-        // duplicate proof guarantees identical pixels; a buffer ref is enough).
-        if (pending.frame) {
-            duplicate_seed_source_.reset(av_frame_clone(pending.frame));
+        native_backpressure_ms_ += backpressure_ms;
+        if (send_ret == AVERROR(EAGAIN)) {
+            spdlog::error(
+                "[native_av] avcodec_send_frame still EAGAIN after {} retries for GPU frame {}",
+                detail::kMaxCudaEagainRetries, frames_written_);
+            return false;
         }
-        av_frame_unref(pending.frame);
-        reusable_cuda_frames_.push_back(pending.frame);
-        pending.frame = nullptr;
-        cuda::destroy(pending.ready);
-        pending_cuda_frames_.pop_front();
         if (send_ret < 0) {
             char error[AV_ERROR_MAX_STRING_SIZE]{};
             av_strerror(send_ret, error, sizeof(error));
@@ -114,6 +131,24 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
                           frames_written_, error);
             return false;
         }
+        session_restart_intra_pending_ = false;
+        // Only a frame the codec actually accepted may be released. The seed
+        // keeps a buffer reference instead of cloning a whole AVFrame per
+        // frame: the pixels are guaranteed identical to this submission.
+        if (pending.frame) {
+            if (!duplicate_seed_source_) {
+                duplicate_seed_source_.reset(av_frame_alloc());
+            }
+            if (duplicate_seed_source_) {
+                av_frame_unref(duplicate_seed_source_.get());
+                (void)av_frame_ref(duplicate_seed_source_.get(), pending.frame);
+            }
+        }
+        av_frame_unref(pending.frame);
+        reusable_cuda_frames_.push_back(pending.frame);
+        pending.frame = nullptr;
+        cuda::destroy(pending.ready);
+        pending_cuda_frames_.pop_front();
         ++codec_frames_submitted_;
         const auto drain_t0 = Clock::now();
         if (!drain_packets()) {

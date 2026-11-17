@@ -23,8 +23,8 @@
 // while it walks the layers.
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D mask_image;
-layout(binding = 1, rgba32f) uniform readonly image2D layer_depth_image;
-layout(binding = 2, rgba32f) uniform image2D frame_depth_image;
+layout(binding = 1, rg32f) uniform readonly image2D layer_depth_image;
+layout(binding = 2, rg32f) uniform image2D frame_depth_image;
 
 layout(push_constant) uniform OcclusionTagParams {
     int merge;  // 1 = publish this layer's depth into the frame accumulator

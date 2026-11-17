@@ -1,6 +1,6 @@
 # TICKET-MAP-VECTOR-FILL-NATIVE-20261116 — fill nativo a N vertici per le placche vettoriali
 
-- **Stato:** PASS — 2026-11-16
+- **Stato:** CLOSED (2026-11-17) — PASS 2026-11-16; 12/12 casi Vulkan, 34.911 asserzioni, parità pixel fill e fill+stroke. I residui elencati (fill_path legacy, costo dirty-rect, preset encoder) sono follow-up esterni all'accettazione, non criteri aperti.
 - **Ambito:** Chronon3d, Vulkan native shape dispatch (path fill), lowering `ModernMap1` in RenderingGen
 - **Origine:** mappe `ModernMap1` (Italia/Giappone) con fill del territorio a triangoli e reveal a opacità per layer
 - **Verifica:** build `linux-video-release` (`ninja -j4 apps/chronon3d_cli/chronon3d_cli`); `go build ./...`, `go vet ./internal/overlay/`, `go test ./internal/overlay/ -count=1` PASS; `tests/chronon3d_vulkan_debug_context_tests` 12/12 casi PASS (parità pixel fill a N vertici vs software); render 1920×1080, 192 frame per piano (3 piani) con lane video ffmpeg e timing sidecar del CLI

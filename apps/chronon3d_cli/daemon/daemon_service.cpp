@@ -15,12 +15,14 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <optional>
 #include <sstream>
 #include <utility>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+#include "../utils/video/native_av_encoder_internal.hpp"
 extern "C" {
 #include <libavcodec/avcodec.h>
 }
@@ -242,9 +244,26 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
     spdlog::info("🔥 Worker initialised. backend={}, render_job_slots={}, renderer lazy, asset/CUDA caches process-persistent.",
                  m_backend, advertised_render_job_slots());
     spdlog::info("   {} compositions registered.", m_registry.available().size());
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    // P6: Enable cross-item CQP codec session reuse by default in the
+    // persistent daemon unless explicitly disabled via CHRONON_ENCODER_SESSION_REUSE=0.
+#if defined(_WIN32)
+    if (std::getenv("CHRONON_ENCODER_SESSION_REUSE") == nullptr) {
+        _putenv_s("CHRONON_ENCODER_SESSION_REUSE", "1");
+    }
+#else
+    if (std::getenv("CHRONON_ENCODER_SESSION_REUSE") == nullptr) {
+        ::setenv("CHRONON_ENCODER_SESSION_REUSE", "1", 0);
+    }
+#endif
+#endif
 }
 
-DaemonService::~DaemonService() = default;
+DaemonService::~DaemonService() {
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    detail::drop_parked_codec_session();
+#endif
+}
 
 std::shared_ptr<SoftwareRenderer> DaemonService::warm_renderer_for_device(
     runtime::DeviceId device) {

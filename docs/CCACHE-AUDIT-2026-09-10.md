@@ -102,7 +102,7 @@ cache perde hit.
 ### Perché `-j12` e non di più (misurato 2026-09-16)
 
 L'host ha **24 core logici e 29 GiB di RAM, condivisi** con altri processi
-(`pipelinegen`, `qdrant`, `llama-server`, `dockerd`) e con altri agenti che
+(`pipelinegen`, `vector-index-service`, `llama-server`, `dockerd`) e con altri agenti che
 compilano nella stessa gerarchia. Una build a `-j18` ha portato il sistema a:
 `load average 55–69` (su 24 core) e **1.7 GiB di swap in uso** su 4 GiB — cioè
 thrashing, con il rischio concreto di OOM kill che uccide i build altrui oltre

@@ -10,6 +10,7 @@
 #include <optional>
 #include <shared_mutex>
 #include <span>
+#include <type_traits>
 #ifdef CHRONON3D_USE_BLEND2D
 #include <blend2d.h>
 #endif
@@ -32,11 +33,37 @@ struct CachedImage {
     BLImage bl_img;
 #endif
     std::shared_ptr<Framebuffer> fb_img;
+    // Dense RGBA32F upload view. Empty when the framebuffer rows are already
+    // dense (see gpu_rgba_is_dense_alias()), so a decoded image never holds two
+    // identical 16-byte-per-pixel copies.
     std::vector<float> gpu_rgba;
     runtime::GpuAssetKey gpu_key;
 
     [[nodiscard]] bool valid() const {
         return fb_img && width > 0 && height > 0;
+    }
+
+    /// Framebuffer rows are padded to a cache-line multiple of Colors, so its
+    /// storage is bit-identical to a dense width*height*4 float array only when
+    /// the width is already a multiple of k_colors_per_cache_line.
+    [[nodiscard]] bool gpu_rgba_is_dense_alias() const noexcept {
+        return fb_img && width > 0 &&
+               width % static_cast<int>(k_colors_per_cache_line) == 0;
+    }
+
+    /// Single source of truth for the RGBA32F upload payload.
+    [[nodiscard]] std::span<const float> gpu_rgba_span() const noexcept {
+        if (!valid()) return {};
+        if (gpu_rgba_is_dense_alias()) {
+            static_assert(sizeof(Color) == 4 * sizeof(float),
+                          "dense alias requires Color to be 4 tightly packed floats");
+            static_assert(std::is_standard_layout_v<Color>,
+                          "dense alias requires a standard-layout Color");
+            return std::span<const float>(
+                reinterpret_cast<const float*>(fb_img->pixels_row(0)),
+                static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U);
+        }
+        return std::span<const float>(gpu_rgba.data(), gpu_rgba.size());
     }
 };
 

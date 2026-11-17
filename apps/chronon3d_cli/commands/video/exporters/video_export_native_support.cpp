@@ -493,7 +493,20 @@ void project_render_counters(
         timings.gpu.encode_submit_ms = c->encode_submit_ms.load(std::memory_order_relaxed);
         timings.gpu.encode_wait_ms = c->encode_wait_ms.load(std::memory_order_relaxed);
 
-        timings.cpu_breakdown.timeline_eval_ms = static_cast<double>(c->timeline_eval_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        // A6: on the CompiledProgram path the per-frame sampling is accounted in
+        // `program_sample_wall_us` and `timeline_eval_wall_us` stays 0, so a blind
+        // assignment here resurrects `timeline_eval_ms: 0.0` after the caller
+        // already resolved it correctly. Only fill a slot the caller left set
+        // (legacy/full_graph) and fall back to the sampler counter when it is the
+        // only one that moved.
+        if (timings.cpu_breakdown.timeline_eval_ms.has_value()) {
+            const auto timeline_us =
+                c->timeline_eval_wall_us.load(std::memory_order_relaxed);
+            const auto program_sample_us =
+                c->program_sample_wall_us.load(std::memory_order_relaxed);
+            timings.cpu_breakdown.timeline_eval_ms =
+                static_cast<double>(timeline_us != 0 ? timeline_us : program_sample_us) / 1000.0;
+        }
         timings.cpu_breakdown.graph_resolve_layers_ms = static_cast<double>(c->graph_resolve_layers_wall_us.load(std::memory_order_relaxed)) / 1000.0;
         timings.cpu_breakdown.graph_dirty_rect_ms = static_cast<double>(c->graph_dirty_rect_wall_us.load(std::memory_order_relaxed)) / 1000.0;
         timings.cpu_breakdown.graph_build_ms = static_cast<double>(c->graph_build_wall_us.load(std::memory_order_relaxed)) / 1000.0;

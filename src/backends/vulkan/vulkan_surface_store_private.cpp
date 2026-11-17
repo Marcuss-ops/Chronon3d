@@ -131,15 +131,19 @@ namespace chronon3d::backends::vulkan {
             retire_frame_slot_transient_surfaces(i);
         }
 
-        // Bounded capacity: fallback wait if accumulated deferred releases exceed cap
-        static constexpr std::size_t kOverflowCap = 2 * FrameBatchState::kSlotCount;
+        // Bounded capacity: the queue holds handles only, so the cap can be
+        // generous.  When it is reached, retire the single oldest in-flight
+        // slot instead of draining the whole ring (P3).
+        static constexpr std::size_t kOverflowCap = 8 * FrameBatchState::kSlotCount;
         if (surfaces.note_overflow_if_needed(kOverflowCap)) {
-            wait_for_pending();
+            wait_for_oldest_in_flight_slot();
         }
 
-        auto pending = std::move(surfaces.deferred_surface_releases);
-        surfaces.deferred_surface_releases.clear();
-        surfaces.deferred_surface_releases.reserve(pending.size());
+        // P5: swap into a persistent scratch vector so both buffers keep their
+        // high-water capacity instead of one malloc/free pair per flush.
+        auto& pending = surfaces.deferred_surface_releases_scratch;
+        pending.clear();
+        std::swap(pending, surfaces.deferred_surface_releases);
 
         const auto busy = frame_slot_busy_flags();
         for (const auto& item : pending) {
@@ -188,6 +192,7 @@ void VulkanBackend::Impl::VulkanSurfaceStore::destroy_all(
     surface_bindings.clear();
     planned_alias_groups.clear();
     deferred_surface_releases.clear();
+    deferred_surface_releases_scratch.clear();
     recording_slot_masks.clear();
     unplanned_surface_handles.clear();
     for (auto& handles : frame_slot_transient_handles) {

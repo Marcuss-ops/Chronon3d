@@ -167,12 +167,12 @@ namespace chronon3d::backends::vulkan {
         std::uint32_t groups_x = 0;
         std::uint32_t groups_y = 1;
         if (mode == 4) {
-            groups_x = static_cast<std::uint32_t>((destination.width + 63) / 64);
+            groups_x = static_cast<std::uint32_t>((destination.width + 255) / 256);
             groups_y = static_cast<std::uint32_t>(destination.height);
         } else if (mode <= 1) {
-            groups_x = static_cast<std::uint32_t>((destination.height + 63) / 64);
+            groups_x = static_cast<std::uint32_t>(destination.height);
         } else {
-            groups_x = static_cast<std::uint32_t>((destination.width + 63) / 64);
+            groups_x = static_cast<std::uint32_t>((destination.width + 255) / 256);
         }
         vkCmdDispatch(command, groups_x, groups_y, 1);
         ++stats.vk_cmd_dispatch_count;

@@ -3,12 +3,86 @@
 #include <chronon3d/math/expression.hpp>
 
 #include <algorithm>
+#include <array>
+#include <charconv>
+#include <cmath>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <unordered_map>
 
 namespace chronon3d {
 
 namespace detail {
+
+namespace {
+
+/// Stack-only splitter for exactly four comma-separated `solid(...)` arguments.
+/// Zero heap traffic: the four slices point into the caller's expression.
+[[nodiscard]] bool split_solid_4_args(std::string_view inner,
+                                     std::array<std::string_view, 4>& out) noexcept {
+    int depth = 0;
+    std::size_t start = 0;
+    std::size_t count = 0;
+    for (std::size_t i = 0; i < inner.size(); ++i) {
+        const char c = inner[i];
+        if (c == '(') {
+            ++depth;
+        } else if (c == ')') {
+            --depth;
+        } else if (c == ',' && depth == 0) {
+            if (count == 4) return false;
+            out[count++] = inner.substr(start, i - start);
+            start = i + 1;
+        }
+    }
+    // Fewer than three separators, or a trailing empty slot, is not `solid(...)`.
+    if (count != 3 || start >= inner.size()) return false;
+    out[3] = inner.substr(start);
+    return true;
+}
+
+/// Whole-argument decimal literal (the overwhelming case: `solid(0.1, ...)`).
+/// Returns false for anything the parser must see (variables, operators, hex,
+/// out-of-range values), so the fast path can never change the result.
+[[nodiscard]] bool parse_literal_number(std::string_view arg, double& out) noexcept {
+    while (!arg.empty() && (arg.front() == ' ' || arg.front() == '\t'))
+        arg.remove_prefix(1);
+    while (!arg.empty() && (arg.back() == ' ' || arg.back() == '\t'))
+        arg.remove_suffix(1);
+    if (arg.empty()) return false;
+    const char* first = arg.data();
+    const char* last = first + arg.size();
+    const auto [ptr, ec] = std::from_chars(first, last, out);
+    return ec == std::errc{} && ptr == last && std::isfinite(out);
+}
+
+struct SolidColorVars {
+    std::unordered_map<std::string, double> vars;
+
+    SolidColorVars() {
+        vars.reserve(4);
+        vars.emplace("frame", 0.0);
+        vars.emplace("time", 0.0);
+        vars.emplace("fps", 0.0);
+        vars.emplace("index", 0.0);
+    }
+};
+
+/// Per-thread variable table for `solid(...)` expressions: the four canonical
+/// keys are allocated once per thread and only their values are updated, so a
+/// steady-state frame performs zero heap allocations for the map.
+[[nodiscard]] const std::unordered_map<std::string, double>& solid_color_vars(
+    double frame, double t, double fps, double index) {
+    static thread_local SolidColorVars tls;
+    tls.vars["frame"] = frame;
+    tls.vars["time"] = t;
+    tls.vars["fps"] = fps;
+    tls.vars["index"] = index;
+    return tls.vars;
+}
+
+} // namespace
 
 std::vector<std::string> split_expr_args(const std::string& inner) {
     std::vector<std::string> args;
@@ -56,24 +130,25 @@ std::vector<std::string> split_expr_args(const std::string& inner) {
 
     const size_t inner_start = kSolidPrefix.size();
     const size_t inner_len = close - 1 - inner_start;
-    const std::string inner(expr.substr(inner_start, inner_len));
-    const auto args = split_expr_args(inner);
+    const std::string_view inner = expr.substr(inner_start, inner_len);
 
-    if (args.size() != 4)
+    std::array<std::string_view, 4> args{};
+    if (!split_solid_4_args(inner, args))
         return std::nullopt;
 
-    const std::unordered_map<std::string, double> vars{
-        {"frame", frame},
-        {"time", t},
-        {"fps", static_cast<double>(fps)},
-        {"index", static_cast<double>(ctx.index)},
-    };
-
-    auto eval_arg = [&](const std::string& arg) -> f32 {
+    // The variable table is materialised only if some argument is not a plain
+    // literal; numeric literals bypass the expression parser entirely.
+    const std::unordered_map<std::string, double>* vars = nullptr;
+    auto eval_arg = [&](std::string_view arg) -> f32 {
         if (arg.empty()) return 0.0f;
-        return static_cast<f32>(
-            math::evaluate_expression(arg, vars, 0.0)
-        );
+        double literal = 0.0;
+        if (parse_literal_number(arg, literal))
+            return static_cast<f32>(literal);
+        if (vars == nullptr) {
+            vars = &solid_color_vars(frame, t, static_cast<double>(fps),
+                                     static_cast<double>(ctx.index));
+        }
+        return static_cast<f32>(math::evaluate_expression(arg, *vars, 0.0));
     };
 
     const f32 r = std::clamp(eval_arg(args[0]), 0.0f, 1.0f);

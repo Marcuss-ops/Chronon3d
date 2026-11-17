@@ -222,14 +222,24 @@ NodeExecResult PerPixelDofNode::execute(
 {
     (void)input_bboxes;
 
-    // DOF mutates its destination in place.  Unlike a composite, it must
-    // never take ownership of (and blur) its input: the input may still be
-    // referenced by the graph cache or by the frame-lifetime state.  Disable
-    // the executor's zero-copy hints for this node and make an independent
-    // framebuffer copy before applying the kernel.
-    ctx.node_exec.reusable_bottom.reset();
+    // DOF mutates the buffer it blurs in place, so the blur path always works
+    // on an independent destination. A *passthrough* frame, however, writes
+    // nothing: the executor's `reusable_bottom` hint is then used as-is (see
+    // clone_input), which turns six no-op branches into O(1) handles instead of
+    // a full-frame memcpy (33 MB @1080p) or `copy_surface_auxiliary` pass.
     bool native_clone_failed = false;
     const auto clone_input = [&](const Framebuffer& input) {
+        // Zero-copy passthrough: the executor only offers `reusable_bottom`
+        // when this node is the input's sole consumer, and the pool
+        // swap-transfer moves the content out of the input instead of copying
+        // it, so no other reader can observe the input afterwards.
+        if (ctx.node_exec.reusable_bottom.get() == &input &&
+            ctx.node_exec.reusable_bottom.use_count() <= 2 &&
+            input.storage_transferable()) {
+            if (auto adopted = ctx.acquire_owned_fb(input)) {
+                return adopted;
+            }
+        }
         auto copy = ctx.acquire_owned_fb(input.width(), input.height(), false);
         const bool has_native_source =
             input.surface_handle() != runtime::kInvalidRenderSurfaceHandle;

@@ -63,6 +63,12 @@ namespace chronon3d::backends::vulkan {
         stats.discrete_gpu =
             device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
         timestamp_period_ns = device_properties.limits.timestampPeriod;
+        // Device-static values: geometry uploads compare against this limit on
+        // every draw, and every barrier needs the Sync2 entry point. Both are
+        // immutable after vkCreateDevice, so resolve them exactly once.
+        max_storage_buffer_range = device_properties.limits.maxStorageBufferRange;
+        pfn_cmd_pipeline_barrier2 = reinterpret_cast<PFN_vkCmdPipelineBarrier2KHR>(
+            vkGetDeviceProcAddr(device, "vkCmdPipelineBarrier2KHR"));
         // timestampValidBits is a property of the selected queue family, not
         // VkPhysicalDeviceLimits.  Read it from the same family used for the
         // graphics queue so timestamp queries are enabled only when that
@@ -257,6 +263,7 @@ VulkanBackend::Impl::~Impl() {
         surfaces.destroy_all(*this);
         destroy_image(dst);
         destroy_image(src);
+        destroy_image(dummy_rg32f_image);
         if (staging.buffer != VK_NULL_HANDLE) memory_manager.destroy_buffer(staging);
         for (std::size_t i = 0; i < kGlyphInstanceRingSize; ++i) {
             if (glyph_instance_buffers[i].buffer != VK_NULL_HANDLE) {

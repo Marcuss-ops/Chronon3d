@@ -235,8 +235,10 @@ bool ensure_occlusion_surfaces(
         state.layer_depth = std::make_shared<Framebuffer>(width, height);
         state.frame_depth = std::make_shared<Framebuffer>(width, height);
         state.mask = std::make_shared<Framebuffer>(width, height);
-        if (!ensure_empty_native_surface(ctx, *state.layer_depth) ||
-            !ensure_empty_native_surface(ctx, *state.frame_depth) ||
+        if (!ensure_empty_native_surface(ctx, *state.layer_depth, true,
+                                         runtime::PixelFormat::Rg32Float) ||
+            !ensure_empty_native_surface(ctx, *state.frame_depth, true,
+                                         runtime::PixelFormat::Rg32Float) ||
             !ensure_empty_native_surface(ctx, *state.mask)) {
             if (state.layer_depth) release_native_surface(ctx, *state.layer_depth);
             if (state.frame_depth) release_native_surface(ctx, *state.frame_depth);

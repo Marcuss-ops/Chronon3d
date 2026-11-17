@@ -49,24 +49,31 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_at_impl(
 #ifdef CHRONON3D_ENABLE_OCIO
     std::shared_ptr<color::OcioColorTransform> ocio_transform;
     if (transform_options != nullptr) {
-        std::error_code metadata_error;
-        const auto modified = std::filesystem::last_write_time(
-            transform_options->config_path, metadata_error);
-        const auto size = metadata_error ? 0 : std::filesystem::file_size(
-            transform_options->config_path, metadata_error);
-        if (metadata_error)
-            return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::UnsupportedFormatChange, 0,
-                kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
-                "video OCIO config could not be stat'ed: " + transform_options->config_path});
+        // P9 (TICKET-PERF-P9-OCIO-DECODE-FILESYSTEM-STAT-PER-FRAME-20261117):
+        // the cache key is the logical transform triple only. Stat'ing the
+        // config and formatting mtime/size happened before the lookup, so every
+        // decoded frame paid two syscalls plus heap-built strings even on a hit.
+        // The metadata probe now runs once per config, on the first miss; the
+        // transform stays valid for the life of this decoder instance.
         const auto key = transform_options->config_path + "\n" +
-            transform_options->input_space + "\n" + transform_options->working_space + "\n" +
-            std::to_string(modified.time_since_epoch().count()) + ":" + std::to_string(size);
+            transform_options->input_space + "\n" + transform_options->working_space;
         {
             std::lock_guard lock(m_mutex);
             const auto it = m_ocio_transforms.find(key);
             if (it != m_ocio_transforms.end()) ocio_transform = it->second;
         }
         if (!ocio_transform) {
+            std::error_code metadata_error;
+            const auto modified = std::filesystem::last_write_time(
+                transform_options->config_path, metadata_error);
+            const auto size = metadata_error ? 0 : std::filesystem::file_size(
+                transform_options->config_path, metadata_error);
+            if (metadata_error)
+                return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::UnsupportedFormatChange, 0,
+                    kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+                    "video OCIO config could not be stat'ed: " + transform_options->config_path});
+            (void)modified;
+            (void)size;
             std::string error;
             auto built = color::OcioColorTransform::from_config(
                 transform_options->config_path, transform_options->input_space,

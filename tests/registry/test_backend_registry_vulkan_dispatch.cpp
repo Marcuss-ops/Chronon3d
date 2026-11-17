@@ -637,7 +637,7 @@ TEST_CASE("VulkanBackend dispatches stroke-only path with round caps and produce
 
     const auto result = backend.fill_dashed_path_surface(
         handle, 0, 0, width, height, 4.0f, stroke_color,
-        points, run_lengths, false, 0, {}, true /* round_cap */);
+        points, run_lengths, {}, {}, true /* round_cap */);
     REQUIRE(result.ok());
 
     std::vector<float> actual(static_cast<std::size_t>(width) * height * 4, 0.0f);

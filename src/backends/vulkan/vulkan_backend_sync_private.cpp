@@ -8,17 +8,47 @@
 
 namespace chronon3d::backends::vulkan {
 
-namespace {
-
-PFN_vkCmdPipelineBarrier2KHR require_pipeline_barrier2(VkDevice device) {
-    const auto pipeline_barrier2 = reinterpret_cast<PFN_vkCmdPipelineBarrier2KHR>(
-        vkGetDeviceProcAddr(device, "vkCmdPipelineBarrier2KHR"));
-    if (!pipeline_barrier2) {
+void VulkanBackend::Impl::cmd_pipeline_barrier2(
+    VkCommandBuffer command, const VkDependencyInfoKHR* dependency) const {
+    if (pfn_cmd_pipeline_barrier2 == nullptr) {
         throw std::runtime_error(
             "Vulkan: vkCmdPipelineBarrier2KHR unavailable after synchronization2 enablement");
     }
-    return pipeline_barrier2;
+    pfn_cmd_pipeline_barrier2(command, dependency);
 }
+
+namespace {
+
+// Accumulates image barriers so that N transitions cost one driver call.
+// A barrier targeting an image already present in the batch forces a flush
+// first, preserving the sequential ordering the per-transition calls had.
+struct ImageBarrierBatch {
+    static constexpr std::size_t kCapacity = 8;
+
+    VulkanBackend::Impl& impl;
+    VkCommandBuffer command;
+    std::array<VkImageMemoryBarrier2KHR, kCapacity> barriers{};
+    std::size_t size{0};
+
+    void flush() {
+        if (size == 0) return;
+        impl.emit_image_barriers2(
+            command,
+            std::span<const VkImageMemoryBarrier2KHR>(barriers.data(), size));
+        size = 0;
+    }
+
+    void add(const VkImageMemoryBarrier2KHR& barrier) {
+        for (std::size_t i = 0; i < size; ++i) {
+            if (barriers[i].image == barrier.image) {
+                flush();
+                break;
+            }
+        }
+        barriers[size++] = barrier;
+        if (size == kCapacity) flush();
+    }
+};
 
 VkPipelineStageFlags2KHR to_vk_stage(runtime::PipelineStage stages) {
     using U = std::underlying_type_t<runtime::PipelineStage>;
@@ -224,16 +254,13 @@ runtime::ResourceState state_for_vk_layout(VkImageLayout layout) {
     }
 }
 
-} // namespace
-
-void VulkanBackend::Impl::emit_resource_transition(
-    VkCommandBuffer command,
+// Single translation of one canonical ResourceTransition into a native image
+// barrier. Pure: extraction lets several transitions be emitted through one
+// vkCmdPipelineBarrier2 call instead of one driver call each.
+[[nodiscard]] VkImageMemoryBarrier2KHR to_vk_image_barrier2(
     VkImage image,
-    const runtime::ResourceTransition& transition_record) {
-    if (image == VK_NULL_HANDLE) {
-        throw std::logic_error("Vulkan: ResourceTransition targets a null image");
-    }
-
+    const runtime::ResourceTransition& transition_record,
+    std::uint32_t queue_family) {
     VkImageSubresourceRange native_range{};
     if (const auto* range =
             std::get_if<runtime::SubresourceRange>(&transition_record.range)) {
@@ -266,7 +293,7 @@ void VulkanBackend::Impl::emit_resource_transition(
         }
     }
 
-    const VkImageMemoryBarrier2KHR barrier{
+    return VkImageMemoryBarrier2KHR{
         VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
         nullptr,
         to_vk_stage(transition_record.before.stages),
@@ -279,6 +306,14 @@ void VulkanBackend::Impl::emit_resource_transition(
         destination_family,
         image,
         native_range};
+}
+
+} // namespace
+
+void VulkanBackend::Impl::emit_image_barriers2(
+    VkCommandBuffer command,
+    std::span<const VkImageMemoryBarrier2KHR> barriers) {
+    if (barriers.empty()) return;
     const VkDependencyInfoKHR dependency{
         VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
         nullptr,
@@ -287,16 +322,30 @@ void VulkanBackend::Impl::emit_resource_transition(
         nullptr,
         0,
         nullptr,
-        1,
-        &barrier};
-    ++stats.barriers_emitted;
-    require_pipeline_barrier2(device)(command, &dependency);
+        static_cast<std::uint32_t>(barriers.size()),
+        barriers.data()};
+    stats.barriers_emitted += barriers.size();
+    cmd_pipeline_barrier2(command, &dependency);
+}
+
+void VulkanBackend::Impl::emit_resource_transition(
+    VkCommandBuffer command,
+    VkImage image,
+    const runtime::ResourceTransition& transition_record) {
+    if (image == VK_NULL_HANDLE) {
+        throw std::logic_error("Vulkan: ResourceTransition targets a null image");
+    }
+    const auto barrier = to_vk_image_barrier2(image, transition_record, queue_family);
+    emit_image_barriers2(command, std::span<const VkImageMemoryBarrier2KHR>(&barrier, 1));
 }
 
 void VulkanBackend::Impl::emit_plan_pass_transitions(
     VkCommandBuffer command,
     const runtime::CommandPlan& plan,
     std::size_t pass_index) {
+    // One vkCmdPipelineBarrier2 for all of this pass's transitions instead of
+    // one driver call per image.
+    ImageBarrierBatch batch{*this, command};
     for (const auto& transition_record : plan.transitions) {
         if (transition_record.consumer_pass != pass_index) continue;
         if (transition_record.resource >= plan.resources.requests.size()) {
@@ -313,13 +362,16 @@ void VulkanBackend::Impl::emit_plan_pass_transitions(
         // set is leased for the whole plan batch, so the transition stream no
         // longer reads the surface store while the submission ring is driven.
         const auto& physical = resolve_image(surface);
-        emit_resource_transition(command, physical.image, transition_record);
+        batch.add(to_vk_image_barrier2(physical.image, transition_record,
+                                       queue_family));
     }
+    batch.flush();
 }
 
 void VulkanBackend::Impl::emit_unplanned_compute_sync(
     VkCommandBuffer command,
     std::initializer_list<const Image*> images) {
+    ImageBarrierBatch batch{*this, command};
     for (const Image* image : images) {
         if (!image || image->image == VK_NULL_HANDLE) continue;
         runtime::ResourceTransition transition_record;
@@ -341,8 +393,10 @@ void VulkanBackend::Impl::emit_unplanned_compute_sync(
             .layout = runtime::ResourceLayout::General,
             .queue = runtime::QueueClass::Compute,
         };
-        emit_resource_transition(command, image->image, transition_record);
+        batch.add(to_vk_image_barrier2(image->image, transition_record,
+                                       queue_family));
     }
+    batch.flush();
 }
 
 void VulkanBackend::Impl::emit_pass_sync(
@@ -405,10 +459,11 @@ void VulkanBackend::Impl::emit_buffer_barriers2(
         0,
         nullptr};
     stats.barriers_emitted += barriers.size();
-    require_pipeline_barrier2(device)(command, &dependency);
+    cmd_pipeline_barrier2(command, &dependency);
 }
 
 void VulkanBackend::Impl::emit_command_batch_boundary() {
+    ImageBarrierBatch batch{*this, active_command_buffer()};
     for (auto& [slot, physical] : surfaces.physical_surfaces) {
         (void)slot;
         if (!physical.image.initialized ||
@@ -426,9 +481,10 @@ void VulkanBackend::Impl::emit_command_batch_boundary() {
             .queue = runtime::QueueClass::Compute,
         };
         transition_record.after = transition_record.before;
-        emit_resource_transition(active_command_buffer(), physical.image.image,
-                                 transition_record);
+        batch.add(to_vk_image_barrier2(physical.image.image, transition_record,
+                                       queue_family));
     }
+    batch.flush();
 }
 
 void VulkanBackend::Impl::emit_cuda_surface_ownership_transfer(
@@ -470,7 +526,7 @@ void VulkanBackend::Impl::emit_cuda_surface_ownership_transfer(
     const VkDependencyInfoKHR dependency{
         VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR, nullptr, 0, 0, nullptr,
         0, nullptr, 1, &barrier};
-    require_pipeline_barrier2(device)(command, &dependency);
+    cmd_pipeline_barrier2(command, &dependency);
     ++stats.barriers_emitted;
 #else
     (void)command;
@@ -543,7 +599,7 @@ void VulkanBackend::synchronize_native_dependencies() {
         nullptr,
         0,
         nullptr};
-    require_pipeline_barrier2(m_impl->device)(
+    m_impl->cmd_pipeline_barrier2(
         m_impl->active_command_buffer(), &dependency);
     ++m_impl->stats.barriers_emitted;
 #endif

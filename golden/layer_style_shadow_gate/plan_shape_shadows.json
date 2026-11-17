@@ -1,0 +1,95 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "layer-style-shadow-gate-shadows",
+  "canvas": {
+    "width": 320,
+    "height": 240,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "color",
+      "color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "screen_space": true,
+      "position": [
+        0,
+        0
+      ],
+      "size": [
+        320,
+        240
+      ],
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "card",
+      "type": "shape",
+      "position": [
+        80,
+        60
+      ],
+      "screen_space": true,
+      "start_frame": 0,
+      "duration_frames": 1,
+      "size": [
+        160,
+        100
+      ],
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.2,
+          0.2,
+          0.2,
+          1.0
+        ]
+      },
+      "style": {
+        "shadows": [
+          {
+            "color": "#000000",
+            "opacity": 0.5,
+            "blur": 4,
+            "offset": [
+              0,
+              14
+            ]
+          },
+          {
+            "color": "#1040C0",
+            "opacity": 0.6,
+            "blur": 8,
+            "offset": [
+              -24,
+              6
+            ]
+          },
+          {
+            "color": "#C04010",
+            "opacity": 0.6,
+            "blur": 8,
+            "offset": [
+              24,
+              6
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "output": {
+    "path": "gate.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

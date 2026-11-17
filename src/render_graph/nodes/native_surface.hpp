@@ -48,13 +48,15 @@ inline bool native_surface_promotion_diag_enabled() noexcept {
 
 /// Build the canonical Rgba32Float / Storage / FrameTransient surface
 /// description used by every native full-frame effect/composite fast-path.
-inline runtime::SurfaceDesc native_surface_desc(const RenderGraphContext& ctx,
-                                               i32 width, i32 height,
-                                               bool exportable = true) {
+inline runtime::SurfaceDesc native_surface_desc(
+    const RenderGraphContext& ctx,
+    i32 width, i32 height,
+    bool exportable = true,
+    runtime::PixelFormat format = runtime::PixelFormat::Rgba32Float) {
     auto desc = runtime::SurfaceDesc::make(
         static_cast<std::uint32_t>(width),
         static_cast<std::uint32_t>(height),
-        runtime::PixelFormat::Rgba32Float,
+        format,
         runtime::ResourceUsage::Storage,
         runtime::LifetimeClass::FrameTransient);
     // Native surfaces that participate in a strict Vulkan→CUDA/NVENC video
@@ -261,9 +263,11 @@ static inline bool ensure_native_surface(
 /// possibly shared handle here: detach it and allocate a fresh destination.
 /// FrameTransient retirement reclaims the detached backing after its last
 /// graph use, while the new surface starts transparent for clipped dispatches.
-static inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
-                                               Framebuffer& framebuffer,
-                                               bool exportable = true) {
+static inline bool ensure_empty_native_surface(
+    RenderGraphContext& ctx,
+    Framebuffer& framebuffer,
+    bool exportable = true,
+    runtime::PixelFormat format = runtime::PixelFormat::Rgba32Float) {
     if (!ctx.backend || !ctx.surface_registry || !ctx.backend_stats_api()->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
@@ -314,7 +318,7 @@ static inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
             framebuffer.clear_surface_handle();
         }
     }
-    const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height(), exportable);
+    const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height(), exportable, format);
     const auto handle = ctx.surface_registry->create(desc);
     if (handle == runtime::kInvalidRenderSurfaceHandle) {
         spdlog::error("[native-surface] registry rejected empty {}x{} surface", framebuffer.width(), framebuffer.height());

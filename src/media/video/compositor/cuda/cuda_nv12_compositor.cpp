@@ -353,6 +353,8 @@ CudaNv12Compositor::CudaNv12Compositor(
     rgba_to_nv12_kernel_ = shared->rgba_to_nv12_kernel;
     rgba_u8_to_nv12_kernel_ = shared->rgba_u8_to_nv12_kernel;
 
+    create_layer_batch_events();
+
     bridge_ = std::make_unique<CudaVulkanSurfaceBridge>(
         target, context_, stream_);
 }
@@ -372,6 +374,26 @@ CudaNv12Compositor::CudaNv12Compositor(CUcontext context)
     direct_nv12_kernel_ = shared->direct_nv12_kernel;
     direct_nv12_batch_kernel_ = shared->direct_nv12_batch_kernel;
     direct_p010_batch_kernel_ = shared->direct_p010_batch_kernel;
+
+    // P2: one low-overhead event per staging slot (timing disabled).
+    create_layer_batch_events();
+}
+
+void CudaNv12Compositor::create_layer_batch_events() {
+    using cuda_nv12_detail::check_cuda;
+    // P2: a throwing constructor must not leak the events it already created.
+    for (int slot = 0; slot < kLayerBatchSlots; ++slot) {
+        const auto created = cuEventCreate(&layer_batch_ready_events_[slot],
+                                           CU_EVENT_DISABLE_TIMING);
+        if (created != CUDA_SUCCESS) {
+            for (int done = 0; done < slot; ++done) {
+                (void)cuEventDestroy(layer_batch_ready_events_[done]);
+                layer_batch_ready_events_[done] = nullptr;
+            }
+            check_cuda(created, "cuEventCreate(layer batch slot)");
+            return;
+        }
+    }
 }
 
 CudaNv12Compositor::~CudaNv12Compositor() {
@@ -379,6 +401,17 @@ CudaNv12Compositor::~CudaNv12Compositor() {
     if (stream_) (void)cuStreamSynchronize(stream_);
     bridge_.reset();
     for (int slot = 0; slot < kLayerBatchSlots; ++slot) {
+        // Retire a slot whose H2D/kernel work may still be reading it before
+        // releasing either half of the staging pair (P2).
+        if (layer_batch_slot_in_flight_[slot] &&
+            layer_batch_ready_events_[slot]) {
+            (void)cuEventSynchronize(layer_batch_ready_events_[slot]);
+            layer_batch_slot_in_flight_[slot] = false;
+        }
+        if (layer_batch_ready_events_[slot]) {
+            (void)cuEventDestroy(layer_batch_ready_events_[slot]);
+            layer_batch_ready_events_[slot] = nullptr;
+        }
         if (layer_batch_buffer_[slot]) (void)cuMemFree(layer_batch_buffer_[slot]);
         if (layer_batch_host_[slot])
             (void)cuMemFreeHost(reinterpret_cast<void*>(layer_batch_host_[slot]));

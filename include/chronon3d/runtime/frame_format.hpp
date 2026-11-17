@@ -23,6 +23,7 @@ enum class PixelFormat : std::uint8_t {
     Yuv420P,
     Rgb24,
     Yuv420P10,
+    Rg32Float,
 
     // Source-compatibility spellings. These are aliases in the SAME enum,
     // not a second media/encoder pixel taxonomy.
@@ -303,6 +304,7 @@ using ColorMetadata = FrameFormat;
     const std::size_t h = static_cast<std::size_t>(height);
     switch (fmt) {
         case PixelFormat::Rgba32Float: return w * h * 16;
+        case PixelFormat::Rg32Float: return w * h * 8;
         case PixelFormat::Rgba16Float: return w * h * 8;
         case PixelFormat::Rgba8Unorm: return w * h * 4;
         case PixelFormat::Rgb24: return w * h * 3;

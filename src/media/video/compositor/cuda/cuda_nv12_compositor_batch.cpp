@@ -33,6 +33,16 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
     // overwrite the same device slot while a previous stream still owns it.
     const int slot = layer_batch_slot_;
     layer_batch_slot_ = (slot + 1) % kLayerBatchSlots;
+    // P2 (TICKET-PERF-P2): the slot cannot be reused until the DMA that reads
+    // its pinned host memory and the kernel that reads its device buffer have
+    // both completed.  The event is recorded after the launch below, so one
+    // wait covers both halves.
+    check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
+    if (layer_batch_slot_in_flight_[slot]) {
+        check_cuda(cuEventSynchronize(layer_batch_ready_events_[slot]),
+                   "cuEventSynchronize(layer batch slot)");
+        layer_batch_slot_in_flight_[slot] = false;
+    }
     const std::size_t required_bytes = batch.instances.size() * sizeof(DirectYuvLayerHost);
     std::size_t capacity = layer_batch_capacity_[slot];
     if (capacity < required_bytes) {
@@ -96,7 +106,6 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
         layer.shadow_blur = resource.shadow_blur;
     }
 
-    check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     const CUstream active = stream ? stream : stream_;
     const std::size_t bytes = layer_count_host * sizeof(DirectYuvLayerHost);
     if (layer_batch_buffer_[slot] && layer_batch_capacity_dev_[slot] < bytes) {
@@ -123,6 +132,12 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
                format == CudaYuvFormat::P010
                    ? "cuLaunchKernel(p010_composite_layer_batch_2x2)"
                    : "cuLaunchKernel(nv12_composite_layer_batch_2x2)");
+    // P2: mark the slot busy only after the launch that consumes it; the
+    // probe path (helpers that test ``layer_batch_slot_in_flight_[slot]``)
+    // then observes a real ceiling of kLayerBatchSlots in-flight frames.
+    check_cuda(cuEventRecord(layer_batch_ready_events_[slot], active),
+               "cuEventRecord(layer batch slot)");
+    layer_batch_slot_in_flight_[slot] = true;
     if (auto* counters = profiling::g_current_counters) {
         const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - started).count();

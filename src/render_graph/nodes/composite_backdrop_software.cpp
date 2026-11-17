@@ -25,13 +25,27 @@ NodeExecResult execute_backdrop_software(
     const i32 width = bottom.width();
     const i32 height = bottom.height();
     const std::size_t count = static_cast<std::size_t>(width) * height;
-    std::vector<Color> source(count), horizontal(count), blurred(count);
-    for (i32 y = 0; y < height; ++y) {
-        const auto* row = bottom.pixels_row(y);
-        std::copy_n(row, width, source.data() + static_cast<std::size_t>(y) * width);
-    }
-
+    // `bottom` is CPU-resident and already full-canvas: the horizontal pass
+    // samples it in place instead of copying 33 MB/frame into a `source`
+    // vector, and when no blur is requested the backdrop reads `bottom`
+    // directly (no `blurred` copy either).
     const int extent = static_cast<int>(std::ceil(settings.blur));
+    std::vector<Color> horizontal;
+    std::vector<Color> blurred;
+    const bool blurred_is_bottom = extent <= 0;
+    if (extent > 0) {
+        horizontal.resize(count);
+        blurred.resize(count);
+    }
+    const auto backdrop_at = [&](i32 x, i32 y) -> Color {
+        return bottom.pixels_row(y)[x];
+    };
+    const auto blurred_at = [&](i32 x, i32 y) -> Color {
+        if (blurred_is_bottom) return bottom.pixels_row(y)[x];
+        return blurred[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                       static_cast<std::size_t>(x)];
+    };
+
     if (extent > 0) {
         const float sigma = std::max(settings.blur / 3.0f, 0.5f);
         std::vector<float> kernel(static_cast<std::size_t>(extent * 2 + 1));
@@ -51,7 +65,7 @@ NodeExecResult execute_backdrop_software(
         for (i32 y = 0; y < height; ++y) for (i32 x = 0; x < width; ++x) {
             Color out{0, 0, 0, 0};
             for (int k = -extent; k <= extent; ++k) {
-                const Color c = sample(source, x + k, y);
+                const Color c = backdrop_at(std::clamp(x + k, 0, width - 1), y);
                 const float w = kernel[static_cast<std::size_t>(k + extent)];
                 out.r += c.r * w; out.g += c.g * w; out.b += c.b * w; out.a += c.a * w;
             }
@@ -66,12 +80,9 @@ NodeExecResult execute_backdrop_software(
             }
             blurred[static_cast<std::size_t>(y) * width + x] = out;
         }
-    } else {
-        blurred = source;
     }
 
-    const auto sample_bilinear = [width, height](const std::vector<Color>& pixels,
-                                                  float sx, float sy) {
+    const auto sample_bilinear = [width, height, &blurred_at](float sx, float sy) {
         sx = std::clamp(sx, 0.0f, static_cast<float>(width - 1));
         sy = std::clamp(sy, 0.0f, static_cast<float>(height - 1));
         const i32 x0 = static_cast<i32>(std::floor(sx));
@@ -80,8 +91,8 @@ NodeExecResult execute_backdrop_software(
         const i32 y1 = std::min(y0 + 1, height - 1);
         const float tx = sx - static_cast<float>(x0);
         const float ty = sy - static_cast<float>(y0);
-        const auto at = [&pixels, width](i32 x, i32 y) {
-            return pixels[static_cast<std::size_t>(y) * width + x];
+        const auto at = [&blurred_at](i32 x, i32 y) {
+            return blurred_at(x, y);
         };
         const Color a = at(x0, y0), b = at(x1, y0);
         const Color c = at(x0, y1), d = at(x1, y1);
@@ -110,7 +121,7 @@ NodeExecResult execute_backdrop_software(
         const Color* top_row = y >= top.origin_y() && y < top.origin_y() + top.height()
             ? top.pixels_row(y - top.origin_y()) : nullptr;
         for (i32 x = 0; x < width; ++x) {
-            Color backdrop = source[static_cast<std::size_t>(y) * width + x];
+            Color backdrop = backdrop_at(x, y);
             float coverage = 0.0f;
             if (top_row && x >= top.origin_x() && x < top.origin_x() + top.width() && max_alpha > 0.0f)
                 coverage = std::clamp(top_row[x - top.origin_x()].a / max_alpha, 0.0f, 1.0f);
@@ -123,9 +134,9 @@ NodeExecResult execute_backdrop_software(
                 (0.62f * std::cos(phase_x - phase_y) +
                  0.38f * std::sin(phase_x * 1.4f + phase_y * 0.8f));
             Color glass = settings.refraction > 0.0f
-                ? sample_bilinear(blurred, static_cast<float>(x) + refract_x,
+                ? sample_bilinear(static_cast<float>(x) + refract_x,
                                   static_cast<float>(y) + refract_y)
-                : blurred[static_cast<std::size_t>(y) * width + x];
+                : blurred_at(x, y);
             if (glass.a > 1e-6f) {
                 float r = glass.r / glass.a * settings.brightness;
                 float g = glass.g / glass.a * settings.brightness;
@@ -186,7 +197,7 @@ NodeExecResult execute_backdrop_software(
                     ? neighbour_sum / static_cast<float>(neighbour_count) : coverage;
                 const float inner_edge = std::clamp((coverage - average) * 2.0f, 0.0f, 1.0f);
                 if (inner_edge > 0.0f) {
-                    const Color& wrap_source = blurred[static_cast<std::size_t>(y) * width + x];
+                    const Color wrap_source = blurred_at(x, y);
                     const float wrap_luma =
                         0.2126f * wrap_source.r + 0.7152f * wrap_source.g +
                         0.0722f * wrap_source.b;

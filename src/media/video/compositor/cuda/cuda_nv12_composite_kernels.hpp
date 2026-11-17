@@ -403,35 +403,59 @@ __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
   return src;
 }
 
+__device__ inline bool direct_layer_intersects_tile(
+    const DirectYuvLayer& layer, int tile_x0, int tile_y0, int tile_x1,
+    int tile_y1) {
+  float lx0 = (float)layer.dst_x0;
+  float lx1 = (float)layer.dst_x1;
+  float ly0 = (float)layer.dst_y0;
+  float ly1 = (float)layer.dst_y1;
+  if (direct_layer_has_shadow(layer)) {
+    const float halo = 0.5f * fmaxf(layer.shadow_blur, 0.0f) +
+        0.5f * direct_mtsdf_band_dest(layer) + 0.5f;
+    lx0 = fminf(lx0, lx0 + layer.shadow_dx - halo);
+    lx1 = fmaxf(lx1, lx1 + layer.shadow_dx + halo);
+    ly0 = fminf(ly0, ly0 + layer.shadow_dy - halo);
+    ly1 = fmaxf(ly1, ly1 + layer.shadow_dy + halo);
+  }
+  return lx1 > (float)tile_x0 && lx0 < (float)tile_x1 &&
+         ly1 > (float)tile_y0 && ly0 < (float)tile_y1;
+}
+
+__device__ inline void direct_layer_step(const DirectYuvLayer& layer,
+                                         int x, int y, int width, int height,
+                                         float4& accum) {
+  float4 src;
+  if (x >= layer.dst_x0 && x < layer.dst_x1 &&
+      y >= layer.dst_y0 && y < layer.dst_y1) {
+    src = direct_layer_load(layer, x, y, width, height);
+  } else if (direct_layer_has_shadow(layer) &&
+             direct_layer_shadow_in_bounds(layer, x, y)) {
+    // The blur envelope is authored OUTSIDE the glyph box: composite the
+    // shadow alone there instead of letting the layer rect cut it off.
+    src = direct_mtsdf_shadow_sample(layer, x, y);
+  } else {
+    return;
+  }
+  src.w = fminf(fmaxf(src.w * layer.opacity, 0.0f), 1.0f);
+  if (layer.blend_mode == 1) {
+    accum.x += src.x * src.w;
+    accum.y += src.y * src.w;
+    accum.z += src.z * src.w;
+    accum.w = fminf(accum.w + src.w, 1.0f);
+  } else {
+    accum.x = src.x * src.w + accum.x * (1.0f - src.w);
+    accum.y = src.y * src.w + accum.y * (1.0f - src.w);
+    accum.z = src.z * src.w + accum.z * (1.0f - src.w);
+    accum.w = src.w + accum.w * (1.0f - src.w);
+  }
+}
+
 __device__ float4 direct_layer_pixel(const DirectYuvLayer* layers, int count,
                                      int x, int y, int width, int height) {
   float4 accum = make_float4(0, 0, 0, 0);
   for (int i = 0; i < count; ++i) {
-    const DirectYuvLayer& layer = layers[i];
-    float4 src;
-    if (x >= layer.dst_x0 && x < layer.dst_x1 &&
-        y >= layer.dst_y0 && y < layer.dst_y1) {
-      src = direct_layer_load(layer, x, y, width, height);
-    } else if (direct_layer_has_shadow(layer) &&
-               direct_layer_shadow_in_bounds(layer, x, y)) {
-      // The blur envelope is authored OUTSIDE the glyph box: composite the
-      // shadow alone there instead of letting the layer rect cut it off.
-      src = direct_mtsdf_shadow_sample(layer, x, y);
-    } else {
-      continue;
-    }
-    src.w = fminf(fmaxf(src.w * layer.opacity, 0.0f), 1.0f);
-    if (layer.blend_mode == 1) {
-      accum.x += src.x * src.w;
-      accum.y += src.y * src.w;
-      accum.z += src.z * src.w;
-      accum.w = fminf(accum.w + src.w, 1.0f);
-    } else {
-      accum.x = src.x * src.w + accum.x * (1.0f - src.w);
-      accum.y = src.y * src.w + accum.y * (1.0f - src.w);
-      accum.z = src.z * src.w + accum.z * (1.0f - src.w);
-      accum.w = src.w + accum.w * (1.0f - src.w);
-    }
+    direct_layer_step(layers[i], x, y, width, height, accum);
   }
   return accum;
 }

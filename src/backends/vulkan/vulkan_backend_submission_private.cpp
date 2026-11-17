@@ -66,6 +66,83 @@ void VulkanBackend::Impl::wait_for_pending() {
     for (auto& slot : uploads.slots) wait_upload_slot(slot);
 }
 
+void VulkanBackend::Impl::wait_for_surface_idle(
+    runtime::RenderSurfaceHandle handle) {
+    // P1: a recyclable native-import slot only needs the frame-batch slots
+    // whose recorded commands referenced that surface.  wait_for_pending()
+    // drains all six slots and therefore serializes five frames that are still
+    // legitimately in flight; the per-surface mask keeps them running.
+    wait_for_standalone();
+    const auto slot_mask = surfaces.recording_slot_mask(handle);
+    if (slot_mask == 0) return;
+    for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
+        if ((slot_mask & static_cast<std::uint8_t>(1u << i)) == 0) continue;
+        if (!frame_batch.in_flight[i]) continue;
+        const auto wait_start = profiling::now();
+        check(vkWaitForFences(device, 1, &frame_batch.fences[i], VK_TRUE,
+                              UINT64_MAX),
+              "vkWaitForFences(surface idle)");
+        const auto wait_us = static_cast<std::uint64_t>(
+            profiling::elapsed_us(wait_start));
+        stats.gpu_wait_cpu_us += wait_us;
+        stats.frame_slot_wait_us += wait_us;
+        ++stats.frame_slot_wait_count;
+        check(vkResetFences(device, 1, &frame_batch.fences[i]),
+              "vkResetFences(surface idle)");
+        frame_batch.in_flight[i] = false;
+        read_gpu_timestamps(i);
+        retire_frame_slot_transient_surfaces(i);
+    }
+}
+
+void VulkanBackend::Impl::wait_for_oldest_in_flight_slot() {
+    // P3: overflow of the deferred-release queue must buy exactly one retired
+    // slot, not a full pipeline drain.  submitted_frame_indices identifies the
+    // oldest in-flight submission; ties fall back to the ring index.
+    std::size_t oldest = FrameBatchState::kSlotCount;
+    std::uint64_t oldest_index = 0;
+    bool have_valid_index = false;
+    for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
+        if (!frame_batch.in_flight[i]) continue;
+        const bool valid = frame_batch.submitted_frame_valid[i];
+        const auto index = frame_batch.submitted_frame_indices[i];
+        if (oldest == FrameBatchState::kSlotCount) {
+            oldest = i;
+            oldest_index = index;
+            have_valid_index = valid;
+            continue;
+        }
+        // Prefer a slot with a real frame index over one without; among equals
+        // keep the earliest submitted frame.
+        if (have_valid_index && valid && index < oldest_index) {
+            oldest = i;
+            oldest_index = index;
+        } else if (!have_valid_index && valid) {
+            oldest = i;
+            oldest_index = index;
+            have_valid_index = true;
+        }
+    }
+    if (oldest == FrameBatchState::kSlotCount) {
+        wait_for_standalone();
+        return;
+    }
+    const auto wait_start = profiling::now();
+    check(vkWaitForFences(device, 1, &frame_batch.fences[oldest], VK_TRUE,
+                          UINT64_MAX),
+          "vkWaitForFences(oldest in-flight slot)");
+    const auto oldest_wait_us = static_cast<std::uint64_t>(
+        profiling::elapsed_us(wait_start));
+    stats.gpu_wait_cpu_us += oldest_wait_us;
+    stats.frame_slot_wait_us += oldest_wait_us;
+    ++stats.frame_slot_wait_count;
+    check(vkResetFences(device, 1, &frame_batch.fences[oldest]),
+          "vkResetFences(oldest in-flight slot)");
+    frame_batch.in_flight[oldest] = false;
+    read_gpu_timestamps(oldest);
+    retire_frame_slot_transient_surfaces(oldest);
+}
+
 std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
     emit_cuda_surface_releases(command_buffer);
     check(vkEndCommandBuffer(command_buffer), "vkEndCommandBuffer");
@@ -95,8 +172,11 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
         auto& image = it->second.image;
         wait_semaphores.push_back(image.cuda_to_vulkan);
         // Reused encoder surfaces can be cleared/copied by transfer before
-        // compute; the external ownership acquire covers both stages.
-        wait_stages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+        // compute; the external ownership acquire covers both stages. Only
+        // those two stages ever touch the image in Vulkan, so blocking the
+        // whole top-of-pipe (ALL_COMMANDS_BIT) only widened the wait.
+        wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
+                              VK_PIPELINE_STAGE_TRANSFER_BIT);
         wait_values.push_back(image.cuda_timeline
             ? image.interop_generation->cuda_to_vulkan() : 0);
         signal_semaphores.push_back(image.vulkan_to_cuda);

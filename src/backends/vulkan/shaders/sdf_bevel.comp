@@ -9,10 +9,8 @@
 // distance to transparency and the distance to content are carried in the
 // same four passes, so the signed field matches the software oracle:
 //
-//   mode 0  row left pass: nearest outside seed (R) + nearest content seed (G)
-//   mode 1  row right pass: combine right seeds, keep inactive channel marker
-//   mode 2  column forward pass: nearest seed from this row or above
-//   mode 3  column backward pass: combine, write signed sdf into R
+//   mode 1  fused row pass (left + right): nearest outside seed (R) + nearest content seed (G)
+//   mode 3  fused column pass (forward + backward): write signed sdf into R
 //   mode 4  shading, rim, specular and projected shadow
 //
 // sdf < 0 inside the silhouette, sdf > 0 outside.  The passes are separate
@@ -20,7 +18,7 @@
 // reads a pixel another invocation is writing.
 // ---------------------------------------------------------------------------
 
-layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
 layout(binding = 1, rgba32f) uniform readonly image2D source_image;
 layout(binding = 2, rgba32f) uniform readonly image2D aux_image;
@@ -39,6 +37,12 @@ const float k_far = 1.0e20;
 // column transform can use the entire outside row as a seed set.
 const float k_none = -1.0e7;
 
+shared float s_out[256];
+shared float s_in[256];
+shared float s_right_out[256];
+shared float s_right_in[256];
+shared uint s_left_packed[4096];
+
 float sample_alpha_bilinear(ivec2 size, vec2 pixel) {
     const vec2 base = floor(pixel - vec2(0.5));
     const vec2 f = pixel - vec2(0.5) - base;
@@ -55,12 +59,108 @@ void main() {
     const ivec2 size = imageSize(source_image);
     const int mode = int(p.control.w + 0.5);
 
-    if (mode == 0) {
-        // Left pass.  R: nearest outside seed; G: nearest content seed.
-        // Outside pixels carry their own encoded x in R, and inside pixels
-        // carry their own x in G, so both column transforms have seeds.
-        const int y = int(gl_GlobalInvocationID.x);
+    if (mode == 1) {
+        // Fused row pass (left + right): 1 workgroup of 256 threads per row y.
+        const int y = int(gl_WorkGroupID.x);
         if (y >= size.y) return;
+        const int tid = int(gl_LocalInvocationID.x);
+
+        if (size.x <= 4096) {
+            float carry_left_out = -1.0;
+            float carry_left_in = -1.0;
+            for (int base = 0; base < size.x; base += 256) {
+                const int x = base + tid;
+                bool is_inside = false;
+                float lo = -1.0;
+                float li = -1.0;
+                if (x < size.x) {
+                    const float a = imageLoad(source_image, ivec2(x, y)).a;
+                    is_inside = (a > 0.5);
+                    if (is_inside) li = float(x);
+                    else lo = float(x);
+                }
+                s_out[tid] = lo;
+                s_in[tid] = li;
+                barrier();
+                for (int stride = 1; stride < 256; stride <<= 1) {
+                    const float vo = (tid >= stride) ? s_out[tid - stride] : -1.0;
+                    const float vi = (tid >= stride) ? s_in[tid - stride] : -1.0;
+                    barrier();
+                    s_out[tid] = max(s_out[tid], vo);
+                    s_in[tid] = max(s_in[tid], vi);
+                    barrier();
+                }
+                const float left_out = max(carry_left_out, s_out[tid]);
+                const float left_in = max(carry_left_in, s_in[tid]);
+                if (x < size.x) {
+                    const float seed = is_inside ? left_out : left_in;
+                    const uint seed_enc = (seed >= 0.0) ? uint(seed + 1.0) : 0u;
+                    s_left_packed[x] = seed_enc | (is_inside ? 0x80000000u : 0u);
+                }
+                carry_left_out = max(carry_left_out, s_out[255]);
+                carry_left_in = max(carry_left_in, s_in[255]);
+                barrier();
+            }
+
+            float carry_right_out = k_far;
+            float carry_right_in = k_far;
+            const int last_base = ((size.x - 1) / 256) * 256;
+            for (int base = last_base; base >= 0; base -= 256) {
+                const int x = base + tid;
+                bool is_inside = false;
+                float left_seed = k_none;
+                float ro = k_far;
+                float ri = k_far;
+                if (x < size.x) {
+                    const uint packed = s_left_packed[x];
+                    is_inside = (packed & 0x80000000u) != 0u;
+                    const uint seed_enc = packed & 0x7FFFFFFFu;
+                    left_seed = (seed_enc > 0u) ? float(seed_enc - 1u) : k_none;
+                    if (is_inside) ri = float(x);
+                    else ro = float(x);
+                }
+                s_right_out[tid] = ro;
+                s_right_in[tid] = ri;
+                barrier();
+                for (int stride = 1; stride < 256; stride <<= 1) {
+                    const float vo = (tid + stride < 256) ? s_right_out[tid + stride] : k_far;
+                    const float vi = (tid + stride < 256) ? s_right_in[tid + stride] : k_far;
+                    barrier();
+                    s_right_out[tid] = min(s_right_out[tid], vo);
+                    s_right_in[tid] = min(s_right_in[tid], vi);
+                    barrier();
+                }
+                const float right_out = min(carry_right_out, s_right_out[tid]);
+                const float right_in = min(carry_right_in, s_right_in[tid]);
+                if (x < size.x) {
+                    float chosen = left_seed;
+                    if (!is_inside) {
+                        if (right_in < k_far * 0.5 &&
+                            (chosen == k_none ||
+                             abs(right_in - float(x)) < abs(chosen - float(x)))) {
+                            chosen = right_in;
+                        }
+                        imageStore(destination_image, ivec2(x, y),
+                                   vec4(-(float(x) + 1.0), chosen, 0.0, 0.0));
+                    } else {
+                        if (right_out < k_far * 0.5 &&
+                            (chosen == k_none ||
+                             abs(right_out - float(x)) < abs(chosen - float(x)))) {
+                            chosen = right_out;
+                        }
+                        imageStore(destination_image, ivec2(x, y),
+                                   vec4(chosen, float(x), 0.0, 0.0));
+                    }
+                }
+                carry_right_out = min(carry_right_out, s_right_out[0]);
+                carry_right_in = min(carry_right_in, s_right_in[0]);
+                barrier();
+            }
+            return;
+        }
+
+        // Fallback for ultra-wide images (> 4096 px): single thread per row.
+        if (tid != 0) return;
         float last_outside = -1.0;
         float last_inside = -1.0;
         for (int x = 0; x < size.x; ++x) {
@@ -74,28 +174,18 @@ void main() {
             } else {
                 last_inside = float(x);
                 seed_outside = (last_outside >= 0.0) ? last_outside : k_none;
-                // The content field needs a seed on every inside pixel, not a
-                // marker: otherwise a fully opaque row contributes no content
-                // candidate to the column transform.
                 seed_inside = float(x);
             }
             imageStore(destination_image, ivec2(x, y),
                        vec4(seed_outside, seed_inside, 0.0, 0.0));
         }
-        return;
-    }
-
-    if (mode == 1) {
-        // Right pass, combined with the left seeds written by mode 0.
-        const int y = int(gl_GlobalInvocationID.x);
-        if (y >= size.y) return;
         float right_outside = -1.0;
         float right_inside = -1.0;
         for (int x = size.x - 1; x >= 0; --x) {
-            const float a = imageLoad(aux_image, ivec2(x, y)).a;
+            const float a = imageLoad(source_image, ivec2(x, y)).a;
             if (a <= 0.5) right_outside = float(x);
             else right_inside = float(x);
-            const vec2 seeds = imageLoad(source_image, ivec2(x, y)).rg;
+            const vec2 seeds = imageLoad(destination_image, ivec2(x, y)).rg;
             if (a <= 0.5) {
                 float chosen = seeds.g;
                 if (right_inside >= 0.0 &&
@@ -119,8 +209,8 @@ void main() {
         return;
     }
 
-    if (mode == 2) {
-        // Forward column pass for both distance fields.
+    if (mode == 3) {
+        // Fused column pass (forward + backward) and signed-SDF combination.
         const int x = int(gl_GlobalInvocationID.x);
         if (x >= size.x) return;
         float best_outside_x = -1.0;
@@ -168,19 +258,13 @@ void main() {
             imageStore(destination_image, ivec2(x, y),
                        vec4(forward_outside, forward_inside, 0.0, 0.0));
         }
-        return;
-    }
 
-    if (mode == 3) {
-        // Backward column pass and signed-SDF combination.
-        const int x = int(gl_GlobalInvocationID.x);
-        if (x >= size.x) return;
-        float best_outside_x = -1.0;
-        float best_outside_y = -1.0;
-        float best_outside_d2 = k_far;
-        float best_inside_x = -1.0;
-        float best_inside_y = -1.0;
-        float best_inside_d2 = k_far;
+        best_outside_x = -1.0;
+        best_outside_y = -1.0;
+        best_outside_d2 = k_far;
+        best_inside_x = -1.0;
+        best_inside_y = -1.0;
+        best_inside_d2 = k_far;
         for (int y = size.y - 1; y >= 0; --y) {
             if (best_outside_y >= 0.0) {
                 const float dx = best_outside_x - float(x);
@@ -192,7 +276,7 @@ void main() {
                 const float dy = float(y) - best_inside_y;
                 best_inside_d2 = dx * dx + dy * dy;
             }
-            const vec2 seeds = imageLoad(aux_image, ivec2(x, y)).rg;
+            const vec2 seeds = imageLoad(source_image, ivec2(x, y)).rg;
             const bool is_outside = seeds.r != k_none && seeds.r < 0.0;
             if (seeds.r != k_none) {
                 const float outside_x =
@@ -218,7 +302,7 @@ void main() {
                 (best_outside_y >= 0.0) ? sqrt(best_outside_d2) : k_far;
             const float backward_inside =
                 (best_inside_y >= 0.0) ? sqrt(best_inside_d2) : k_far;
-            const vec2 forward = imageLoad(source_image, ivec2(x, y)).rg;
+            const vec2 forward = imageLoad(destination_image, ivec2(x, y)).rg;
             const float distance_outside = min(forward.r, backward_outside);
             const float distance_inside = min(forward.g, backward_inside);
             const float sdf = is_outside ? distance_inside : -distance_outside;

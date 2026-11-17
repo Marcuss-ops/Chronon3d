@@ -59,7 +59,10 @@ public:
             // A slot is reusable only after both halves of the external
             // semaphore handoff completed.  Validity of the logical surface
             // alone is not an ownership/fence signal.
-            if (!backend_.wait_for_pending_submissions() ||
+            // P1 (TICKET-PERF-P1): only the slots that recorded this surface
+            // must be idle before CUDA rewrites it.  The former full-ring drain
+            // stalled the five frames still in flight every ring turn.
+            if (!backend_.wait_for_surface_idle(slot.surface) ||
                 !slot.compositor || !slot.compositor->synchronize()) {
                 spdlog::error("[native-import] pending slot {} generation {} did not drain",
                               slot.index, slot.generation);

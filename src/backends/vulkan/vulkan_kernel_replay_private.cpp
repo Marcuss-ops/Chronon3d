@@ -71,12 +71,21 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         std::array<double, runtime::kGpuPassKindCount> pass_execute_ms{};
         std::array<std::uint32_t, runtime::kGpuPassKindCount> pass_counts{};
         if (pass_count != 0) {
-            std::vector<std::uint64_t> stamps(2 * pass_count, 0);
-            const auto query_count = static_cast<std::uint32_t>(2 * pass_count);
+            // P8 (TICKET-PERF-P8-GPU-TIMESTAMP-QUERY-VECTOR-ALLOC-20261117):
+            // stack storage bounded by the compiled pass-timing capacity; no
+            // per-frame heap allocation inside the telemetry path.
+            const std::size_t clamped_passes = std::min<std::size_t>(
+                pass_count, FrameBatchState::kCompiledPassTimingCapacity);
+            std::array<std::uint64_t,
+                       2 * FrameBatchState::kCompiledPassTimingCapacity>
+                stamps{};
+            const auto query_count =
+                static_cast<std::uint32_t>(2 * clamped_passes);
             const VkResult result = vkGetQueryPoolResults(
                 device, timestamp_pool, slot_base + 2, query_count,
-                stamps.size() * sizeof(std::uint64_t), stamps.data(),
-                sizeof(std::uint64_t), VK_QUERY_RESULT_64_BIT);
+                static_cast<std::size_t>(query_count) * sizeof(std::uint64_t),
+                stamps.data(), sizeof(std::uint64_t),
+                VK_QUERY_RESULT_64_BIT);
             if (result != VK_SUCCESS) {
                 publish_timing(0.0, 0, 0, false, {}, {});
                 return;
@@ -86,7 +95,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             std::uint64_t last_end = 0;
             bool have_range = false;
             double execute_ms = 0.0;
-            for (std::size_t pass = 0; pass < pass_count; ++pass) {
+            for (std::size_t pass = 0; pass < clamped_passes; ++pass) {
                 const auto start = stamps[2 * pass];
                 const auto end = stamps[2 * pass + 1];
                 if (end < start) continue;

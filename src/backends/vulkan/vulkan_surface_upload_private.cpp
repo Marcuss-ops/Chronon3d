@@ -421,8 +421,12 @@ void VulkanBackend::Impl::download(runtime::RenderSurfaceHandle handle, std::spa
         if (!image.initialized) {
             throw std::invalid_argument("Vulkan download references an uninitialized surface");
         }
+        const auto download_format =
+            image.format == VK_FORMAT_R32G32_SFLOAT
+                ? runtime::PixelFormat::Rg32Float
+                : runtime::PixelFormat::Rgba32Float;
         const VkDeviceSize bytes = static_cast<VkDeviceSize>(runtime::tight_surface_bytes(
-            runtime::PixelFormat::Rgba32Float, image.width, image.height));
+            download_format, image.width, image.height));
         spdlog::debug("[vulkan-download] handle={} format={} size={}x{} out_bytes={}",
                      handle, static_cast<int>(image.format), image.width, image.height, bytes);
         if (rgba.size_bytes() != bytes) throw std::invalid_argument("Vulkan download size does not match surface");

@@ -96,7 +96,7 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
             image.path, *image.embedded_payload, image.decode_options);
     }
     if (!cached) cached = ctx.image_cache->get_or_load(image.path, image.decode_options);
-    if (!cached || !cached->valid() || !cached->fb_img || cached->gpu_rgba.empty())
+    if (!cached || !cached->valid() || !cached->fb_img || cached->gpu_rgba_span().empty())
         return false;
 
     const Vec2 original_size{static_cast<float>(cached->fb_img->width()),
@@ -196,11 +196,11 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
         cached = image_cache.get_or_load(
             image.path, image.decode_options);
     }
-    if (!cached || !cached->fb_img || !cached->valid() || cached->gpu_rgba.empty()) {
+    if (!cached || !cached->fb_img || !cached->valid() || cached->gpu_rgba_span().empty()) {
         if (native_surface_promotion_diag_enabled()) {
             spdlog::info("[native_image_diag] rejected cache: cached={} fb={} valid={} gpu_rgba={}",
                          cached != nullptr, cached && cached->fb_img != nullptr,
-                         cached && cached->valid(), cached && !cached->gpu_rgba.empty());
+                         cached && cached->valid(), cached && !cached->gpu_rgba_span().empty());
         }
         return false;
     }
@@ -317,8 +317,8 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
             key.format,
             runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::JobPersistent,
-            cached->gpu_rgba.size() * sizeof(float)};
-        const auto acquired = gpu_asset_cache.acquire(key, desc, cached->gpu_rgba);
+            cached->gpu_rgba_span().size_bytes()};
+        const auto acquired = gpu_asset_cache.acquire(key, desc, cached->gpu_rgba_span());
         if (!acquired.ok()) {
             if (native_surface_promotion_diag_enabled()) {
                 spdlog::info("[native_image_diag] rejected GPU asset acquire: handle={} error='{}' bytes={} size={}x{}",

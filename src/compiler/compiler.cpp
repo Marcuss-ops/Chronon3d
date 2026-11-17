@@ -138,6 +138,10 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     render_plan::RenderPlan expanded_plan = input_plan;
     try {
         render_plan::detail::materialize_media_background_cards(expanded_plan);
+        // The card owns the frame and the style.shadow declaration. This lane
+        // builds a CompiledProgram, which carries effects but not a layer
+        // style, so the shadow must become a real DropShadow effect here.
+        render_plan::detail::lower_layer_style_shadows(expanded_plan);
     } catch (const std::exception& error) {
         return make_compile_error(CompileErrorCode::InvalidInput, "layers",
             error.what(), "render-plan-style");

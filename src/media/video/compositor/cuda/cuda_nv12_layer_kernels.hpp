@@ -10,13 +10,45 @@ inline constexpr char kNv12LayerKernel[] = R"CUDA(extern "C" __global__ void nv1
     unsigned int transfer_encode) {
   const int x = ((int)blockIdx.x * blockDim.x + threadIdx.x) * 2;
   const int y = ((int)blockIdx.y * blockDim.y + threadIdx.y) * 2;
-  if (x >= width || y >= height) return;
+  const bool in_bounds = (x < width && y < height);
   const int x1 = min(x + 1, width - 1);
   const int y1 = min(y + 1, height - 1);
-  const float4 f00 = direct_layer_pixel(layers, layer_count, x, y, width, height);
-  const float4 f10 = direct_layer_pixel(layers, layer_count, x1, y, width, height);
-  const float4 f01 = direct_layer_pixel(layers, layer_count, x, y1, width, height);
-  const float4 f11 = direct_layer_pixel(layers, layer_count, x1, y1, width, height);
+  float4 f00 = make_float4(0, 0, 0, 0);
+  float4 f10 = make_float4(0, 0, 0, 0);
+  float4 f01 = make_float4(0, 0, 0, 0);
+  float4 f11 = make_float4(0, 0, 0, 0);
+  __shared__ unsigned long long s_tile_mask;
+  const int tid = (int)(threadIdx.y * blockDim.x + threadIdx.x);
+  const int tile_x0 = (int)blockIdx.x * (int)blockDim.x * 2;
+  const int tile_y0 = (int)blockIdx.y * (int)blockDim.y * 2;
+  const int tile_x1 = tile_x0 + (int)blockDim.x * 2;
+  const int tile_y1 = tile_y0 + (int)blockDim.y * 2;
+  for (int base = 0; base < layer_count; base += 64) {
+    if (tid == 0) s_tile_mask = 0ULL;
+    __syncthreads();
+    if (tid < 64) {
+      const int idx = base + tid;
+      if (idx < layer_count &&
+          direct_layer_intersects_tile(layers[idx], tile_x0, tile_y0, tile_x1, tile_y1)) {
+        atomicOr(&s_tile_mask, 1ULL << tid);
+      }
+    }
+    __syncthreads();
+    unsigned long long mask = s_tile_mask;
+    if (in_bounds && mask != 0ULL) {
+      while (mask != 0ULL) {
+        const int bit = __ffsll((long long)mask) - 1;
+        mask &= (mask - 1ULL);
+        const DirectYuvLayer& layer = layers[base + bit];
+        direct_layer_step(layer, x, y, width, height, f00);
+        direct_layer_step(layer, x1, y, width, height, f10);
+        direct_layer_step(layer, x, y1, width, height, f01);
+        direct_layer_step(layer, x1, y1, width, height, f11);
+      }
+    }
+    __syncthreads();
+  }
+  if (!in_bounds) return;
   const float4 fs[4] = {f00, f10, f01, f11};
   const int xs[4] = {x, x1, x, x1};
   const int ys[4] = {y, y, y1, y1};
@@ -63,13 +95,45 @@ extern "C" __global__ void p010_composite_layer_batch_2x2(
     unsigned int transfer_encode) {
   const int x = ((int)blockIdx.x * blockDim.x + threadIdx.x) * 2;
   const int y = ((int)blockIdx.y * blockDim.y + threadIdx.y) * 2;
-  if (x >= width || y >= height) return;
+  const bool in_bounds = (x < width && y < height);
   const int x1 = min(x + 1, width - 1);
   const int y1 = min(y + 1, height - 1);
-  const float4 f00 = direct_layer_pixel(layers, layer_count, x, y, width, height);
-  const float4 f10 = direct_layer_pixel(layers, layer_count, x1, y, width, height);
-  const float4 f01 = direct_layer_pixel(layers, layer_count, x, y1, width, height);
-  const float4 f11 = direct_layer_pixel(layers, layer_count, x1, y1, width, height);
+  float4 f00 = make_float4(0, 0, 0, 0);
+  float4 f10 = make_float4(0, 0, 0, 0);
+  float4 f01 = make_float4(0, 0, 0, 0);
+  float4 f11 = make_float4(0, 0, 0, 0);
+  __shared__ unsigned long long s_tile_mask;
+  const int tid = (int)(threadIdx.y * blockDim.x + threadIdx.x);
+  const int tile_x0 = (int)blockIdx.x * (int)blockDim.x * 2;
+  const int tile_y0 = (int)blockIdx.y * (int)blockDim.y * 2;
+  const int tile_x1 = tile_x0 + (int)blockDim.x * 2;
+  const int tile_y1 = tile_y0 + (int)blockDim.y * 2;
+  for (int base = 0; base < layer_count; base += 64) {
+    if (tid == 0) s_tile_mask = 0ULL;
+    __syncthreads();
+    if (tid < 64) {
+      const int idx = base + tid;
+      if (idx < layer_count &&
+          direct_layer_intersects_tile(layers[idx], tile_x0, tile_y0, tile_x1, tile_y1)) {
+        atomicOr(&s_tile_mask, 1ULL << tid);
+      }
+    }
+    __syncthreads();
+    unsigned long long mask = s_tile_mask;
+    if (in_bounds && mask != 0ULL) {
+      while (mask != 0ULL) {
+        const int bit = __ffsll((long long)mask) - 1;
+        mask &= (mask - 1ULL);
+        const DirectYuvLayer& layer = layers[base + bit];
+        direct_layer_step(layer, x, y, width, height, f00);
+        direct_layer_step(layer, x1, y, width, height, f10);
+        direct_layer_step(layer, x, y1, width, height, f01);
+        direct_layer_step(layer, x1, y1, width, height, f11);
+      }
+    }
+    __syncthreads();
+  }
+  if (!in_bounds) return;
   const float4 fs[4] = {f00, f10, f01, f11};
   const int xs[4] = {x, x1, x, x1};
   const int ys[4] = {y, y, y1, y1};

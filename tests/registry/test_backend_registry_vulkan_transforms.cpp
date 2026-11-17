@@ -830,21 +830,27 @@ TEST_CASE("Vulkan native occlusion holds a mesh half behind a 2.5D plane in both
     RenderSurfaceRegistry surfaces;
     const auto format = make_frame_format(
         PixelFormat::Rgba32Float, {}, runtime::AlphaMode::Premultiplied);
+    const auto depth_format = make_frame_format(
+        PixelFormat::Rg32Float, {}, runtime::AlphaMode::Premultiplied);
     const auto layer_desc = SurfaceDesc::make(
         64, 64, format, ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto depth_desc = SurfaceDesc::make(
+        64, 64, depth_format, ResourceUsage::Storage, LifetimeClass::FrameTransient);
     const auto canvas = surfaces.create(layer_desc);
     const auto plane = surfaces.create(layer_desc);
     const auto mesh = surfaces.create(layer_desc);
-    const auto plane_depth = surfaces.create(layer_desc);
-    const auto mesh_depth = surfaces.create(layer_desc);
-    const auto frame_depth = surfaces.create(layer_desc);
+    const auto plane_depth = surfaces.create(depth_desc);
+    const auto mesh_depth = surfaces.create(depth_desc);
+    const auto frame_depth = surfaces.create(depth_desc);
     const auto mask = surfaces.create(layer_desc);
     const auto texture_desc = SurfaceDesc::make(
         1, 1, format, ResourceUsage::Storage, LifetimeClass::JobPersistent);
     const auto texture = surfaces.create(texture_desc);
-    for (const auto handle : {canvas, plane, mesh, plane_depth, mesh_depth,
-                              frame_depth, mask}) {
+    for (const auto handle : {canvas, plane, mesh, mask}) {
         REQUIRE(backend.create_surface(handle, layer_desc).ok());
+    }
+    for (const auto handle : {plane_depth, mesh_depth, frame_depth}) {
+        REQUIRE(backend.create_surface(handle, depth_desc).ok());
     }
     REQUIRE(backend.create_surface(texture, texture_desc).ok());
     REQUIRE(backend.upload_surface(texture, texture_desc,
@@ -868,9 +874,12 @@ TEST_CASE("Vulkan native occlusion holds a mesh half behind a 2.5D plane in both
     for (const bool plane_first : {true, false}) {
         CAPTURE(plane_first);
         const std::vector<float> clear(64U * 64U * 4U, 0.0f);
-        for (const auto handle : {canvas, plane, mesh, plane_depth, mesh_depth,
-                                  frame_depth, mask}) {
+        const std::vector<float> clear_depth(64U * 64U * 2U, 0.0f);
+        for (const auto handle : {canvas, plane, mesh, mask}) {
             REQUIRE(backend.upload_surface(handle, layer_desc, clear).ok());
+        }
+        for (const auto handle : {plane_depth, mesh_depth, frame_depth}) {
+            REQUIRE(backend.upload_surface(handle, depth_desc, clear_depth).ok());
         }
         REQUIRE(backend.upload_surface(plane, layer_desc, blue).ok());
         // The frame accumulator starts as "nothing composited here yet".
