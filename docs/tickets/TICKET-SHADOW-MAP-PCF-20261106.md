@@ -1,6 +1,6 @@
 # TICKET-SHADOW-MAP-PCF — Ombra 3D con depth map e PCF
 
-- **Stato:** OPEN / architecture-gated — 2026-11-06
+- **Stato:** PARTIAL — backend pass implemented 2026-11-07; graph integration and AE production audit open — 2026-11-16
 - **Data:** 2026-11-06
 - **Ambito:** Chronon3d, backend Vulkan di produzione
 - **Origine:** audit After Effects 3D, test 6 (`docs/evidence/ae3d-parity-20261106/`)
@@ -79,13 +79,42 @@ artefatto Vulkan da misurare: il test 6 resta `GAP`, non `FAIL`.
 - [ ] L'audit AE test 6 passa con evidenza Vulkan, non solo CPU.
 - [ ] La suite C3D mirata e la CI same-SHA sono verdi.
 
+## Verifica 2026-11-16 — backend PCF misurato su RTX A4000
+
+Il pass caster e il sampling PCF esistono ora nel backend Vulkan
+(`shadow_caster.comp`, `shadow_apply.comp`,
+`vulkan_backend_shadow_private.cpp`; commit `cece645cf`, 2026-11-07). La
+regressione `chronon3d_shadow_map_tests` è verde sulla lane locale NVIDIA RTX
+A4000 (driver 595.99.02):
+
+- `Vulkan shadow map caster, PCF and adaptive bias are measurable`: 51/51
+  assertion PASS;
+- edge error **0 px** sul caster 32×32 (atteso 24 px);
+- PCF edge-in 0,4 / edge-out 0,6, quindi l'edge è addolcito senza spostarsi;
+- bias adattivo: centro 0 senza bias, 1 con bias, nessun auto-ombreggiatura;
+- differenza massima CPU/GPU **0** sul confronto del riferimento software.
+
+L'evidenza machine-readable è stata rigenerata in
+`docs/evidence/ae-shadow-map-20261106/report.json` con `status: PASS`
+(`edge_error_px: 0`, `pcf_softened: true`, `bias_removed_acne: true`,
+`cpu_gpu_max_delta: 0`). La vecchia evidenza `FAIL` del 2026-11-06 precedeva
+il commit del pass e non descrive il codice corrente.
+
+Questa verifica chiude il gate del **backend** su una fixture sintetica, non
+l'integrazione nel grafo: `ShadowNode::execute_native` continua a proiettare
+l'alpha del caster in screen space e non consuma ancora la depth map in light
+space. Restano quindi aperti il pass caster nel grafo prima del lighting, il
+sampling PCF nel nodo di lighting, l'audit AE test 6 su scena di produzione e
+la CI same-SHA.
+
 ## Stato della build
 
 Il rebuild mirato di `chronon3d_renderer_core_tests` ha superato il timeout di
 600 s nella sessione corrente e il filesystem aveva circa 8 GB liberi. Prima di
 implementare il pass va pianificata una finestra di build con spazio sufficiente
 e un host GPU per la verifica strict-native. Nessun risultato GPU è dichiarato
-in questo ticket.
+in questo ticket. (Aggiornamento 2026-11-16: la verifica backend è stata
+eseguita; l'integrazione nel grafo resta non implementata.)
 
 ## Riferimenti
 

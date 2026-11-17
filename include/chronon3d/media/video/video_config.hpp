@@ -191,6 +191,19 @@ struct VideoEncoderConfig {
 
     /// Apply sRGB gamma curve during conversion (default true).
     bool apply_gamma{true};
+
+    /// Emit the canonical Velox H.264/x264 identity instead of a generic
+    /// software encode: libx264 preset "veryfast" CRF 23, refs=1, bf=0, fixed
+    /// closed GOP 48 (scenecut=0, min-keyint=48, open-gop=0), High 4.0,
+    /// yuv420p, SAR 1:1, BT.709 limited range, avcC written as a global
+    /// header, MP4 track timescale 1/90000.
+    ///
+    /// The lane is fixed to the profile it certifies: 1920x1080 at 24/1. The
+    /// sink verifies the emitted avcC against the certified SHA-256 at open
+    /// and fails closed on any mismatch. Explicit conflicting encoder fields
+    /// (CRF/QP/bitrate/preset/tune/pixel format) are rejected, not silently
+    /// overridden: the flag promises one exact byte identity.
+    bool canonical_x264{false};
 };
 
 // ==========================================================================

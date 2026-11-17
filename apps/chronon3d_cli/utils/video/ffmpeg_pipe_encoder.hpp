@@ -268,6 +268,10 @@ struct FfmpegPipeOptions {
     bool preset_explicit{false};
     std::string codec{"libx264"};
     std::string hardware_encoder{"none"};
+    /// Optional certified encoder profile ("canonical_x264"). Empty keeps the
+    /// generic lane; the value is carried verbatim from the request so the
+    /// sink can enforce the exact recipe and fail closed.
+    std::string encoder_profile;
     std::string output_path;
     // Optional independent outputs cut from one encoder timeline. Segmented
     // output is video-only and cannot borrow a mux or add source audio.

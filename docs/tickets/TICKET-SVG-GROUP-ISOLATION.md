@@ -1,9 +1,14 @@
 # TICKET-SVG-GROUP-ISOLATION — Isolated group compositing for lowered SVG
 
 ## Stato
-PARTIAL — software nested opacity scopes, animated group opacity, and per-
-element clip/mask scopes pass the raw-pixel gate (2026-10-20). Vulkan strict-
-native hardware certification and performance measurements remain open.
+OPEN — 2026-11-16: il gate raw software `check_svg_group_isolation_gate.py`
+passa 10/10 sulla lane CLI, inclusi overlap isolato, opacità animata di gruppo,
+nested opacity, clip/mask per elemento e determinismo. Il vecchio blocco «frame
+statico trasparente» è risolto dalla materializzazione di `imported_subpaths` e
+dal sampling per-frame
+([TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md)).
+Restano aperti l'oracle Vulkan strict-native, le misure GPU/memoria e la CI
+clean-SHA; nessuna certificazione hardware è implicata dal PASS software.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 

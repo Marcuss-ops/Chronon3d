@@ -125,6 +125,7 @@ chronon3d_add_test_suite(
         render_graph/pipeline/test_dirty_rects_v2.cpp
         render_graph/pipeline/test_dirty_tiles_output.cpp
         render_graph/pipeline/test_frame_delta_compiler.cpp
+        render_graph/pipeline/test_dirty_text_animator_bbox.cpp
         render_graph/pipeline/test_graph_health.cpp
         render_graph/pipeline/test_graph_preflight_diagnostics.cpp
         render_graph/pipeline/test_grid_math.cpp

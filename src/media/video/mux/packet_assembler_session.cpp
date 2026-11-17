@@ -69,10 +69,17 @@ bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
         reason = "failed to copy output video codec parameters";
         return false;
     }
-    video_stream_->time_base = config.video_codec
-        ? config.video_codec->time_base
-        : (config.video_time_base.num > 0 && config.video_time_base.den > 0
-               ? config.video_time_base : AVRational{1, 1000});
+    // An explicit track time base wins over the encoder's: the canonical lane
+    // emits at 1/24 into the encoder but must carry a 1/90000 MP4 track, the
+    // same split the certified FFmpeg recipe makes with
+    // `-video_track_timescale 90000`. The default {0,1} keeps the historical
+    // "inherit from the codec" behaviour for every other caller.
+    const bool explicit_time_base =
+        config.video_time_base.num > 0 && config.video_time_base.den > 0;
+    video_stream_->time_base = explicit_time_base
+        ? config.video_time_base
+        : (config.video_codec ? config.video_codec->time_base
+                              : AVRational{1, 1000});
     if (config.audio) {
         const auto& audio = *config.audio;
         if (!audio.params) {

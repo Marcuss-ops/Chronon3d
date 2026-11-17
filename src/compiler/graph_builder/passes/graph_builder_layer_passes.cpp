@@ -13,6 +13,7 @@
 #include <memory>
 #include <atomic>
 #include <cstdint>
+#include <cstdlib>
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
@@ -152,9 +153,15 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         // translation back to the centered origin before rasterizing them.
         // Video masks run on the decoded source surface before TransformNode;
         // they already use coordinates centered on that local surface.
+        // SVG root clipPath/mask paths are authored in absolute canvas
+        // coordinates, so only the centred-basis conversion applies. Render
+        // plan layer masks stay layer-local and also carry the layer
+        // translation.
         const Vec3 offset{
-            item.transform.position.x - ctx.frame_input.width * 0.5f,
-            item.transform.position.y - ctx.frame_input.height * 0.5f,
+            (mask.canvas_space ? 0.0f : item.transform.position.x) -
+                ctx.frame_input.width * 0.5f,
+            (mask.canvas_space ? 0.0f : item.transform.position.y) -
+                ctx.frame_input.height * 0.5f,
             0.0f};
         mask.pos += offset;
         for (auto& operation : mask.operations) operation.pos += offset;

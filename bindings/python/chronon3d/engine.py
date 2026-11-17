@@ -257,8 +257,14 @@ class RenderEngine:
             buf = _lib.FrameBuffer()
             with self._lock:
                 self._check(self._lib.chronon_render_frame(self.handle, p.handle, int(frame), ctypes.byref(buf)))
-                data = ctypes.string_at(buf.data, buf.size)
-                return Frame(int(frame), buf.width, buf.height, buf.stride, buf.pixel_format, data)
+                try:
+                    data = ctypes.string_at(buf.data, buf.size)
+                    return Frame(int(frame), buf.width, buf.height, buf.stride, buf.pixel_format, data)
+                finally:
+                    # FrameBuffer.data is engine-owned native memory: release it
+                    # even when the copy above raises, or every rendered frame
+                    # leaks until the engine is destroyed.
+                    self._lib.chronon_buffer_free(self.handle, ctypes.byref(buf))
         finally:
             if owned:
                 p.close()

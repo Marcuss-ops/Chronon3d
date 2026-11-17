@@ -6,7 +6,7 @@
 > gradienti, testo animato, marker, reveal e transizioni.
 
 **Parent:** [TICKET-SVG-RENDER-PLAN.md](TICKET-SVG-RENDER-PLAN.md)
-**Related:** [TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md](TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md), [TICKET-MOTION-COMPOSITING-PRESETS.md](TICKET-MOTION-COMPOSITING-PRESETS.md), [TICKET-SVG-GROUP-ISOLATION.md](TICKET-SVG-GROUP-ISOLATION.md), [TICKET-SVG-TEXT-ADVANCED-SCOPES.md](TICKET-SVG-TEXT-ADVANCED-SCOPES.md)
+**Related:** [TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md](TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md), [TICKET-MOTION-COMPOSITING-PRESETS.md](TICKET-MOTION-COMPOSITING-PRESETS.md), [TICKET-SVG-GROUP-ISOLATION.md](TICKET-SVG-GROUP-ISOLATION.md), [TICKET-SVG-TEXT-PARITY-REMAINING.md](TICKET-SVG-TEXT-PARITY-REMAINING.md), [TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md)
 
 Lo stato della parità descritto qui sotto deriva da questo checkout 2026-10-29:
 loader SVG, C ABI suite, raw gates sotto `scripts/ci/` e roadmap Stage 0–5 nel
@@ -21,6 +21,12 @@ elemento), SMIL esteso (repeat additive/`keySplines`/`animateMotion`), marker e
 pattern su geometria, mask paint ricco, blend-mode per elemento, testo RTL raster
 (failing gate), GPU parity e clean-SHA CI. Non si dichiara parità completa del
 SVG 1.1/browser.
+
+**Aggiornamento 2026-11-16:** sulla CLI Release corrente i path SVG importati e
+le animazioni operator/SVG non sono materializzati per frame; sei gate
+path/motion falliscono (path statico trasparente, 31/31 frame identici, trim a
+0). La matrice sotto descrive il contratto, non un PASS riproducibile su questa
+lane. Vedi [TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
 
 ## Matrice di parità primitive (stato 2026-10-29)
 
@@ -98,7 +104,7 @@ failing.
 | text fill/stroke, dash, gradient, pattern, marcatura a grafeme | OK | text stroke/gradient/pattern/chunk gates pass | — |
 | `textPath` bounded | OK | coordinates gate | — |
 | **Arabic RTL raster placement** | FAIL-CLOSED | gate chunk attuale fail (52 px alpha divergenza): bidi lowering/dispatch open; P0 per canali arabi, P1 altrimenti | P1 |
-| `textLength` annidato + `rotate` annidato + textPath lengthAdjust | FAIL-CLOSED | delegato a [TICKET-SVG-TEXT-ADVANCED-SCOPES.md](TICKET-SVG-TEXT-ADVANCED-SCOPES.md) | P1 |
+| `textLength` annidato + `rotate` annidato + textPath lengthAdjust | FAIL-CLOSED | delegato a [TICKET-SVG-TEXT-PARITY-REMAINING.md](TICKET-SVG-TEXT-PARITY-REMAINING.md) | P1 |
 | vertical writing mode | FAIL-CLOSED | out of scope | P2 |
 | pattern inheritance / paint esclusivo | FAIL-CLOSED | tile userSpaceOnUse, contenuti solidi | P1 |
 

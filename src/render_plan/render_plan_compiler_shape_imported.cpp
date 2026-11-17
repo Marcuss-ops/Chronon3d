@@ -12,21 +12,37 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 namespace easing_name = chronon3d::render_plan::detail::easing_name;
 
 namespace chronon3d::render_plan::detail {
 
 void append_imported_svg_paths(chronon3d::LayerBuilder& builder,
-                               const RenderPlan& plan,
+                               FrameRate canvas_fps,
                                const chronon3d::FrameContext& ctx,
                                const ShapeContentPlan& shape,
-                               Color base_color) {
+                               Color base_color,
+                               Vec2 placement_offset) {
+const auto translate_commands = [&](std::vector<PathCommand>& commands,
+                                    Vec2 offset) {
+    if (offset.x == 0.0f && offset.y == 0.0f) return;
+    for (auto& command : commands) {
+        if (command.type == PathCommandType::Close) continue;
+        command.p0 += offset;
+        if (command.type == PathCommandType::QuadraticTo ||
+            command.type == PathCommandType::CubicTo)
+            command.p1 += offset;
+        if (command.type == PathCommandType::CubicTo)
+            command.p2 += offset;
+    }
+};
 const auto attach_svg_groups = [&](const ImportedSubpathPlan& source) {
     std::vector<RenderNode::SvgGroupIsolation> groups;
     groups.reserve(source.svg_groups.size());
@@ -48,7 +64,8 @@ const auto attach_svg_groups = [&](const ImportedSubpathPlan& source) {
         groups.push_back({source.svg_group->id, source.svg_group->opacity});
     if (!groups.empty()) builder.svg_group_isolation(std::move(groups));
 };
-const auto attach_svg_masks = [&](const ImportedSubpathPlan& source) {
+const auto attach_svg_masks = [&](const ImportedSubpathPlan& source,
+                                  Vec2 offset) {
     if (source.svg_local_masks.empty()) return;
     std::vector<PathShape> masks;
     masks.reserve(source.svg_local_masks.size());
@@ -57,9 +74,12 @@ const auto attach_svg_masks = [&](const ImportedSubpathPlan& source) {
         mask.fill = Fill::solid_color(Color::white());
         mask.stroke.enabled = false;
         for (const auto& command : commands) {
-            const Vec2 point{command.point[0], command.point[1]};
-            const Vec2 c1{command.control1[0], command.control1[1]};
-            const Vec2 c2{command.control2[0], command.control2[1]};
+            const Vec2 point{command.point[0] + offset.x,
+                             command.point[1] + offset.y};
+            const Vec2 c1{command.control1[0] + offset.x,
+                          command.control1[1] + offset.y};
+            const Vec2 c2{command.control2[0] + offset.x,
+                          command.control2[1] + offset.y};
             switch (command.type) {
                 case ShapePathCommandTypePlan::MoveTo: mask.commands.push_back(PathCommand::move_to(point)); break;
                 case ShapePathCommandTypePlan::LineTo: mask.commands.push_back(PathCommand::line_to(point)); break;
@@ -135,6 +155,15 @@ const auto sample_scalar = [&](const AnimationTrackPlan& track) {
 for (std::size_t path_index = 0;
      path_index < shape.imported_subpaths.size(); ++path_index) {
     const auto& source = shape.imported_subpaths[path_index];
+    // A subpath with an SVG element transform is already moved by that
+    // sampled transform and bypasses the layer transform; applying the
+    // layer-cancelling offset would double-shift it. Sibling paths without
+    // one keep the shared offset.
+    const bool has_element_transform =
+        source.svg_translation_animation || source.svg_scale_animation ||
+        source.svg_rotation_animation || !source.svg_transform_animations.empty();
+    const Vec2 source_placement = has_element_transform
+        ? Vec2{0.0f, 0.0f} : placement_offset;
     PathParams imported_path;
     imported_path.color = base_color;
     imported_path.fill_rule = source.fill_rule == ShapeFillRulePlan::NonZero
@@ -357,7 +386,7 @@ for (std::size_t path_index = 0;
         if (source.stroke_width_animation)
             stroke_width = detail::evaluate_scalar_track(
                 *source.stroke_width_animation, ctx.effective_frame(),
-                stroke_width, plan.canvas.fps);
+                stroke_width, canvas_fps);
         auto imported_stroke = graphics::StrokeStyle::solid(
             stroke_color,
             stroke_width);
@@ -376,10 +405,11 @@ for (std::size_t path_index = 0;
         imported_path.stroke.enabled = false;
     }
     if (shape.operators.empty()) {
+        translate_commands(imported_path.commands, source_placement);
         builder.path("svg_path_" + std::to_string(path_index),
                      std::move(imported_path));
         attach_svg_groups(source);
-        attach_svg_masks(source);
+        attach_svg_masks(source, source_placement);
         continue;
     }
     PathShape source_path;
@@ -560,13 +590,14 @@ for (std::size_t path_index = 0;
     for (std::size_t copy_index = 0; copy_index < expanded.size(); ++copy_index) {
         PathParams copy = imported_path;
         copy.commands = std::move(expanded[copy_index].commands);
+        translate_commands(copy.commands, source_placement);
         copy.stroke = std::move(expanded[copy_index].stroke);
         copy.fill = std::move(expanded[copy_index].fill);
         copy.color.a *= expanded[copy_index].opacity;
         builder.path("svg_path_" + std::to_string(path_index) + "_" +
                      std::to_string(copy_index), std::move(copy));
         attach_svg_groups(source);
-        attach_svg_masks(source);
+        attach_svg_masks(source, source_placement);
     }
 }
 

@@ -23,6 +23,7 @@ struct RenderPlanVideoOverrides {
     int audio_sample_rate{0};
     std::string hardware_encoder;
     std::string encoder_backend;
+    std::string encoder_profile;
     std::string ffmpeg_mode;
     std::string encode_preset;
     std::string rate_control_mode;

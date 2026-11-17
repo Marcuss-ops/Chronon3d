@@ -1,3 +1,4 @@
+import ctypes
 import json
 import os
 import shutil
@@ -7,7 +8,7 @@ import unittest
 from pathlib import Path
 
 import chronon3d
-from chronon3d import RenderEngine, Status
+from chronon3d import Plan, RenderEngine, Status
 
 PLAN = {
     "schema": "chronon.render-plan.v2",
@@ -131,6 +132,68 @@ class TestChronon3d(unittest.TestCase):
         for t in ts:
             t.join()
         self.assertFalse(errors)
+
+
+class TestFrameBufferLifetime(unittest.TestCase):
+    """The C ABI stores FrameBuffer.data in engine-owned native memory.
+
+    ``chronon_buffer_free`` is the only release path: skipping it leaks one
+    buffer per rendered frame. The wrapper must release it exactly once per
+    call, including when copying the pixels raises.
+    """
+
+    def _engine_with_fake_lib(self):
+        class FakeLib:
+            def __init__(self):
+                self.freed = []
+
+            def chronon_render_frame(self, engine, plan, frame, buf):
+                fb = buf._obj
+                fb.data = ctypes.cast(ctypes.create_string_buffer(b"wxyz"), ctypes.c_void_p)
+                fb.size = 4
+                fb.width = 1
+                fb.height = 1
+                fb.stride = 4
+                fb.pixel_format = 1
+                return 0
+
+            def chronon_buffer_free(self, engine, buf):
+                fb = buf._obj
+                self.freed.append(fb.size)
+                fb.data = None
+                fb.size = 0
+
+        engine = object.__new__(RenderEngine)
+        engine._lib = FakeLib()
+        engine._lock = threading.RLock()
+        engine._handle = 0xCAFE
+        engine._plans = []
+        return engine
+
+    @staticmethod
+    def _plan(engine):
+        plan = object.__new__(Plan)
+        plan._engine = engine
+        plan._handle = 0xBEEF
+        plan.width = plan.height = 1
+        plan.fps = (30, 1)
+        plan.duration_frames = 1
+        return plan
+
+    def test_render_still_releases_the_native_buffer(self):
+        engine = self._engine_with_fake_lib()
+        frame = engine.render_still(self._plan(engine), 0)
+        self.assertEqual(frame.data, b"wxyz")
+        self.assertEqual(engine._lib.freed, [4])
+
+    def test_render_still_releases_when_the_copy_raises(self):
+        from unittest import mock
+
+        engine = self._engine_with_fake_lib()
+        with mock.patch("chronon3d.engine.ctypes.string_at", side_effect=RuntimeError("copy failed")):
+            with self.assertRaises(RuntimeError):
+                engine.render_still(self._plan(engine), 0)
+        self.assertEqual(engine._lib.freed, [4])
 
 
 if __name__ == "__main__":

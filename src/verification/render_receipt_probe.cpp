@@ -1,4 +1,5 @@
 #include <chronon3d/verification/render_receipt.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/media/video/keyframe_cadence.hpp>
 #include "render_receipt_probe_internal.hpp"
 
@@ -7,12 +8,14 @@
 
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace chronon3d::verification::receipt_probe {
 namespace {
@@ -122,6 +125,61 @@ std::optional<double> json_number(const nlohmann::json& object,
     return std::nullopt;
 }
 
+/// Decode ffprobe's offset-prefixed hex dump and hash the exact extradata
+/// bytes (the avcC for MP4 H.264). The printable ASCII column is excluded.
+/// A missing or malformed dump returns empty and cannot satisfy a profile
+/// that pins the codec configuration.
+std::string hash_ffprobe_extradata(const std::string& dump) {
+    if (dump.empty()) return {};
+    std::vector<std::uint8_t> raw;
+    std::size_t line_start = 0;
+    while (line_start <= dump.size()) {
+        const auto line_end = dump.find('\n', line_start);
+        const std::string line = dump.substr(
+            line_start, line_end == std::string::npos
+                ? std::string::npos : line_end - line_start);
+        const auto colon = line.find(':');
+        if (colon != std::string::npos) {
+            std::string payload = line.substr(colon + 1);
+            while (!payload.empty() && payload.front() == ' ') {
+                payload.erase(payload.begin());
+            }
+            const auto ascii = payload.find("  ");
+            if (ascii != std::string::npos) payload.resize(ascii);
+            std::size_t index = 0;
+            while (index < payload.size()) {
+                while (index < payload.size() && payload[index] == ' ') ++index;
+                const std::size_t word_start = index;
+                while (index < payload.size() && payload[index] != ' ') ++index;
+                const std::string word = payload.substr(word_start, index - word_start);
+                if (word.empty()) continue;
+                if (word.size() != 2 && word.size() != 4) return {};
+                for (std::size_t offset = 0; offset < word.size(); offset += 2) {
+                    const auto hex_value = [](char ch) -> int {
+                        if (ch >= '0' && ch <= '9') return ch - '0';
+                        if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
+                        if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
+                        return -1;
+                    };
+                    const int high = hex_value(word[offset]);
+                    const int low = hex_value(word[offset + 1]);
+                    if (high < 0 || low < 0) return {};
+                    raw.push_back(static_cast<std::uint8_t>((high << 4) | low));
+                }
+            }
+        }
+        if (line_end == std::string::npos) break;
+        line_start = line_end + 1;
+    }
+    if (raw.empty()) return {};
+    // The verification library is deliberately independent of the video
+    // backend; reuse the SDK's canonical SHA-256 primitive instead of adding
+    // a link dependency just for the hash.
+    return assets::sha256_string(std::string_view(
+                 reinterpret_cast<const char*>(raw.data()), raw.size()))
+        .hex();
+}
+
 void read_hdr_side_data(const nlohmann::json& stream, MediaContract& media) {
     if (!stream.contains("side_data_list") ||
         !stream.at("side_data_list").is_array()) return;
@@ -210,7 +268,7 @@ bool mastering_metadata_matches(
 bool probe_media(const std::filesystem::path& output, MediaContract& media,
                  bool require_exit_ok, double* ms_out) {
     const auto start = std::chrono::steady_clock::now();
-    std::string command = "ffprobe -v error -show_streams -show_format -of json " +
+    std::string command = "ffprobe -v error -show_streams -show_format -show_data -of json " +
                           quote_shell_path(output) + kSuppressStderr;
     const CapturedOutput captured = run_capture_checked(command);
     if (ms_out != nullptr) {
@@ -275,6 +333,8 @@ bool probe_media(const std::filesystem::path& output, MediaContract& media,
                 media.has_video = true;
                 media.codec = stream.value("codec_name", "");
                 media.codec_profile = stream.value("profile", "");
+                media.codec_config_sha256 = hash_ffprobe_extradata(
+                    stream.value("extradata", std::string{}));
                 if (stream.contains("level") && stream["level"].is_number_integer()) {
                     const int lvl = stream["level"].get<int>();
                     if (lvl > 0) {

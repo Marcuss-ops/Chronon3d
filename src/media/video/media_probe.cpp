@@ -1,4 +1,5 @@
 #include <chronon3d/media/video/media_probe.hpp>
+#include <chronon3d/media/video/canonical_x264.hpp>
 
 #include <optional>
 #include <string>
@@ -145,6 +146,11 @@ Result<MediaProbeInfo, MediaProbeError> probe_media(
 
         const AVCodecParameters* params = stream->codecpar;
         MediaStreamProbe observed;
+        if (params->extradata != nullptr && params->extradata_size > 0) {
+            observed.codec_config_sha256 = canonical_x264_sha256_hex(
+                params->extradata,
+                static_cast<std::size_t>(params->extradata_size));
+        }
         observed.index = static_cast<int>(index);
         observed.time_base = to_rational(stream->time_base);
         observed.duration = stream_duration(*stream);

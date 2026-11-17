@@ -82,6 +82,18 @@ public:
     /// graph eligible for dynamic refresh.
     uint64_t compute_dynamic_fingerprint(const Scene& scene, Frame frame) const;
 
+    /// True when one of the layer's text runs still has a live (not yet
+    /// settled) selector/property animation at `frame`, or carries an
+    /// AnimatedTextDocument (re-sampled per frame).
+    ///
+    /// A TextRun's compiled shape carries its selectors and property
+    /// keyframes, and the per-glyph state is sampled at draw time, so
+    /// `hash_shape_v2(shape)` is frame-invariant. Any consumer that uses the
+    /// shape hash as a change signal (the dirty tracker does) must ask this
+    /// question instead, or every animating frame looks identical to the
+    /// previous one.
+    [[nodiscard]] static bool has_live_text_run_animation(const Layer& layer, Frame frame);
+
     void clear() {
         // No cached state to clear — hashing is stateless.
     }

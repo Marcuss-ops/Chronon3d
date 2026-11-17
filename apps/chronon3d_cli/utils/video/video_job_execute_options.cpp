@@ -1,6 +1,8 @@
 #include "video_export_support.hpp"
 #include "../../commands/video/common/video_export_common.hpp"
+#include <chronon3d/media/video/canonical_x264.hpp>
 
+#include <string>
 #include <utility>
 
 namespace chronon3d::cli {
@@ -30,6 +32,27 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     encoder.bitrate = job.video_settings.bitrate;
     encoder.bitrate_explicit = job.video_settings.bitrate_explicit;
     encoder.encoder_backend = job.video_settings.encoder_backend;
+    encoder.encoder_profile = job.video_settings.encoder_profile;
+    if (encoder.encoder_profile ==
+        std::string(chronon3d::media::video::kCanonicalX264Profile)) {
+        // A certified profile is an exact recipe. Apply it here, at the one
+        // execution adapter both transports pass through, so a plan field or
+        // a CLI flag cannot half-override it. The sink/encoder still verifies
+        // the emitted avcC and fails closed before writing an artifact.
+        encoder.codec = "libx264";
+        encoder.hardware_encoder = "none";
+        encoder.encode_preset =
+            std::string(chronon3d::media::video::kCanonicalX264Preset);
+        encoder.encode_preset_explicit = true;
+        encoder.tune.clear();
+        encoder.tune_explicit = false;
+        encoder.rate_control_mode = "crf";
+        encoder.rate_control_mode_explicit = true;
+        encoder.crf = chronon3d::media::video::kCanonicalX264Crf;
+        encoder.crf_explicit = true;
+        encoder.qp = -1;
+        encoder.bitrate = 0;
+    }
 
     PipeOptions pipe;
     pipe.pipe_pixfmt = job.video_settings.pipe_pixfmt;

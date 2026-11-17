@@ -9,6 +9,12 @@ remain open. This ticket tracks both the implementation already underway and
 the remaining acceptance work; passing generic tests does not certify the
 supplied video.
 
+**Aggiornamento 2026-11-16:** `check_svg_trim_sampled_raw_gate.py` fallisce
+sulla CLI Release corrente (tutti i campioni a 0) e il path SVG statico non
+viene materializzato; l'evidenza "path trim sampling" sopra non è riproducibile
+su questa lane. Vedi
+[TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
 - [ ] **Confronto chart ai timestamp di riferimento** — logica: verificare bounds/residui glow, pivot veicolo e framing grafico, flicker temporale sui contorni contro la reference video. Dove: scena documentary SVG + renderer software. Gate: diff visivo documentato per ogni difetto risolto/accettato.

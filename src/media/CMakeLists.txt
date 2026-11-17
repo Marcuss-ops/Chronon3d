@@ -112,6 +112,7 @@ if(CHRONON3D_ENABLE_VIDEO)
         # The canonical compressed sink is in-process and shares the single
         # libavformat MuxSession authority with copied/NVENC packets.
         target_sources(chronon3d_media_video PRIVATE
+            video/encode/canonical_x264.cpp
             video/encode/native_av_sink.cpp)
         target_link_libraries(chronon3d_backend_video PUBLIC chronon3d_ffmpeg_light)
         target_link_libraries(chronon3d_media_video PUBLIC

@@ -595,16 +595,19 @@ bool SceneHasher::layer_is_static_at(const Layer& layer, Frame frame) {
     if (layer.time_remap.time_remap.is_time_dependent()) return false;
     if (has_live_effect_parameter_animation(layer, frame)) return false;
     if (has_live_svg_group_animation(layer, frame)) return false;
-    for (const auto& n : layer.nodes) {
-        if (n.shape.type() == ShapeType::TextRun) {
-            const auto handle = n.shape.text_run_shape_handle();
-            if (handle.value &&
-                !text_animators_settled_at(handle.value->animators, frame)) {
-                return false;
-            }
-        }
-    }
+    if (has_live_text_run_animation(layer, frame)) return false;
     return true;
+}
+
+bool SceneHasher::has_live_text_run_animation(const Layer& layer, Frame frame) {
+    for (const auto& n : layer.nodes) {
+        if (n.shape.type() != ShapeType::TextRun) continue;
+        const auto handle = n.shape.text_run_shape_handle();
+        if (!handle.value) continue;
+        if (!text_animators_settled_at(handle.value->animators, frame)) return true;
+        if (handle.value->animated_doc) return true;
+    }
+    return false;
 }
 
 bool SceneHasher::camera_is_static(const Camera2_5DRuntime& cam) {

@@ -1,6 +1,7 @@
 #include "../compiler_stages.hpp"
 
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/render_plan/color_utils.hpp>
 
 #include <cmath>
 #include <stdexcept>
@@ -105,6 +106,19 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             lowered.position[1] += box_h * 0.5f;
             lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
             lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
+        } else if (layer.type == render_plan::LayerType::Shape &&
+                   layer.position_dimensions >= 2) {
+            // Render-plan shape geometry, including imported SVG paths, is
+            // authored in absolute canvas coordinates. LayerBuilder transforms
+            // are centred on the canvas, so convert the authored origin once
+            // here. Without this the typed lane added the canvas centre on top
+            // of an absolute position: a 64x64 SVG authored at [0,0] rendered
+            // in the bottom-right quadrant and every SVG path was offset by
+            // half a canvas. Text and screen-space shapes already perform
+            // their own conversion above; this is the non-screen-space shape
+            // arm the RenderPlan lane has always applied.
+            lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
+            lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
         }
         lowered.scale = layer.scale;
         lowered.rotation = layer.rotation;
@@ -120,6 +134,37 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.blend_mode = layer.blend_mode;
         lowered.transform_samples = layer.transform_samples;
         lowered.effects = layer.effects;
+        // style.glow is a LAYER style, not a text-only knob: the decoder
+        // accepts it on any layer style, but only a text layer had a consumer
+        // for it (the text materializer turns it into a per-run halo).  A
+        // shape, image, video or color layer carrying style.glow therefore
+        // dropped it silently.  Lower it to the canonical Glow effect entry on
+        // the layer's own stack — the same EffectPlan the
+        // `effects: [{kind: glow}]` route produces, appended after the
+        // authored entries so the authored order is preserved.  Text layers
+        // are skipped: their halo is applied at materialization, before their
+        // animator entries, and must not be duplicated.
+        if (layer.type != render_plan::LayerType::Text && layer.style &&
+            layer.style->glow &&
+            (layer.type == render_plan::LayerType::Shape ||
+             layer.type == render_plan::LayerType::Video ||
+             layer.type == render_plan::LayerType::Image ||
+             layer.type == render_plan::LayerType::Color)) {
+            const auto& spec = *layer.style->glow;
+            const auto glow_color = render_plan::parse_hex_color(spec.color);
+            if (!glow_color) {
+                throw std::runtime_error(
+                    "layer '" + layer.id + "' has invalid glow color");
+            }
+            render_plan::LayerPlan::EffectPlan glow;
+            glow.kind = render_plan::LayerPlan::EffectKindPlan::Glow;
+            glow.canonical_effect_id = "glow";
+            glow.radius = spec.radius;
+            glow.glow_intensity = spec.intensity;
+            glow.effect_color = {glow_color->r, glow_color->g,
+                                 glow_color->b, glow_color->a};
+            lowered.effects.push_back(std::move(glow));
+        }
         lowered.size_dimensions = static_cast<std::uint8_t>(layer.size_dimensions);
         lowered.position_dimensions = static_cast<std::uint8_t>(layer.position_dimensions);
         if (layer.type == render_plan::LayerType::Video &&
@@ -136,6 +181,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.opacity = layer.opacity.value_or(1.0f);
         lowered.radius = layer.radius.value_or(0.0f);
         lowered.shape = layer.shape;
+        lowered.path_mask = layer.path_mask;
         lowered.inline_mesh = layer.inline_mesh;
         lowered.particle_emitter = layer.particle_emitter;
         if (layer.type == render_plan::LayerType::Shape && lowered.size_dimensions == 0) {

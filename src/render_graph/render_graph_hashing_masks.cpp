@@ -99,7 +99,8 @@ namespace chronon3d::graph {
     add_float(mask.feather);
     add_float(mask.expansion);
     add_float(mask.opacity);
-    builder.add(mask.inverted).add(mask.text_source).add(mask.field.has_value());
+    builder.add(mask.inverted).add(mask.canvas_space)
+        .add(mask.text_source).add(mask.field.has_value());
     if (mask.field) builder.add(graphics::field2d_fingerprint_v2(*mask.field));
     add_path(mask.path);
     builder.add(mask.operations.size());

@@ -4,8 +4,7 @@
 **Residual closure:** caret RTL functional tests and multi-shadow dispatch are implemented. Production pixel parity remains below the frozen thresholds; ADR-040 records the product exception for this closeout. This is not a full-parity PASS.
 **Owner:** Chronon3D text/runtime.
 **Scope:** animated text layers, not full SVG text. SVG-specific gaps remain in
-[`TICKET-SVG-TEXT-PARITY-REMAINING.md`](TICKET-SVG-TEXT-PARITY-REMAINING.md) and
-[`TICKET-SVG-TEXT-ADVANCED-SCOPES.md`](TICKET-SVG-TEXT-ADVANCED-SCOPES.md).
+[`TICKET-SVG-TEXT-PARITY-REMAINING.md`](TICKET-SVG-TEXT-PARITY-REMAINING.md).
 
 ---
 
@@ -101,7 +100,6 @@ Existing selector support in `glyph_selector.hpp` / `glyph_selector_compile.cpp`
 |---|---|---|
 | `TICKET-AFTER-EFFECTS-2_5D-PARITY.md` | 2.5D and transform parity | this ticket owns text-animator properties only |
 | `TICKET-SVG-TEXT-PARITY-REMAINING.md` | SVG text gaps | no SVG work here |
-| `TICKET-SVG-TEXT-ADVANCED-SCOPES.md` | advanced SVG text | no SVG work here |
 | `TICKET-TEXT-QUALITY-V2.md` | shadow/stroke/MSDF quality | quality, not property coverage |
 | `TICKET-MOTION-COMPOSITING-PRESETS.md` | typography presets | preset serialization remains there |
 

@@ -1,5 +1,6 @@
 #include "video_sink_adapter.hpp"
 #include "encoder_config_resolution.hpp"
+#include <chronon3d/media/video/canonical_x264.hpp>
 
 #include <chrono>
 #include <filesystem>
@@ -93,6 +94,14 @@ bool VideoSinkEncoderAdapter::build_sink_config(
     config.stream.frame_rate_den = opts.canonical_fps_den();
     config.stream.submitted_format = map_pixel_format(opts.input_format);
 
+    const bool canonical_x264 =
+        opts.encoder_profile ==
+        std::string(media::video::kCanonicalX264Profile);
+    if (canonical_x264 && sink_type_ == VideoSinkType::RawFile) {
+        spdlog::error("[video_adapter] canonical x264 profile cannot target the raw sink");
+        return false;
+    }
+
     if (sink_type_ == VideoSinkType::RawFile) {
         config.encoder.codec = VideoCodec::Uncompressed;
         config.encoder.rate_control_mode = RateControlMode::Bitrate;
@@ -121,9 +130,23 @@ bool VideoSinkEncoderAdapter::build_sink_config(
             resolve_encoder_backend(opts.codec, opts.hardware_encoder) ==
             EncoderBackend::Nvenc;
         const bool resolve_quality =
-            x264_family && !nvenc_requested;
+            x264_family && !nvenc_requested && !canonical_x264;
 
-        if (resolve_quality) {
+        if (canonical_x264) {
+            // The certified lane is the whole recipe: libx264, CRF 23,
+            // veryfast, closed GOP 48, yuv420p, track timebase 1/90000.
+            // The sink re-validates these values and verifies the emitted
+            // avcC before opening the muxer; nothing here is advisory.
+            config.encoder.codec = VideoCodec::H264;
+            config.encoder.canonical_x264 = true;
+            config.encoder.rate_control_mode = RateControlMode::Crf;
+            config.encoder.crf = media::video::kCanonicalX264Crf;
+            config.encoder.qp = -1;
+            config.encoder.bitrate = 0;
+            config.encoder.preset =
+                std::string(media::video::kCanonicalX264Preset);
+            config.encoder.tune.reset();
+        } else if (resolve_quality) {
             const auto resolution =
                 resolve_encoder_config(make_encoder_config_request(opts));
             if (!resolution) {

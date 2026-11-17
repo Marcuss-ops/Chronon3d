@@ -1,9 +1,10 @@
 # Ticket — SVG text advanced scopes and writing modes
 
-**Status:** PARTIAL — nested `textLength` with both adjustment modes is closed
-locally under P0 of the parent parity ticket; nested per-character rotate,
-`textLength` on `textPath`, and dedicated pixel gates remain open.
-**Parent:** [TICKET-SVG-RENDER-PLAN.md](TICKET-SVG-RENDER-PLAN.md)
+**Status:** CLOSED — administrative merge 2026-11-16; open items transferred to
+[TICKET-SVG-TEXT-PARITY-REMAINING.md](../TICKET-SVG-TEXT-PARITY-REMAINING.md).
+Nested `textLength` with both adjustment modes remains closed locally under P0
+of the parent parity ticket.
+**Parent:** [TICKET-SVG-RENDER-PLAN.md](../TICKET-SVG-RENDER-PLAN.md)
 **Owner:** Chronon3D C++ renderer
 
 ## TODO — cosa manca (agg. 2026-10-28)

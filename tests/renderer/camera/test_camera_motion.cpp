@@ -1036,12 +1036,22 @@ TEST_CASE("Camera capability contract rejects unsupported optics at both compile
         camera.fov_deg = fov;
         rejected(camera);
     }
-    auto camera = CameraPlan{};
-    camera.iris_blades = 6;
-    rejected(camera);
+    // Polygonal apertures 3..12 are consumed by both the software and Vulkan
+    // disk-bokeh kernels, so stacking them is a supported capability. Only an
+    // aperture that cannot close a polygon fails closed.
+    for (int blades : {3, 6, 12}) {
+        auto accepted = CameraPlan{};
+        accepted.iris_blades = blades;
+        CHECK_FALSE(camera_contract_problem(accepted).has_value());
+    }
+    for (int blades : {1, 2, 13}) {
+        auto unsupported = CameraPlan{};
+        unsupported.iris_blades = blades;
+        rejected(unsupported);
+    }
     // Highlight weighting has a kernel on every DOF path, so the same boundary
     // must accept it instead of failing closed on an unimplemented shape.
-    camera = CameraPlan{};
+    auto camera = CameraPlan{};
     camera.dof_highlight_gain = 1.f;
     CHECK_FALSE(camera_contract_problem(camera).has_value());
     {
@@ -1056,9 +1066,6 @@ TEST_CASE("Camera capability contract rejects unsupported optics at both compile
         camera.dof_highlight_gain = gain;
         rejected(camera);
     }
-    camera = CameraPlan{};
-    camera.iris_blades = 5;
-    rejected(camera);
     camera = CameraPlan{};
     camera.dof_focus_distance = 0.f;
     rejected(camera);

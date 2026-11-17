@@ -41,6 +41,11 @@ struct OutputSpec {
     std::string codec;
     std::string hardware_encoder;
     std::string encoder_backend;
+    /// Optional encoder profile that implies a complete, certified recipe
+    /// (today only "canonical_x264": libx264, 1920x1080 24/1, CRF 23,
+    /// veryfast, closed GOP 48, avcC 7201ce80…). Empty keeps the generic
+    /// encoder resolution. Unknown values are refused by the normalizer.
+    std::string encoder_profile;
     std::string ffmpeg_mode;
     std::string gpu_hot_path_mode;
     std::string encode_preset;
@@ -141,6 +146,8 @@ enum class RenderJobRequestErrorCode : std::uint8_t {
     /// The requested output segment windows are invalid or combine with a
     /// lane the segmented mux writer refuses (audio, GOP copy, frame range).
     InvalidOutputSegment,
+    /// `output.encoder_profile` is outside the certified vocabulary.
+    InvalidEncoderProfile,
 };
 
 struct RenderJobRequestError {

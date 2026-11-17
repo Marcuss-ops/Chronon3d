@@ -12,7 +12,9 @@
 //   4 even-odd polygon (params.vertices), 5 analytic grid background,
 //   6 rounded rectangle with a native linear gradient
 //   (GridBackgroundShape semantics, mirrors the software
-//   render_grid_background_kernel).
+//   render_grid_background_kernel), 10 storage-buffer even-odd polygon
+//   with an analytic coverage ramp (any vertex count, owned by
+//   VulkanBackend::Impl::fill_polygon).
 //
 // For kind 5 the push-constant fields carry:
 //   color    = grid line straight linear RGB; alpha = grid.a * opacity
@@ -295,15 +297,31 @@ void main() {
         // and first covered segment, matching software's path order exactly.
         bool has_fill = params.shape.w > 0.5;
         if (has_fill) {
+            // Interior predicate: the same even-odd crossing test as kind 10,
+            // read from the storage buffer after the stroke runs. A stroked
+            // path therefore keeps every fill vertex instead of being capped
+            // at the eight push-constant slots (which silently sent longer
+            // outlined paths back to the software rasterizer).
+            uint run_count = dashed_path.words[0];
+            uint fill_cursor = 1u + run_count;
+            for (uint run = 0u; run < run_count; ++run)
+                fill_cursor += dashed_path.words[1u + run] * 2u;
+            uint contour_count = dashed_path.words[fill_cursor++];
             bool inside = false;
-            int fill_count = clamp(int(params.shape.z + 0.5), 3, 8);
-            for (int i = 0, j = fill_count - 1; i < fill_count; j = i++) {
-                vec2 a = params.vertices[i];
-                vec2 b = params.vertices[j];
-                bool crosses = ((a.y > p.y) != (b.y > p.y)) &&
-                    (p.x < (b.x - a.x) * (p.y - a.y) /
-                        (b.y - a.y) + a.x);
-                if (crosses) inside = !inside;
+            for (uint contour = 0u; contour < contour_count; ++contour) {
+                uint vertex_count = dashed_path.words[fill_cursor++];
+                if (vertex_count >= 3u) {
+                    for (uint i = 0u, j = vertex_count - 1u; i < vertex_count; j = i++) {
+                        vec2 a = vec2(uintBitsToFloat(dashed_path.words[fill_cursor + i * 2u]),
+                                      uintBitsToFloat(dashed_path.words[fill_cursor + i * 2u + 1u]));
+                        vec2 b = vec2(uintBitsToFloat(dashed_path.words[fill_cursor + j * 2u]),
+                                      uintBitsToFloat(dashed_path.words[fill_cursor + j * 2u + 1u]));
+                        if (((a.y > p.y) != (b.y > p.y)) &&
+                            (p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x))
+                            inside = !inside;
+                    }
+                }
+                fill_cursor += vertex_count * 2u;
             }
             if (inside) return;
         }
@@ -354,6 +372,55 @@ void main() {
         return;
     }
 
+    if (params.shape.x > 9.5 && params.shape.x < 10.5) {
+        // ── Storage-buffer even-odd polygon with analytic AA ──────────
+        // binding 4 carries {contour_count, then per contour: vertex_count,
+        // x0, y0, x1, y1, ...} as float bit patterns, so authored territory
+        // rings are no longer limited to the eight push-constant vertices and
+        // a plate with islands stays one path. Contours are walked separately:
+        // closing the whole vertex stream instead would add phantom edges
+        // between rings and flip the parity of the area they cross.
+        uint contour_count = dashed_path.words[0];
+        uint cursor = 1u;
+        bool inside = false;
+        float nearest = 1.0e30;
+        for (uint contour = 0u; contour < contour_count; ++contour) {
+            uint vertex_count = dashed_path.words[cursor++];
+            if (vertex_count >= 3u) {
+                for (uint i = 0u, j = vertex_count - 1u; i < vertex_count; j = i++) {
+                    vec2 a = vec2(uintBitsToFloat(dashed_path.words[cursor + i * 2u]),
+                                  uintBitsToFloat(dashed_path.words[cursor + i * 2u + 1u]));
+                    vec2 b = vec2(uintBitsToFloat(dashed_path.words[cursor + j * 2u]),
+                                  uintBitsToFloat(dashed_path.words[cursor + j * 2u + 1u]));
+                    if (((a.y > p.y) != (b.y > p.y)) &&
+                        (p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x))
+                        inside = !inside;
+                    vec2 delta = b - a;
+                    float length_squared = dot(delta, delta);
+                    float t = length_squared > 1.0e-12
+                        ? clamp(dot(p - a, delta) / length_squared, 0.0, 1.0) : 0.0;
+                    nearest = min(nearest, distance(p, a + delta * t));
+                }
+            }
+            cursor += vertex_count * 2u;
+        }
+        if (nearest > 1.0e29) return;
+        float coverage;
+        if (params.shape.y <= 0.0) {
+            // Binary coverage: the stroked-path interior has to match the CPU
+            // rasterizer, which fills it without an anti-aliased edge (the
+            // stroke paints that band anyway).
+            coverage = inside ? 1.0 : 0.0;
+        } else {
+            float signed_distance = inside ? nearest : -nearest;
+            coverage = clamp(signed_distance / params.shape.y + 0.5, 0.0, 1.0);
+        }
+        if (coverage <= 0.0) return;
+        vec4 source = params.color * coverage;
+        vec4 destination = imageLoad(dst_image, pixel);
+        imageStore(dst_image, pixel, source + destination * (1.0 - source.a));
+        return;
+    }
     if (params.shape.x > 4.5) {
         // ── Analytic grid background (software-kernel replica) ────────
         // Evaluates the same per-pixel feather weights as the CPU

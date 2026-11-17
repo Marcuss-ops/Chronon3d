@@ -252,6 +252,8 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
     video->add_option("--encode-preset,--preset", args.video_settings.encode_preset, "Encoder preset");
     video->add_option("--tune", args.video_settings.tune, "Encoder tune");
     video->add_option("--hardware", args.video_settings.hardware_encoder, "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf");
+    video->add_option("--encoder-profile", args.video_settings.encoder_profile,
+                      "Certified encoder profile (canonical_x264: libx264 1920x1080 24fps CRF23, avcC verified)");
     video->add_flag("--keep-frames", args.video_settings.keep_frames, "Keep temporary PNG frames");
     video->add_option("--frames-dir", args.video_settings.frames_dir, "Override temporary frames directory");
     video->add_option("--chunks", args.video_settings.chunks, "Render frame range in N chunks")->check(CLI::Range(1, 1024));
@@ -480,6 +482,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             if (explicit_flag("--encoder-backend") || !strict_gpu_hot_path)
                 request.output.encoder_backend =
                     render_args.video_settings.encoder_backend;
+            request.output.encoder_profile =
+                render_args.video_settings.encoder_profile;
             request.output.ffmpeg_mode = render_args.video_settings.ffmpeg_mode;
             request.output.gpu_hot_path_mode =
                 std::string(chronon3d::to_string(render_args.gpu_hot_path_mode));

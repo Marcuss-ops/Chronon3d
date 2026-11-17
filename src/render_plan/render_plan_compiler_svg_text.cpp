@@ -79,7 +79,7 @@ std::optional<PlanDecodeError> append_merged_svg_text_layers(
             continue;
         }
         auto combined = pending_svg_text_layers[begin];
-        const float first_run_width = combined.second.size[0];
+        const float first_run_advance = pending_svg_text_metrics[begin].advance;
         combined.second.text_spans.clear();
         std::string text;
         float pen = 0.0f;
@@ -132,11 +132,10 @@ std::optional<PlanDecodeError> append_merged_svg_text_layers(
         combined.first.text = text;
         combined.second.text = std::move(text);
         combined.second.size[0] = std::max(1.0f, std::max(pen, ink_right) + 1.0f);
-        // The combined layer inherits the first run's centre; move it to the
-        // centre of the merged text box instead of leaving it anchored on the
-        // first run.
-        combined.second.position[0] +=
-            (combined.second.size[0] - first_run_width) * 0.5f;
+        // Keep the merged layer's text origin: the first layer is positioned
+        // from its own advance, while the merged box is wider. Using the box
+        // size delta here (which includes per-run padding) shifted the glyphs.
+        combined.second.position[0] += (pen - first_run_advance) * 0.5f;
         shaped_text_layers.push_back(std::move(combined));
         begin = end;
     }

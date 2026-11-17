@@ -468,14 +468,28 @@ public:
         const Vec4& line, const Color&,
         const std::array<Vec2, 8>& vertices = {},
         std::span<const std::uint32_t> mask_words = {});
+    /// Stroke runs plus the closed fill polygon that clips the stroke to its
+    /// outside (`fill_contours` holds each ring's vertex count; an empty list
+    /// means one ring, and fewer than three fill vertices means no fill).
     graph::RenderOpResult fill_dashed_path_surface(
         runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
         std::int32_t, std::int32_t, float, const Color&,
         std::span<const Vec2>, std::span<const std::uint32_t>,
-        bool, std::uint32_t, const std::array<Vec2, 8>&,
+        std::span<const Vec2>, std::span<const std::uint32_t>,
         bool round_cap = false);
     graph::RenderOpResult fill_path_surface(
         runtime::RenderSurfaceHandle, std::span<const Vec2>, const Color&);
+    /// Native even-odd polygon fill over the half-open destination rectangle
+    /// [x0,x1) x [y0,y1), with an analytic coverage ramp of `ramp` pixels.
+    /// Vertices travel through the path geometry storage buffer, so the fill
+    /// is not limited to the eight push-constant vertices and never needs an
+    /// intermediate tessellation (no interior seams on opaque plates).
+    /// `contours` carries the vertex count of each closed ring so islands and
+    /// cut-outs fill in the same dispatch; an empty list means one ring.
+    graph::RenderOpResult fill_polygon_surface(
+        runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
+        std::int32_t, std::int32_t, std::span<const Vec2>,
+        std::span<const std::uint32_t>, const Color&, float ramp = 1.0f);
     /// Native analytic grid background fill over the half-open destination
     /// rectangle [x0,x1) x [y0,y1). Mirrors the software
     /// render_grid_background_kernel per-pixel feather and blend semantics.

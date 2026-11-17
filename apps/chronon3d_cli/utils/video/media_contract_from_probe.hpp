@@ -40,6 +40,7 @@ namespace chronon3d::cli {
                 ++video_streams;
                 if (video_streams > 1) break;  // first video stream is the contract
                 media.codec = stream.codec;
+                media.codec_config_sha256 = stream.codec_config_sha256;
                 media.pixel_format = stream.pixel_format;
                 media.width = stream.width;
                 media.height = stream.height;

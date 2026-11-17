@@ -3,6 +3,7 @@
 #include "ffmpeg_profile_constants.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/media/video/canonical_x264.hpp>
 #include <chronon3d/media/video/keyframe_cadence.hpp>
 #include <fmt/format.h>
 #include <libavutil/mastering_display_metadata.h>
@@ -105,6 +106,9 @@ bool NativeAvEncoder::wire_container(const std::string& filename) {
                 .output_path = filename,
                 .video_codec = codec_,
                 .audio = audio_config,
+                .video_time_base = options_.encoder_profile.empty()
+                    ? AVRational{0, 1}
+                    : AVRational{1, media::video::kCanonicalX264VideoTimescale},
                 .fragmented_mp4 = options_.fragmented_mp4}, mux_reason)) {
             spdlog::error("[native_av] mux session open failed: {}", mux_reason);
             return false;

@@ -31,6 +31,10 @@ struct EncoderOptions {
     /// Video codec identifier (e.g. "auto", "libx264", "libx265", "mpeg4").
     std::string codec{"auto"};
 
+    /// Optional certified encoder profile ("canonical_x264"). It implies the
+    /// complete recipe; the sink verifies the emitted avcC and fails closed.
+    std::string encoder_profile;
+
     /// Hardware encoder backend ("none", "nvenc", "qsv", "videotoolbox", "amf").
     std::string hardware_encoder{"none"};
 

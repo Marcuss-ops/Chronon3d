@@ -13,6 +13,21 @@ scena resta una composizione di verifica, non una composizione di produzione
 approvata; la certificazione same-SHA/CI e la shadow quality di produzione
 restano aperte. T05 resta **PARTIAL — OPEN**.
 
+### Verifica 2026-11-16 — lane locale RTX A4000
+
+Le regressioni mirate passano sul codice corrente: `chronon3d_shadow_map_tests`
+5/5 casi (66 assertion, di cui 51 sulla fixture Vulkan PCF), `Spot light` /
+`Shadow` / `ShadowSettings` 18/18 casi (47 assertion), `ShadowNode` nel render
+graph 9/9 casi (36 assertion) e i test registry Vulkan su quattro spot, lighting
+nativo e `ShadowNode` 8/8 casi (188 assertion). L'evidenza shadow-map è stata
+rigenerata `PASS` (edge error 0 px, PCF addolcito, bias senza acne, delta CPU/GPU
+0) in `docs/evidence/ae-shadow-map-20261106/report.json`.
+
+Questo certifica il backend e il dispatch nativo su fixture, non la qualità su
+una composizione di produzione approvata: il depth pass in light space non è
+ancora consumato dal render graph, la review qualità e la CI same-SHA restano
+aperte. T05 resta **PARTIAL — OPEN**.
+
 ### Aggiornamento 2026-11-06 — falloff AE
 
 Il falloff point AE Inverse Square Clamped è ora una modalità esplicita di

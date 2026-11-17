@@ -1,13 +1,73 @@
 # TICKET-SVG-RENDER-PLAN — Resolve SVG assets into shape plans
 
 ## Stato
-SOFTWARE PARITY COMPLETE for the bounded SVG importer contract below. The
-software lane supports nested animated transform/opacity scopes, isolated group
-compositing, per-element clip/mask scopes, styled text chunks, local text
-gradients and patterns, strokes, textPath, and transformed text coordinates.
-Strict-native Vulkan hardware certification remains with the user. Arbitrary
-filter graphs and browser-complete SMIL timing are outside this bounded
-importer contract.
+**PARTIAL — 2026-11-16 (lane CLI software chiusa).** Gli otto gate raw di testo
+e i sei gate path/motion passano sulla CLI Release con SVG ON; il loader resta
+59/59. La materializzazione di `imported_subpaths` e il sampling per-frame degli
+operatori sono cablati nella lane CLI. Resta la certificazione strict-native
+Vulkan (hardware/CI); fuori contratto arbitrary filter graphs e SMIL completo.
+Dettaglio nella scheda figlia
+[TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
+
+## Verifica locale 2026-11-16 — lane SVG abilitata
+
+La lane Release era configurata con `CHRONON3D_ENABLE_SVG=OFF`, quindi la suite
+SVG non veniva nemmeno compilata. Ricostruita con `CHRONON3D_ENABLE_SVG=ON` e
+`-j4` (356/356 target, exit 0), la regressione importer passa:
+
+```text
+chronon3d_svg_path_loader_tests: 59/59 casi, 487/487 assertion, exit 0
+```
+
+Sono coperti loader, geometria, gradienti/pattern, gruppi isolati, chunk di
+testo, `textLength` annidato, `rotate` diretto, `textPath` e la diagnostica
+tipizzata per il writing-mode verticale. Questo conferma l'accettazione locale
+del contratto software; non sostituisce il gate raw-pixel completo né la CI
+clean-SHA, che restano aperti. I residui di `TICKET-SVG-TEXT-PARITY-REMAINING`
+(rotate continuo attraverso `<tspan>` annidati, `textLength` su `textPath`)
+restano lavoro di feature separato e non sono necessari al contratto bounded
+di questo ticket.
+
+## Gate raw 2026-11-16 — testo e path/motion PASS
+
+La regressione paint-only dei chunk di testo SVG introdotta il 2026-11-13 è
+stata corretta in `render_plan_compiler_svg_text.cpp`: il layer merged usa ora
+l'advance del primo run (`pen - first_run_advance`) e non il delta della size
+del box, che includeva il padding per-run e spostava i glifi. Il gate raw
+riporta 0 pixel alpha diversi (tolleranza 16) e un render byte-identico sul
+repeat.
+
+Otto gate raw di testo passano sulla CLI Release con SVG ON:
+
+```text
+check_svg_text_baseline_raw_gate.py              PASS
+check_svg_text_chunk_raw_gate.py                 PASS (0 px alpha diff)
+check_svg_text_gradient_raw_gate.py              PASS
+check_svg_text_path_coordinates_raw_gate.py      PASS
+check_svg_text_pattern_raw_gate.py               PASS
+check_svg_text_spacing_raw_gate.py               PASS
+check_svg_text_stroke_raw_gate.py                PASS
+check_svg_motion_showcase_determinism.py         PASS
+```
+
+I sei gate path/motion ora **PASS** sulla CLI Release con SVG ON:
+`check_svg_group_isolation_gate.py` 10/10, `check_svg_cli_frame_gate.py` con
+hash endpoint distinti, `check_svg_composite_showcase_gate.py` 31/31 frame
+deterministici, `check_svg_motion_animations_gate.py` 17/17,
+`check_svg_static_composite_raw_gate.py` 132 px e
+`check_svg_trim_sampled_raw_gate.py` `[0,0,67,96,96]` con repeat byte-identico.
+Nessun gate, fixture o tolleranza è stato modificato.
+
+Root cause risolta, due gap dello stesso lane:
+
+1. Il case `ShapeContentTypePlan::Path` in `scene_materializer.cpp` ora
+   materializza `imported_subpaths`, inclusi fill/stroke, gruppi, maschere,
+   trasformazioni SVG e operatori path.
+2. La lane CLI ricompila il piano per frame con il `FrameContext` corrente e
+   campiona operatori e animazioni SVG; il video non ripete più il frame 0.
+
+Dettaglio, misure e comandi in
+[TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
@@ -863,7 +923,7 @@ spacing, 274 px with word spacing, 353 px for `textLength=360 spacing`, and
 byte. SVG loader tests pass (47 cases, 365 assertions), as do the styled text
 chunk, baseline, textPath coordinate, and bounded pattern raw gates. These
 results close the bounded software text contract; nested text scopes remain in
-[`TICKET-SVG-TEXT-ADVANCED-SCOPES.md`](TICKET-SVG-TEXT-ADVANCED-SCOPES.md).
+[`TICKET-SVG-TEXT-PARITY-REMAINING.md`](TICKET-SVG-TEXT-PARITY-REMAINING.md).
 
 ### CPU clip-rule and gradient spread — 2026-10-25
 

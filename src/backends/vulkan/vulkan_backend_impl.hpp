@@ -711,17 +711,39 @@ struct VulkanBackend::Impl {
                           const Color& color,
                           const std::array<Vec2, 8>& vertices = {},
                           std::span<const std::uint32_t> mask_words = {});
+    /// Stroke runs plus the closed fill polygon that clips the stroke to its
+    /// outside. Both travel through the path geometry storage buffer, so a
+    /// stroked path is not capped at the eight push-constant fill vertices.
+    /// `fill_contours` holds the vertex count of each closed ring of
+    /// `fill_polygon`; an empty list means one ring, and a polygon shorter
+    /// than three vertices means the path has no fill.
     void fill_dashed_path(runtime::RenderSurfaceHandle destination,
                           std::int32_t x0, std::int32_t y0,
                           std::int32_t x1, std::int32_t y1,
                           float width, const Color& color,
                           std::span<const Vec2> points,
                           std::span<const std::uint32_t> run_lengths,
-                          bool has_fill, std::uint32_t fill_vertex_count,
-                          const std::array<Vec2, 8>& fill_vertices,
+                          std::span<const Vec2> fill_polygon,
+                          std::span<const std::uint32_t> fill_contours,
                           bool round_cap = false);
     void fill_path(runtime::RenderSurfaceHandle destination,
                    std::span<const Vec2> vertices, const Color& color);
+    /// Arbitrary-vertex even-odd polygon fill over the half-open destination
+    /// rectangle [x0,x1) x [y0,y1). Vertices travel through the path geometry
+    /// storage buffer, so authored territory rings are not capped at the
+    /// eight push-constant vertices; the analytic ramp keeps the edge
+    /// anti-aliased without tessellating the polygon into seam-prone pieces.
+    /// `contours` holds the vertex count of each closed ring of `vertices`
+    /// (an empty list means one ring covering everything): islands and holes
+    /// stay in a single dispatch while each ring keeps its own edges.
+    /// `ramp <= 0` selects binary coverage instead of the analytic edge ramp,
+    /// which is what a stroked path's interior needs to match the CPU fill.
+    void fill_polygon(runtime::RenderSurfaceHandle destination,
+                      std::int32_t x0, std::int32_t y0,
+                      std::int32_t x1, std::int32_t y1,
+                      std::span<const Vec2> vertices,
+                      std::span<const std::uint32_t> contours,
+                      const Color& color, float ramp = 1.0f);
     void fill_grid(runtime::RenderSurfaceHandle destination,
                    std::int32_t x0, std::int32_t y0,
                    std::int32_t x1, std::int32_t y1,

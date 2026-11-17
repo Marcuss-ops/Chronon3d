@@ -12,6 +12,10 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <limits>
+#include <sstream>
+#include <string>
+#include <vector>
 
 // Portability: setenv/unsetenv are POSIX-only; Windows uses _putenv_s
 // (convention: see tests/runtime/test_scheduler_determinism.cpp).  // drift-class: historical — retired path (see git history)
@@ -458,6 +462,170 @@ TEST_CASE("Vulkan dashed curves, contours and translucent strokes match software
         }
     }
     REQUIRE(backend->release_surface(handle).ok());
+}
+
+TEST_CASE("Vulkan native N-vertex path fills match the software rasterizer") {
+    // TICKET-MAP-VECTOR-FILL-NATIVE-20261116. Fill geometry travels through
+    // the path storage buffer now, so a plate past the eight push-constant
+    // vertices stays native. Stroked paths clip the stroke against their fill
+    // polygon from that same buffer, and the fill interior gets its own pass:
+    // without it a solid-stroked path drew a hollow shape, because the stroke
+    // shader returns early on interior pixels.
+    using namespace chronon3d;
+    using namespace chronon3d::backends::vulkan;
+
+    auto backend_base = make_vulkan_backend(0);
+    auto* backend = dynamic_cast<VulkanBackend*>(backend_base.get());
+    REQUIRE(backend != nullptr);
+
+    constexpr int width = 96;
+    constexpr int height = 96;
+    RenderState state;
+    state.matrix = Mat4{1.0f};
+    Camera camera;
+
+    // Twelve vertices with two radii: every edge is diagonal, so the analytic
+    // coverage ramp is exercised, and the vertex count is past the old cap.
+    RenderNode node;
+    node.shape.set_type(ShapeType::Path);
+    auto& path = node.shape.path();
+    path.fill = Fill::solid_color(Color{0.10f, 0.35f, 0.60f, 1.0f});
+    std::vector<Vec2> plate_vertices;
+    for (int i = 0; i < 12; ++i) {
+        const float angle = static_cast<float>(i) * 6.2831853f / 12.0f;
+        plate_vertices.push_back({48.0f + (32.0f * std::cos(angle)),
+                                  48.0f + (26.0f * std::sin(angle))});
+    }
+    auto add_plate_commands = [&path, &plate_vertices] {
+        path.commands.push_back(PathCommand::move_to(plate_vertices.front()));
+        for (std::size_t i = 1; i < plate_vertices.size(); ++i)
+            path.commands.push_back(PathCommand::line_to(plate_vertices[i]));
+        path.commands.push_back(PathCommand::close());
+    };
+    add_plate_commands();
+    REQUIRE(plate_vertices.size() == 12);
+
+    // The compute fill smooths its edge over a one-pixel analytic ramp, the
+    // CPU rasterizer integrates exact pixel area, and a stroked path's interior
+    // uses binary coverage (the stroke covers its seam). The stroke itself may
+    // fill a vertex join corner the software path leaves empty. All three agree
+    // on geometry, so the comparison is exact outside a band that contains the
+    // outline and the outer half of the stroke, and coverage is compared across
+    // the whole fixture to catch a fill that is missing or misplaced.
+    const auto distance_to_outline = [&plate_vertices](float x, float y) {
+        float best = std::numeric_limits<float>::infinity();
+        for (std::size_t i = 0; i < plate_vertices.size(); ++i) {
+            const Vec2 a = plate_vertices[i];
+            const Vec2 b = plate_vertices[(i + 1U) % plate_vertices.size()];
+            const Vec2 ab = b - a;
+            const float length_sq = ab.x * ab.x + ab.y * ab.y;
+            const float t = length_sq <= 1e-9f ? 0.0f : std::clamp(
+                (((x - a.x) * ab.x) + ((y - a.y) * ab.y)) / length_sq, 0.0f, 1.0f);
+            const float dx = x - (a.x + (t * ab.x));
+            const float dy = y - (a.y + (t * ab.y));
+            best = std::min(best, std::sqrt((dx * dx) + (dy * dy)));
+        }
+        return best;
+    };
+
+    struct StrokeCase {
+        const char* name;
+        bool enabled;
+        float width;
+        std::vector<float> dash_array;
+    };
+    const std::array<StrokeCase, 3> cases{{
+        {"fill only", false, 0.0f, {}},
+        {"fill plus solid stroke", true, 5.0f, {}},
+        {"fill plus dashed stroke", true, 4.0f, {9.0f, 4.0f}},
+    }};
+
+    std::uint32_t handle_seed = 0xC3D200u;
+    for (const auto& stroke_case : cases) {
+        INFO("case=" << std::string(stroke_case.name));
+        node.shape.path().stroke.enabled = stroke_case.enabled;
+        node.shape.path().stroke.width = stroke_case.width;
+        node.shape.path().stroke.color = Color{0.90f, 0.70f, 0.20f, 1.0f};
+        node.shape.path().stroke.dash_array = stroke_case.dash_array;
+
+        const runtime::RenderSurfaceHandle handle = handle_seed++;
+        const auto desc = runtime::SurfaceDesc::make(
+            width, height, runtime::PixelFormat::Rgba32Float,
+            runtime::ResourceUsage::Generic,
+            runtime::LifetimeClass::FrameTransient,
+            runtime::ColorMetadata{});
+        REQUIRE(backend->create_surface(handle, desc).ok());
+        REQUIRE(backend->initialize_transparent_surface(handle).ok());
+        Framebuffer gpu(width, height);
+        gpu.set_surface_handle(handle);
+
+        Framebuffer oracle(width, height);
+        renderer::PathRasterizer::draw_path(oracle, node, state, camera, width, height);
+        backend->begin_frame_batch();
+        const auto draw = backend->draw_node(gpu, node, state, camera, width, height);
+        backend->end_frame_batch();
+        REQUIRE(draw.ok());
+
+        std::vector<float> rgba(static_cast<std::size_t>(width) * height * 4U);
+        REQUIRE(backend->download_surface(handle, rgba).ok());
+        std::size_t mismatches = 0;
+        std::size_t compared = 0;
+        double gpu_total = 0.0;
+        double software_total = 0.0;
+        double gpu_edge = 0.0;
+        double software_edge = 0.0;
+        const float edge_band = stroke_case.enabled
+            ? (stroke_case.width * 0.5f) + 1.0f : 1.5f;
+        std::string first_mismatch;
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                const Color expected = oracle.get_pixel(x, y);
+                const auto index = (static_cast<std::size_t>(y) * width + x) * 4U;
+                const bool interior =
+                    distance_to_outline(static_cast<float>(x) + 0.5f,
+                                        static_cast<float>(y) + 0.5f) >= edge_band;
+                gpu_total += rgba[index + 3];
+                software_total += expected.a;
+                if (!interior) {
+                    gpu_edge += rgba[index + 3];
+                    software_edge += expected.a;
+                    continue;
+                }
+                ++compared;
+                const bool matches =
+                    std::abs(rgba[index] - expected.r) <= 1e-4f &&
+                    std::abs(rgba[index + 1] - expected.g) <= 1e-4f &&
+                    std::abs(rgba[index + 2] - expected.b) <= 1e-4f &&
+                    std::abs(rgba[index + 3] - expected.a) <= 1e-4f;
+                if (matches) continue;
+                if (mismatches < 3) {
+                    std::ostringstream line;
+                    line << "pixel (" << x << ", " << y << ") gpu=("
+                         << rgba[index] << ", " << rgba[index + 1] << ", "
+                         << rgba[index + 2] << ", " << rgba[index + 3]
+                         << ") software=(" << expected.r << ", " << expected.g
+                         << ", " << expected.b << ", " << expected.a << ") | ";
+                    first_mismatch += line.str();
+                }
+                ++mismatches;
+            }
+        }
+        INFO("case=" << std::string(stroke_case.name)
+                      << " interior pixels compared: " << compared
+                      << " mismatched: " << mismatches << " " << first_mismatch);
+        CHECK(compared > 4000);
+        CHECK(mismatches == 0);
+        // Edge coverage may use a different kernel, but it must not trade area:
+        // a misplaced, missing or doubled fill moves these sums far more.
+        INFO("case=" << std::string(stroke_case.name)
+                      << " coverage gpu=" << gpu_total << " software=" << software_total
+                      << " edge gpu=" << gpu_edge << " software=" << software_edge);
+        REQUIRE(software_total > 1000.0);
+        REQUIRE(software_edge > 100.0);
+        CHECK(std::abs(gpu_total - software_total) / software_total < 0.005);
+        CHECK(std::abs(gpu_edge - software_edge) / software_edge < 0.05);
+        REQUIRE(backend->release_surface(handle).ok());
+    }
 }
 
 TEST_CASE("Vulkan stroke-only path with round caps draws through draw_node") {

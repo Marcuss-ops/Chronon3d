@@ -54,6 +54,7 @@ constexpr std::string_view kRenderJobRootKeys[] = {
     "trace_output", "trace_level", "receipt_verify",
     "range_enabled", "first_frame", "last_frame", "parallel_disjoint",
     "codec", "hardware_encoder", "hardware", "encoder_backend",
+    "encoder_profile",
     "ffmpeg_mode", "gpu_hot_path_mode", "encode_preset", "rate_control_mode",
     "crf", "qp", "bitrate", "audio_source_path",
     "audio_target_sample_rate", "gop_copy_only", "fragmented_mp4", "changed_intervals",
@@ -63,7 +64,8 @@ constexpr std::string_view kRenderJobRootKeys[] = {
 
 constexpr std::string_view kRenderJobOutputSpecKeys[] = {
     "codec", "width", "height", "fps_num", "fps_den", "pipe_pixfmt",
-    "hardware_encoder", "encoder_backend", "gpu_hot_path_mode",
+    "hardware_encoder", "encoder_backend", "encoder_profile",
+    "gpu_hot_path_mode",
     "encode_preset", "rate_control_mode", "crf", "qp", "bitrate",
     "audio_target_sample_rate", "fragmented_mp4", "changed_intervals", "ffmpeg_mode",
     "output_segments",
@@ -333,6 +335,7 @@ DecodedRenderJobPayload decode_render_job_payload(
             request.value("hardware", ""));
     }
     out.encoder_backend = spec_or_root(request, "encoder_backend");
+    out.encoder_profile = spec_or_root(request, "encoder_profile");
     out.ffmpeg_mode = spec_or_root(request, "ffmpeg_mode");
     out.gpu_hot_path_mode = spec_or_root(request, "gpu_hot_path_mode");
     out.encode_preset = spec_or_root(request, "encode_preset");

@@ -111,6 +111,12 @@ std::optional<PlanDecodeError> expand_lottie_assets(
             return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.lottie",
                 "Lottie asset could not be resolved within the mounted asset root",
                 "lottie_asset_unresolved", "render-plan-lottie"};
+        // A plan layer without an explicit window plays for the whole canvas.
+        // Lottie documents may omit `op`; without this default the expansion
+        // clamps the imported layer to a single composition frame and its
+        // RenderPlan-level operator tracks (repeater/trim) never animate.
+        if (!layer.duration_frames)
+            layer.duration_frames = plan.canvas.duration;
         std::vector<LayerPlan> expanded;
         auto lowered = expand_static_lottie(layer, *resolved, expanded);
         if (lowered)

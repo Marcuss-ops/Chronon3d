@@ -39,7 +39,7 @@ void append_path_shape(chronon3d::LayerBuilder& builder,
         builder.animated_path_operators();
     }
     if (!shape.imported_subpaths.empty()) {
-        append_imported_svg_paths(builder, plan, ctx, shape, base_color);
+        append_imported_svg_paths(builder, plan.canvas.fps, ctx, shape, base_color);
         return;
     }
         PathParams params;

@@ -5,7 +5,9 @@ endif()
 chronon3d_add_test_suite(
     NAME chronon3d_compiler_boundary_tests
     TIER UNIT
-    SOURCES compiler/test_compiler_boundary.cpp
+    SOURCES
+        compiler/test_compiler_boundary.cpp
+        compiler/test_lowering_style_glow.cpp
 )
 
 add_test(

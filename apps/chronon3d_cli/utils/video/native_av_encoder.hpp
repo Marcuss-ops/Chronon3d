@@ -212,6 +212,13 @@ public:
     /// The capability is refused on DirectYUV sessions (typed feed) and on
     /// borrowed-mux sessions (the caller's schedule owns every sample slot).
     [[nodiscard]] bool supports_duplicate_frames() const override {
+        // A certified profile is an exact byte identity, cadence included.
+        // Static-run packet replication would replace every frame of a fully
+        // static plan with the run anchor's IDR (measured on the 49-frame E2E:
+        // 49 identical 1326-byte key packets, no stss, every frame I), which
+        // destroys the certified 48-frame closed GOP. The canonical lane must
+        // therefore encode every frame.
+        if (!options_.encoder_profile.empty()) return false;
         return !options_.direct_yuv_mode;
     }
     /// Emit frame `frame_number` as a packet-level duplicate (see the

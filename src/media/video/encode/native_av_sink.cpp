@@ -1,19 +1,24 @@
 #include "native_av_sink.hpp"
 
+#include <chronon3d/media/video/canonical_x264.hpp>
 #include <chronon3d/media/video/keyframe_cadence.hpp>
 #include <chronon3d/media/video/packet_assembler.hpp>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/error.h>
+#include <libavutil/hash.h>
 #include <libavutil/opt.h>
 #include <libswscale/swscale.h>
 }
@@ -23,8 +28,86 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
+using Clock = std::chrono::steady_clock;
+
 [[nodiscard]] double elapsed_ms(Clock::time_point start) noexcept {
     return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+}
+
+// The lane is an exact profile, so a request that asks for a different
+// identity is rejected instead of being silently re-tuned. Keeping this
+// check next to the constants makes the promise and its enforcement one
+// unit.
+[[nodiscard]] bool validate_canonical_lane(const VideoSinkConfig& config,
+                                           std::string& reason) {
+    if (config.output.container != VideoContainer::Mp4) {
+        reason = "canonical x264 lane requires the MP4 container";
+        return false;
+    }
+    if (config.encoder.codec != VideoCodec::Auto &&
+        config.encoder.codec != VideoCodec::H264) {
+        reason = "canonical x264 lane requires codec H264 (libx264)";
+        return false;
+    }
+    if (config.stream.width != kCanonicalX264Width ||
+        config.stream.height != kCanonicalX264Height) {
+        reason = "canonical x264 lane certifies only 1920x1080, got " +
+                 std::to_string(config.stream.width) + "x" +
+                 std::to_string(config.stream.height);
+        return false;
+    }
+    if (config.stream.frame_rate_num * kCanonicalX264FPSDen !=
+        kCanonicalX264FPSNum * config.stream.frame_rate_den) {
+        reason = "canonical x264 lane certifies only 24/1 fps";
+        return false;
+    }
+    if (config.encoder.rate_control_mode != RateControlMode::Crf ||
+        config.encoder.qp >= 0 || config.encoder.bitrate > 0) {
+        reason = "canonical x264 lane is CRF-only";
+        return false;
+    }
+    if (config.encoder.crf >= 0 && config.encoder.crf != kCanonicalX264Crf) {
+        reason = "canonical x264 lane pins CRF 23, got " +
+                 std::to_string(config.encoder.crf);
+        return false;
+    }
+    if (!config.encoder.preset.empty() &&
+        config.encoder.preset != kCanonicalX264Preset) {
+        reason = "canonical x264 lane pins preset " +
+                 std::string(kCanonicalX264Preset) + ", got " +
+                 config.encoder.preset;
+        return false;
+    }
+    if (config.encoder.tune.has_value() && !config.encoder.tune->empty()) {
+        reason = "canonical x264 lane does not accept a tune override";
+        return false;
+    }
+    if (config.encoder.encoded_pixel_format != PixelFormat::YUV420P) {
+        reason = "canonical x264 lane pins yuv420p";
+        return false;
+    }
+    return true;
+}
+
+[[nodiscard]] bool verify_canonical_extradata(const AVCodecContext* codec,
+                                              std::string& reason) {
+    if (codec == nullptr) {
+        reason = "canonical x264 lane: no encoder context";
+        return false;
+    }
+    const auto check = canonical_x264_verify_extradata(
+        codec->extradata, codec->extradata_size);
+    if (!check.ok) {
+        reason = check.reason;
+        return false;
+    }
+    if (codec->gop_size != kCanonicalX264Gop ||
+        codec->max_b_frames != 0 || codec->refs != 1) {
+        reason = "canonical x264 lane: emitted GOP/B-frame/reference shape "
+                 "is not the certified one";
+        return false;
+    }
+    return true;
 }
 
 [[nodiscard]] std::string ffmpeg_error(int code) {
@@ -177,6 +260,13 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     if (!validation) {
         return fail(VideoSinkError::InvalidConfig, validation.error_message);
     }
+    const bool canonical = config.encoder.canonical_x264;
+    if (canonical) {
+        std::string lane_reason;
+        if (!validate_canonical_lane(config, lane_reason)) {
+            return fail(VideoSinkError::InvalidConfig, lane_reason);
+        }
+    }
     if (!config.output.overwrite && std::filesystem::exists(config.output.output_path)) {
         return fail(VideoSinkError::FileExists,
                     "output exists and overwrite is disabled: " +
@@ -239,9 +329,17 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     // with the CLI encoder path. Deriving the GOP from the frame rate alone
     // emitted one keyframe per second and the output-contract gateway rejected
     // the artifact (GOP 24 != 48).
-    codec_->gop_size = keyframe_interval_frames(config.stream.frame_rate_num,
-                                                config.stream.frame_rate_den);
+    codec_->gop_size = canonical
+        ? kCanonicalX264Gop
+        : keyframe_interval_frames(config.stream.frame_rate_num,
+                                   config.stream.frame_rate_den);
     codec_->max_b_frames = 0;
+    if (canonical) {
+        // Requested 48: x264 clamps min-keyint to keyint/2 + 1 (25), exactly
+        // as the certified FFmpeg recipe does. The cadence still comes from
+        // keyint=48 + scenecut=0, and the avcC hash is the byte oracle.
+        codec_->keyint_min = kCanonicalX264MinKeyint;
+    }
     if (resolved_codec == VideoCodec::H264 || resolved_codec == VideoCodec::H264Nvenc) {
         // Copy-assembled Velox clips use a single-reference, closed-GOP H.264
         // parameter set. The canonical avcC is a BYTE identity: profile, level,
@@ -259,10 +357,18 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
         codec_->refs = 1;
         codec_->sample_aspect_ratio = AVRational{1, 1};
         codec_->flags |= AV_CODEC_FLAG_CLOSED_GOP;
+        if (canonical) {
+            // Write the parameter sets as avcC extradata so they are both
+            // certifiable at open (below) and carried verbatim into the MP4.
+            codec_->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+        }
     }
-    codec_->pix_fmt = resolved_codec == VideoCodec::Gif
-        ? AV_PIX_FMT_PAL8
-        : choose_encoder_pixel_format(encoder, config.encoder.encoded_pixel_format);
+    codec_->pix_fmt = canonical
+        ? AV_PIX_FMT_YUV420P
+        : (resolved_codec == VideoCodec::Gif
+               ? AV_PIX_FMT_PAL8
+               : choose_encoder_pixel_format(
+                     encoder, config.encoder.encoded_pixel_format));
     if (codec_->pix_fmt == AV_PIX_FMT_NONE) {
         return fail(VideoSinkError::InvalidConfig,
                     "no supported encoder pixel format for requested output");
@@ -284,7 +390,17 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     }
 
     AVDictionary* codec_options = nullptr;
-    if (resolved_codec != VideoCodec::Gif && !config.encoder.preset.empty()) {
+    if (canonical) {
+        // The canonical lane is exact: these options plus the context fields
+        // above are the whole recipe. Do not add tune/bitrate overrides.
+        av_dict_set(&codec_options, "preset",
+                    std::string(kCanonicalX264Preset).c_str(), 0);
+        av_dict_set(&codec_options, "crf",
+                    std::to_string(kCanonicalX264Crf).c_str(), 0);
+        av_dict_set(&codec_options, "x264-params",
+                    std::string(kCanonicalX264Params).c_str(), 0);
+    } else if (resolved_codec != VideoCodec::Gif &&
+               !config.encoder.preset.empty()) {
         av_dict_set(&codec_options, "preset", config.encoder.preset.c_str(), 0);
     }
     if (resolved_codec == VideoCodec::H264Nvenc) {
@@ -293,10 +409,12 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
         // the former instead of accepting NVENC's default (0).
         av_dict_set(&codec_options, "weighted_pred", "1", 0);
     }
-    if (resolved_codec != VideoCodec::Gif && config.encoder.tune && !config.encoder.tune->empty()) {
+    if (!canonical && resolved_codec != VideoCodec::Gif && config.encoder.tune &&
+        !config.encoder.tune->empty()) {
         av_dict_set(&codec_options, "tune", config.encoder.tune->c_str(), 0);
     }
-    if (resolved_codec != VideoCodec::Gif && config.encoder.rate_control_mode == RateControlMode::Crf &&
+    if (!canonical && resolved_codec != VideoCodec::Gif &&
+        config.encoder.rate_control_mode == RateControlMode::Crf &&
         config.encoder.crf >= 0) {
         const std::string value = std::to_string(config.encoder.crf);
         av_dict_set(&codec_options,
@@ -324,11 +442,21 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     }
     av_dict_free(&codec_options);
 
+    if (canonical) {
+        std::string lane_reason;
+        if (!verify_canonical_extradata(codec_, lane_reason)) {
+            return fail(VideoSinkError::EncoderFailed, lane_reason);
+        }
+    }
+
     mux_ = std::make_unique<chronon3d::media::MuxSession>();
     std::string mux_reason;
     if (!mux_->open(chronon3d::media::MuxOpenConfig{
             .output_path = config.output.output_path.string(),
             .video_codec = codec_,
+            .video_time_base = canonical
+                ? AVRational{1, kCanonicalX264VideoTimescale}
+                : AVRational{0, 1},
             .fragmented_mp4 = config.output.fragmented_mp4}, mux_reason)) {
         return fail(VideoSinkError::WriteFailed,
                     "libavformat mux open failed: " + mux_reason);

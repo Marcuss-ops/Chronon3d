@@ -8,6 +8,7 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/core/dirty_fallback_reason.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include "../../builder/graph_builder_internal.hpp"
 #include "../../builder/graph_builder_pipeline.hpp"
@@ -18,7 +19,9 @@
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
+#include <spdlog/spdlog.h>
 
+#include <cstdlib>
 #include <utility>
 #include <vector>
 
@@ -92,6 +95,22 @@ void populate_layer_semantic_fingerprints(
     if (layer.kind == LayerKind::Video && layer.video_source) {
         state.semantic_presence |= SemanticVideoSource;
         state.video_source_hash = hash_video_source_v2(*layer.video_source);
+    }
+    // A running typewriter (or any live text animator) changes glyph state
+    // without changing the compiled shape: selectors and property keyframes
+    // live inside the shape and are sampled per glyph at draw time, so the
+    // text fingerprint above is frame-invariant. The dirty tracker therefore
+    // saw consecutive frames as identical and never re-marked the glyph area;
+    // the native NVENC lane, which only reconverts the reported dirty regions
+    // into NV12, kept the first frame's pixels there and the encoded text
+    // looked frozen until the animator settled (raw readback, which converts
+    // the whole frame, was unaffected). Fold the sampled frame into the text
+    // fingerprint for as long as the run is still animating so the layer's
+    // bbox — the full text block, every glyph included — is dirtied per frame.
+    if (SceneHasher::has_live_text_run_animation(layer, sample_time.integral_frame())) {
+        state.text_hash = hash_combine(
+            state.text_hash,
+            hash_value(static_cast<uint64_t>(sample_time.integral_frame())));
     }
     state.semantic_fingerprints_valid = true;
 }

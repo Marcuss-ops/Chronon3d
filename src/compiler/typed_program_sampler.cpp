@@ -1,4 +1,5 @@
 #include <chronon3d/compiler/typed_program_sampler.hpp>
+#include <chronon3d/compiler/scene_materializer.hpp>
 
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/render_plan/resolved_transform_samples.hpp>
@@ -101,6 +102,13 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
             case NodeKind::Shape:
                 sampled.payload = SampledShapeParameters{
                     layer.size, layer.color, layer.opacity};
+                // SVG paint/geometry/operators are baked by the frame-specific
+                // materialization; the sampler must not let pixel reuse treat
+                // this layer as static.
+                if (layer_has_time_varying_path(layer)) {
+                    sampled.time_dependent = true;
+                    sampled.dirty = true;
+                }
                 break;
             case NodeKind::Mesh:
             {

@@ -114,10 +114,11 @@ void append_path_shape(chronon3d::LayerBuilder& builder,
                        const std::optional<graphics::Field2D>& sampled_field,
                        const graphics::StrokeStyle& stroke);
 void append_imported_svg_paths(chronon3d::LayerBuilder& builder,
-                               const RenderPlan& plan,
+                               FrameRate canvas_fps,
                                const chronon3d::FrameContext& ctx,
                                const ShapeContentPlan& shape,
-                               Color base_color);
+                               Color base_color,
+                               Vec2 placement_offset = {0.0f, 0.0f});
 
 struct FollowPathEvaluators {
     std::function<chronon3d::Vec3(double)> position;

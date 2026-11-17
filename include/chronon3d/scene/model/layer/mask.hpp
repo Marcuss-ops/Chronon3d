@@ -67,6 +67,11 @@ struct Mask {
     // Additional ordered shapes are composited with the legacy primary mask.
     // Keeping the primary fields preserves source and binary-facing APIs.
     std::vector<MaskOperation> operations;
+    // Authored in absolute canvas/document coordinates (SVG root clipPath)
+    // rather than layer-local coordinates. The graph mask pass must not fold
+    // the layer translation into `pos` for these masks. Kept last so existing
+    // aggregate initializers remain valid.
+    bool canvas_space{false};
 
     [[nodiscard]] bool enabled() const { return type != MaskType::None || !operations.empty(); }
 };

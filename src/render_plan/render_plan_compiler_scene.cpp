@@ -404,6 +404,10 @@ void apply_scene_layer_masks(LayerBuilder& builder, const LayerPlan& layer, cons
         composite.expansion = primary.expansion;
         composite.opacity = primary.opacity;
         composite.inverted = primary.inverted;
+        // `layer.path_mask` is the SVG document clip/mask, authored in
+        // absolute canvas coordinates. Layer masks (`layer.masks`) stay
+        // layer-local and must keep the layer translation offset.
+        composite.canvas_space = layer.path_mask.has_value();
         const std::size_t first_additional = layer.path_mask ? 0 : 1;
         composite.operations.reserve(layer.masks.size() - first_additional);
         for (std::size_t index = first_additional; index < layer.masks.size(); ++index)

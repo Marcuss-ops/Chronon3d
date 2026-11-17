@@ -1,5 +1,8 @@
 #include <chronon3d/scene/model/shape/path_operator.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <cstdlib>
 #include <cmath>
 #include <string>
@@ -50,13 +53,80 @@ namespace {
     return view;
 }
 
+bool imported_subpath_is_time_varying(
+    const render_plan::ImportedSubpathPlan& source) {
+    if (source.fill_color_animation || source.fill_opacity_animation ||
+        source.fill_gradient_animation || source.stroke_color_animation ||
+        source.stroke_opacity_animation || source.stroke_width_animation ||
+        source.svg_opacity_animation || source.svg_translation_animation ||
+        source.svg_scale_animation || source.svg_rotation_animation ||
+        source.morph_animation || !source.svg_transform_animations.empty())
+        return true;
+    if (source.svg_group && source.svg_group->opacity_animation) return true;
+    for (const auto& group : source.svg_groups)
+        if (group.opacity_animation) return true;
+    if (source.lottie_group_transform) {
+        const auto& group = *source.lottie_group_transform;
+        if (group.position_animation || group.scale_animation ||
+            group.rotation_animation || group.opacity_animation)
+            return true;
+    }
+    return false;
+}
+
+bool imported_subpath_has_element_transform(
+    const render_plan::ImportedSubpathPlan& source) {
+    return source.svg_translation_animation || source.svg_scale_animation ||
+        source.svg_rotation_animation || !source.svg_transform_animations.empty();
+}
+
+bool shape_has_element_transform_animation(
+    const render_plan::ShapeContentPlan& shape) {
+    return std::any_of(shape.imported_subpaths.begin(),
+        shape.imported_subpaths.end(), imported_subpath_has_element_transform);
+}
+
+bool shape_has_time_varying_path(const render_plan::ShapeContentPlan& shape) {
+    for (const auto& source : shape.imported_subpaths)
+        if (imported_subpath_is_time_varying(source)) return true;
+    for (const auto& op : shape.operators)
+        if (op.trim_animation || op.morph_animation || op.repeater_animation)
+            return true;
+    return false;
+}
+
 }  // namespace
+
+bool layer_has_time_varying_path(const StaticLayerProgram& layer) {
+    if (layer.kind != NodeKind::Shape || !layer.shape) return false;
+    const auto type = layer.shape->type;
+    if (type != render_plan::ShapeContentTypePlan::Path &&
+        type != render_plan::ShapeContentTypePlan::Line &&
+        type != render_plan::ShapeContentTypePlan::MonotoneLine &&
+        type != render_plan::ShapeContentTypePlan::RingSegment)
+        return false;
+    return shape_has_time_varying_path(*layer.shape);
+}
+
+bool program_has_time_varying_paths(const CompiledProgram& program) {
+    return std::any_of(program.layers().begin(), program.layers().end(),
+        [](const StaticLayerProgram& layer) {
+            return layer_has_time_varying_path(layer);
+        });
+}
 
 chronon3d::Scene SceneMaterializer::materialize_scene(
     const CompiledProgram& program, std::pmr::memory_resource* resource,
-    FontEngine* font_engine) const {
+    FontEngine* font_engine, double frame_number) const {
     const auto& meta = program.metadata();
     const FrameRate canvas_fps{meta.fps_numerator, meta.fps_denominator};
+    const FrameContext frame_ctx = make_frame_context(FrameContextParams{
+        .global_time = SampleTime::from_frame(frame_number, canvas_fps),
+        .duration = Frame{meta.duration_frames},
+        .width = static_cast<i32>(meta.width),
+        .height = static_cast<i32>(meta.height),
+        .resource = resource,
+        .font_engine = font_engine});
     SceneBuilder scene(resource);
     if (meta.camera_2_5d) scene.set_evaluated_camera(*meta.camera_2_5d);
     if (meta.lighting_rig) {
@@ -554,6 +624,20 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                 }
                 case NodeKind::Shape: {
                     const auto shape = layer.shape.value_or(render_plan::ShapeContentPlan{});
+                    const bool time_varying_path =
+                        layer_has_time_varying_path(layer);
+                    // Time-varying imported paths keep the layer transform, so
+                    // bake half a canvas to keep document-space geometry in
+                    // document coordinates. Subpaths carrying their own SVG
+                    // element transform opt out inside
+                    // append_imported_svg_paths, because that transform already
+                    // replaces the layer transform.
+                    const Vec2 path_placement = time_varying_path
+                        ? Vec2{static_cast<float>(meta.width) * 0.5f,
+                               static_cast<float>(meta.height) * 0.5f}
+                        : Vec2{0.0f, 0.0f};
+                    if (time_varying_path)
+                        builder.animated_path_operators().cache_static(false);
                     const Vec2 size = layer.size_dimensions == 2
                         ? Vec2{layer.size[0], layer.size[1]}
                         : Vec2{static_cast<float>(meta.width), static_cast<float>(meta.height)};
@@ -797,6 +881,31 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         case render_plan::ShapeContentTypePlan::Path:
                         case render_plan::ShapeContentTypePlan::RingSegment:
                         case render_plan::ShapeContentTypePlan::MonotoneLine: {
+                            if (!shape.imported_subpaths.empty()) {
+                                // Reuse the RenderPlan SVG lowering verbatim:
+                                // per-element paint, masks, isolated groups and
+                                // path operators are sampled at `frame_number`.
+                                // Keeping one lowering is what prevents the CLI
+                                // lane from drifting from the plan lane.
+                                // A time-varying imported path is materialized
+                                // outside the cached topology, where the graph
+                                // consumes its commands in authored canvas
+                                // space. Bake the layer's authored placement
+                                // (canvas centre + centre-relative position)
+                                // into the geometry so the same plan position
+                                // reaches the raster on this lane too.
+                                // The lowered layer keeps the scene transform
+                                // (authored position minus half canvas). A
+                                // time-varying imported path is materialized
+                                // outside the cached topology, so bake the
+                                // half-canvas term that cancels that transform
+                                // and leaves the geometry in document space.
+                                const Vec2 svg_placement = path_placement;
+                                render_plan::detail::append_imported_svg_paths(
+                                    builder, canvas_fps, frame_ctx, shape,
+                                    layer_color, svg_placement);
+                                break;
+                            }
                             PathParams params;
                             params.fill.enabled = false;
                             for (const auto& command : shape.path) {
@@ -860,6 +969,38 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::WigglePath) {
                                         specs.push_back({PathOperatorKind::WigglePath,
                                             WigglePathParams{op.amount, op.frequency}, op.seed});
+                                    } else if (op.kind == render_plan::PathOperatorKindPlan::Morph) {
+                                        MorphPathParams morph;
+                                        morph.progress = op.morph_progress;
+                                        morph.target.reserve(op.morph_target.size());
+                                        for (const auto& command : op.morph_target) {
+                                            const Vec2 point{command.point[0], command.point[1]};
+                                            const Vec2 c1{command.control1[0], command.control1[1]};
+                                            const Vec2 c2{command.control2[0], command.control2[1]};
+                                            switch (command.type) {
+                                                case render_plan::ShapePathCommandTypePlan::MoveTo: morph.target.push_back(PathCommand::move_to(point)); break;
+                                                case render_plan::ShapePathCommandTypePlan::LineTo: morph.target.push_back(PathCommand::line_to(point)); break;
+                                                case render_plan::ShapePathCommandTypePlan::QuadraticTo: morph.target.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                                case render_plan::ShapePathCommandTypePlan::CubicTo: morph.target.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                                case render_plan::ShapePathCommandTypePlan::Close: morph.target.push_back(PathCommand::close()); break;
+                                            }
+                                        }
+                                        if (op.morph_animation) {
+                                            chronon3d::AnimatedValue<float> progress{op.morph_progress};
+                                            for (const auto& key : op.morph_animation->keyframes) {
+                                                if (key.value.size() != 1)
+                                                    throw std::runtime_error("morph animation keyframes require scalar progress");
+                                                progress.add_keyframe(
+                                                    key.frame, key.value.front(),
+                                                    render_plan::detail::animation_keyframe_easing(
+                                                        *op.morph_animation, key));
+                                            }
+                                            morph.progress = std::clamp(
+                                                progress.evaluate(frame_ctx.effective_frame()),
+                                                0.0f, 1.0f);
+                                        }
+                                        specs.push_back({PathOperatorKind::Morph,
+                                            std::move(morph), 0});
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::Merge ||
                                                op.kind == render_plan::PathOperatorKindPlan::BooleanUnion ||
                                                op.kind == render_plan::PathOperatorKindPlan::BooleanDifference ||
@@ -900,8 +1041,25 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                             specs.push_back({PathOperatorKind::Merge,
                                                 MergeParams{std::move(planned_paths)}, 0});
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::Trim) {
-                                        specs.push_back({PathOperatorKind::Trim,
-                                            TrimPathParams{op.trim_start, op.trim_end, op.trim_offset}, 0});
+                                        TrimPathParams trim{op.trim_start, op.trim_end, op.trim_offset};
+                                        if (op.trim_animation) {
+                                            chronon3d::AnimatedValue<float> start{op.trim_start};
+                                            chronon3d::AnimatedValue<float> end{op.trim_end};
+                                            chronon3d::AnimatedValue<float> offset{op.trim_offset};
+                                            for (const auto& key : op.trim_animation->keyframes) {
+                                                const auto easing =
+                                                    render_plan::detail::animation_keyframe_easing(
+                                                        *op.trim_animation, key);
+                                                if (!key.value.empty()) start.add_keyframe(key.frame, key.value[0], easing);
+                                                if (key.value.size() > 1) end.add_keyframe(key.frame, key.value[1], easing);
+                                                if (key.value.size() > 2) offset.add_keyframe(key.frame, key.value[2], easing);
+                                            }
+                                            const double sample_frame = frame_ctx.effective_frame();
+                                            trim.start = std::clamp(start.evaluate(sample_frame), 0.0f, 1.0f);
+                                            trim.end = std::clamp(end.evaluate(sample_frame), trim.start, 1.0f);
+                                            trim.offset = offset.evaluate(sample_frame);
+                                        }
+                                        specs.push_back({PathOperatorKind::Trim, trim, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;
@@ -911,6 +1069,25 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                         rp.rotation_degrees = repeater.rotation_degrees;
                                         rp.anchor = {repeater.anchor[0], repeater.anchor[1]};
                                         rp.opacity_decay = repeater.opacity_decay;
+                                        if (op.repeater_animation) {
+                                            chronon3d::AnimatedValue<float> px{repeater.position[0]}, py{repeater.position[1]};
+                                            chronon3d::AnimatedValue<float> sx{repeater.scale[0]}, sy{repeater.scale[1]};
+                                            chronon3d::AnimatedValue<float> rotation{repeater.rotation_degrees};
+                                            for (const auto& key : op.repeater_animation->keyframes) {
+                                                const auto easing =
+                                                    render_plan::detail::animation_keyframe_easing(
+                                                        *op.repeater_animation, key);
+                                                if (!key.value.empty()) px.add_keyframe(key.frame, key.value[0], easing);
+                                                if (key.value.size() > 1) py.add_keyframe(key.frame, key.value[1], easing);
+                                                if (key.value.size() > 2) sx.add_keyframe(key.frame, key.value[2], easing);
+                                                if (key.value.size() > 3) sy.add_keyframe(key.frame, key.value[3], easing);
+                                                if (key.value.size() > 4) rotation.add_keyframe(key.frame, key.value[4], easing);
+                                            }
+                                            const double sample_frame = frame_ctx.effective_frame();
+                                            rp.position = {px.evaluate(sample_frame), py.evaluate(sample_frame)};
+                                            rp.scale = {sx.evaluate(sample_frame), sy.evaluate(sample_frame)};
+                                            rp.rotation_degrees = rotation.evaluate(sample_frame);
+                                        }
                                         specs.push_back({PathOperatorKind::Repeater, rp, 0});
                                     }
                                 }
@@ -959,6 +1136,87 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             }
                             break;
                         }
+                    }
+                    // SVG root clip-path/mask: the RenderPlan lane lowers it
+                    // to a path mask and applies it per layer. The typed lane
+                    // must do the same or a document-wide clip silently
+                    // disappears while the SVG geometry renders unclipped.
+                    if (layer.path_mask && !layer.path_mask->path.empty()) {
+                        const auto& source = *layer.path_mask;
+                        const Vec2 mask_placement =
+                            shape_has_element_transform_animation(shape)
+                            ? Vec2{0.0f, 0.0f} : path_placement;
+                        std::vector<PathCommand> mask_commands;
+                        mask_commands.reserve(source.path.size());
+                        for (const auto& command : source.path) {
+                            const Vec2 point{command.point[0] + mask_placement.x,
+                                             command.point[1] + mask_placement.y};
+                            const Vec2 c1{command.control1[0] + mask_placement.x,
+                                          command.control1[1] + mask_placement.y};
+                            const Vec2 c2{command.control2[0] + mask_placement.x,
+                                          command.control2[1] + mask_placement.y};
+                            switch (command.type) {
+                                case render_plan::ShapePathCommandTypePlan::MoveTo: mask_commands.push_back(PathCommand::move_to(point)); break;
+                                case render_plan::ShapePathCommandTypePlan::LineTo: mask_commands.push_back(PathCommand::line_to(point)); break;
+                                case render_plan::ShapePathCommandTypePlan::QuadraticTo: mask_commands.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                case render_plan::ShapePathCommandTypePlan::CubicTo: mask_commands.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                case render_plan::ShapePathCommandTypePlan::Close: mask_commands.push_back(PathCommand::close()); break;
+                            }
+                        }
+                        Vec2 mask_center{0.0f, 0.0f};
+                        Vec2 mask_size{source.size[0], source.size[1]};
+                        if (source.type == "path" && mask_size.x == 0.0f &&
+                            mask_size.y == 0.0f) {
+                            float min_x = std::numeric_limits<float>::max();
+                            float min_y = std::numeric_limits<float>::max();
+                            float max_x = std::numeric_limits<float>::lowest();
+                            float max_y = std::numeric_limits<float>::lowest();
+                            for (const auto& command : mask_commands) {
+                                if (command.type == PathCommandType::Close) continue;
+                                const auto include = [&](Vec2 point) {
+                                    min_x = std::min(min_x, point.x);
+                                    min_y = std::min(min_y, point.y);
+                                    max_x = std::max(max_x, point.x);
+                                    max_y = std::max(max_y, point.y);
+                                };
+                                include(command.p0);
+                                if (command.type == PathCommandType::QuadraticTo ||
+                                    command.type == PathCommandType::CubicTo)
+                                    include(command.p1);
+                                if (command.type == PathCommandType::CubicTo)
+                                    include(command.p2);
+                            }
+                            mask_center = {(min_x + max_x) * 0.5f, (min_y + max_y) * 0.5f};
+                            mask_size = {max_x - min_x, max_y - min_y};
+                            for (auto& command : mask_commands) {
+                                if (command.type == PathCommandType::Close) continue;
+                                command.p0 -= mask_center;
+                                if (command.type == PathCommandType::QuadraticTo ||
+                                    command.type == PathCommandType::CubicTo)
+                                    command.p1 -= mask_center;
+                                if (command.type == PathCommandType::CubicTo)
+                                    command.p2 -= mask_center;
+                            }
+                        }
+                        Mask composite;
+                        composite.initial_mode = source.mode == "subtract"
+                            ? MaskCombineMode::Subtract
+                            : source.mode == "intersect" ? MaskCombineMode::Intersect
+                            : source.mode == "difference" ? MaskCombineMode::Difference
+                            : MaskCombineMode::Add;
+                        composite.type = MaskType::Path;
+                        composite.pos = Vec3{
+                            source.position[0] + mask_center.x + mask_placement.x,
+                            source.position[1] + mask_center.y + mask_placement.y,
+                            0.0f};
+                        composite.size = mask_size;
+                        composite.path = std::move(mask_commands);
+                        composite.canvas_space = true;
+                        composite.feather = source.feather;
+                        composite.expansion = source.expansion;
+                        composite.opacity = source.opacity;
+                        composite.inverted = source.inverted;
+                        builder.mask_composite(std::move(composite));
                     }
                     break;
                 }

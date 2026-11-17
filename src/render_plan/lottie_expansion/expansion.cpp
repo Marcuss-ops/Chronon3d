@@ -206,7 +206,12 @@ std::optional<std::string> lottie_layer_window(
     std::int64_t clip_start, std::int64_t clip_end,
     Frame& start, Frame& duration) {
     const double comp_in = composition.value("ip", 0.0);
-    const double comp_out = composition.value("op", comp_in + 1.0);
+    // A Lottie document that omits `op` has no authored playback window.
+    // Preserve the RenderPlan layer's requested clip instead of defaulting to
+    // a single frame: the canonical CLI/render-plan lane drives imported
+    // operators (for example a repeater) across the whole clip.
+    const double comp_out = composition.value("op",
+        std::max(comp_in + 1.0, static_cast<double>(clip_end)));
     const double layer_in = layer.value("ip", comp_in);
     const double layer_out = layer.value("op", comp_out);
     if (!std::isfinite(comp_in) || !std::isfinite(comp_out) ||

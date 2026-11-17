@@ -148,7 +148,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     const auto topology_key = program.fingerprint_data();
     const auto key = program.fingerprint();
     bool materialized_here = false;
-    const auto materialize = [&]()
+    const auto materialize = [&](double sample_frame)
         -> std::pair<std::shared_ptr<const Scene>, std::size_t> {
         materialized_here = true;
         const auto materialize_start = std::chrono::steady_clock::now();
@@ -160,7 +160,8 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
         try {
             auto scene = std::make_shared<const Scene>(
                 compiler::SceneMaterializer{}.materialize_scene(
-                    program, std::pmr::get_default_resource(), font_engine));
+                    program, std::pmr::get_default_resource(), font_engine,
+                    sample_frame));
             if (m_context.counters) {
                 const auto materialize_end = std::chrono::steady_clock::now();
                 const auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -189,12 +190,21 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     // one program fingerprint is materialized once instead of once per
     // pipeline. The per-pipeline cache stays as the fallback for contexts
     // that carry no shared cache (unit fixtures).
+    // SVG path paint, geometry and operators are sampled by the materializer,
+    // not by TypedProgramSampler. Their topology is therefore frame-specific
+    // and must bypass the per-program cache; caching frame 0 would freeze the
+    // animation and was the root cause of the missing SVG path/motion pixels.
+    const bool time_varying_paths =
+        compiler::program_has_time_varying_paths(program);
     std::shared_ptr<const Scene> topology;
-    if (m_context.topology_cache) {
+    if (time_varying_paths) {
+        topology = materialize(static_cast<double>(frame.integral())).first;
+    } else if (m_context.topology_cache) {
         topology = m_context.topology_cache->cache().compute_if_absent(
-            topology_key, materialize);
+            topology_key, [&] { return materialize(0.0); });
     } else {
-        topology = m_topologies.compute_if_absent(topology_key, materialize);
+        topology = m_topologies.compute_if_absent(
+            topology_key, [&] { return materialize(0.0); });
     }
     if (!materialized_here && m_context.counters) {
         m_context.counters->scene_materialize_cache_hit_count.fetch_add(

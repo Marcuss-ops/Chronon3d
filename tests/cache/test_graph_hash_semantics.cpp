@@ -211,7 +211,12 @@ TEST_CASE("Material2_5D V1 digest remains pinned across the V2 migration") {
     material.metallic = 0.7f;
     material.roughness = 0.8f;
 
-    CHECK(rendering::hash_material_2_5d(material) == 4357282160036620691ULL);
+    // Pin the legacy digest so an accidental identity change is caught. The
+    // value moved from 4357282160036620691 to 6191804638607044722 in
+    // 6d939732b, when the image bump/rim/gobo fields joined the V1 field set;
+    // test_image_lighting.cpp requires exactly those fields to move this
+    // digest, so the pin follows the extended V1 contract, not a new one.
+    CHECK(rendering::hash_material_2_5d(material) == 6191804638607044722ULL);
 }
 
 TEST_CASE("Transform V2 identity includes every rendered transform field") {

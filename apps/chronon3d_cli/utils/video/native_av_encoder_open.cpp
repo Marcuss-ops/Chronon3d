@@ -3,6 +3,7 @@
 #include "ffmpeg_profile_constants.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/media/video/canonical_x264.hpp>
 #include <chronon3d/media/video/keyframe_cadence.hpp>
 #include <fmt/format.h>
 #include <libavutil/mastering_display_metadata.h>
@@ -141,6 +142,28 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     // Skipped on session adoption: the cached codec is already open and its
     // live bitstream contract was restored in phase 3b.
     if (!codec_session_adopted_ && !open_codec_and_probe_contract()) return false;
+
+    // The certified lane verifies the bytes it is about to write, before the
+    // container is opened: a lane that emits a different SPS/PPS must fail
+    // here, not publish an artifact RenderingGen would then have to re-encode.
+    if (!options_.encoder_profile.empty()) {
+        const auto avcc = media::video::canonical_x264_verify_extradata(
+            codec_->extradata, codec_->extradata_size);
+        if (!avcc.ok) {
+            spdlog::error("[native_av] {}", avcc.reason);
+            return false;
+        }
+        if (codec_->gop_size != media::video::kCanonicalX264Gop ||
+            codec_->max_b_frames != 0 || codec_->refs != 1) {
+            spdlog::error(
+                "[native_av] canonical_x264 emitted GOP/B-frame/reference "
+                "shape is not the certified one (gop={}, bf={}, refs={})",
+                codec_->gop_size, codec_->max_b_frames, codec_->refs);
+            return false;
+        }
+        spdlog::info("[native_av] canonical_x264 avcC verified: {}",
+                     avcc.sha256);
+    }
 
     const std::string filename = options_.output_path;
 

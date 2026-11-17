@@ -1,4 +1,5 @@
 #include <chronon3d/runtime/job/render_job_request.hpp>
+#include <chronon3d/media/video/canonical_x264.hpp>
 #include <chronon3d/runtime/frame_format.hpp>  // canonical pixel-format authority
 
 #include <bit>
@@ -163,6 +164,32 @@ normalize_render_job(
     resolved.receipt_verification = request.receipt_verification;
     resolved.report = request.report;
 
+    // A certified encoder profile is an exact recipe, not a hint. An unknown
+    // name fails at this boundary instead of reaching the encoder as an
+    // ignored string (which would silently produce a non-canonical stream).
+    const std::string canonical_profile(
+        media::video::kCanonicalX264Profile);
+    if (!resolved.output.encoder_profile.empty() &&
+        resolved.output.encoder_profile != canonical_profile) {
+        return make_render_job_request_error(
+            RenderJobRequestErrorCode::InvalidEncoderProfile,
+            "output.encoder_profile must be empty or \"canonical_x264\", got \"" +
+                resolved.output.encoder_profile + "\"");
+    }
+    const bool canonical_x264 = !resolved.output.encoder_profile.empty();
+    if (canonical_x264) {
+        // The profile is the authority: the request cannot ask for the
+        // canonical avcC and a different codec/preset/rate control at once.
+        resolved.output.codec = "libx264";
+        resolved.output.hardware_encoder = "none";
+        resolved.output.encode_preset =
+            std::string(media::video::kCanonicalX264Preset);
+        resolved.output.rate_control_mode = "crf";
+        resolved.output.crf = media::video::kCanonicalX264Crf;
+        resolved.output.qp = -1;
+        resolved.output.bitrate = 0;
+    }
+
     const auto& daemon_backend = capabilities.backend;
 #if defined(CHRONON3D_ENABLE_VIDEO)
     resolved.execution = media::resolve_canonical_execution_parameters(
@@ -183,6 +210,15 @@ normalize_render_job(
     resolved.execution.gpu_hot_path_mode = "auto";
     resolved.execution.cpu_fallback_forbidden = !resolved.requirements.cpu_fallback_allowed;
 #endif
+
+    if (canonical_x264) {
+        // The resolution above sees the canonical codec/hardware, but a
+        // GPU-required request could otherwise still select NVENC. Pin the
+        // encoder family on the resolved parameters too: the lane is libx264
+        // and its avcC is verified before the muxer opens.
+        resolved.execution.codec = "libx264";
+        resolved.execution.hardware_encoder = "none";
+    }
 
     if (request.backend == "auto") resolved.backend = resolved.execution.backend;
     else resolved.backend = request.backend;
@@ -267,6 +303,7 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     // artifacts from the same render, so the sink is part of the output
     // contract and belongs in the equality key.
     append_field(fp, "out_color_output", out.color_output);
+    append_field(fp, "out_encoder_profile", out.encoder_profile);
     append_int(fp, "out_reference_white_bits",
                std::bit_cast<std::uint32_t>(out.reference_white_nits));
     append_field(fp, "out_sink", out.sink_type);

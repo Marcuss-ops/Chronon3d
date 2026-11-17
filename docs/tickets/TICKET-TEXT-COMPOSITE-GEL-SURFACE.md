@@ -3,9 +3,13 @@
 ## Stato
 
 **GEL-VISUAL PASS (2026-11-07) — parità ottica con lo still fornito chiusa.**
-Restano aperti T10 (tracking estremo), M2/M4 (depth/occlusion/bokeh) e i gate
-estrinseci; il gate 4K/120 non è stato eseguito ed è fuori dallo scope richiesto
-il 2026-11-07. Aggiornamento
+Restano aperti M1 nella sua validazione estesa, M2/M4 (depth/occlusion/bokeh) e i
+gate estrinseci; il gate 4K/120 non è stato eseguito ed è fuori dallo scope
+richiesto il 2026-11-07. T10 (tracking estremo) è stato chiuso il 2026-11-08 come
+stimolo negativo autoriale: 61/61 frame renderizzano, frame 30 riproduce
+esattamente il bbox x=189–428, nessun clamp di leggibilità è stato aggiunto
+perché cambierebbe l'animazione autorata
+(`docs/evidence/gel-text-stress-20261105/T10-rerun-20261108.json`). Aggiornamento
 2026-11-06: la suite diagnostica Vulkan 1280×720 ha T00–T08 PASS sui gate
 tecnici misurati; T00–T04 ora espongono layout e diagnostiche intermedie. P1
 ha PASS limitati per T09, T13 e T15; T10 FAIL di leggibilità al tracking estremo −30 px (coverage continua), T11 PASS di continuità dopo fix della rotazione affine, T12 PASS tecnico sulla sweep della luce animata (review ottica pending). T14 è PASS limitato: il compositing destination-aware applica trasmittanza Beer–Lambert RGB per canale al backdrop, oltre all’assorbimento RGB già presente nel corpo shader. I render raw strict Vulkan ON/OFF passano ora tramite readback esplicito dal surface GPU; la trasmittanza usa alpha come proxy di copertura/spessore, non un attachment di optical depth. `GEL-VISUAL` era in attesa della review del

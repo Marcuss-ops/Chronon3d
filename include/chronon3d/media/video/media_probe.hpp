@@ -45,6 +45,12 @@ struct MediaStreamProbe {
     int sample_rate{0};
     int channels{0};
     std::string sample_format;
+
+    // SHA-256 of the raw codec extradata as the decoder receives it. For an
+    // MP4 H.264 stream this is the AVCDecoderConfigurationRecord (avcC), the
+    // same bytes `ffprobe -show_data` exposes and RenderingGen pins as
+    // media.codec_config_sha256. Empty when the stream carries no extradata.
+    std::string codec_config_sha256;
 };
 
 /// Result of probing one media container. `duration` uses the container

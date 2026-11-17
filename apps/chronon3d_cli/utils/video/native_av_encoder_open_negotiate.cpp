@@ -3,6 +3,7 @@
 #include "ffmpeg_profile_constants.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/media/video/canonical_x264.hpp>
 #include <chronon3d/media/video/keyframe_cadence.hpp>
 #include <fmt/format.h>
 #include <libavutil/mastering_display_metadata.h>
@@ -14,7 +15,9 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <optional>
+#include <string>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -29,6 +32,49 @@ using Clock = detail::NativeAvClock;
 using detail::elapsed_ms;
 
 bool NativeAvEncoder::resolve_open_configuration() {
+    // A certified profile is an exact recipe, not an advisory label. Apply it
+    // to the option set before resolution so the codec/backend/quality the
+    // resolver sees is the canonical one, regardless of what the request
+    // carried alongside the profile name.
+    if (!options_.encoder_profile.empty()) {
+        if (options_.encoder_profile !=
+            std::string(media::video::kCanonicalX264Profile)) {
+            spdlog::error("[native_av] unknown encoder_profile '{}'",
+                          options_.encoder_profile);
+            return false;
+        }
+        if (options_.width != media::video::kCanonicalX264Width ||
+            options_.height != media::video::kCanonicalX264Height) {
+            spdlog::error(
+                "[native_av] canonical_x264 certifies only 1920x1080, got {}x{}",
+                options_.width, options_.height);
+            return false;
+        }
+        if (options_.canonical_fps_num() * media::video::kCanonicalX264FPSDen !=
+            media::video::kCanonicalX264FPSNum * options_.canonical_fps_den()) {
+            spdlog::error("[native_av] canonical_x264 certifies only 24/1 fps, got {}/{}",
+                          options_.canonical_fps_num(), options_.canonical_fps_den());
+            return false;
+        }
+        if (std::filesystem::path(options_.output_path).extension() != ".mp4") {
+            spdlog::error("[native_av] canonical_x264 requires an .mp4 output, got '{}'",
+                          options_.output_path);
+            return false;
+        }
+        options_.codec = "libx264";
+        options_.hardware_encoder = "none";
+        options_.preset = std::string(media::video::kCanonicalX264Preset);
+        options_.preset_explicit = true;
+        options_.rate_control_mode = "crf";
+        options_.rate_control_mode_explicit = true;
+        options_.crf = media::video::kCanonicalX264Crf;
+        options_.crf_explicit = true;
+        options_.qp = -1;
+        options_.bitrate = 0;
+        options_.tune.clear();
+        options_.tune_explicit = false;
+    }
+
     // ── C-1/C-2: resolve + validate the encoder configuration BEFORE any
     // FFmpeg/decoder/CUDA/render setup. NativeAvEncoder applies the resolved
     // configuration verbatim; it never interprets raw rate-control/preset/
@@ -131,9 +177,26 @@ bool NativeAvEncoder::configure_codec_and_surface() {
     // the ONE keyframe-cadence authority (48 frames at 24 fps). Deriving it
     // from the frame rate alone emitted one keyframe per second and the
     // output-facts gateway rejected every production render (GOP 24 != 48).
-    codec_->gop_size = media::video::keyframe_interval_frames(
-        options_.fps_num, options_.fps_den);
+    const bool canonical_x264 = !options_.encoder_profile.empty();
+    codec_->gop_size = canonical_x264
+        ? media::video::kCanonicalX264Gop
+        : media::video::keyframe_interval_frames(
+              options_.fps_num, options_.fps_den);
     codec_->max_b_frames = 0;
+    if (canonical_x264) {
+        // The certified SPS/PPS is a byte identity: pin the reference count,
+        // the keyframe floor, the level, the sample aspect ratio and the
+        // closed-GOP flag instead of letting the encoder infer them. SAR is
+        // part of the VUI: without it libx264 omits aspect_ratio_info and the
+        // SPS is one byte shorter (the sink test caught this as a 41-byte
+        // Annex-B instead of the certified 42). The x264 params below disable
+        // scene-cut insertion, which is what makes the 48-frame cadence exact.
+        codec_->refs = 1;
+        codec_->keyint_min = media::video::kCanonicalX264MinKeyint;
+        codec_->level = 40;
+        codec_->sample_aspect_ratio = AVRational{1, 1};
+        codec_->flags |= AV_CODEC_FLAG_CLOSED_GOP;
+    }
     // ── Self-describing output stream ────────────────────────────────────
     // The container must describe the stream it carries, and this encoder must
     // be able to state its own parameter sets (profile/level/SPS-PPS) rather
@@ -252,8 +315,16 @@ bool NativeAvEncoder::configure_codec_and_surface() {
     }
 
     // One color-boundary authority (encoder_bitstream_contract): the encoder
-    // applies exactly the values the splice gate compares against.
-    {
+    // applies exactly the values the splice gate compares against. The
+    // canonical lane is the exception: its profile fixes BT.709 limited range
+    // regardless of the request, and those tags are part of the certified SPS
+    // VUI bytes.
+    if (canonical_x264) {
+        codec_->color_range = AVCOL_RANGE_MPEG;
+        codec_->colorspace = AVCOL_SPC_BT709;
+        codec_->color_trc = AVCOL_TRC_BT709;
+        codec_->color_primaries = AVCOL_PRI_BT709;
+    } else {
         const auto color = encoder_color_contract(options_.color_transform.output);
         codec_->color_range = color.color_range;
         codec_->colorspace = color.color_space;
@@ -288,6 +359,12 @@ bool NativeAvEncoder::apply_resolved_encoder_options() {
         if (!preset.empty() &&
             !detail::set_codec_option_checked(codec_, "preset", preset)) return false;
     }
+    if (!options_.encoder_profile.empty() &&
+        !detail::set_codec_option_checked(
+            codec_, "x264-params",
+            std::string(media::video::kCanonicalX264Params))) {
+        return false;
+    }
     if (const auto crf = resolved.crf()) {
         char crf_str[16];
         snprintf(crf_str, sizeof(crf_str), "%d", *crf);
@@ -296,14 +373,19 @@ bool NativeAvEncoder::apply_resolved_encoder_options() {
     if (resolved.bitrate()) codec_->bit_rate = *resolved.bitrate();
     const std::string& codec_name = resolved.encoder_name();
     if (codec_name == "libx264" || codec_name == "libx264rgb") {
-        if (options_.encode_threads > 0) {
-            char threads_str[16];
-            snprintf(threads_str, sizeof(threads_str), "%d", options_.encode_threads);
-            if (!detail::set_codec_option_checked(codec_, "threads", threads_str)) return false;
-        } else if (!detail::set_codec_option_checked(codec_, "threads", "auto")) {
-            return false;
+        // The canonical lane must reproduce the certified recipe exactly, so
+        // it leaves libx264's own threading defaults alone (the sink that
+        // produced the certified bytes passes no threads option either).
+        if (options_.encoder_profile.empty()) {
+            if (options_.encode_threads > 0) {
+                char threads_str[16];
+                snprintf(threads_str, sizeof(threads_str), "%d", options_.encode_threads);
+                if (!detail::set_codec_option_checked(codec_, "threads", threads_str)) return false;
+            } else if (!detail::set_codec_option_checked(codec_, "threads", "auto")) {
+                return false;
+            }
+            if (!detail::set_codec_option_checked(codec_, "thread_type", "frame")) return false;
         }
-        if (!detail::set_codec_option_checked(codec_, "thread_type", "frame")) return false;
     }
     if (const auto tune = resolved.tune()) {
         // The resolver only ever emits a tune on software (libx264-family)

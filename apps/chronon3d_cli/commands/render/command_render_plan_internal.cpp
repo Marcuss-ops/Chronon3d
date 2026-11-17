@@ -58,6 +58,7 @@ runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& ar
     request.output.codec = args.video.codec;
     request.output.hardware_encoder = args.video.hardware_encoder;
     request.output.encoder_backend = args.video.encoder_backend;
+    request.output.encoder_profile = args.video.encoder_profile;
     request.output.ffmpeg_mode = args.video.ffmpeg_mode;
     request.output.gpu_hot_path_mode = args.gpu_hot_path_mode;
     if (!args.video_sink.empty()) request.output.sink_type = args.video_sink;
@@ -381,6 +382,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             request.video_settings.hardware_encoder = normalized_job.output.hardware_encoder;
         if (!normalized_job.output.encoder_backend.empty())
             request.video_settings.encoder_backend = normalized_job.output.encoder_backend;
+        request.video_settings.encoder_profile = normalized_job.output.encoder_profile;
         request.video_settings.gop_source = !normalized_job.output.gop_source.empty()
             ? normalized_job.output.gop_source
             : normalized_job.output.audio_source_path;

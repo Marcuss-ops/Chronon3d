@@ -58,22 +58,30 @@ bool try_native_path_fill(
         return false;
     }
     const auto contours = math::flatten_path(path);
-    if (contours.size() != 1) return false;
-    auto polygon = simplify_flattened_contour(contours.front());
-    if (polygon.size() < 3 || polygon.size() > 8)
-        return false;
-    std::vector<Vec2> vertices = std::move(polygon);
+    if (contours.empty()) return false;
     const auto transform = [&state](Vec2 point, Vec2& out) {
         const Vec4 projected = state.matrix * Vec4(point, 0.0f, 1.0f);
         if (!std::isfinite(projected.w) || std::abs(projected.w) < 1e-6f) return false;
         out = Vec2{projected.x / projected.w, projected.y / projected.w};
         return std::isfinite(out.x) && std::isfinite(out.y);
     };
-    for (auto& vertex : vertices) {
-        Vec2 result;
-        if (!transform(vertex, result)) return false;
-        vertex = result;
+    // Every closed contour reaches the dispatcher as one vertex stream: the
+    // shader runs a single even-odd crossing test over all of them, so a
+    // territory plate with islands (or a ring with a hole) fills exactly as
+    // one polygon instead of a tessellation of seam-prone pieces.
+    std::vector<Vec2> vertices;
+    std::vector<std::uint32_t> contour_sizes;
+    for (const auto& contour : contours) {
+        const auto polygon = simplify_flattened_contour(contour);
+        if (polygon.size() < 3) continue;
+        for (const auto point : polygon) {
+            Vec2 result;
+            if (!transform(point, result)) return false;
+            vertices.push_back(result);
+        }
+        contour_sizes.push_back(static_cast<std::uint32_t>(polygon.size()));
     }
+    if (vertices.size() < 3) return false;
 
     float min_x = vertices.front().x;
     float min_y = vertices.front().y;
@@ -95,13 +103,23 @@ bool try_native_path_fill(
         return true;  // empty intersection: nothing to fill
     }
 
+    if (std::getenv("CHRONON3D_PATH_DIAG")) {
+        const Vec4 origin = state.matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        spdlog::info("[native-path-fill-geometry] node={} verts={} rect=({},{})-({},{}) fb={}x{} matrix_origin=({:.2f},{:.2f}) scale=({:.2f},{:.2f})",
+            node.name, vertices.size(), x0, y0, x1, y1, framebuffer.width(),
+            framebuffer.height(), origin.x, origin.y, state.matrix[0][0], state.matrix[1][1]);
+    }
     bool alpha_zero = false;
     const Color color = graph::native_promotion::premultiply(
         path.fill.solid, state.opacity, &alpha_zero);
     if (alpha_zero)
         return true;
-    return backend.fill_path_surface(
-        framebuffer.surface_handle(), vertices, color).ok();
+    // A one-pixel analytic ramp reproduces the CPU rasterizer's edge coverage
+    // (TICKET-MAP-VECTOR-FILL-NATIVE-20261116): the plate keeps soft coastlines
+    // without a second supersampled surface or an interior tessellation.
+    return backend.fill_polygon_surface(
+        framebuffer.surface_handle(), x0, y0, x1, y1, vertices,
+        contour_sizes, color, 1.0f).ok();
 }
 
 bool append_dash_runs(
@@ -266,18 +284,27 @@ bool try_native_path_stroke(
     if (!std::isfinite(pattern_length) ||
         !std::isfinite(path.stroke.dash_offset)) return false;
 
-    std::array<Vec2, 8> fill_vertices{};
-    std::uint32_t fill_vertex_count = 0;
+    // The fill polygon that clips the stroke to its outside travels through the
+    // path geometry buffer, so a stroked path keeps every ring and every vertex
+    // instead of falling back to the software rasterizer past eight points.
+    std::vector<Vec2> fill_vertices;
+    std::vector<std::uint32_t> fill_contours;
     bool has_fill = visible_solid_fill;
     if (has_fill) {
-        if (contours.size() != 1) return false;
-        const auto polygon = simplify_flattened_contour(contours.front());
-        if (polygon.size() < 3 || polygon.size() > fill_vertices.size()) return false;
-        fill_vertex_count = static_cast<std::uint32_t>(polygon.size());
-        for (std::size_t i = 0; i < polygon.size(); ++i) {
-            fill_vertices[i] = transform(polygon[i]);
-            if (!std::isfinite(fill_vertices[i].x) || !std::isfinite(fill_vertices[i].y))
-                return false;
+        for (const auto& contour : contours) {
+            const auto polygon = simplify_flattened_contour(contour);
+            if (polygon.size() < 3) continue;
+            for (const auto point : polygon) {
+                const Vec2 screen = transform(point);
+                if (!std::isfinite(screen.x) || !std::isfinite(screen.y)) return false;
+                fill_vertices.push_back(screen);
+            }
+            fill_contours.push_back(static_cast<std::uint32_t>(polygon.size()));
+        }
+        if (fill_vertices.size() < 3) {
+            has_fill = false;
+            fill_vertices.clear();
+            fill_contours.clear();
         }
         // TICKET-VULKAN-DASHED-POLYLINE-PARITY-20261116: fill_dashed_path only
         // carries the stroke color, so the dash shader deliberately returns
@@ -286,20 +313,40 @@ bool try_native_path_stroke(
         // in a separate native fill pass, then keep has_fill=true so the
         // stroke pass still clips to the outside of the fill. Turning has_fill
         // off here made the stroke paint over the fill (549 px diverge).
-        if (!pattern.empty()) {
-            std::vector<Vec2> fill_screen(
-                fill_vertices.begin(),
-                fill_vertices.begin() + static_cast<std::ptrdiff_t>(fill_vertex_count));
-            bool fill_alpha_zero = false;
-            const Color fill_color = graph::native_promotion::premultiply(
-                path.fill.solid, state.opacity, &fill_alpha_zero);
-            if (fill_alpha_zero) {
-                has_fill = false;
-                fill_vertex_count = 0;
-            } else if (!backend
-                            .fill_path_surface(framebuffer.surface_handle(),
-                                               fill_screen, fill_color)
-                            .ok()) {
+        // The stroke pass returns early on interior pixels (fill wins, stroke
+        // is skipped inside — the same first-hit rule as the CPU rasterizer),
+        // so the interior must be painted by its own native fill pass for every
+        // stroked path, not only for dashed ones. Binary coverage mirrors the
+        // CPU fill, whose edge is under the stroke anyway.
+        bool fill_alpha_zero = false;
+        const Color fill_color = graph::native_promotion::premultiply(
+            path.fill.solid, state.opacity, &fill_alpha_zero);
+        if (fill_alpha_zero) {
+            has_fill = false;
+            fill_vertices.clear();
+            fill_contours.clear();
+        } else {
+            float fill_min_x = fill_vertices.front().x;
+            float fill_min_y = fill_vertices.front().y;
+            float fill_max_x = fill_min_x;
+            float fill_max_y = fill_min_y;
+            for (const auto vertex : fill_vertices) {
+                fill_min_x = std::min(fill_min_x, vertex.x);
+                fill_min_y = std::min(fill_min_y, vertex.y);
+                fill_max_x = std::max(fill_max_x, vertex.x);
+                fill_max_y = std::max(fill_max_y, vertex.y);
+            }
+            auto fill_x0 = static_cast<std::int32_t>(std::floor(fill_min_x)) - 1;
+            auto fill_y0 = static_cast<std::int32_t>(std::floor(fill_min_y)) - 1;
+            auto fill_x1 = static_cast<std::int32_t>(std::ceil(fill_max_x)) + 1;
+            auto fill_y1 = static_cast<std::int32_t>(std::ceil(fill_max_y)) + 1;
+            if (graph::native_promotion::intersect_clip(
+                    state.clip_rect, framebuffer.width(), framebuffer.height(),
+                    fill_x0, fill_y0, fill_x1, fill_y1) &&
+                !backend.fill_polygon_surface(
+                    framebuffer.surface_handle(), fill_x0, fill_y0,
+                    fill_x1, fill_y1, fill_vertices, fill_contours,
+                    fill_color, 0.0f).ok()) {
                 return false;
             }
         }
@@ -391,7 +438,8 @@ bool try_native_path_stroke(
     // software rasterizer's first-hit/source-over behavior.
     return backend.fill_dashed_path_surface(
         framebuffer.surface_handle(), x0, y0, x1, y1, width, color, points,
-        run_lengths, has_fill, fill_vertex_count, fill_vertices,
+        run_lengths, has_fill ? std::span<const Vec2>(fill_vertices) : std::span<const Vec2>{},
+        has_fill ? std::span<const std::uint32_t>(fill_contours) : std::span<const std::uint32_t>{},
         path.stroke.cap == LineCap::Round).ok();
 }
 } // namespace chronon3d::backends::vulkan::native_shape_dispatch_detail

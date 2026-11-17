@@ -68,6 +68,10 @@ struct MediaContract {
     // Canonical media facts for streaming / probe-less verification
     std::string codec_profile;
     std::string video_level;
+    // SHA-256 of the stream extradata (the avcC for MP4 H.264), i.e. the same
+    // byte identity RenderingGen pins as media.codec_config_sha256. Empty
+    // when the probe could not observe extradata.
+    std::string codec_config_sha256;
     bool has_video{false};
     int video_streams{0};
     int video_time_base_num{0};

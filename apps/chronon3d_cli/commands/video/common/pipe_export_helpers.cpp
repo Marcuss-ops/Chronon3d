@@ -233,6 +233,7 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
         .preset_explicit = opts.encoder.encode_preset_explicit,
         .codec = codec,
         .hardware_encoder = opts.encoder.hardware_encoder,
+        .encoder_profile = opts.encoder.encoder_profile,
         .output_path = opts.output.output,
         .output_segments = opts.output_segments,
         .input_format = *input_format,

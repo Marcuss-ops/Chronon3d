@@ -50,6 +50,10 @@ struct StaticLayerProgram {
     float opacity{1.0f};
     float radius{0.0f};
     std::optional<render_plan::ShapeContentPlan> shape;
+    // SVG root clip-path/mask lowered to a path mask. The typed scene
+    // materializer consumes this so the CLI lane applies the same document
+    // clip the RenderPlan lane applies.
+    std::optional<render_plan::LayerPlan::PathMaskPlan> path_mask;
     std::optional<render_plan::InlineMeshPlan> inline_mesh;
     // Immutable emitter definition. Instances are sampled into frame-local
     // parameters; the compiled program never stores a callback or Scene.

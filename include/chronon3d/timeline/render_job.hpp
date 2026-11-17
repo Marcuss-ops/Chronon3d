@@ -54,6 +54,10 @@ struct VideoSettings {
     int         qp{-1};
     std::int64_t bitrate{0};
     std::string codec{"auto"};
+    /// Optional certified encoder profile. "canonical_x264" selects the
+    /// libx264 1920x1080 24/1 CRF-23 lane whose avcC is verified before the
+    /// muxer opens; empty keeps the generic encoder resolution.
+    std::string encoder_profile;
     std::string encode_preset{"slow"};
     std::string tune;
 

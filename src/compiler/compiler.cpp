@@ -143,6 +143,18 @@ Result<CompiledProgram, CompileError> Compiler::compile(
             error.what(), "render-plan-style");
     }
     // The CLI compiles through this stage pipeline rather than through
+    // render_plan::compile_render_plan, so Lottie asset expansion must run
+    // here too: otherwise a `shape.lottie` layer reaches the scene with only
+    // its RenderPlan-level operators and no imported geometry.
+    try {
+        if (auto lottie_error = render_plan::detail::expand_lottie_assets(expanded_plan, resolver))
+            return make_compile_error(CompileErrorCode::InvalidInput,
+                lottie_error->path, lottie_error->message, lottie_error->component);
+    } catch (const std::exception& error) {
+        return make_compile_error(CompileErrorCode::InvalidInput, "layers",
+            error.what(), "render-plan-lottie");
+    }
+    // The CLI compiles through this stage pipeline rather than through
     // render_plan::compile_render_plan, so SVG asset expansion must run here
     // too: otherwise SVG path/text layers reach the scene with no geometry.
     try {

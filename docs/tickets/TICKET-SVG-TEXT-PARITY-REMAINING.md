@@ -1,6 +1,6 @@
 # Ticket — Remaining SVG text support
 
-**Status:** P0 and P1 closed locally (2026-11-12); P2 open; same-SHA CI not run.
+**Status:** P0 and P1 closed locally (2026-11-12); P2 open; assorbe TICKET-SVG-TEXT-ADVANCED-SCOPES (2026-11-16); same-SHA CI not run.
 **Parent:** [TICKET-SVG-RENDER-PLAN.md](TICKET-SVG-RENDER-PLAN.md)
 **Handoff baseline:** remote `main` at `a204d0d6` (2026-10-21); recheck the
 current `main` head before implementation because the other workstation may
@@ -237,6 +237,17 @@ the implemented subset.
 - **Accept when:** overlap/opacity and nested-transform raw-pixel oracles prove
   text and vector children composite consistently; repeat frames match.
 - Coordinate with [TICKET-SVG-GROUP-ISOLATION.md](TICKET-SVG-GROUP-ISOLATION.md).
+
+### P2 — Residuali assorbiti da TICKET-SVG-TEXT-ADVANCED-SCOPES (2026-11-16)
+
+I seguenti item aperti della scheda ADVANCED sono stati trasferiti qui; la scheda
+originale è chiusa amministrativamente e archiviata.
+
+- `rotate` per-carattere continuo attraverso `<tspan>` annidati.
+- `textLength` su `textPath`.
+- writing-mode verticale bounded oppure reject tipizzato stabile.
+- pixel gate separati per target parent/child, run ruotati annidati e spaziatura
+  textPath.
 
 ## Verification and closure
 
