@@ -160,8 +160,10 @@ void emit_buffer_barrier2(PFN_vkCmdPipelineBarrier2KHR pipeline_barrier2,
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(
                               GpuKernelId::TextTileBin)));
-        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                kernels.text_tile_bin_layout, 0, 1, &descriptors, 0, nullptr);
+        if (descriptors != VK_NULL_HANDLE) {
+            vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                    kernels.text_tile_bin_layout, 0, 1, &descriptors, 0, nullptr);
+        }
         struct PushConstants {
             std::uint32_t glyph_count;
             std::uint32_t tiles_x;
@@ -181,12 +183,17 @@ void emit_buffer_barrier2(PFN_vkCmdPipelineBarrier2KHR pipeline_barrier2,
     void VulkanBackend::Impl::record_text_tile_raster(VkCommandBuffer command, VkDescriptorSet descriptors,
                                  std::int32_t tiles_x, std::int32_t tiles_y,
                                  std::int32_t max_glyphs_per_tile,
-                                 const Image& destination, const Image& atlas) {
+                                 const Image& destination, const Image& atlas,
+                                 bool simple_variant) {
+        const auto kernel_id = simple_variant
+            ? GpuKernelId::TextTileRasterSimple
+            : GpuKernelId::TextTileRaster;
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(
-                              GpuKernelId::TextTileRaster)));
-        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                kernels.text_tile_raster_layout, 0, 1, &descriptors, 0, nullptr);
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(kernel_id)));
+        if (descriptors != VK_NULL_HANDLE) {
+            vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                    kernels.text_tile_raster_layout, 0, 1, &descriptors, 0, nullptr);
+        }
         struct PushConstants {
             std::uint32_t tiles_x;
             std::uint32_t tiles_y;

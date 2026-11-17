@@ -227,8 +227,13 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
                      "video surface interop disabled");
     }
 #endif
+    const bool push_descriptor_supported =
+        has_device_extension(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
     if (m_calibrated_timestamps_supported) {
         enabled_extensions.push_back(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
+    }
+    if (push_descriptor_supported) {
+        enabled_extensions.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
     }
     const VkDeviceCreateInfo device_info{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -264,7 +269,8 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
     m_impl = std::make_unique<Impl>(m_instance, m_physical_device, m_device, m_queue,
                                     m_queue_family, m_command_pool,
                                     m_calibrated_timestamps_supported,
-                                    m_debug_context.get());
+                                    m_debug_context.get(),
+                                    push_descriptor_supported);
     m_init_pipelines_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - t_pipe0).count();
 #else

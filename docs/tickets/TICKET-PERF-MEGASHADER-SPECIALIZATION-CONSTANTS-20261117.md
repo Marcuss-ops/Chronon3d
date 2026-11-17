@@ -1,6 +1,6 @@
 # TICKET-PERF-MEGASHADER-SPECIALIZATION-CONSTANTS-20261117 — Riduzione del Register Pressure (VGPR) e del branching nei megashader (`text_tile_raster.comp`, `warp_bulk.comp`, `color_matrix.comp`) tramite Specialization Constants
 
-- **Stato:** OPEN (2026-11-17)
+- **Stato:** CLOSED (2026-11-17)
 - **Priorità:** P2 (Ottimizzazione occupancy SM e riduzione VGPR nei 3 compute shader più grandi del motore)
 - **Verifica sul codice attuale:** **PROBLEMA VERO (`[CODICE]` verificato: `text_tile_raster.comp` ha 1.262 righe, `color_matrix.comp` 566 righe, `warp_bulk.comp` 557 righe)**
 - **File coinvolti:**

@@ -381,7 +381,8 @@ struct VulkanBackend::Impl {
     Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical,
          VkQueue graphics, std::uint32_t family, VkCommandPool pool,
          bool calibrated_timestamps_supported,
-         VulkanDebugContext* dbg_ctx = nullptr);
+         VulkanDebugContext* dbg_ctx = nullptr,
+         bool push_descriptor_supported = false);
     ~Impl();
 
     // Lifecycle init phases (definitions split across the lifecycle_*_private
@@ -696,7 +697,8 @@ struct VulkanBackend::Impl {
     void record_text_tile_raster(VkCommandBuffer command, VkDescriptorSet descriptors,
                                  std::int32_t tiles_x, std::int32_t tiles_y,
                                  std::int32_t max_glyphs_per_tile,
-                                 const Image& destination, const Image& atlas);
+                                 const Image& destination, const Image& atlas,
+                                 bool simple_variant = false);
     void read_gpu_timestamps(std::size_t slot);
     void submit_batch();
     void ensure_replay_params_capacity(ReplaySlot& slot, VkDeviceSize bytes);

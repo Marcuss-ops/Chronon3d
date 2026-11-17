@@ -151,6 +151,9 @@ void VulkanBackend::Impl::draw_text_batch(
         gpu_runs = text_run_scratch.data();
     }
 
+    bool use_simple_raster = true;
+    constexpr std::uint32_t kComplexRunEffectMask =
+        1u | 2u | 4u | (1u << 12) | (1u << 14) | (1u << 15);
     for (std::size_t r = 0; r < runs.size(); ++r) {
         const auto& run = runs[r];
         auto& gr = gpu_runs[r];
@@ -160,6 +163,9 @@ void VulkanBackend::Impl::draw_text_batch(
         // The caret is a run-level layer. The per-glyph compatibility path
         // repeats the base run for every state; keep exactly one caret.
         if (r != 0) gr.caret_flags = 0;
+        if ((gr.effect_flags & kComplexRunEffectMask) != 0u) {
+            use_simple_raster = false;
+        }
     }
 
     std::array<VulkanGpuGlyphDynamic, 1024> local_glyph_dynamic;
@@ -239,6 +245,9 @@ void VulkanBackend::Impl::draw_text_batch(
             dynamic.skew_axis_cos = paint.skew_axis_cos;
             dynamic.skew_axis_sin = paint.skew_axis_sin;
             dynamic.style_flags = paint.flags;
+            if ((paint.flags & (1u | 4u | 8u | 16u)) != 0u) {
+                use_simple_raster = false;
+            }
             dynamic.gradient_start_color = paint.gradient_start_color;
             dynamic.gradient_end_color = paint.gradient_end_color;
             dynamic.gradient_angle_degrees = paint.gradient_angle_degrees;
@@ -358,12 +367,6 @@ void VulkanBackend::Impl::draw_text_batch(
         const VkBuffer index_buffer = text_tile_index_buffers[pass_slot].buffer;
         const auto bin_descriptors = allocate_text_tile_bin_descriptor_set();
         const auto raster_descriptors = allocate_text_tile_raster_descriptor_set();
-        write_text_tile_bin_descriptors(bin_descriptors, glyph_buffer, run_buffer,
-                                        glyph_dynamic_buffer, count_buffer,
-                                        index_buffer);
-        write_text_tile_raster_descriptors(raster_descriptors, dst_image, atlas_image,
-                                           glyph_buffer, glyph_dynamic_buffer, run_buffer,
-                                           count_buffer, index_buffer);
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image, &atlas_image}, runtime::GpuPassKind::LayerBatch);
         if (glyph_updated) {
@@ -416,6 +419,9 @@ void VulkanBackend::Impl::draw_text_batch(
                               std::span<const VkBufferMemoryBarrier2KHR>{
                                   upload_barriers.data(), upload_barrier_count});
 
+        write_text_tile_bin_descriptors(bin_descriptors, glyph_buffer, run_buffer,
+                                        glyph_dynamic_buffer, count_buffer,
+                                        index_buffer);
         record_text_tile_bin(cmd, bin_descriptors,
                              static_cast<std::int32_t>(glyphs.size()),
                              tiles_x, tiles_y, kMaxGlyphsPerTile,
@@ -439,9 +445,12 @@ void VulkanBackend::Impl::draw_text_batch(
              index_buffer, 0, VK_WHOLE_SIZE}};
         emit_buffer_barriers2(cmd, bin_barriers);
 
+        write_text_tile_raster_descriptors(raster_descriptors, dst_image, atlas_image,
+                                           glyph_buffer, glyph_dynamic_buffer, run_buffer,
+                                           count_buffer, index_buffer);
         record_text_tile_raster(cmd, raster_descriptors,
                                 tiles_x, tiles_y, kMaxGlyphsPerTile,
-                                dst_image, atlas_image);
+                                dst_image, atlas_image, use_simple_raster);
         ++frame_batch.pass_count;
         dst_image.initialized = true;
         ++stats.passes_executed;

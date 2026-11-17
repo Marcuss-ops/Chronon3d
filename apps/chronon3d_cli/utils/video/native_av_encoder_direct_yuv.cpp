@@ -270,7 +270,7 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
     cuda::OwnedCudaEvent ready{};
     // The event must gate the stream that actually produced the surface, or
     // the consumer's wait would not cover the composite/copy above.
-    const CUresult event_create = cuda::create_recorded(
+    const CUresult event_create = acquire_recorded_cuda_event(
         ready, reinterpret_cast<CUcontext>(cuda_context_), producer_stream);
     const CUresult event_record = event_create;
     if (event_create != CUDA_SUCCESS || event_record != CUDA_SUCCESS) {

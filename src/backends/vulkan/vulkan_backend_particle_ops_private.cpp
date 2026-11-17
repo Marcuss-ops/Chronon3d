@@ -246,20 +246,34 @@ void VulkanBackend::Impl::execute_gpu_particle_batch(
         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
 
-    VkDescriptorSet emitter_descriptors =
-        descriptor_arena.particle_emitter[slot].allocate();
-    write_particle_emitter_descriptors(
-        device, emitter_descriptors, instance_buffer,
-        static_cast<VkDeviceSize>(kGpuParticleInstanceOffset), instance_bytes,
-        sizeof(uniform));
-
     vkCmdBindPipeline(
         command, VK_PIPELINE_BIND_POINT_COMPUTE,
         reinterpret_cast<VkPipeline>(
             kernels.registry.resolve(GpuKernelId::ParticleEmitter)));
-    vkCmdBindDescriptorSets(
-        command, VK_PIPELINE_BIND_POINT_COMPUTE,
-        kernels.particle_emitter_layout, 0, 1, &emitter_descriptors, 0, nullptr);
+    if (descriptor_arena.push_descriptor_enabled()) {
+        const VkDescriptorBufferInfo instance_info{
+            instance_buffer, static_cast<VkDeviceSize>(kGpuParticleInstanceOffset),
+            instance_bytes};
+        const VkDescriptorBufferInfo uniform_info{
+            instance_buffer, 0, sizeof(uniform)};
+        const VkWriteDescriptorSet writes[] = {
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, VK_NULL_HANDLE, 0, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &instance_info, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, VK_NULL_HANDLE, 1, 0, 1,
+             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &uniform_info, nullptr}};
+        descriptor_arena.push_compute_descriptors(
+            command, kernels.particle_emitter_layout, 2, writes);
+    } else {
+        VkDescriptorSet emitter_descriptors =
+            descriptor_arena.particle_emitter[slot].allocate();
+        write_particle_emitter_descriptors(
+            device, emitter_descriptors, instance_buffer,
+            static_cast<VkDeviceSize>(kGpuParticleInstanceOffset), instance_bytes,
+            sizeof(uniform));
+        vkCmdBindDescriptorSets(
+            command, VK_PIPELINE_BIND_POINT_COMPUTE,
+            kernels.particle_emitter_layout, 0, 1, &emitter_descriptors, 0, nullptr);
+    }
     vkCmdDispatch(command, (emitter.count + 63U) / 64U, 1, 1);
     ++stats.vk_cmd_dispatch_count;
 

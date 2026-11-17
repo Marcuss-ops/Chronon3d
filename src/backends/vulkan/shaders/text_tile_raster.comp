@@ -2,6 +2,9 @@
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
+layout(constant_id = 0) const bool kSpecHasStrokeAndShadow = true;
+layout(constant_id = 1) const bool kSpecHasBackgroundAndGradient = true;
+
 // Destination surfaces are canonical RGBA32F Linear Premultiplied storage
 // images (see scene.cpp SurfaceDesc::make with PixelFormat::Rgba32Float);
 // the glyph atlas is Rgba8Unorm (B8G8R8A8_UNORM / R8G8B8A8_UNORM), whose
@@ -887,11 +890,11 @@ void main() {
             effect_plane_min = plane_min;
             effect_plane_max = plane_max;
             effect_ready = true;
-            if ((gd.style_flags & 16u) != 0u) {
+            if (kSpecHasBackgroundAndGradient && (gd.style_flags & 16u) != 0u) {
                 fill_color = glyph_fill_color(
                     run, gd, reveal_weight, local, plane_min, plane_max);
             }
-            if ((gd.style_flags & 1u) != 0u) {
+            if (kSpecHasBackgroundAndGradient && (gd.style_flags & 1u) != 0u) {
                 float pad = max(gd.background_padding_px, 0.0);
                 vec2 bg_min = plane_min - vec2(pad);
                 vec2 bg_max = plane_max + vec2(pad);
@@ -941,7 +944,7 @@ void main() {
         // Per-glyph drop shadow / outer glow. Both use the same SDF transfer
         // as the fill, so their softness stays expressed in destination pixels
         // at any layout scale; neither is clipped to the glyph plane.
-        if (effect_ready && (gd.style_flags & 12u) != 0u) {
+        if (kSpecHasStrokeAndShadow && effect_ready && (gd.style_flags & 12u) != 0u) {
             float fx_range = uintBitsToFloat(run.distance_range_bits);
             if (!(fx_range > 0.0)) fx_range = 8.0;
             vec2 fx_size = max(effect_plane_max - effect_plane_min, vec2(1e-6));
@@ -1022,7 +1025,7 @@ void main() {
                     clamp(fill_alpha * mask_opacity, 0.0, 1.0));
             }
             src = vec4(0.0);
-            if ((gd.style_flags & 4u) == 0u &&
+            if (kSpecHasStrokeAndShadow && (gd.style_flags & 4u) == 0u &&
                 ((run.effect_flags & 2u) != 0u ||
                  (run.effect_flags & 4u) != 0u)) {
                 vec2 shadow_uv = glyph_uv -
@@ -1066,7 +1069,7 @@ void main() {
                     }
                 }
             }
-            if ((run.effect_flags & 1u) != 0u) {
+            if (kSpecHasStrokeAndShadow && (run.effect_flags & 1u) != 0u) {
                 // Field distance and authored stroke width are converted from
                 // their own spaces into destination pixels before they are
                 // compared, instead of scaling both by one factor that can
@@ -1102,7 +1105,7 @@ void main() {
             src = sample_value;
             const float mask_opacity = run.opacity *
                 (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
-            if ((run.effect_flags & kVectorCoverageBit) != 0u) {
+            if (kSpecHasStrokeAndShadow && (run.effect_flags & kVectorCoverageBit) != 0u) {
                 const float fill_cov = clamp(
                     max(sample_value.r, sample_value.b), 0.0, 1.0);
                 const float stroke_cov = clamp(sample_value.g, 0.0, 1.0);
@@ -1136,7 +1139,7 @@ void main() {
 
     // Canonical shadow: one union value per destination pixel. The host
     // blurs this premultiplied silhouette and composites it before the fill.
-    if ((runs[0].effect_flags & kCanonicalShadowMaskBit) != 0u) {
+    if (kSpecHasStrokeAndShadow && (runs[0].effect_flags & kCanonicalShadowMaskBit) != 0u) {
         vec4 shadow_color = unpack_color(runs[0].color);
         float alpha = clamp(union_shadow_mask * shadow_color.a, 0.0, 1.0);
         imageStore(dst_image, pixel_coord,
@@ -1242,16 +1245,23 @@ void main() {
     // This pass must composite only its shadow; fill/stroke/glow/background
     // and the caret belong to the final pass.  Without the early-out every
     // shadow pass would repaint the run and hide the authored layer order.
-    if ((runs[0].effect_flags & 4096u) != 0u) {
+    if (kSpecHasStrokeAndShadow && (runs[0].effect_flags & 4096u) != 0u) {
         imageStore(dst_image, pixel_coord,
                    shadow_layer + destination_color * (1.0 - shadow_layer.a));
         return;
     }
 
-    vec4 current_color = shadow_layer + destination_color * (1.0 - shadow_layer.a);
-    current_color = glow_layer + current_color * (1.0 - glow_layer.a);
-    current_color = background_layer + current_color * (1.0 - background_layer.a);
-    current_color = stroke_layer + current_color * (1.0 - stroke_layer.a);
+    vec4 current_color = destination_color;
+    if (kSpecHasStrokeAndShadow) {
+        current_color = shadow_layer + current_color * (1.0 - shadow_layer.a);
+        current_color = glow_layer + current_color * (1.0 - glow_layer.a);
+    }
+    if (kSpecHasBackgroundAndGradient) {
+        current_color = background_layer + current_color * (1.0 - background_layer.a);
+    }
+    if (kSpecHasStrokeAndShadow) {
+        current_color = stroke_layer + current_color * (1.0 - stroke_layer.a);
+    }
     if (gel_refract_active && destination_color.a > 0.0 && fill_layer.a > 0.0 &&
         dot(gel_refract_offset, gel_refract_offset) > 0.0025) {
         ivec2 img_dims = imageSize(dst_image);

@@ -121,6 +121,19 @@ struct VulkanDescriptorAuthority {
     VkDescriptorPool descriptor_pool{VK_NULL_HANDLE};
     VkDescriptorSet descriptor_set{VK_NULL_HANDLE};
     std::array<VkDescriptorSet, 6> glow_descriptor_sets{};
+    PFN_vkCmdPushDescriptorSetKHR cmd_push_descriptor_set_khr{nullptr};
+
+    [[nodiscard]] bool push_descriptor_enabled() const noexcept {
+        return cmd_push_descriptor_set_khr != nullptr;
+    }
+
+    void push_compute_descriptors(VkCommandBuffer cmd,
+                                  VkPipelineLayout layout,
+                                  std::uint32_t write_count,
+                                  const VkWriteDescriptorSet* writes) const noexcept {
+        cmd_push_descriptor_set_khr(
+            cmd, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, write_count, writes);
+    }
 
     void destroy() noexcept {
         for (auto& allocator : pass) allocator.destroy();

@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <mutex>
+#include <utility>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -14,6 +15,34 @@ using Clock = detail::NativeAvClock;
 using detail::elapsed_ms;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+CUresult NativeAvEncoder::acquire_recorded_cuda_event(
+    cuda::OwnedCudaEvent& out, CUcontext context, CUstream stream) noexcept {
+    if (!reusable_cuda_events_.empty()) {
+        out = reusable_cuda_events_.back();
+        reusable_cuda_events_.pop_back();
+        cuda::ScopedCudaContext guard(context);
+        if (!guard.ok()) {
+            cuda::destroy(out);
+            return CUDA_ERROR_INVALID_CONTEXT;
+        }
+        out.owner_context = context;
+        const auto recorded = cuEventRecord(out.event, stream);
+        if (recorded != CUDA_SUCCESS) cuda::destroy(out);
+        return recorded;
+    }
+    return cuda::create_recorded(out, context, stream);
+}
+
+void NativeAvEncoder::release_cuda_event(cuda::OwnedCudaEvent&& event) noexcept {
+    if (!event.event) return;
+    if (reusable_cuda_events_.size() < kCudaEncodeRingSlots) {
+        reusable_cuda_events_.push_back(event);
+        event = {};
+        return;
+    }
+    cuda::destroy(event);
+}
+
 bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
     // Every caller holds mutex_: this helper operates on the encoder's shared
     // CUDA queue and deliberately does not acquire it a second time.
@@ -147,7 +176,7 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
         av_frame_unref(pending.frame);
         reusable_cuda_frames_.push_back(pending.frame);
         pending.frame = nullptr;
-        cuda::destroy(pending.ready);
+        release_cuda_event(std::move(pending.ready));
         pending_cuda_frames_.pop_front();
         ++codec_frames_submitted_;
         const auto drain_t0 = Clock::now();

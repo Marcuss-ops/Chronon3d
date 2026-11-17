@@ -1,3 +1,49 @@
+PreEvaluatedNodePrep prepare_node_cpu_eval(
+    RenderGraph& graph,
+    const RenderGraphContext& ctx,
+    const PreResolvedNode& pr,
+    GraphNodeId id,
+    const CompiledFrameGraph& compiled,
+    const ExecutionState& state
+) {
+    PreEvaluatedNodePrep out;
+    if (ctx.frame_parameters && id < compiled.nodes.size() &&
+        compiled.nodes[id].binding_meta.has_binding()) {
+        const auto* typed_layer = compiler::find_layer(
+            *ctx.frame_parameters, compiled.nodes[id].binding_meta.layer_index);
+        if (!typed_layer || !typed_layer->active) return out;
+    }
+    if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
+        return out;
+    }
+    if (id < state.static_bake_member_skip.size() && state.static_bake_member_skip[id]) {
+        const auto bake_index = id < state.static_bake_root_index.size()
+            ? state.static_bake_root_index[id] : UINT32_MAX;
+        if (bake_index < compiled.program.static_bakes.size()) return out;
+    }
+    if (id < compiled.program.interior_node_skip.size() &&
+        compiled.program.interior_node_skip[id]) {
+        return out;
+    }
+    if (id < compiled.nodes.size() && compiled.nodes[id].lowered_into_batch &&
+        ctx.execution_backend() && ctx.execution_backend()->is_batching_supported()) {
+        return out;
+    }
+    auto& node = graph.node(id);
+    const bool cache_key_required =
+        id < compiled.nodes.size() && compiled.nodes[id].cache_key_required;
+    out.cache_eval = evaluate_cache(
+        node, ctx,
+        pr.input_hash,
+        pr.inputs_frame_dependent,
+        pr.has_cacheable_inputs,
+        id,
+        cache_key_required);
+    out.predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);
+    out.valid = true;
+    return out;
+}
+
 void execute_single_node(
     ExecutionState& state,
     RenderGraph& graph,
@@ -9,7 +55,8 @@ void execute_single_node(
     FramebufferPool* parent_pool,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     const CompiledFrameGraph& compiled,
-    std::uint64_t* local_nodes_executed
+    std::uint64_t* local_nodes_executed,
+    const PreEvaluatedNodePrep* pre_eval
 ) {
     // OPT-DEAD-TIMINGS — the 7 dead per-node timing out-params are removed.
     // Fine-grained per-node timing left the execution contract in Stage 3;
@@ -174,14 +221,16 @@ void execute_single_node(
     const bool cache_key_required =
         id < compiled.nodes.size() && compiled.nodes[id].cache_key_required;
 
-    auto cache_eval = evaluate_cache(
-        node, ctx,
-        pr.input_hash,
-        pr.inputs_frame_dependent,
-        pr.has_cacheable_inputs,
-        id,
-        cache_key_required
-    );
+    auto cache_eval = (pre_eval && pre_eval->valid)
+        ? pre_eval->cache_eval
+        : evaluate_cache(
+            node, ctx,
+            pr.input_hash,
+            pr.inputs_frame_dependent,
+            pr.has_cacheable_inputs,
+            id,
+            cache_key_required
+        );
 
     if (diag_exec_logging_enabled()) {
         spdlog::info("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
@@ -192,7 +241,9 @@ void execute_single_node(
             cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
     }
 
-    auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);
+    auto predicted_bbox = (pre_eval && pre_eval->valid)
+        ? pre_eval->predicted_bbox
+        : node.predicted_bbox(ctx, pr.input_bboxes);
 
     const bool cache_hit_fast_path =
         cache_eval.result &&

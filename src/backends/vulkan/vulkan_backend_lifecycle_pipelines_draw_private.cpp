@@ -184,11 +184,40 @@ void VulkanBackend::Impl::init_draw_kernel_pipelines() {
         const VkResult text_tile_raster_result = vkCreateComputePipelines(
             device, kernels.pipeline_cache, 1, &text_tile_raster_pipeline_info, nullptr,
             &text_tile_raster_pipeline);
+
+        struct TextRasterSpecData {
+            VkBool32 has_stroke_and_shadow;
+            VkBool32 has_background_and_gradient;
+        } simple_spec_data{VK_FALSE, VK_FALSE};
+        const VkSpecializationMapEntry simple_spec_entries[2]{
+            {0, offsetof(TextRasterSpecData, has_stroke_and_shadow), sizeof(VkBool32)},
+            {1, offsetof(TextRasterSpecData, has_background_and_gradient), sizeof(VkBool32)}};
+        const VkSpecializationInfo simple_spec_info{
+            2, simple_spec_entries, sizeof(simple_spec_data), &simple_spec_data};
+        const VkPipelineShaderStageCreateInfo text_tile_raster_simple_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            text_tile_raster_shader, "main", &simple_spec_info};
+        const VkComputePipelineCreateInfo text_tile_raster_simple_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            text_tile_raster_simple_stage, kernels.text_tile_raster_layout, VK_NULL_HANDLE, -1};
+        VkPipeline text_tile_raster_simple_pipeline = VK_NULL_HANDLE;
+        const VkResult text_tile_raster_simple_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &text_tile_raster_simple_pipeline_info, nullptr,
+            &text_tile_raster_simple_pipeline);
+
         vkDestroyShaderModule(device, text_tile_raster_shader, nullptr);
         check(text_tile_raster_result, "vkCreateComputePipelines(text tile raster)");
+        check(text_tile_raster_simple_result, "vkCreateComputePipelines(text tile raster simple)");
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::TextTileRaster, text_tile_raster_pipeline, "TextTileRaster");
-        if (debug_context) debug_context->set_pipeline_name(text_tile_raster_pipeline, "Chronon3D.Pipeline.TextTileRaster");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::TextTileRasterSimple, text_tile_raster_simple_pipeline,
+                "TextTileRasterSimple");
+        if (debug_context) {
+            debug_context->set_pipeline_name(text_tile_raster_pipeline, "Chronon3D.Pipeline.TextTileRaster");
+            debug_context->set_pipeline_name(text_tile_raster_simple_pipeline, "Chronon3D.Pipeline.TextTileRasterSimple");
+        }
 
 
 }

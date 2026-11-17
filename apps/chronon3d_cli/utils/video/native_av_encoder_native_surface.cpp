@@ -234,7 +234,7 @@ bool NativeAvEncoder::write_native_surface_impl(
         gpu_frame->color_primaries = codec_->color_primaries;
         gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
         cuda::OwnedCudaEvent ready{};
-        const CUresult event_create = cuda::create_recorded(
+        const CUresult event_create = acquire_recorded_cuda_event(
             ready, reinterpret_cast<CUcontext>(cuda_context_), cuda_stream_);
         if (event_create != CUDA_SUCCESS) {
             const char* name = nullptr;

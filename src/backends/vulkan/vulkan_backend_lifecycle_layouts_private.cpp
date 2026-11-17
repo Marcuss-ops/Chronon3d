@@ -48,11 +48,15 @@ void VulkanBackend::Impl::init_descriptor_layouts() {
         // The particle emitter owns a compact dedicated layout: a writable
         // billboard-instance storage buffer and the std140 emitter UBO.  It is
         // deliberately separate from the image-heavy general layout.
+        const VkDescriptorSetLayoutCreateFlags push_flag =
+            descriptor_arena.push_descriptor_enabled()
+                ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR
+                : 0;
         const VkDescriptorSetLayoutBinding particle_bindings[] = {
             {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
         const VkDescriptorSetLayoutCreateInfo particle_layout_info{
-            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0,
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, push_flag,
             2, particle_bindings};
         check(vkCreateDescriptorSetLayout(device, &particle_layout_info, nullptr,
                                           &particle_emitter_descriptor_layout),
@@ -81,7 +85,7 @@ void VulkanBackend::Impl::init_descriptor_layouts() {
             {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
         const VkDescriptorSetLayoutCreateInfo tile_bin_layout_info{
-            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0,
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, push_flag,
             5, tile_bin_bindings};
         check(vkCreateDescriptorSetLayout(device, &tile_bin_layout_info, nullptr,
                                           &text_tile_bin_descriptor_layout),
@@ -97,7 +101,7 @@ void VulkanBackend::Impl::init_descriptor_layouts() {
             {5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
         const VkDescriptorSetLayoutCreateInfo tile_raster_layout_info{
-            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0,
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, push_flag,
             7, tile_raster_bindings};
         check(vkCreateDescriptorSetLayout(device, &tile_raster_layout_info, nullptr,
                                           &text_tile_raster_descriptor_layout),
@@ -115,7 +119,7 @@ void VulkanBackend::Impl::init_descriptor_layouts() {
             {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
         const VkDescriptorSetLayoutCreateInfo inline_mesh_layout_info{
-            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0,
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, push_flag,
             5, inline_mesh_bindings};
         check(vkCreateDescriptorSetLayout(device, &inline_mesh_layout_info, nullptr,
                                           &inline_mesh_descriptor_layout),

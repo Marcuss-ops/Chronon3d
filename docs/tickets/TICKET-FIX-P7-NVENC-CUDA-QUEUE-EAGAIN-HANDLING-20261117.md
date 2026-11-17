@@ -1,6 +1,6 @@
 # TICKET-FIX-P7-NVENC-CUDA-QUEUE-EAGAIN-HANDLING-20261117 — P7: Gestione corretta di `AVERROR(EAGAIN)` e rimozione `av_frame_clone` per-frame nella coda CUDA di `NativeAvEncoder`
 
-- **Stato:** CLOSED (2026-11-17 — verified in `build/chronon/linux-video-test`)
+- **Stato:** CLOSED (2026-11-17 — retry EAGAIN, `av_frame_ref` e pool `CUevent` verificati in `build/chronon/linux-video-test`)
 - **Priorità:** P0/P1 (Bug di correttezza e perdita frame sotto backpressure NVENC nel percorso GPU)
 - **Verifica sul codice attuale:** **PROBLEMA VERO (`[CODICE]` verificato)**
 - **File coinvolti:**
@@ -85,6 +85,13 @@ session_restart_intra_pending_ = false;
 Solo **dopo** che `send_ret == 0` è confermato, aggiornare `duplicate_seed_source_`, fare `av_frame_unref(pending.frame)`, rimetterlo in `reusable_cuda_frames_` e fare `pending_cuda_frames_.pop_front()`.
 
 ### Passo 2 — Sostituire `av_frame_clone` con `av_frame_ref` su istanza pre-allocata e riciclare i `CUevent`
+
+> **Stato 2026-11-17:** `av_frame_clone` è stato sostituito da `av_frame_ref` su
+> `duplicate_seed_source_`. I `CUevent` sono ora riciclati tramite
+> `reusable_cuda_events_`: i producer chiamano `acquire_recorded_cuda_event()`
+> (riusa e ri-registra un evento del pool, altrimenti ne crea uno) e la coda
+> rilascia `pending.ready` con `release_cuda_event()` dopo che il codec ha
+> accettato il frame. `abort_open()` distrugge il pool residuo.
 1. Inizializzare `duplicate_seed_source_` una sola volta con `av_frame_alloc()` e ad ogni frame eseguire:
    ```cpp
    if (!duplicate_seed_source_) duplicate_seed_source_.reset(av_frame_alloc());
@@ -104,6 +111,10 @@ Nessuno.
 ## 4. Verifica e Criteri di Chiusura
 
 1. **Test Unitario**:
-   - `chronon3d_native_decoder_teardown_tests` verde; verificare che il retry `EAGAIN` sulla coda CUDA non perda mai il frame in testa a `pending_cuda_frames_`.
-2. **Zero allocazioni `AVFrame` / `CUevent` per frame in steady-state**:
-   - Verificato nel loop di `drain_ready_cuda_frames()`.
+   - `chronon3d_native_decoder_teardown_tests` verde; verificare che il retry `EAGAIN` sulla coda CUDA non perda mai il frame in testa a `pending_cuda_frames_`. — **fatto**
+2. **Zero allocazioni `AVFrame`**:
+   - `av_frame_ref` su `duplicate_seed_source_` — **fatto**.
+3. **Zero allocazioni `CUevent` per frame in steady-state**:
+   - **fatto**: pool `reusable_cuda_events_` in `NativeAvEncoder`, usato da
+     entrambi i producer CUDA e dalla coda; il pool viene svuotato in
+     `abort_open()`.

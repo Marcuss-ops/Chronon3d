@@ -175,6 +175,7 @@ VkDescriptorSet VulkanBackend::Impl::allocate_pass_descriptor_set() {
 }
 
 VkDescriptorSet VulkanBackend::Impl::allocate_inline_mesh_descriptor_set() {
+    if (descriptor_arena.push_descriptor_enabled()) return VK_NULL_HANDLE;
     const auto set =
         frame_batch.inline_mesh_allocators[frame_batch.next_slot].allocate();
     frame_batch.descriptor_sets.push_back(set);
@@ -186,6 +187,7 @@ VkDescriptorSet VulkanBackend::Impl::allocate_text_tile_bin_descriptor_set() {
     if (!frame_batch.active) {
         throw std::logic_error("text tile bin requires an active frame batch");
     }
+    if (descriptor_arena.push_descriptor_enabled()) return VK_NULL_HANDLE;
     return frame_batch.text_tile_bin_allocators[frame_batch.next_slot].allocate();
 }
 
@@ -193,6 +195,7 @@ VkDescriptorSet VulkanBackend::Impl::allocate_text_tile_raster_descriptor_set() 
     if (!frame_batch.active) {
         throw std::logic_error("text tile raster requires an active frame batch");
     }
+    if (descriptor_arena.push_descriptor_enabled()) return VK_NULL_HANDLE;
     return frame_batch.text_tile_raster_allocators[frame_batch.next_slot].allocate();
 }
 
@@ -215,7 +218,12 @@ void VulkanBackend::Impl::write_text_tile_bin_descriptors(
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &indices, nullptr},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 4, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &glyph_dynamic, nullptr}};
-    vkUpdateDescriptorSets(device, 5, writes, 0, nullptr);
+    if (set == VK_NULL_HANDLE && descriptor_arena.push_descriptor_enabled()) {
+        descriptor_arena.push_compute_descriptors(
+            active_command_buffer(), kernels.text_tile_bin_layout, 5, writes);
+    } else {
+        vkUpdateDescriptorSets(device, 5, writes, 0, nullptr);
+    }
 }
 
 void VulkanBackend::Impl::write_text_tile_raster_descriptors(
@@ -246,7 +254,12 @@ void VulkanBackend::Impl::write_text_tile_raster_descriptors(
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &indices, nullptr},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 6, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &glyph_dynamic, nullptr}};
-    vkUpdateDescriptorSets(device, 7, writes, 0, nullptr);
+    if (set == VK_NULL_HANDLE && descriptor_arena.push_descriptor_enabled()) {
+        descriptor_arena.push_compute_descriptors(
+            active_command_buffer(), kernels.text_tile_raster_layout, 7, writes);
+    } else {
+        vkUpdateDescriptorSets(device, 7, writes, 0, nullptr);
+    }
 }
 
 } // namespace chronon3d::backends::vulkan

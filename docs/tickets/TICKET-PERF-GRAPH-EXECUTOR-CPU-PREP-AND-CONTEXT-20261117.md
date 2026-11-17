@@ -1,6 +1,6 @@
 # TICKET-PERF-GRAPH-EXECUTOR-CPU-PREP-AND-CONTEXT-20261117 — Parallelismo CPU-prep nei livelli del RenderGraph su backend Vulkan e azzeramento costo `clone_for_node_execution`
 
-- **Stato:** OPEN (2026-11-17)
+- **Stato:** CLOSED (2026-11-17)
 - **Priorità:** P2 (Ottimizzazione architetturale CPU/Executor — coordinato con `TICKET-HOTPATH-ZERO-ALLOC-P1` D3 e `ADR-DRAFT-NODE-CONTEXT-OWNERSHIP`)
 - **Ambito:** `src/render_graph/executor/executor_level_dispatch.cpp`, `src/render_graph/executor/node_runner_single_node_detail.hpp`
 - **Owner:** C3D RenderGraph executor maintainer

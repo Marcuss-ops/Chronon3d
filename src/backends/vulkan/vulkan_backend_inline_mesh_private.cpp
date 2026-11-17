@@ -139,7 +139,9 @@ void VulkanBackend::Impl::draw_inline_mesh(
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &mesh_info, nullptr},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 4, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &mr_info, nullptr, nullptr}};
-    vkUpdateDescriptorSets(device, 5, writes, 0, nullptr);
+    if (descriptors != VK_NULL_HANDLE) {
+        vkUpdateDescriptorSets(device, 5, writes, 0, nullptr);
+    }
 
     const auto command = active_command_buffer();
     // Barrier every image the pass touches exactly once. The depth companion
@@ -209,8 +211,13 @@ void VulkanBackend::Impl::draw_inline_mesh(
     if (pipeline == VK_NULL_HANDLE)
         throw std::logic_error("Vulkan inline mesh pipeline was not registered");
     vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-    vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            kernels.inline_mesh_layout, 0, 1, &descriptors, 0, nullptr);
+    if (descriptors == VK_NULL_HANDLE && descriptor_arena.push_descriptor_enabled()) {
+        descriptor_arena.push_compute_descriptors(
+            command, kernels.inline_mesh_layout, 5, writes);
+    } else {
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.inline_mesh_layout, 0, 1, &descriptors, 0, nullptr);
+    }
     vkCmdPushConstants(command, kernels.inline_mesh_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                        0, sizeof(push), &push);
     vkCmdDispatch(command,

@@ -340,6 +340,14 @@ private:
         media::HwFrameRef source_owner;
     };
     std::deque<PendingCudaFrame> pending_cuda_frames_;
+    // P7: readiness events are returned here once the codec accepts the frame
+    // and reused for the next submission instead of allocating/destroying a
+    // CUevent per frame.
+    std::vector<cuda::OwnedCudaEvent> reusable_cuda_events_;
+    CUresult acquire_recorded_cuda_event(cuda::OwnedCudaEvent& out,
+                                         CUcontext context,
+                                         CUstream stream) noexcept;
+    void release_cuda_event(cuda::OwnedCudaEvent&& event) noexcept;
     CUstream cuda_stream_{nullptr};
     uint64_t frames_submitted_{0};
     uint64_t cuda_pending_peak_{0};

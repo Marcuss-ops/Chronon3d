@@ -154,6 +154,21 @@ void dispatch_level_nodes(
     }
 
     const auto t_seq0 = profiling::now();
+    // Two-phase level dispatch on native-surface backends: Phase 1 computes
+    // cache evaluation and predicted bounding boxes in parallel across TBB
+    // workers (purely read-only on backend state), while Phase 2 records
+    // Vulkan command-buffer passes sequentially in strict deterministic order.
+    std::vector<PreEvaluatedNodePrep> pre_evals;
+    const bool two_phase_prep =
+        native_surface_backend && level.size() >= 4 && scheduler.concurrency() > 1;
+    if (two_phase_prep) {
+        pre_evals.resize(level.size());
+        scheduler.for_each_index(level.size(), [&](std::size_t level_index) {
+            pre_evals[level_index] = prepare_node_cpu_eval(
+                graph, ctx, level_resolved[level_index], level[level_index],
+                compiled, state);
+        });
+    }
     for (size_t level_index = 0; level_index < level.size(); ++level_index) {
         const auto node_t0 = log_node_diagnostics
             ? profiling::now() : profiling::Clock::time_point{};
@@ -161,7 +176,8 @@ void dispatch_level_nodes(
         execute_single_node(
             state, graph, ctx, level_resolved, node_id, level_index,
             parent_counters, parent_pool, consumer_remaining,
-            compiled, nullptr);
+            compiled, nullptr,
+            two_phase_prep ? &pre_evals[level_index] : nullptr);
         if (log_node_diagnostics) {
             const double node_ms = profiling::duration_ms(node_t0, profiling::now());
             spdlog::info("[exec-node-diag] frame={} (seq) node_id={} name='{}' ms={:.3f}",

@@ -17,6 +17,7 @@
 #include <memory_resource>
 #include <vector>
 
+#include "cache_evaluator.hpp"
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
@@ -36,6 +37,21 @@ struct ExecutionState;
 struct PreResolvedNode;
 struct CompiledFrameGraph;
 
+struct PreEvaluatedNodePrep {
+    bool valid{false};
+    CacheEvalResult cache_eval{};
+    std::optional<raster::BBox> predicted_bbox{};
+};
+
+[[nodiscard]] PreEvaluatedNodePrep prepare_node_cpu_eval(
+    RenderGraph& graph,
+    const RenderGraphContext& ctx,
+    const PreResolvedNode& pr,
+    GraphNodeId id,
+    const CompiledFrameGraph& compiled,
+    const ExecutionState& state
+);
+
 void execute_single_node(
     ExecutionState& state,
     RenderGraph& graph,
@@ -47,7 +63,8 @@ void execute_single_node(
     FramebufferPool* parent_pool,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     const CompiledFrameGraph& compiled,
-    std::uint64_t* local_nodes_executed = nullptr
+    std::uint64_t* local_nodes_executed = nullptr,
+    const PreEvaluatedNodePrep* pre_eval = nullptr
 );
 
 } // namespace chronon3d::graph

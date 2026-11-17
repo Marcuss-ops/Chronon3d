@@ -1,6 +1,6 @@
 # TICKET-PERF-VULKAN-DIRTY-ROI-AND-PUSH-DESCRIPTORS-20261117 — Abilitazione ROI / Dirty Rectangles sui dispatch Vulkan e riduzione del Descriptor Set Churn (`VK_KHR_push_descriptor`)
 
-- **Stato:** OPEN (2026-11-17)
+- **Stato:** CLOSED (2026-11-17)
 - **Priorità:** P2 (Ottimizzazione strutturale banda VRAM su composizioni sparse e riduzione chiamate driver per-pass)
 - **Verifica sul codice attuale:** **PROBLEMA VERO (`[CODICE]` verificato)**
 - **Ambito:** `src/render_graph/pipeline/tile_execution_policy.cpp`, `src/backends/vulkan/vulkan_descriptor_authority.hpp`, `src/backends/vulkan/vulkan_descriptor_arena_private.cpp`

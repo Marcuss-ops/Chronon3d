@@ -45,7 +45,8 @@ namespace chronon3d::backends::vulkan {
     VulkanBackend::Impl::Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
          std::uint32_t family, VkCommandPool pool,
          bool calibrated_timestamps_supported,
-         VulkanDebugContext* dbg_ctx)
+         VulkanDebugContext* dbg_ctx,
+         bool push_descriptor_supported)
         : instance(inst), physical_device(physical), device(logical), queue(graphics),
           queue_family(family), command_pool(pool),
           submission_ring(descriptor_arena),
@@ -69,6 +70,11 @@ namespace chronon3d::backends::vulkan {
         max_storage_buffer_range = device_properties.limits.maxStorageBufferRange;
         pfn_cmd_pipeline_barrier2 = reinterpret_cast<PFN_vkCmdPipelineBarrier2KHR>(
             vkGetDeviceProcAddr(device, "vkCmdPipelineBarrier2KHR"));
+        if (push_descriptor_supported) {
+            descriptor_arena.cmd_push_descriptor_set_khr =
+                reinterpret_cast<PFN_vkCmdPushDescriptorSetKHR>(
+                    vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetKHR"));
+        }
         // timestampValidBits is a property of the selected queue family, not
         // VkPhysicalDeviceLimits.  Read it from the same family used for the
         // graphics queue so timestamp queries are enabled only when that
@@ -190,17 +196,19 @@ namespace chronon3d::backends::vulkan {
         for (auto& allocator : descriptor_arena.pass) {
             allocator.create(device, descriptor_layout);
         }
-        for (auto& allocator : descriptor_arena.particle_emitter) {
-            allocator.create(device, particle_emitter_descriptor_layout, 0, 1, 1);
-        }
-        for (auto& allocator : descriptor_arena.inline_mesh) {
-            allocator.create(device, inline_mesh_descriptor_layout, 4, 1);
-        }
-        for (auto& allocator : descriptor_arena.text_tile_bin) {
-            allocator.create(device, text_tile_bin_descriptor_layout, 0, 5);
-        }
-        for (auto& allocator : descriptor_arena.text_tile_raster) {
-            allocator.create(device, text_tile_raster_descriptor_layout, 2, 5);
+        if (!descriptor_arena.push_descriptor_enabled()) {
+            for (auto& allocator : descriptor_arena.particle_emitter) {
+                allocator.create(device, particle_emitter_descriptor_layout, 0, 1, 1);
+            }
+            for (auto& allocator : descriptor_arena.inline_mesh) {
+                allocator.create(device, inline_mesh_descriptor_layout, 4, 1);
+            }
+            for (auto& allocator : descriptor_arena.text_tile_bin) {
+                allocator.create(device, text_tile_bin_descriptor_layout, 0, 5);
+            }
+            for (auto& allocator : descriptor_arena.text_tile_raster) {
+                allocator.create(device, text_tile_raster_descriptor_layout, 2, 5);
+            }
         }
         check(vkCreateFence(device, &fence_info, nullptr, &fence), "vkCreateFence");
         if (debug_context) debug_context->set_fence_name(fence, "Chronon3D.Fence.Main");

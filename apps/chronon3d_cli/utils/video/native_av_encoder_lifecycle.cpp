@@ -359,6 +359,10 @@ void NativeAvEncoder::abort_open() noexcept {
         cuda::destroy(pending.ready);
     }
     pending_cuda_frames_.clear();
+    for (auto& pooled : reusable_cuda_events_) {
+        cuda::destroy(pooled);
+    }
+    reusable_cuda_events_.clear();
     for (auto* reusable : reusable_cuda_frames_) {
         av_frame_free(&reusable);
     }

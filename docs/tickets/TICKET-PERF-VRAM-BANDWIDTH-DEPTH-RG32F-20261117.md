@@ -1,6 +1,6 @@
 # TICKET-PERF-VRAM-BANDWIDTH-DEPTH-RG32F-20261117 — Riduzione banda VRAM della companion surface di profondità (`RGBA32F` → `RG32F`) e valutazione hardware sampler
 
-- **Stato:** OPEN (2026-11-17)
+- **Stato:** CLOSED (2026-11-17)
 - **Priorità:** P2 (Ottimizzazione Memory Bandwidth GPU e pressione VRAM a 1080p/4K)
 - **Ambito:** `src/backends/vulkan/shaders/inline_mesh.comp`, `src/backends/vulkan/`, `src/render_graph/nodes/`
 - **Owner:** C3D Vulkan backend / RenderGraph maintainer

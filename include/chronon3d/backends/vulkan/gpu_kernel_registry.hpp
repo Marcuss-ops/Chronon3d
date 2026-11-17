@@ -33,6 +33,7 @@ enum class GpuKernelId : std::uint8_t {
     InlineMesh,
     TextTileBin,
     TextTileRaster,
+    TextTileRasterSimple,
     ColorMatrix,
     ChromaticAberration,
     DofDepthStamp,
