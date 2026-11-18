@@ -58,3 +58,27 @@ Nessuno.
    - Monitorare `overflow_wait_count`, `pending_release_high_water` e `deferred_release_drain_wait_us` nel sidecar su scene multi-layer con DoF/effetti: `deferred_release_drain_wait_us` deve ridursi drasticamente e non causare drain completi della pipeline.
 2. **Suite di Test**:
    - `chronon3d_backend_registry_tests`, `chronon3d_render_graph_tests` e `chronon3d_effects_tests` verdi.
+
+---
+
+## 5. Verifica 2026-11-18 — riaperta e riconfermata sull'HEAD `ff949336a`
+
+- Scena 1920×1080/30 a 5 layer con camera DoF, quattro immagini a profondità
+  diverse, glow e drop shadow, titolo animato per evitare la deduplicazione
+  dei frame (60 frame reali): **`overflow_wait_count=30`**,
+  **`pending_release_high_water=52`** (cap 48), **`frame_batch_drain_wait_count=0`**
+  e `frame_batch_drain_wait_us=0`. Il percorso di overflow ha quindi ritirato
+  il singolo slot più vecchio 30 volte senza mai drenare l'intero ring.
+  `frame_slot_wait_count=26`, `deferred_release_drain_wait_us=970674 µs`
+  cumulativi su 60 flush (30 attese a un solo slot), 60/60 frame
+  surface/encode nativi, 66 submit.
+- `chronon3d_render_graph_tests` **PASS** via CTest (467 casi, 92,45 s) e
+  `chronon3d_effects_tests` **PASS** via CTest (335 casi, 41,18 s). Il cwd
+  corretto è la root del repo: lanciati da `build/.../tests` i test di
+  testo/glow falliscono per risoluzione font/asset, non per il codice.
+- `chronon3d_backend_registry_tests` **162/162 casi PASS** in 14 processi
+  freschi (≤12 casi); il processo unico resta limitato dall'ICD NVIDIA
+  (`vkCreateInstance -9` dopo 26 istanze).
+
+Evidenza completa, comandi e artefatti:
+[`docs/evidence/p1-p3-audit-20261118/README.md`](../../evidence/p1-p3-audit-20261118/README.md).

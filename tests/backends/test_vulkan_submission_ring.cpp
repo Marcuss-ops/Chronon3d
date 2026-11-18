@@ -5,6 +5,8 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 
+#include <vector>
+
 namespace {
 
 struct BackendFixture {
@@ -187,6 +189,60 @@ TEST_CASE("recording ops take the contention domains separately (audit N4)") {
     REQUIRE(fixture.backend->download_surface(fixture.handle, pixels).ok());
     const auto after_download = fixture.backend->stats();
     CHECK(after_download.dual_lock_acquires > before_download.dual_lock_acquires);
+}
+
+TEST_CASE("per-surface idle wait never drains the whole submission ring") {
+    BackendFixture fixture;
+    if (!fixture.backend) { WARN("No Vulkan device available"); return; }
+
+    fixture.backend->begin_frame_batch();
+    REQUIRE(fixture.backend->fill_rect_surface(
+        fixture.handle, 0, 0, 8, 8,
+        chronon3d::Color{0.2f, 0.4f, 0.6f, 1.0f}).ok());
+    fixture.backend->end_frame_batch();
+
+    const auto before = fixture.backend->stats();
+    // P1: recycling one imported surface must not call the full-ring drain.
+    // The only legal wait is the per-slot fence recorded for this surface.
+    CHECK(fixture.backend->wait_for_surface_idle(fixture.handle));
+    const auto after = fixture.backend->stats();
+    CHECK(after.frame_batch_drain_wait_count == before.frame_batch_drain_wait_count);
+    CHECK(after.submissions == before.submissions);
+    CHECK(after.frame_slot_wait_count >= before.frame_slot_wait_count);
+}
+
+TEST_CASE("deferred-release overflow retires without a full-ring drain") {
+    BackendFixture fixture;
+    if (!fixture.backend) { WARN("No Vulkan device available"); return; }
+
+    const auto desc = chronon3d::runtime::SurfaceDesc::make(
+        32, 24, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Generic,
+        chronon3d::runtime::LifetimeClass::FrameTransient,
+        chronon3d::runtime::ColorMetadata{});
+
+    // One frame releases far more handles than the deferred-release cap
+    // (8 * kSlotCount = 48). The overflow path must retire exactly the
+    // oldest in-flight slot; it must never fall back to wait_for_pending().
+    fixture.backend->begin_frame_batch();
+    for (std::uint32_t i = 0; i < 64; ++i) {
+        const auto handle = static_cast<chronon3d::runtime::RenderSurfaceHandle>(
+            0xC3D200u + i);
+        REQUIRE(fixture.backend->create_surface(handle, desc).ok());
+        REQUIRE(fixture.backend->fill_rect_surface(
+            handle, 0, 0, 4, 4,
+            chronon3d::Color{0.1f, 0.2f, 0.3f, 1.0f}).ok());
+        REQUIRE(fixture.backend->release_surface(handle).ok());
+    }
+    fixture.backend->end_frame_batch();
+
+    const auto before = fixture.backend->stats();
+    fixture.backend->retire_frame_transient_surfaces();
+    const auto after = fixture.backend->stats();
+
+    CHECK(after.overflow_wait_count > before.overflow_wait_count);
+    CHECK(after.frame_batch_drain_wait_count == before.frame_batch_drain_wait_count);
+    CHECK(after.submissions == before.submissions);
 }
 
 TEST_CASE("multiple command batches remain independently submitted") {

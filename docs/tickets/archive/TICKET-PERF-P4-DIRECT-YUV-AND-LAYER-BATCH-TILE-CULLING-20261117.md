@@ -72,3 +72,13 @@ Nessuno: algoritmo interamente confinato ai due kernel, zero cambi di ABI o stru
    - L'ordine di iterazione tramite bitmask (`findLSB` / `__ffsll`) è strettamente monotono crescente ($i_1 < i_2 < \dots$), quindi il blending produce pixel **100% bit-exact** rispetto al loop `for (int i = 0; i < count; ++i)`.
 2. **Benchmark 1, 4, 16, 32 layer**:
    - Verifica su `chronon3d_compositor_tests` e benchmark `nv12-compositor` con NVENC `p2`.
+
+## 5. Verifica 2026-11-18
+
+- Nuovo test `NV12 direct batch: 65 sparse layers match per-layer draws in
+  their regions`: 65 layer (un chunk completo da 64 + 1), 196/196 asserzioni
+  PASS; ogni regione luma/chroma è bit-identica al draw separato.
+- `chronon3d_backend_registry_tests`: 162/162 casi PASS (chunked).
+- Il benchmark 1/4/16/32 layer non è stato rieseguito in questa passata:
+  nessuna claim di speedup.
+- Evidenza: `../../evidence/p2-p9-audit-20261118/README.md`.

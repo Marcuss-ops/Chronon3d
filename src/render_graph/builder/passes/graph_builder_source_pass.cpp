@@ -250,6 +250,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         if (use_gpu_particle_batch &&
             gpu_particle_node != layer.nodes.end()) {
             auto node = *gpu_particle_node;
+            // The instance marker is the last authored particle child, so its
+            // node transform carries that particle's placement.  The sampled
+            // stream is emitter-local and must be placed by the layer matrix
+            // only; composing the last child's transform shifted the whole
+            // cloud (and pushed some plans entirely off-canvas).
+            node.world_transform = Transform{};
             // A fresh graph build is used for every GPU-particle frame.  The
             // authoring marker only carries the t=0 sample; without replacing
             // it here the graph is rebuilt at the right frame but always draws

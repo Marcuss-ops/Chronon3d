@@ -83,3 +83,14 @@ Nessuno.
    - Accodare 12 invocazioni consecutive di `composite_direct_nv12_batch` con coordinate layer distinte per ogni frame senza `cuStreamSynchronize` tra un frame e l'altro: verificare che tutti i 12 frame abbiano hash identici a quelli prodotti con sincronizzazione ad ogni frame.
 2. **Suite CUDA NV12**:
    - `chronon3d_compositor_tests` e suite CUDA NV12 (6/6) verdi.
+
+## 5. Verifica 2026-11-18
+
+- `chronon3d_nv12_compositor_contract_tests` con `CHRONON3D_RUN_CUDA_TESTS=1`:
+  **8/8 casi, 329/329 asserzioni PASS**.
+- Il test a 12 frame asincrono era rimasto sull'API pre-unificazione
+  (`LayerBatch`, `CudaNv12Compositor::init`, `PrimitiveKind::Solid`, `dst_rect`)
+  e non compilava; è stato portato a `GpuLayerBatch` / `LayerInstance` con una
+  risorsa RGBA reale. Ora esercita davvero il ring a 6 slot e i `CUevent`
+  per-slot.
+- Evidenza: `../../evidence/p2-p9-audit-20261118/README.md`.

@@ -70,3 +70,29 @@ Nessuno: `wait_for_pending_submissions()` rimane per il teardown di fine session
    - Su un export video con sorgente NVDEC di almeno 120 frame, verificare che `frame_batch_drain_wait_count` e `frame_batch_drain_wait_us` crollino (nessun drain forzato dei 6 slot ogni 6 frame).
 2. **Test di Regressione e Teardown**:
    - `chronon3d_native_decoder_teardown_tests`, `chronon3d_backend_registry_tests` e `tools/verify_zero_copy_end_to_end.sh` 100% PASS con 0 errori SyncVal / CUDA.
+
+---
+
+## 5. Verifica 2026-11-18 — riaperta e riconfermata sull'HEAD `ff949336a`
+
+- Export NVDEC 120 frame (1920×1080/30, sorgente 144 frame + overlay animato):
+  `decoder_backend=nvdec`, 120/120 frame nativi surface/encode,
+  **`frame_batch_drain_wait_count=1` e `frame_batch_drain_wait_us=15 µs`**,
+  **`frame_slot_wait_count=113`** (`frame_slot_wait_us=180677`), zero overflow,
+  `deferred_release_drain_wait_us=691 µs`, 122 submit. Wall 4,48 s.
+  I sidecar storici pre-patch mostrano 242 drain completi / 0 attese per-slot
+  (`tests/motion_showcase/artifacts/05_puppet_pin_character/`); il workload è
+  diverso, quindi è contesto e non un A/B same-workload.
+- `chronon3d_native_decoder_teardown_tests` **21/21 casi, 2327 asserzioni
+  PASS**; `chronon3d_vulkan_submission_ring_tests` **10/10 casi, 3313
+  asserzioni PASS** (nuova regressione per `wait_for_surface_idle` inclusa).
+- `chronon3d_backend_registry_tests` **162/162 casi PASS** in 14 processi
+  freschi (≤12 casi): il processo unico colpisce ancora il limite ICD NVIDIA
+  `vkCreateInstance -9` dopo 26 istanze, non una regressione del codice.
+- `tools/verify_zero_copy_end_to_end.sh --direct-yuv` **ZERO_COPY_PASS, 20/20
+  gate** (NVDEC→NVENC, upload/readback 0, handoff `direct`). La lane FullGraph
+  NVDEC→CUDA→Vulkan riporta `nv12_to_rgba_frames=120` per contratto e non è la
+  lane certificata dallo script.
+
+Evidenza completa, comandi e artefatti:
+[`docs/evidence/p1-p3-audit-20261118/README.md`](../../evidence/p1-p3-audit-20261118/README.md).

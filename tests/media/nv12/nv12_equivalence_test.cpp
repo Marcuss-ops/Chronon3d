@@ -972,16 +972,29 @@ TEST_CASE("NV12 direct batch: 12-frame async launch without intermediate sync ma
     const std::size_t y_bytes = static_cast<std::size_t>(w) * h;
     const std::size_t uv_bytes = static_cast<std::size_t>(w) * ((h + 1) / 2);
 
-    const auto bg = make_gradient_nv12(w, h);
+    const auto bg = make_background_nv12(w, h, 0x5AD0ULL);
     DevBuffer bg_y_d, bg_uv_d;
     bg_y_d.alloc(y_bytes);
     bg_uv_d.alloc(uv_bytes);
     bg_y_d.upload_async(session.stream, bg.y.data());
     bg_uv_d.upload_async(session.stream, bg.uv.data());
 
-    chronon3d::media::video::CudaNv12Compositor comp;
-    REQUIRE(comp.init(session.ctx));
-    std::vector<chronon3d::media::CudaLayerResource> resources;
+    // P2: a real overlay resource, so the direct batch path accepts the
+    // instance and the staging slot is actually consumed by H2D + kernel.
+    const auto rgba = make_rgba_overlay(160, 120, 0xA51CULL, 2);
+    DevBuffer overlay_d;
+    overlay_d.alloc(rgba.size() * sizeof(float));
+    overlay_d.upload_async(session.stream, rgba.data());
+
+    chronon3d::media::CudaLayerResource resource;
+    resource.kind = chronon3d::media::CudaLayerResourceKind::Rgba;
+    resource.rgba = overlay_d.ptr;
+    resource.pitch_bytes = 160 * 16;
+    resource.width = 160;
+    resource.height = 120;
+    const std::vector<chronon3d::media::CudaLayerResource> resources = {resource};
+
+    chronon3d::media::video::CudaNv12Compositor comp(session.context);
 
     // Reference pass: 12 frames with explicit cuStreamSynchronize after each frame.
     std::vector<std::vector<std::uint8_t>> ref_y(kFrames), ref_uv(kFrames);
@@ -990,17 +1003,17 @@ TEST_CASE("NV12 direct batch: 12-frame async launch without intermediate sync ma
     out_uv_d.alloc(uv_bytes);
 
     auto make_frame_batch = [](int f) {
-        chronon3d::runtime::LayerBatch batch;
+        chronon3d::runtime::GpuLayerBatch batch;
         chronon3d::runtime::LayerInstance inst;
-        inst.kind = chronon3d::runtime::PrimitiveKind::Solid;
-        inst.color[0] = 0.1f + 0.06f * static_cast<float>(f);
-        inst.color[1] = 0.8f - 0.04f * static_cast<float>(f);
-        inst.color[2] = 0.25f;
-        inst.color[3] = 0.75f;
-        inst.dst_rect[0] = 40.0f + 12.0f * static_cast<float>(f);
-        inst.dst_rect[1] = 30.0f + 6.0f * static_cast<float>(f);
-        inst.dst_rect[2] = 160.0f;
-        inst.dst_rect[3] = 120.0f;
+        inst.kind = chronon3d::runtime::PrimitiveKind::Image;
+        inst.resource_index = 0;
+        inst.src_x0 = 0.0f; inst.src_y0 = 0.0f;
+        inst.src_x1 = 1.0f; inst.src_y1 = 1.0f;
+        inst.dst_x0 = 40.0f + 12.0f * static_cast<float>(f);
+        inst.dst_y0 = 30.0f + 6.0f * static_cast<float>(f);
+        inst.dst_x1 = inst.dst_x0 + 160.0f;
+        inst.dst_y1 = inst.dst_y0 + 120.0f;
+        inst.opacity = 0.75f;
         batch.instances.push_back(inst);
         return batch;
     };
@@ -1042,6 +1055,119 @@ TEST_CASE("NV12 direct batch: 12-frame async launch without intermediate sync ma
         const auto cuv = compare_plane(ref_uv[f].data(), got_uv.data(), uv_bytes);
         CHECK(cy.identical);
         CHECK(cuv.identical);
+    }
+}
+
+TEST_CASE("NV12 direct batch: 65 sparse layers match per-layer draws in their regions") {
+    using namespace chronon3d::nv12_equiv;
+    if (!gpu_tests_enabled()) {
+        MESSAGE("set CHRONON3D_RUN_CUDA_TESTS=1 to run the 65-layer tile-culling test");
+        return;
+    }
+
+    CudaSession session;
+    if (!session.ok) {
+        MESSAGE("CUDA device/context unavailable; 65-layer tile-culling test is NOT RUN");
+        return;
+    }
+    session.set_current();
+
+    constexpr int w = 640;
+    constexpr int h = 360;
+    constexpr int kLayers = 65;  // one full 64-layer chunk + one layer
+    const std::size_t y_bytes = static_cast<std::size_t>(w) * h;
+    const std::size_t uv_bytes = static_cast<std::size_t>(w) * ((h + 1) / 2);
+
+    const auto bg = make_background_nv12(w, h, 0xC65ULL);
+    DevBuffer bg_y_d, bg_uv_d;
+    bg_y_d.alloc(y_bytes);
+    bg_uv_d.alloc(uv_bytes);
+    bg_y_d.upload_async(session.stream, bg.y.data());
+    bg_uv_d.upload_async(session.stream, bg.uv.data());
+
+    const auto overlay = make_rgba_overlay(16, 16, 0x4C55ULL, 2);
+    DevBuffer overlay_d;
+    overlay_d.alloc(overlay.size() * sizeof(float));
+    overlay_d.upload_async(session.stream, overlay.data());
+
+    chronon3d::media::CudaLayerResource resource;
+    resource.kind = chronon3d::media::CudaLayerResourceKind::Rgba;
+    resource.rgba = overlay_d.ptr;
+    resource.pitch_bytes = 16 * 16;
+    resource.width = 16;
+    resource.height = 16;
+    const std::vector<chronon3d::media::CudaLayerResource> resources = {resource};
+
+    // Non-overlapping 16x16 tiles on a 60x45 grid: every tile intersects at
+    // most one layer, so the sparse batch and the per-layer draws are
+    // mathematically identical. Any missed culling or chunk-boundary bug
+    // changes at least one pixel.
+    auto make_batch = [](int first, int count) {
+        chronon3d::runtime::GpuLayerBatch batch;
+        for (int i = first; i < first + count; ++i) {
+            chronon3d::runtime::LayerInstance inst;
+            inst.kind = chronon3d::runtime::PrimitiveKind::Image;
+            inst.resource_index = 0;
+            inst.src_x0 = 0.0f; inst.src_y0 = 0.0f;
+            inst.src_x1 = 1.0f; inst.src_y1 = 1.0f;
+            inst.dst_x0 = 20.0f + static_cast<float>(i % 10) * 60.0f;
+            inst.dst_y0 = 20.0f + static_cast<float>(i / 10) * 45.0f;
+            inst.dst_x1 = inst.dst_x0 + 16.0f;
+            inst.dst_y1 = inst.dst_y0 + 16.0f;
+            inst.opacity = 1.0f;
+            batch.instances.push_back(inst);
+        }
+        return batch;
+    };
+
+    chronon3d::media::video::CudaNv12Compositor comp(session.context);
+    DevBuffer batch_y_d, batch_uv_d;
+    batch_y_d.alloc(y_bytes);
+    batch_uv_d.alloc(uv_bytes);
+    const auto batch = make_batch(0, kLayers);
+    REQUIRE(comp.composite_direct_nv12_batch(
+        batch, resources, bg_y_d.ptr, w, bg_uv_d.ptr, w,
+        batch_y_d.ptr, w, batch_uv_d.ptr, w,
+        static_cast<std::uint32_t>(w), static_cast<std::uint32_t>(h), session.stream));
+    check_ok(cuStreamSynchronize(session.stream), "cuStreamSynchronize(65-layer)");
+    std::vector<std::uint8_t> batch_y(y_bytes), batch_uv(uv_bytes);
+    batch_y_d.download(batch_y.data());
+    batch_uv_d.download(batch_uv.data());
+
+    DevBuffer one_y_d, one_uv_d;
+    one_y_d.alloc(y_bytes);
+    one_uv_d.alloc(uv_bytes);
+    for (int i = 0; i < kLayers; ++i) {
+        const auto one = make_batch(i, 1);
+        REQUIRE(comp.composite_direct_nv12_batch(
+            one, resources, bg_y_d.ptr, w, bg_uv_d.ptr, w,
+            one_y_d.ptr, w, one_uv_d.ptr, w,
+            static_cast<std::uint32_t>(w), static_cast<std::uint32_t>(h), session.stream));
+        check_ok(cuStreamSynchronize(session.stream), "cuStreamSynchronize(single-layer)");
+        std::vector<std::uint8_t> one_y(y_bytes), one_uv(uv_bytes);
+        one_y_d.download(one_y.data());
+        one_uv_d.download(one_uv.data());
+        // The sparse batch necessarily differs outside this layer: the other
+        // 64 layers are present there. The culling invariant is bit-exactness
+        // inside this layer's luma rect and its covering chroma blocks.
+        const int x0 = 20 + (i % 10) * 60;
+        const int y0 = 20 + (i / 10) * 45;
+        bool y_identical = true;
+        bool uv_identical = true;
+        for (int y = y0; y < y0 + 16; ++y) {
+            for (int x = x0; x < x0 + 16; ++x) {
+                if (batch_y[y * w + x] != one_y[y * w + x]) y_identical = false;
+            }
+        }
+        for (int cy = y0 / 2; cy < (y0 + 17) / 2; ++cy) {
+            for (int cx = x0 / 2; cx < (x0 + 17) / 2; ++cx) {
+                const std::size_t at = static_cast<std::size_t>(cy) * w + 2 * cx;
+                if (batch_uv[at] != one_uv[at] ||
+                    batch_uv[at + 1] != one_uv[at + 1]) uv_identical = false;
+            }
+        }
+        CHECK(y_identical);
+        CHECK(uv_identical);
     }
 }
 

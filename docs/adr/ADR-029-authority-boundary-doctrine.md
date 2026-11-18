@@ -339,6 +339,12 @@ The doctrine has three concrete review usages in the current implementation:
 3. [`software_execution_context.hpp`](../../include/chronon3d/backends/software/software_execution_context.hpp)
    and `RenderPipeline` use an explicit per-job dependency view instead of a
    stored `RuntimeContext&` orchestration back-pointer.
+4. PipelineGen's `applyChainSegmentPresets` is the deliberate post-seal
+   exception at the BrainRust boundary: BrainRust owns chain ordering and
+   timing, while PipelineGen resolves `semantic_role` to a certified
+   `preset_id` from the Go preset registry. The ownership test pins that only
+   `PresetID` may change after the seal; reordering, re-selection and timing
+   remain BrainRust authority.
 
 ## Alternatives considered
 

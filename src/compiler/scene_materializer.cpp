@@ -1297,6 +1297,48 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             .evolution_speed = effect.warp_speed,
                             .seed = effect.roughen_seed});
                         break;
+                    case EffectKind::Mosaic:
+                        builder.effect(MosaicParams{.block_size = effect.block_size});
+                        break;
+                    case EffectKind::Halftone:
+                        builder.effect(HalftoneParams{
+                            .size = effect.halftone_size,
+                            .angle_degrees = effect.halftone_angle,
+                            .amount = effect.halftone_amount});
+                        break;
+                    case EffectKind::Vignette:
+                        builder.effect(VignetteParams{
+                            .radius = effect.radius,
+                            .softness = effect.softness,
+                            .amount = effect.amount,
+                            .color = Color{effect.effect_color[0], effect.effect_color[1],
+                                           effect.effect_color[2], effect.effect_color[3]}});
+                        break;
+                    case EffectKind::Noise:
+                        builder.effect(NoiseParams{
+                            .amount = effect.amount,
+                            .seed = effect.seed,
+                            .animated = effect.animated,
+                            .color_mode = effect.rgb_noise ? NoiseColorMode::RGB
+                                                           : NoiseColorMode::Monochrome,
+                            .size = effect.noise_size,
+                            .shadow_response = effect.grain_shadow_response,
+                            .midtone_response = effect.grain_midtone_response,
+                            .highlight_response = effect.grain_highlight_response});
+                        break;
+                    case EffectKind::Sharpen:
+                        builder.effect(SharpenParams{
+                            .amount = effect.amount,
+                            .radius = effect.radius,
+                            .threshold = effect.threshold});
+                        break;
+                    case EffectKind::Scanlines:
+                        builder.effect(ScanlinesParams{
+                            .axis = effect.scanlines_axis,
+                            .spacing_px = effect.scanlines_spacing,
+                            .amount = effect.scanlines_amount,
+                            .phase = effect.scanlines_phase});
+                        break;
                     case EffectKind::Catalog: {
                         if (auto params = effects::make_default_animatable_effect_params(
                                 effect.canonical_effect_id)) {
@@ -1373,6 +1415,13 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             .radius = effect.warp_radius});
                         break;
                     default:
+                        // An effect this lane cannot materialize used to vanish
+                        // without a trace: the layer rendered as if the effect
+                        // had never been authored. Report the drop instead of
+                        // hiding it.
+                        spdlog::warn(
+                            "[scene-materializer] layer '{}' drops unmaterialized effect kind {}",
+                            layer.name, static_cast<int>(effect.kind));
                         break;
                 }
             }
