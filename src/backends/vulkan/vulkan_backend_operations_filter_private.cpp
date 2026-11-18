@@ -8,7 +8,8 @@ namespace chronon3d::backends::vulkan {
 
 void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
                                runtime::RenderSurfaceHandle source,
-                               float radius, bool horizontal, bool box_kernel) {
+                               float radius, bool horizontal, bool box_kernel,
+                               const int* dispatch_roi) {
     if (!(radius >= 0.0f) || radius > 192.0f) {
         throw std::invalid_argument("Vulkan blur radius must be within [0, 192]");
     }
@@ -25,7 +26,7 @@ void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::Blur);
         record_blur(cmd, descriptors, dst_image, src_image, radius, horizontal,
-                    box_kernel);
+                    box_kernel, false, dispatch_roi);
         dst_image.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;

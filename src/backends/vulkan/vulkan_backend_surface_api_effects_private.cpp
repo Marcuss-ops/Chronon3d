@@ -38,6 +38,25 @@ graph::RenderOpResult VulkanBackend::blur_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::blur_surface_roi(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source, float radius, bool horizontal,
+    bool box_kernel, int roi_x0, int roi_y0, int roi_x1, int roi_y1) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    const std::array<int, 4> roi{roi_x0, roi_y0, roi_x1, roi_y1};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->blur(destination, source, radius, horizontal, box_kernel, roi.data());
+    });
+#else
+    (void)destination; (void)source; (void)radius; (void)horizontal; (void)box_kernel;
+    (void)roi_x0; (void)roi_y0; (void)roi_x1; (void)roi_y1;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::blur_surface_roi: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::dof_depth_stamp_surface(
     runtime::RenderSurfaceHandle depth, runtime::RenderSurfaceHandle layer,
     float depth_z, float radius,

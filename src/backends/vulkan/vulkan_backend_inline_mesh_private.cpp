@@ -22,6 +22,20 @@ constexpr std::int32_t kShadingEmissive = 16;
 constexpr std::int32_t kShadingHasMrTexture = 32;
 
 constexpr std::size_t kInlineMeshVertexStride = 11;
+constexpr std::size_t kInlineMeshBinningThreshold = 64;
+constexpr std::uint32_t kInlineMeshMaxTrisPerTile = 256;
+
+[[nodiscard]] std::uint64_t hash_indices_fnv1a(
+    std::span<const std::uint32_t> indices) noexcept {
+    std::uint64_t h = 14695981039346656037ULL;
+    const auto* bytes = reinterpret_cast<const std::uint8_t*>(indices.data());
+    const std::size_t len = indices.size_bytes();
+    for (std::size_t i = 0; i < len; ++i) {
+        h ^= bytes[i];
+        h *= 1099511628211ULL;
+    }
+    return h;
+}
 
 } // namespace
 
@@ -92,23 +106,113 @@ void VulkanBackend::Impl::draw_inline_mesh(
     const std::size_t word_count = vertex_words + indices.size();
     if (word_count > std::numeric_limits<std::size_t>::max() / sizeof(float))
         throw std::length_error("Vulkan inline mesh byte size overflow");
-    const VkDeviceSize bytes = static_cast<VkDeviceSize>(word_count * sizeof(float));
-    if (bytes > max_storage_buffer_range)
+    const VkDeviceSize vertex_bytes =
+        static_cast<VkDeviceSize>(projected_lit_vertices.size_bytes());
+    const VkDeviceSize index_bytes =
+        static_cast<VkDeviceSize>(indices.size_bytes());
+    if (vertex_bytes > max_storage_buffer_range ||
+        index_bytes > max_storage_buffer_range)
         throw std::length_error("Vulkan inline mesh exceeds maxStorageBufferRange");
     if (frame_batch.pass_count >= kPathGeometryPassesPerSlot)
         throw std::logic_error("Vulkan inline mesh geometry pass capacity exhausted");
 
     const std::size_t buffer_slot = 1U + frame_batch.next_slot *
         kPathGeometryPassesPerSlot + frame_batch.pass_count;
-    ensure_path_geometry_buffer(bytes, buffer_slot);
+    ensure_path_geometry_buffer(vertex_bytes, buffer_slot);
     auto& geometry = path_geometry_buffers[buffer_slot];
     if (!geometry.mapped)
         throw std::logic_error("Vulkan inline mesh buffer is not host mapped");
     std::memcpy(geometry.mapped, projected_lit_vertices.data(),
                 projected_lit_vertices.size_bytes());
-    auto* packed_indices = static_cast<std::byte*>(geometry.mapped) +
-        projected_lit_vertices.size_bytes();
-    std::memcpy(packed_indices, indices.data(), indices.size_bytes());
+
+    // Fase B: static index buffer separation (zero steady-state index memcpy).
+    const std::uint64_t idx_hash = hash_indices_fnv1a(indices);
+    InlineMeshStaticIndexEntry* index_entry = nullptr;
+    InlineMeshStaticIndexEntry* lru_entry = &inline_mesh_static_indices[0];
+    for (auto& entry : inline_mesh_static_indices) {
+        if (entry.buffer.buffer != VK_NULL_HANDLE &&
+            entry.hash == idx_hash &&
+            entry.bytes == indices.size_bytes()) {
+            index_entry = &entry;
+            break;
+        }
+        if (entry.last_use < lru_entry->last_use) {
+            lru_entry = &entry;
+        }
+    }
+    bool uploaded_indices = false;
+    if (index_entry == nullptr) {
+        index_entry = lru_entry;
+        if (index_entry->buffer.size < index_bytes) {
+            if (index_entry->buffer.buffer != VK_NULL_HANDLE) {
+                vkDeviceWaitIdle(device);
+                memory_manager.destroy_buffer(index_entry->buffer);
+            }
+            const VkBufferCreateInfo index_ci{
+                VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, index_bytes,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE,
+                0, nullptr};
+            index_entry->buffer = memory_manager.create_buffer(
+                index_ci, VulkanMemoryClass::HostUpload);
+        }
+        if (!index_entry->buffer.mapped)
+            throw std::logic_error("Vulkan inline mesh index buffer is not host mapped");
+        std::memcpy(index_entry->buffer.mapped, indices.data(),
+                    indices.size_bytes());
+        index_entry->hash = idx_hash;
+        index_entry->bytes = indices.size_bytes();
+        uploaded_indices = true;
+    }
+    index_entry->last_use = ++inline_mesh_static_use_seq;
+
+    if (inline_mesh_dummy_ssbo.buffer == VK_NULL_HANDLE) {
+        const VkBufferCreateInfo dummy_ci{
+            VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, 16,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE,
+            0, nullptr};
+        inline_mesh_dummy_ssbo = memory_manager.create_buffer(
+            dummy_ci, VulkanMemoryClass::DeviceLocal);
+    }
+
+    const std::size_t tri_count = indices.size() / 3U;
+    const bool use_binning = tri_count > kInlineMeshBinningThreshold;
+    const std::uint32_t tiles_x =
+        (static_cast<std::uint32_t>(x1 - x0) + 15U) / 16U;
+    const std::uint32_t tiles_y =
+        (static_cast<std::uint32_t>(y1 - y0) + 15U) / 16U;
+    const std::size_t tile_count =
+        static_cast<std::size_t>(tiles_x) * static_cast<std::size_t>(tiles_y);
+    const VkDeviceSize tile_counts_bytes =
+        static_cast<VkDeviceSize>(std::max<std::size_t>(tile_count, 1U) * sizeof(std::uint32_t));
+    const VkDeviceSize tile_tris_bytes =
+        static_cast<VkDeviceSize>(std::max<std::size_t>(tile_count, 1U) *
+                                  kInlineMeshMaxTrisPerTile * sizeof(std::uint32_t));
+    if (use_binning) {
+        if (inline_mesh_tile_counts_buffer.size < tile_counts_bytes) {
+            if (inline_mesh_tile_counts_buffer.buffer != VK_NULL_HANDLE) {
+                vkDeviceWaitIdle(device);
+                memory_manager.destroy_buffer(inline_mesh_tile_counts_buffer);
+            }
+            const VkBufferCreateInfo tc_ci{
+                VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, tile_counts_bytes,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
+            inline_mesh_tile_counts_buffer = memory_manager.create_buffer(
+                tc_ci, VulkanMemoryClass::DeviceLocal);
+        }
+        if (inline_mesh_tile_tris_buffer.size < tile_tris_bytes) {
+            if (inline_mesh_tile_tris_buffer.buffer != VK_NULL_HANDLE) {
+                vkDeviceWaitIdle(device);
+                memory_manager.destroy_buffer(inline_mesh_tile_tris_buffer);
+            }
+            const VkBufferCreateInfo tt_ci{
+                VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, tile_tris_bytes,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE,
+                0, nullptr};
+            inline_mesh_tile_tris_buffer = memory_manager.create_buffer(
+                tt_ci, VulkanMemoryClass::DeviceLocal);
+        }
+    }
 
     const auto descriptors = allocate_inline_mesh_descriptor_set();
     if (!write_depth && dummy_rg32f_image.image == VK_NULL_HANDLE) {
@@ -118,16 +222,19 @@ void VulkanBackend::Impl::draw_inline_mesh(
         VK_NULL_HANDLE, dst_image.view, VK_IMAGE_LAYOUT_GENERAL};
     const VkDescriptorImageInfo texture_info{
         VK_NULL_HANDLE, texture_image.view, VK_IMAGE_LAYOUT_GENERAL};
-    // The shader always declares binding 2 as rg32f; when this draw does not
-    // publish depth it is bound to a 1x1 RG32F dummy image (unused, valid).
     const VkDescriptorImageInfo depth_info{
         VK_NULL_HANDLE, write_depth ? depth_image->view : dummy_rg32f_image.view,
         VK_IMAGE_LAYOUT_GENERAL};
-    // Binding 4 is likewise always declared: without a per-pixel material the
-    // base-color image is bound and the shader's flag gate never samples it.
     const VkDescriptorImageInfo mr_info{
         VK_NULL_HANDLE, mr_image->view, VK_IMAGE_LAYOUT_GENERAL};
-    const VkDescriptorBufferInfo mesh_info{geometry.buffer, 0, bytes};
+    const VkDescriptorBufferInfo mesh_info{geometry.buffer, 0, vertex_bytes};
+    const VkDescriptorBufferInfo index_info{index_entry->buffer.buffer, 0, index_bytes};
+    const VkDescriptorBufferInfo tile_counts_info{
+        use_binning ? inline_mesh_tile_counts_buffer.buffer : inline_mesh_dummy_ssbo.buffer,
+        0, use_binning ? tile_counts_bytes : 16};
+    const VkDescriptorBufferInfo tile_tris_info{
+        use_binning ? inline_mesh_tile_tris_buffer.buffer : inline_mesh_dummy_ssbo.buffer,
+        0, use_binning ? tile_tris_bytes : 16};
     const VkWriteDescriptorSet writes[] = {
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 0, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr},
@@ -138,14 +245,18 @@ void VulkanBackend::Impl::draw_inline_mesh(
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 3, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &mesh_info, nullptr},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 4, 0, 1,
-         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &mr_info, nullptr, nullptr}};
+         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &mr_info, nullptr, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 5, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &index_info, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 6, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &tile_counts_info, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 7, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &tile_tris_info, nullptr}};
     if (descriptors != VK_NULL_HANDLE) {
-        vkUpdateDescriptorSets(device, 5, writes, 0, nullptr);
+        vkUpdateDescriptorSets(device, 8, writes, 0, nullptr);
     }
 
     const auto command = active_command_buffer();
-    // Barrier every image the pass touches exactly once. The depth companion
-    // and the metallic-roughness map may legitimately be the same surface.
     if (write_depth && depth_image != mr_image)
         emit_pass_sync(command, {&dst_image, &texture_image, mr_image, depth_image},
                        runtime::GpuPassKind::Composite);
@@ -156,14 +267,95 @@ void VulkanBackend::Impl::draw_inline_mesh(
     } else
         emit_pass_sync(command, {&dst_image, &texture_image, mr_image},
                        runtime::GpuPassKind::Composite);
-    const VkBufferMemoryBarrier2KHR upload_barrier{
+
+    std::array<VkBufferMemoryBarrier2KHR, 2> upload_barriers{};
+    std::uint32_t upload_barrier_count = 0;
+    upload_barriers[upload_barrier_count++] = {
         VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
         VK_PIPELINE_STAGE_2_HOST_BIT_KHR, VK_ACCESS_2_HOST_WRITE_BIT_KHR,
         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR,
         VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-        geometry.buffer, 0, bytes};
+        geometry.buffer, 0, vertex_bytes};
+    if (uploaded_indices) {
+        upload_barriers[upload_barrier_count++] = {
+            VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
+            VK_PIPELINE_STAGE_2_HOST_BIT_KHR, VK_ACCESS_2_HOST_WRITE_BIT_KHR,
+            VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR,
+            VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+            index_entry->buffer.buffer, 0, index_bytes};
+    }
     emit_buffer_barriers2(command,
-        std::span<const VkBufferMemoryBarrier2KHR>{&upload_barrier, 1});
+        std::span<const VkBufferMemoryBarrier2KHR>{upload_barriers.data(), upload_barrier_count});
+
+    if (use_binning) {
+        vkCmdFillBuffer(command, inline_mesh_tile_counts_buffer.buffer,
+                        0, tile_counts_bytes, 0);
+        const VkBufferMemoryBarrier2KHR clear_barrier{
+            VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
+            VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR, VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+            VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+            VK_ACCESS_2_SHADER_READ_BIT_KHR | VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
+            VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+            inline_mesh_tile_counts_buffer.buffer, 0, tile_counts_bytes};
+        emit_buffer_barriers2(command,
+            std::span<const VkBufferMemoryBarrier2KHR>{&clear_barrier, 1});
+
+        const auto bin_descriptors = allocate_inline_mesh_bin_descriptor_set();
+        const VkWriteDescriptorSet bin_writes[] = {
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, bin_descriptors, 0, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &mesh_info, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, bin_descriptors, 1, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &index_info, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, bin_descriptors, 2, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &tile_counts_info, nullptr},
+            {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, bin_descriptors, 3, 0, 1,
+             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &tile_tris_info, nullptr}};
+        if (bin_descriptors != VK_NULL_HANDLE) {
+            vkUpdateDescriptorSets(device, 4, bin_writes, 0, nullptr);
+        }
+        const auto bin_pipeline = reinterpret_cast<VkPipeline>(
+            kernels.registry.resolve(GpuKernelId::InlineMeshBin));
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, bin_pipeline);
+        if (bin_descriptors == VK_NULL_HANDLE && descriptor_arena.push_descriptor_enabled()) {
+            descriptor_arena.push_compute_descriptors(
+                command, kernels.inline_mesh_bin_layout, 4, bin_writes);
+        } else {
+            vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                    kernels.inline_mesh_bin_layout, 0, 1,
+                                    &bin_descriptors, 0, nullptr);
+        }
+        struct BinPush {
+            std::int32_t vertex_count;
+            std::int32_t tri_count;
+            std::int32_t x0, y0, x1, y1;
+            std::int32_t tiles_x, tiles_y;
+            std::int32_t max_tris_per_tile;
+        } bin_push{
+            static_cast<std::int32_t>(vertex_count),
+            static_cast<std::int32_t>(tri_count),
+            x0, y0, x1, y1,
+            static_cast<std::int32_t>(tiles_x),
+            static_cast<std::int32_t>(tiles_y),
+            static_cast<std::int32_t>(kInlineMeshMaxTrisPerTile)};
+        vkCmdPushConstants(command, kernels.inline_mesh_bin_layout,
+                           VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bin_push), &bin_push);
+        vkCmdDispatch(command, static_cast<std::uint32_t>((tri_count + 63U) / 64U), 1, 1);
+        ++stats.vk_cmd_dispatch_count;
+
+        const VkBufferMemoryBarrier2KHR bin_barriers[2]{
+            {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
+             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
+             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR,
+             VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+             inline_mesh_tile_counts_buffer.buffer, 0, tile_counts_bytes},
+            {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
+             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
+             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR,
+             VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+             inline_mesh_tile_tris_buffer.buffer, 0, tile_tris_bytes}};
+        emit_buffer_barriers2(command,
+            std::span<const VkBufferMemoryBarrier2KHR>{bin_barriers, 2});
+    }
 
     std::int32_t shading_flags = 0;
     if (shading.per_pixel_pbr) shading_flags |= kShadingPerPixel;
@@ -207,13 +399,14 @@ void VulkanBackend::Impl::draw_inline_mesh(
         shading.emissive.r, shading.emissive.g, shading.emissive.b};
     static_assert(sizeof(PushConstants) == 128);
     const auto pipeline = reinterpret_cast<VkPipeline>(
-        kernels.registry.resolve(GpuKernelId::InlineMesh));
+        kernels.registry.resolve(
+            use_binning ? GpuKernelId::InlineMeshBinned : GpuKernelId::InlineMesh));
     if (pipeline == VK_NULL_HANDLE)
         throw std::logic_error("Vulkan inline mesh pipeline was not registered");
     vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
     if (descriptors == VK_NULL_HANDLE && descriptor_arena.push_descriptor_enabled()) {
         descriptor_arena.push_compute_descriptors(
-            command, kernels.inline_mesh_layout, 5, writes);
+            command, kernels.inline_mesh_layout, 8, writes);
     } else {
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                                 kernels.inline_mesh_layout, 0, 1, &descriptors, 0, nullptr);

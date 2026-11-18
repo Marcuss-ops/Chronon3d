@@ -234,6 +234,19 @@ PlanDimensions read_plan_admission_shape(
             shape.height = plan_json.value("height", 0U);
         }
         shape.requires_composition = plan_requires_composition(plan_json);
+        if (plan_json.contains("layers") && plan_json["layers"].is_array() &&
+            !plan_json["layers"].empty()) {
+            std::uint32_t slots =
+                static_cast<std::uint32_t>(plan_json["layers"].size()) + 1U;
+            for (const auto& layer : plan_json["layers"]) {
+                if (!layer.is_object()) continue;
+                if (layer.contains("effects") || layer.contains("filters") ||
+                    layer.contains("mask") || layer.contains("masks")) {
+                    slots += 2U;
+                }
+            }
+            shape.estimated_physical_slots = slots;
+        }
     } catch (const std::exception& exception) {
         spdlog::error("[daemon] plan dimensions unavailable: '{}' is not a readable "
                       "plan ({})", plan_path.string(), exception.what());

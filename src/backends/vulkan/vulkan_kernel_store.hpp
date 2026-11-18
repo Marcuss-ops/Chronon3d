@@ -9,6 +9,8 @@
 // std::filesystem while constructing this owner. Keep that dependency
 // available from the private Vulkan kernel/cache boundary so a clean TU build
 // does not depend on unrelated transitive standard-library includes.
+#include <array>
+#include <cstddef>
 #include <filesystem>
 
 namespace chronon3d::backends::vulkan {
@@ -26,11 +28,29 @@ public:
     // (metallic-roughness). The general layout binds a storage buffer there,
     // so the inline mesh owns this dedicated layout.
     VkPipelineLayout inline_mesh_layout{VK_NULL_HANDLE};
+    VkPipelineLayout inline_mesh_bin_layout{VK_NULL_HANDLE};
     VkPipelineLayout particle_emitter_layout{VK_NULL_HANDLE};
     VkPipelineLayout text_tile_bin_layout{VK_NULL_HANDLE};
     VkPipelineLayout text_tile_raster_layout{VK_NULL_HANDLE};
 
+    static constexpr std::size_t kColorMatrixSpecModeCount = 19;
+    static constexpr std::size_t kWarpBulkSpecModeCount = 13;
+    std::array<VkPipeline, kColorMatrixSpecModeCount> color_matrix_mode_pipelines{};
+    std::array<VkPipeline, kWarpBulkSpecModeCount> warp_bulk_mode_pipelines{};
+
     void destroy(VkDevice device) noexcept {
+        for (VkPipeline& p : color_matrix_mode_pipelines) {
+            if (p != VK_NULL_HANDLE) {
+                vkDestroyPipeline(device, p, nullptr);
+                p = VK_NULL_HANDLE;
+            }
+        }
+        for (VkPipeline& p : warp_bulk_mode_pipelines) {
+            if (p != VK_NULL_HANDLE) {
+                vkDestroyPipeline(device, p, nullptr);
+                p = VK_NULL_HANDLE;
+            }
+        }
         registry.for_each_registered(
             [device](GpuKernelId, GpuKernelRegistry::PipelineHandle handle) {
                 if (handle != 0) {
@@ -51,6 +71,9 @@ public:
         if (inline_mesh_layout != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(device, inline_mesh_layout, nullptr);
         }
+        if (inline_mesh_bin_layout != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(device, inline_mesh_bin_layout, nullptr);
+        }
         if (particle_emitter_layout != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(device, particle_emitter_layout, nullptr);
         }
@@ -62,6 +85,7 @@ public:
         }
         general_layout = VK_NULL_HANDLE;
         inline_mesh_layout = VK_NULL_HANDLE;
+        inline_mesh_bin_layout = VK_NULL_HANDLE;
         particle_emitter_layout = VK_NULL_HANDLE;
         text_tile_bin_layout = VK_NULL_HANDLE;
         text_tile_raster_layout = VK_NULL_HANDLE;

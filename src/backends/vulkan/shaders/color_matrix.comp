@@ -35,6 +35,7 @@
 //                     p[2].rgb = light color. Additive inside existing alpha.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(constant_id = 0) const int kSpecMode = -1;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
 layout(binding = 1, rgba32f) uniform readonly image2D source_image;
 
@@ -43,6 +44,7 @@ layout(push_constant) uniform ColorMatrixParams {
     // x: mode, y: clamp to [0,1] (affine only), z: straight-alpha domain
     vec4 options;
     ivec4 clip_bounds;
+    ivec4 dispatch_bounds; // xy = dispatch_origin, zw = dispatch_end
 } params;
 
 float levels_channel(float x, float ib, float iw, float g, float ob, float ow) {
@@ -170,9 +172,10 @@ int ae_round_away_from_zero(float value) {
 }
 
 void main() {
-    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 coord = params.dispatch_bounds.xy + ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(destination_image);
-    if (coord.x >= size.x || coord.y >= size.y) return;
+    ivec2 end = min(params.dispatch_bounds.zw, size);
+    if (coord.x >= end.x || coord.y >= end.y) return;
 
     vec4 source = imageLoad(source_image, coord);
     if (params.options.w > 0.5 &&
@@ -181,7 +184,8 @@ void main() {
         imageStore(destination_image, coord, source);
         return;
     }
-    int ae_mode = int(params.options.x + 0.5);
+    float opt_mode = (kSpecMode >= 0) ? float(kSpecMode) : params.options.x;
+    int ae_mode = (kSpecMode >= 0) ? kSpecMode : int(params.options.x + 0.5);
     if (ae_mode == 13) {
         float progress = params.p[0].x;
         vec2 direction = params.p[0].yz;
@@ -285,7 +289,7 @@ void main() {
                    vec4(max(source.rgb, composited), alpha + source.a * (1.0 - alpha)));
         return;
     }
-    if (params.options.x > 6.5 && params.options.x < 7.5) {
+    if (opt_mode > 6.5 && opt_mode < 7.5) {
         ivec2 size = imageSize(source_image);
         if (all(equal(params.p[0].xy, vec2(0.0)))) {
             imageStore(destination_image, coord, source);
@@ -309,7 +313,7 @@ void main() {
         }
         return;
     }
-    if (params.options.x > 7.5 && params.options.x < 8.5) {
+    if (opt_mode > 7.5 && opt_mode < 8.5) {
         if (source.a <= 0.0) {
             imageStore(destination_image, coord, source);
             return;
@@ -336,7 +340,7 @@ void main() {
         imageStore(destination_image, coord, vec4(rgb * source.a, source.a));
         return;
     }
-    if (params.options.x > 8.5 && params.options.x < 9.5) {
+    if (opt_mode > 8.5 && opt_mode < 9.5) {
         float cell_size = params.p[0].x;
         float feather = params.p[0].y;
         float wx = checker_axis(float(coord.x) + 0.5, cell_size, feather);
@@ -350,7 +354,7 @@ void main() {
                    alpha <= 1.0e-8 ? vec4(0.0) : vec4(rgb * alpha, alpha));
         return;
     }
-    if (params.options.x > 4.5 && params.options.x < 5.5) {
+    if (opt_mode > 4.5 && opt_mode < 5.5) {
         int block_size = max(1, int(params.p[0].x + 0.5));
         ivec2 origin = ivec2(params.p[0].yz);
         ivec2 global_coord = coord + origin;
@@ -365,12 +369,12 @@ void main() {
         // follows the software processor's alpha<=epsilon skip and preserves
         // transparent RGB.
         const bool threshold_mode =
-            (params.options.x > 1.5 && params.options.x < 2.5) ||
-            (params.options.x > 16.5 && params.options.x < 17.5);
+            (opt_mode > 1.5 && opt_mode < 2.5) ||
+            (opt_mode > 16.5 && opt_mode < 17.5);
         imageStore(destination_image, coord, threshold_mode ? vec4(0.0) : source);
         return;
     }
-    if (params.options.x > 16.5 && params.options.x < 17.5) {
+    if (opt_mode > 16.5 && opt_mode < 17.5) {
         float source_alpha = clamp(source.a, 0.0, 1.0);
         float threshold = params.p[0].x;
         float softness = params.p[0].y;
@@ -391,7 +395,7 @@ void main() {
         }
         return;
     }
-    if (params.options.x > 17.5 && params.options.x < 18.5) {
+    if (opt_mode > 17.5 && opt_mode < 18.5) {
         vec2 center = params.p[0].xy * vec2(size);
         vec2 direction = vec2(cos(params.p[0].z), sin(params.p[0].z));
         float distance = abs(dot(vec2(coord) + vec2(0.5) - center, direction));
@@ -421,13 +425,13 @@ void main() {
     const bool straight = params.options.z > 0.5;
     vec3 rgb = source.rgb;
     if (straight) {
-        float alpha_for_unpremultiply = params.options.x > 2.5
+        float alpha_for_unpremultiply = opt_mode > 2.5
             ? clamp(source.a, 0.0, 1.0) : source.a;
         rgb = alpha_for_unpremultiply <= 1.0e-8
             ? vec3(0.0) : rgb * (1.0 / alpha_for_unpremultiply);
     }
 
-    if (params.options.x > 9.5 && params.options.x < 10.5) {
+    if (opt_mode > 9.5 && opt_mode < 10.5) {
         vec4 rgba = vec4(rgb, source.a);
         vec4 result = vec4(0.0);
         for (int row = 0; row < 4; ++row) {
@@ -440,7 +444,7 @@ void main() {
                    out_alpha <= 1.0e-8 ? vec4(0.0) : vec4(result.rgb * out_alpha, out_alpha));
         return;
     }
-    if (params.options.x > 10.5 && params.options.x < 11.5) {
+    if (opt_mode > 10.5 && opt_mode < 11.5) {
         if (source.a <= 1.0e-8) {
             imageStore(destination_image, coord, vec4(0.0));
             return;
@@ -450,7 +454,7 @@ void main() {
         imageStore(destination_image, coord, vec4(rgb * source.a, source.a));
         return;
     }
-    if (params.options.x > 11.5 && params.options.x < 12.5) {
+    if (opt_mode > 11.5 && opt_mode < 12.5) {
         if (source.a <= 1.0e-8) {
             imageStore(destination_image, coord, vec4(0.0));
             return;
@@ -464,12 +468,12 @@ void main() {
         imageStore(destination_image, coord, vec4(mapped * source.a, source.a));
         return;
     }
-    if (params.options.x < 0.5) {
+    if (opt_mode < 0.5) {
         vec3 r = vec3(dot(params.p[0].xyz, rgb) + params.p[0].w,
                       dot(params.p[1].xyz, rgb) + params.p[1].w,
                       dot(params.p[2].xyz, rgb) + params.p[2].w);
         rgb = params.options.y > 0.5 ? clamp(r, vec3(0.0), vec3(1.0)) : r;
-    } else if (params.options.x > 1.5 && params.options.x < 2.5) {
+    } else if (opt_mode > 1.5 && opt_mode < 2.5) {
         float luma = dot(vec3(0.2126, 0.7152, 0.0722), rgb);
         float threshold = params.p[0].x;
         float softness = params.p[0].y;
@@ -481,7 +485,7 @@ void main() {
             val = t * t * (3.0 - 2.0 * t);
         }
         rgb = vec3(val);
-    } else if (params.options.x > 3.5 && params.options.x < 4.5) {
+    } else if (opt_mode > 3.5 && opt_mode < 4.5) {
         vec2 image_size = vec2(size);
         float diagonal = length(image_size);
         float dx = float(coord.x) - float(size.x) * 0.5;
@@ -496,13 +500,13 @@ void main() {
         float amount = vignette * params.p[0].z;
         vec3 color = vec3(params.p[0].w, params.p[1].x, params.p[1].y);
         rgb = rgb * (1.0 - amount) + color * amount;
-    } else if (params.options.x > 5.5) {
+    } else if (opt_mode > 5.5) {
         float exponent = 1.0 / params.p[0].y;
         for (int c = 0; c < 3; ++c) {
             float lifted = rgb[c] + params.p[0].x;
             rgb[c] = sign(lifted) * pow(abs(lifted), exponent) * params.p[0].z;
         }
-    } else if (params.options.x > 2.5) {
+    } else if (opt_mode > 2.5) {
         float measure;
         if (params.p[4].x > 0.5) {
             measure = dot(rgb, vec3(0.2126, 0.7152, 0.0722));

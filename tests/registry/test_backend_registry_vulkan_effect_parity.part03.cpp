@@ -167,4 +167,62 @@ TEST_CASE("Strict Vulkan SdfBevel matches software shading and fails closed outs
     CHECK_FALSE(vulkan_strict(nan_light, std::nullopt).ok);
 }
 
+TEST_CASE("Vulkan blur_surface_roi matches full blur inside ROI and skips outside pixels") {
+    auto* backend = shared_vulkan_test_backend();
+    REQUIRE(backend != nullptr);
+    const runtime::SurfaceDesc desc{
+        128, 128, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient, 0};
+    const runtime::RenderSurfaceHandle src{9001};
+    const runtime::RenderSurfaceHandle dst_full{9002};
+    const runtime::RenderSurfaceHandle dst_roi{9003};
+    REQUIRE(backend->create_surface(src, desc).ok());
+    REQUIRE(backend->create_surface(dst_full, desc).ok());
+    REQUIRE(backend->create_surface(dst_roi, desc).ok());
+
+    std::vector<float> pixels(128U * 128U * 4U, 0.0f);
+    for (int y = 32; y < 64; ++y) {
+        for (int x = 40; x < 72; ++x) {
+            const std::size_t idx = (static_cast<std::size_t>(y) * 128U + static_cast<std::size_t>(x)) * 4U;
+            pixels[idx + 0] = 0.8f;
+            pixels[idx + 1] = 0.4f;
+            pixels[idx + 2] = 0.2f;
+            pixels[idx + 3] = 1.0f;
+        }
+    }
+    REQUIRE(backend->upload_surface(src, desc, pixels).ok());
+    REQUIRE(backend->initialize_transparent_surface(dst_full).ok());
+    REQUIRE(backend->initialize_transparent_surface(dst_roi).ok());
+
+    REQUIRE(backend->blur_surface(dst_full, src, 3.0f, true, false).ok());
+    REQUIRE(backend->blur_surface_roi(dst_roi, src, 3.0f, true, false,
+                                      30, 28, 82, 68).ok());
+
+    std::vector<float> out_full(128U * 128U * 4U, 0.0f);
+    std::vector<float> out_roi(128U * 128U * 4U, 0.0f);
+    REQUIRE(backend->download_surface(dst_full, out_full).ok());
+    REQUIRE(backend->download_surface(dst_roi, out_roi).ok());
+
+    for (int y = 0; y < 128; ++y) {
+        for (int x = 0; x < 128; ++x) {
+            const std::size_t idx = (static_cast<std::size_t>(y) * 128U + static_cast<std::size_t>(x)) * 4U;
+            if (x >= 30 && x < 82 && y >= 28 && y < 68) {
+                for (int c = 0; c < 4; ++c) {
+                    CHECK(out_roi[idx + static_cast<std::size_t>(c)] ==
+                          doctest::Approx(out_full[idx + static_cast<std::size_t>(c)]).epsilon(1e-6));
+                }
+            } else {
+                for (int c = 0; c < 4; ++c) {
+                    CHECK(out_roi[idx + static_cast<std::size_t>(c)] == 0.0f);
+                }
+            }
+        }
+    }
+
+    backend->release_surface(src);
+    backend->release_surface(dst_full);
+    backend->release_surface(dst_roi);
+}
+
 #endif // CHRONON3D_ENABLE_VULKAN

@@ -73,3 +73,15 @@ Se viene mantenuto il fallback `vkAllocateDescriptorSets` accanto a `VK_KHR_push
    - Tutte le suite Vulkan (`chronon3d_backend_registry_tests`, `chronon3d_effects_tests`, `chronon3d_compositor_tests`, `chronon3d_render_graph_tests`) devono produrre output bit-exact (`MAE = 0`).
 3. **Misura Guadagno**:
    - Riduzione misurata di `gpu_submit_cpu_us` / tempo di registrazione command buffer e riduzione proporzionale del tempo GPU sui pass ROI-clipped.
+
+---
+
+## 5. Risoluzione Implementata (2026-11-17)
+
+- **Parte 1 — ROI Push-Constant Dispatch (`dispatch_origin` / `dispatch_end`)**:
+  - `composite.comp`: già dotato di `dispatch_origin` in `record_composite`.
+  - `color_matrix.comp` & `vulkan_kernel_record_private.cpp` (`record_color_transform`): aggiunto `ivec4 dispatch_bounds` (128 byte totali), con dispatch ristretto alla ROI `clip_bounds` su pass in-place (`destination.image == source.image && clip_enabled`).
+  - `blur.comp`, `render_backend_surface_api.hpp`, `vulkan_backend.hpp`, `vulkan_backend_surface_api_effects_private.cpp`, `vulkan_backend_operations_filter_private.cpp`, `vulkan_kernel_record_private.cpp`: aggiunti `dispatch_origin` + `dispatch_end` (incl. `base_axis` per `s_glow_line` tiled shared memory) e API `blur_surface_roi(...)`.
+- **Parte 2 — `VK_KHR_push_descriptor`**: già integrata in `VulkanDescriptorAuthority`.
+- **Verifica**:
+  - `chronon3d_backend_registry_tests --test-case="*blur_surface_roi*,*ColorMatrix*,*SdfBevel*"`: `3/3` test cases, `65569/65569` assertions PASS (parità esatta nella ROI e zero scritture fuori ROI).

@@ -12,22 +12,42 @@ namespace chronon3d::backends::vulkan {
     void VulkanBackend::Impl::record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                      const Image& destination, const Image& source,
                      float radius, bool horizontal, bool box_kernel,
-                     bool glow_kernel) {
+                     bool glow_kernel, const int* dispatch_roi) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Blur)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                                 kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        std::int32_t x0 = 0;
+        std::int32_t y0 = 0;
+        std::int32_t x1 = static_cast<std::int32_t>(destination.width);
+        std::int32_t y1 = static_cast<std::int32_t>(destination.height);
+        if (dispatch_roi != nullptr) {
+            x0 = std::clamp(dispatch_roi[0], 0, x1);
+            y0 = std::clamp(dispatch_roi[1], 0, y1);
+            x1 = std::clamp(dispatch_roi[2], x0, x1);
+            y1 = std::clamp(dispatch_roi[3], y0, y1);
+        }
         struct PushConstants {
             float radius;
             std::int32_t horizontal;
             std::int32_t box_kernel;
+            std::int32_t pad0;
+            std::int32_t dispatch_origin[2];
+            std::int32_t dispatch_end[2];
         } params{radius, horizontal ? 1 : 0,
-                 box_kernel ? 1 : (glow_kernel ? 2 : 0)};
+                 box_kernel ? 1 : (glow_kernel ? 2 : 0),
+                 0,
+                 {x0, y0},
+                 {x1, y1}};
+        static_assert(sizeof(PushConstants) == 32);
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
-        vkCmdDispatch(command, (destination.width + 15) / 16,
-                      (destination.height + 15) / 16, 1);
-        ++stats.vk_cmd_dispatch_count;
+        if (x1 > x0 && y1 > y0) {
+            const auto roi_w = static_cast<std::uint32_t>(x1 - x0);
+            const auto roi_h = static_cast<std::uint32_t>(y1 - y0);
+            vkCmdDispatch(command, (roi_w + 15U) / 16U, (roi_h + 15U) / 16U, 1);
+            ++stats.vk_cmd_dispatch_count;
+        }
     }
 
     void VulkanBackend::Impl::record_directional_blur(VkCommandBuffer command,
@@ -183,8 +203,17 @@ namespace chronon3d::backends::vulkan {
                       VkDescriptorSet descriptors,
                       const Image& destination, const Image& source,
                       const graph::WarpBulkParams& bulk) {
-        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::WarpBulk)));
+        VkPipeline pipeline = reinterpret_cast<VkPipeline>(
+            kernels.registry.resolve(GpuKernelId::WarpBulk));
+        if (bulk.mode >= 0 &&
+            static_cast<std::size_t>(bulk.mode) < VulkanKernelStore::kWarpBulkSpecModeCount) {
+            const VkPipeline specialized =
+                kernels.warp_bulk_mode_pipelines[static_cast<std::size_t>(bulk.mode)];
+            if (specialized != VK_NULL_HANDLE) {
+                pipeline = specialized;
+            }
+        }
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                                 kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         static_assert(sizeof(bulk) == 128, "WarpBulk push must be 128 bytes");
@@ -437,18 +466,29 @@ namespace chronon3d::backends::vulkan {
 
     void VulkanBackend::Impl::record_color_transform(
         VkCommandBuffer command, VkDescriptorSet descriptors,
-        const Image& destination, const Image& /*source*/,
+        const Image& destination, const Image& source,
         const graph::NativeColorTransform& transform) {
-        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::ColorMatrix)));
+        const int mode_int = static_cast<int>(transform.mode);
+        VkPipeline pipeline = reinterpret_cast<VkPipeline>(
+            kernels.registry.resolve(GpuKernelId::ColorMatrix));
+        if (mode_int >= 0 &&
+            static_cast<std::size_t>(mode_int) < VulkanKernelStore::kColorMatrixSpecModeCount) {
+            const VkPipeline specialized =
+                kernels.color_matrix_mode_pipelines[static_cast<std::size_t>(mode_int)];
+            if (specialized != VK_NULL_HANDLE) {
+                pipeline = specialized;
+            }
+        }
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                                 kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
         struct PushConstants {
             float p[5][4];
             float options[4];
             std::int32_t clip_bounds[4];
+            std::int32_t dispatch_bounds[4];
         } params{};
-        static_assert(sizeof(PushConstants) == 112);
+        static_assert(sizeof(PushConstants) == 128);
         for (int row = 0; row < 5; ++row)
             for (int lane = 0; lane < 4; ++lane)
                 params.p[row][lane] = transform.p[static_cast<std::size_t>(row)][static_cast<std::size_t>(lane)];
@@ -458,11 +498,31 @@ namespace chronon3d::backends::vulkan {
         params.options[3] = transform.clip_enabled ? 1.0f : 0.0f;
         for (int lane = 0; lane < 4; ++lane)
             params.clip_bounds[lane] = transform.clip_bounds[static_cast<std::size_t>(lane)];
+
+        std::int32_t x0 = 0;
+        std::int32_t y0 = 0;
+        std::int32_t x1 = static_cast<std::int32_t>(destination.width);
+        std::int32_t y1 = static_cast<std::int32_t>(destination.height);
+        // When writing in-place with clip_bounds, pixels outside clip_bounds
+        // already hold `source`, so dispatch only the active ROI.
+        if (transform.clip_enabled && destination.image == source.image) {
+            x0 = std::clamp(transform.clip_bounds[0], 0, x1);
+            y0 = std::clamp(transform.clip_bounds[1], 0, y1);
+            x1 = std::clamp(transform.clip_bounds[2], x0, x1);
+            y1 = std::clamp(transform.clip_bounds[3], y0, y1);
+        }
+        params.dispatch_bounds[0] = x0;
+        params.dispatch_bounds[1] = y0;
+        params.dispatch_bounds[2] = x1;
+        params.dispatch_bounds[3] = y1;
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
-        vkCmdDispatch(command, (destination.width + 15) / 16,
-                      (destination.height + 15) / 16, 1);
-        ++stats.vk_cmd_dispatch_count;
+        if (x1 > x0 && y1 > y0) {
+            const auto roi_w = static_cast<std::uint32_t>(x1 - x0);
+            const auto roi_h = static_cast<std::uint32_t>(y1 - y0);
+            vkCmdDispatch(command, (roi_w + 15U) / 16U, (roi_h + 15U) / 16U, 1);
+            ++stats.vk_cmd_dispatch_count;
+        }
     }
 
     void VulkanBackend::Impl::record_chromatic_transform(

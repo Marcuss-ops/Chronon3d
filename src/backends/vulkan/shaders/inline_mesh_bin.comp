@@ -1,0 +1,77 @@
+#version 450
+
+// Per-triangle 16x16 screen-space tile binner for inline_mesh.comp.
+// One thread processes one triangle, computes its clipped 16x16 tile range,
+// and appends the triangle index to each intersected tile bin.
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(binding = 0, std430) readonly buffer MeshData { float data[]; } mesh;
+layout(binding = 1, std430) readonly buffer IndexData { uint data[]; } indices;
+layout(binding = 2, std430) buffer TileCounts { uint count[]; } tile_counts;
+layout(binding = 3, std430) writeonly buffer TileTris { uint tri[]; } tile_tris;
+
+layout(push_constant) uniform InlineMeshBinParams {
+    int vertex_count;
+    int tri_count;
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    int tiles_x;
+    int tiles_y;
+    int max_tris_per_tile;
+} params;
+
+const uint kVertexStride = 11u;
+
+vec2 vertex_screen(uint index) {
+    uint base = index * kVertexStride;
+    return vec2(mesh.data[base], mesh.data[base + 1u]);
+}
+
+void main() {
+    uint tri = gl_GlobalInvocationID.x;
+    if (tri >= uint(params.tri_count)) return;
+
+    uint base_idx = tri * 3u;
+    uint ia = indices.data[base_idx + 0u];
+    uint ib = indices.data[base_idx + 1u];
+    uint ic = indices.data[base_idx + 2u];
+    if (ia >= uint(params.vertex_count) ||
+        ib >= uint(params.vertex_count) ||
+        ic >= uint(params.vertex_count)) {
+        return;
+    }
+
+    vec2 a = vertex_screen(ia);
+    vec2 b = vertex_screen(ib);
+    vec2 c = vertex_screen(ic);
+
+    // Match inline_mesh.comp's -1e-5 edge tolerance by padding 1 pixel.
+    int min_x = int(floor(min(a.x, min(b.x, c.x)))) - 1;
+    int max_x = int(ceil(max(a.x, max(b.x, c.x)))) + 1;
+    int min_y = int(floor(min(a.y, min(b.y, c.y)))) - 1;
+    int max_y = int(ceil(max(a.y, max(b.y, c.y)))) + 1;
+
+    min_x = max(min_x, params.x0);
+    min_y = max(min_y, params.y0);
+    max_x = min(max_x, params.x1 - 1);
+    max_y = min(max_y, params.y1 - 1);
+    if (min_x > max_x || min_y > max_y) return;
+
+    int tx0 = clamp((min_x - params.x0) >> 4, 0, params.tiles_x - 1);
+    int ty0 = clamp((min_y - params.y0) >> 4, 0, params.tiles_y - 1);
+    int tx1 = clamp((max_x - params.x0) >> 4, 0, params.tiles_x - 1);
+    int ty1 = clamp((max_y - params.y0) >> 4, 0, params.tiles_y - 1);
+
+    for (int ty = ty0; ty <= ty1; ++ty) {
+        for (int tx = tx0; tx <= tx1; ++tx) {
+            uint tile_idx = uint(ty * params.tiles_x + tx);
+            uint slot = atomicAdd(tile_counts.count[tile_idx], 1u);
+            if (slot < uint(params.max_tris_per_tile)) {
+                tile_tris.tri[tile_idx * uint(params.max_tris_per_tile) + slot] = tri;
+            }
+        }
+    }
+}

@@ -52,3 +52,32 @@ Nessuno: lo shader sorgente `.comp` rimane **uno solo** (nessuna duplicazione di
    - Documentare il numero di registri per thread di `text_tile_raster` (variante Simple vs Full) tramite `VK_KHR_pipeline_executable_properties`.
 2. **Parità Pixel**:
    - `tools/verify_text_tile_gpu_canary.sh` (154/154) e `chronon3d_effects_tests` (308/308) 100% PASS.
+
+---
+
+## 5. Risoluzione e Misure `VK_KHR_pipeline_executable_properties` (RTX A4000, 2026-11-17)
+
+1. **Tabella VGPR / Binary Size / Local Memory Spill Prima vs Dopo**:
+
+| Shader / Variante | VGPR (Registers) | Binary Size (B) | Local Memory Spill (B) | Shared Memory (B) |
+| --- | ---: | ---: | ---: | ---: |
+| `text_tile_raster` Full (`true, true`) | 255 | 51,200 | 0 | 20,176 |
+| `text_tile_raster` Simple (`false, false`) | **80** | 39,424 | 0 | 18,128 |
+| `color_matrix` unspecialized (`kSpecMode=-1`) | 40 | 37,504 | **1,552** | 0 |
+| `color_matrix` `kSpecMode=0` (affine) | **18** | 1,536 | **0** | 0 |
+| `color_matrix` `kSpecMode=1` (levels) | **20** | 2,944 | **0** | 0 |
+| `color_matrix` `kSpecMode=8` (noise) | **25** | 4,736 | **0** | 0 |
+| `color_matrix` `kSpecMode=13` (wipe) | **16** | 1,792 | **0** | 0 |
+| `color_matrix` `kSpecMode=18` (light sweep) | **17** | 1,920 | **0** | 0 |
+| `warp_bulk` unspecialized (`kSpecMode=-1`) | 40 | 54,400 | 0 | 0 |
+| `warp_bulk` `kSpecMode=0` | **26** | 3,968 | 0 | 0 |
+| `warp_bulk` `kSpecMode=9` | **27** | 9,216 | 0 | 0 |
+| `warp_bulk` `kSpecMode=12` | **34** | 4,864 | 0 | 0 |
+
+2. **Implementazione**:
+   - `color_matrix.comp` (moduli `0..18`) e `warp_bulk.comp` (moduli `0..12`): aggiunta `layout(constant_id = 0) const int kSpecMode = -1;`.
+   - `VulkanKernelStore` (`vulkan_kernel_store.hpp`, `vulkan_backend_lifecycle_pipelines_private.cpp`, `vulkan_kernel_record_private.cpp`): pre-compilate le varianti specializzate su `pipeline_cache` canonica e selezionate in `record_color_transform` / `record_warp_bulk`.
+3. **Verifica**:
+   - `chronon3d_text_tile_raster_canary_tests`: `1/1` (`154/154` assertions PASS).
+   - `chronon3d_effects_tests`: PASS (`42.22 sec`).
+   - `chronon3d_backend_registry_tests --test-case="*ColorMatrix*,*Blur*,*Warp*"`: `13/13` test cases (`577/577` assertions PASS).

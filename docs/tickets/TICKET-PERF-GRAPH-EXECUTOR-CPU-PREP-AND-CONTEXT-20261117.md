@@ -75,3 +75,15 @@ Solo per i livelli con `level.size() >= kParallelThreshold` su backend `native_s
    - `chronon3d_compositor_tests`
    - `chronon3d_render_job_contract_tests`
    - Developer gates (`tools/check_architecture.py` 218/218).
+
+---
+
+## 5. Risoluzione Implementata (2026-11-17)
+
+- **Parte 1 — Zero-refcount `clone_for_borrowed_node_execution()`**:
+  - `include/chronon3d/render_graph/render_graph_context.hpp` & `src/render_graph/render_graph_context.cpp`: aggiunto `FrameInput::static_context_view` non-owning e `RenderGraphContext::clone_for_borrowed_node_execution()`.
+  - `src/render_graph/render_graph_context_clone_detail.hpp`: copia dei soli campi POD/camera senza incrementare/decrementare i refcount atomici di `static_context` e `processor_snapshot` (preso in prestito via aliasing `shared_ptr` a control-block nullo), mantenendo `clone_for_node_execution()` con value semantics per eventuali scope che sopravvivono al frame.
+  - `src/render_graph/executor/node_runner_single_node_detail.hpp`: entrambi i call site per-nodo/batch invocano `ctx.clone_for_borrowed_node_execution()`.
+- **Parte 2 — Two-Phase Level Dispatch**: già completata e verificata in `executor_level_dispatch.cpp`.
+- **Verifica**:
+  - `chronon3d_render_graph_tests`: `1/1` (`467/467` test cases PASS, `73.95 sec`).

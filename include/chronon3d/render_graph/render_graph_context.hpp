@@ -204,6 +204,9 @@ struct FrameInput {
     // Null when no context was wired (asset resolution then returns the
     // relative path unchanged, matching the historical empty assets_root).
     std::shared_ptr<const FrameStaticContext> static_context;
+    /// Non-owning borrowed view used by `clone_for_borrowed_node_execution()`
+    /// so per-node clones avoid atomic refcount RMW on `static_context`.
+    const FrameStaticContext* static_context_view{nullptr};
 
     // Camera + projection + lighting (folded RenderCameraContext).
     Camera camera{};
@@ -689,6 +692,11 @@ struct RenderGraphContext {
     /// and shares the frame-owned DOF depth buffer through a non-owning
     /// pointer.
     RenderGraphContext clone_for_node_execution() const;
+
+    /// Zero-refcount borrowed clone for synchronous per-node execution inside
+    /// `execute_levels()`: borrows `static_context` and `processor_snapshot`
+    /// without atomic `shared_ptr` refcount increments/decrements.
+    RenderGraphContext clone_for_borrowed_node_execution() const;
 
     /// Resolve a relative asset path using ctx.frame_input.assets_root.
     /// Returns relative_path unchanged if empty, absolute, or no

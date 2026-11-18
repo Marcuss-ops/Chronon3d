@@ -952,6 +952,99 @@ TEST_CASE("NV12 compositor: instances are bit-exact across identical re-runs") {
     CHECK(buv.identical);
 }
 
+TEST_CASE("NV12 direct batch: 12-frame async launch without intermediate sync matches sync reference") {
+    using namespace chronon3d::nv12_equiv;
+    if (!gpu_tests_enabled()) {
+        MESSAGE("set CHRONON3D_RUN_CUDA_TESTS=1 to run the 12-frame async DirectYUV stress test");
+        return;
+    }
+
+    CudaSession session;
+    if (!session.ok) {
+        MESSAGE("CUDA device/context unavailable; 12-frame async DirectYUV test is NOT RUN");
+        return;
+    }
+    session.set_current();
+
+    constexpr int w = 640;
+    constexpr int h = 360;
+    constexpr int kFrames = 12;
+    const std::size_t y_bytes = static_cast<std::size_t>(w) * h;
+    const std::size_t uv_bytes = static_cast<std::size_t>(w) * ((h + 1) / 2);
+
+    const auto bg = make_gradient_nv12(w, h);
+    DevBuffer bg_y_d, bg_uv_d;
+    bg_y_d.alloc(y_bytes);
+    bg_uv_d.alloc(uv_bytes);
+    bg_y_d.upload_async(session.stream, bg.y.data());
+    bg_uv_d.upload_async(session.stream, bg.uv.data());
+
+    chronon3d::media::video::CudaNv12Compositor comp;
+    REQUIRE(comp.init(session.ctx));
+    std::vector<chronon3d::media::CudaLayerResource> resources;
+
+    // Reference pass: 12 frames with explicit cuStreamSynchronize after each frame.
+    std::vector<std::vector<std::uint8_t>> ref_y(kFrames), ref_uv(kFrames);
+    DevBuffer out_y_d, out_uv_d;
+    out_y_d.alloc(y_bytes);
+    out_uv_d.alloc(uv_bytes);
+
+    auto make_frame_batch = [](int f) {
+        chronon3d::runtime::LayerBatch batch;
+        chronon3d::runtime::LayerInstance inst;
+        inst.kind = chronon3d::runtime::PrimitiveKind::Solid;
+        inst.color[0] = 0.1f + 0.06f * static_cast<float>(f);
+        inst.color[1] = 0.8f - 0.04f * static_cast<float>(f);
+        inst.color[2] = 0.25f;
+        inst.color[3] = 0.75f;
+        inst.dst_rect[0] = 40.0f + 12.0f * static_cast<float>(f);
+        inst.dst_rect[1] = 30.0f + 6.0f * static_cast<float>(f);
+        inst.dst_rect[2] = 160.0f;
+        inst.dst_rect[3] = 120.0f;
+        batch.instances.push_back(inst);
+        return batch;
+    };
+
+    for (int f = 0; f < kFrames; ++f) {
+        const auto batch = make_frame_batch(f);
+        REQUIRE(comp.composite_direct_nv12_batch(
+            batch, resources, bg_y_d.ptr, w, bg_uv_d.ptr, w,
+            out_y_d.ptr, w, out_uv_d.ptr, w,
+            static_cast<std::uint32_t>(w), static_cast<std::uint32_t>(h), session.stream));
+        check_ok(cuStreamSynchronize(session.stream), "cuStreamSynchronize(ref)");
+        ref_y[f].resize(y_bytes);
+        ref_uv[f].resize(uv_bytes);
+        out_y_d.download(ref_y[f].data());
+        out_uv_d.download(ref_uv[f].data());
+    }
+
+    // Async pass: 12 frames queued back-to-back into separate output buffers with
+    // NO intermediate cuStreamSynchronize (exercises ring + CUevent buffer guard).
+    std::vector<DevBuffer> async_y_d(kFrames), async_uv_d(kFrames);
+    for (int f = 0; f < kFrames; ++f) {
+        async_y_d[f].alloc(y_bytes);
+        async_uv_d[f].alloc(uv_bytes);
+    }
+    for (int f = 0; f < kFrames; ++f) {
+        const auto batch = make_frame_batch(f);
+        REQUIRE(comp.composite_direct_nv12_batch(
+            batch, resources, bg_y_d.ptr, w, bg_uv_d.ptr, w,
+            async_y_d[f].ptr, w, async_uv_d[f].ptr, w,
+            static_cast<std::uint32_t>(w), static_cast<std::uint32_t>(h), session.stream));
+    }
+    check_ok(cuStreamSynchronize(session.stream), "cuStreamSynchronize(async-12)");
+
+    for (int f = 0; f < kFrames; ++f) {
+        std::vector<std::uint8_t> got_y(y_bytes), got_uv(uv_bytes);
+        async_y_d[f].download(got_y.data());
+        async_uv_d[f].download(got_uv.data());
+        const auto cy = compare_plane(ref_y[f].data(), got_y.data(), y_bytes);
+        const auto cuv = compare_plane(ref_uv[f].data(), got_uv.data(), uv_bytes);
+        CHECK(cy.identical);
+        CHECK(cuv.identical);
+    }
+}
+
 #else // !CHRONON3D_ENABLE_CUDA_INTEROP
 
 TEST_CASE("NV12 contract harness is unavailable without CUDA interop") {

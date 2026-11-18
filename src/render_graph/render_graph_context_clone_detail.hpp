@@ -94,6 +94,99 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     return copy;
 }
 
+RenderGraphContext RenderGraphContext::clone_for_borrowed_node_execution() const {
+    RenderGraphContext copy;
+    copy.frame_input.frame = frame_input.frame;
+    copy.frame_input.sample_time = frame_input.sample_time;
+    copy.frame_input.temporal_key = frame_input.temporal_key;
+    copy.frame_input.time_seconds = frame_input.time_seconds;
+    copy.frame_input.fps = frame_input.fps;
+    copy.frame_input.width = frame_input.width;
+    copy.frame_input.height = frame_input.height;
+    copy.frame_input.static_context_view = frame_input.static_context_view
+        ? frame_input.static_context_view
+        : frame_input.static_context.get();
+    copy.frame_input.camera = frame_input.camera;
+    copy.frame_input.camera_2_5d = frame_input.camera_2_5d;
+    copy.frame_input.has_camera_2_5d = frame_input.has_camera_2_5d;
+    copy.frame_input.projection_ctx = frame_input.projection_ctx;
+    copy.frame_input.light_context = frame_input.light_context;
+    copy.frame_input.rim_light = frame_input.rim_light;
+
+    copy.policy      = policy;
+    copy.backend = backend;
+    copy.surface_registry = surface_registry;
+    copy.text_render_resources = text_render_resources;
+    copy.gpu_asset_cache = gpu_asset_cache;
+    copy.gpu_glyph_atlas = gpu_glyph_atlas;
+    copy.gpu_styled_glyph_cache = gpu_styled_glyph_cache;
+    copy.gpu_text_prepared_cache = gpu_text_prepared_cache;
+    copy.image_cache = image_cache;
+    copy.node_cache = node_cache;
+    copy.framebuffer_pool = framebuffer_pool;
+    copy.registry = registry;
+    copy.video_decoder = video_decoder;
+    copy.effect_catalog = effect_catalog;
+    copy.transition_catalog = transition_catalog;
+    copy.precomp_builder = precomp_builder;
+    copy.execution = execution;
+    copy.frame_parameters = frame_parameters;
+    copy.build_dependencies = build_dependencies;
+    copy.registry_generation = registry_generation;
+    copy.processor_snapshot_required = processor_snapshot_required;
+    copy.runtime = runtime;
+    copy.compiled_graph_cache = compiled_graph_cache;
+    copy.scheduler = scheduler;
+    copy.asset_resolver = asset_resolver;
+    copy.session = session;
+    copy.program_fingerprint = program_fingerprint;
+
+    copy.node_exec.counters         = node_exec.counters;
+    copy.node_exec.clip_rect        = node_exec.clip_rect;
+    copy.node_exec.active_tile_clip = node_exec.active_tile_clip;
+    copy.node_exec.dirty_rect       = node_exec.dirty_rect;
+    copy.node_exec.shared_dof_depth = node_exec.shared_dof_depth
+        ? node_exec.shared_dof_depth
+        : const_cast<std::vector<float>*>(&node_exec.dof_depth);
+    copy.node_exec.shared_composite_occlusion_depth =
+        node_exec.shared_composite_occlusion_depth
+            ? node_exec.shared_composite_occlusion_depth
+            : const_cast<std::vector<float>*>(&node_exec.composite_occlusion_depth);
+    copy.node_exec.shared_camera_composite = node_exec.shared_camera_composite
+        ? node_exec.shared_camera_composite
+        : const_cast<NodeExecutionContext::CameraCompositeState*>(
+              &node_exec.camera_composite);
+    copy.node_exec.shared_dof_source_coverage =
+        node_exec.shared_dof_source_coverage
+            ? node_exec.shared_dof_source_coverage
+            : const_cast<DofSourceCoverage*>(&node_exec.dof_source_coverage);
+    copy.node_exec.shared_native_dof_depth = node_exec.shared_native_dof_depth
+        ? node_exec.shared_native_dof_depth
+        : const_cast<NodeExecutionContext::NativeDofDepthState*>(
+              &node_exec.native_dof_depth);
+    copy.node_exec.shared_native_occlusion = node_exec.shared_native_occlusion
+        ? node_exec.shared_native_occlusion
+        : const_cast<NodeExecutionContext::NativeOcclusionState*>(
+              &node_exec.native_occlusion);
+    copy.node_exec.current_identity = node_exec.current_identity;
+    copy.node_exec.planned_physical_slot = node_exec.planned_physical_slot;
+    copy.node_exec.terminal_video_encode_physical_slot =
+        node_exec.terminal_video_encode_physical_slot;
+    copy.node_exec.terminal_video_encode_surface = node_exec.terminal_video_encode_surface;
+    copy.node_exec.sampled_layer = node_exec.sampled_layer;
+    copy.node_exec.current_shape_processor = node_exec.current_shape_processor;
+    copy.node_exec.current_shape_processors = node_exec.current_shape_processors;
+    copy.node_exec.current_effect_processors = node_exec.current_effect_processors;
+    // Borrow processor_snapshot without atomic refcount RMW; parent context
+    // outlives this synchronous node execution scope.
+    copy.node_exec.processor_snapshot =
+        std::shared_ptr<const ::chronon3d::renderer::ProcessorRegistrySnapshot>(
+            std::shared_ptr<void>(), node_exec.processor_snapshot.get());
+    copy.node_exec.processor_bindings_compiled = node_exec.processor_bindings_compiled;
+    copy.frame_error = frame_error;
+    return copy;
+}
+
 std::string RenderGraphContext::resolve_asset(const std::string& relative_path) const {
     if (relative_path.empty()) return relative_path;
     if (!relative_path.empty() && relative_path[0] == '/') return relative_path;

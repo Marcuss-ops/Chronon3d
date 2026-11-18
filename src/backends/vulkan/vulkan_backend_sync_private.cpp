@@ -342,10 +342,13 @@ void VulkanBackend::Impl::emit_resource_transition(
 void VulkanBackend::Impl::emit_plan_pass_transitions(
     VkCommandBuffer command,
     const runtime::CommandPlan& plan,
-    std::size_t pass_index) {
+    std::size_t pass_index,
+    std::array<VkImage, 16>* transitioned_out,
+    std::size_t* transitioned_count_out) {
     // One vkCmdPipelineBarrier2 for all of this pass's transitions instead of
     // one driver call per image.
     ImageBarrierBatch batch{*this, command};
+    std::size_t transitioned_count = 0;
     for (const auto& transition_record : plan.transitions) {
         if (transition_record.consumer_pass != pass_index) continue;
         if (transition_record.resource >= plan.resources.requests.size()) {
@@ -362,18 +365,27 @@ void VulkanBackend::Impl::emit_plan_pass_transitions(
         // set is leased for the whole plan batch, so the transition stream no
         // longer reads the surface store while the submission ring is driven.
         const auto& physical = resolve_image(surface);
+        if (transitioned_out && transitioned_count < transitioned_out->size()) {
+            (*transitioned_out)[transitioned_count++] = physical.image;
+        }
         batch.add(to_vk_image_barrier2(physical.image, transition_record,
                                        queue_family));
     }
+    if (transitioned_count_out) *transitioned_count_out = transitioned_count;
     batch.flush();
 }
 
 void VulkanBackend::Impl::emit_unplanned_compute_sync(
     VkCommandBuffer command,
-    std::initializer_list<const Image*> images) {
+    std::initializer_list<const Image*> images,
+    std::span<const VkImage> skip_images) {
     ImageBarrierBatch batch{*this, command};
     for (const Image* image : images) {
         if (!image || image->image == VK_NULL_HANDLE) continue;
+        if (std::find(skip_images.begin(), skip_images.end(), image->image) !=
+            skip_images.end()) {
+            continue;
+        }
         runtime::ResourceTransition transition_record;
         transition_record.range =
             runtime::image_range(runtime::ResourceAspect::Color);
@@ -431,14 +443,19 @@ void VulkanBackend::Impl::emit_pass_sync(
         // Compiled execution never falls back to the direct/unplanned state
         // path. The canonical transition stream is the only synchronization
         // authority for the pass, including imported/external resources.
+        std::array<VkImage, 16> transitioned_images{};
+        std::size_t transitioned_count = 0;
         emit_plan_pass_transitions(command, *frame_batch.command_plan,
-                                   frame_batch.pass_count);
+                                   frame_batch.pass_count,
+                                   &transitioned_images, &transitioned_count);
         // Asset textures promoted outside the compiled graph (for example
         // ImageCache/GpuAssetCache sources) are not present in the plan's
-        // resource table. Keep their upload-to-compute dependency explicit;
-        // otherwise a native image pass may legally execute while the
-        // imported storage image still has no compute visibility edge.
-        emit_unplanned_compute_sync(command, images);
+        // resource table. Keep their upload-to-compute dependency explicit,
+        // skipping images already transitioned by the plan above.
+        emit_unplanned_compute_sync(
+            command, images,
+            std::span<const VkImage>{transitioned_images.data(),
+                                     transitioned_count});
         return;
     }
     emit_unplanned_compute_sync(command, images);

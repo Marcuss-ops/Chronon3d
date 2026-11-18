@@ -1,6 +1,6 @@
 # TICKET-PERF-INLINE-MESH-STATIC-BUFFERS-AND-BINNING-20261117 — Separazione buffer statici/dinamici per mesh inline e superamento della scansione $O(\text{pixel} \times \text{triangoli})$
 
-- **Stato:** OPEN (2026-11-17)
+- **Stato:** CLOSED (2026-11-17)
 - **Priorità:** P2 (Scalabilità 3D per modelli glTF > 500 triangoli — allineato a `CHRONON_PLAN.md` P2-01, P2-02, P2-06)
 - **Ambito:** `src/backends/vulkan/vulkan_backend_inline_mesh_private.cpp`, `src/backends/vulkan/shaders/inline_mesh.comp`, `src/render_graph/nodes/source_node_native_mesh.cpp`
 - **Owner:** C3D 3D/Vulkan maintainer
@@ -81,3 +81,21 @@ Se viene mantenuto il path compute brute-force per micro-mesh ($T < T_{\text{thr
    - Tutti i 24 ordini di profondità di P0-06 (`evidence/p006-depth-order-vulkan-20261104.md`), i casi alpha-cutout/blend di P0-07 e il caso PBR E1 passano senza regressioni.
 4. **Grafico Throughput P2-01/02**:
    - Report in `docs/evidence/` con i millisecondi GPU a 10 / 100 / 1k / 10k triangoli prima e dopo.
+
+---
+
+## 5. Risoluzione Implementata (2026-11-17)
+
+- **Fase A — Benchmark & Crossover**:
+  - Misurato su NVIDIA RTX A4000 (`512×512`) prima vs dopo (`docs/evidence/inline-mesh-binning-benchmark-20261117.md`):
+    - `10` tris: `0.0375 ms` → `0.0259 ms` (`1.45×`)
+    - `100` tris: `0.3095 ms` → `0.0258 ms` (`12.00×`)
+    - `1,000` tris: `3.0012 ms` → `0.0432 ms` (`69.47×`)
+    - `10,000` tris: `32.3706 ms` → `0.3278 ms` (`98.75×`)
+- **Fase B — Separazione Indici Statici**:
+  - `vulkan_backend_inline_mesh_private.cpp`: cache LRU a 16 slot (`inline_mesh_static_indices`) indicizzata per hash FNV-1a 64-bit e dimensione byte degli indici; in steady-state `draw_inline_mesh` carica solo `projected_lit_vertices` senza ri-copiare gli indici (zero nuove cache authority).
+- **Fase C — Compute Tile Binning (`16×16`)**:
+  - `shaders/inline_mesh_bin.comp` (`GpuKernelId::InlineMeshBin`) + `shaders/inline_mesh.comp` con specialization constants `kSpecUseTileBins` e `kSpecSeparateIndexBuffer` (`GpuKernelId::InlineMesh` per `<= 64` tris, `GpuKernelId::InlineMeshBinned` per `> 64` tris, con fallback automatico per tile in overflow `> 256` tris).
+- **Verifica**:
+  - `chronon3d_backend_registry_tests --test-case="*inline mesh*,*InlineMesh*,*native occlusion*"`: `5/5` test cases, `215/215` assertions PASS.
+  - `python3 tools/check_architecture.py`: `218/218` PASS (`cache_family_inventory` invariata).

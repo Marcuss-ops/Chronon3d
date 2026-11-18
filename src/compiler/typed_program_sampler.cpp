@@ -23,7 +23,7 @@ namespace {
 // in this call, so a stale/unrelated program address can never change the
 // sampled value.
 struct TrackSegmentCursor {
-    const CurveKeyframeProgram* base{nullptr};
+    const void* base{nullptr};
     std::size_t count{0};
     std::size_t right{0};
 };
@@ -37,7 +37,8 @@ constexpr std::size_t kTrackSegmentCursorSlots = 128;
 
 /// Returns the index of the first keyframe with `frame <= value` (value is
 /// guaranteed to sit strictly inside `[base[0].frame, base[count-1].frame]`).
-[[nodiscard]] std::size_t locate_track_segment(const CurveKeyframeProgram* base,
+template <typename KeyframeT>
+[[nodiscard]] std::size_t locate_track_segment(const KeyframeT* base,
                                                std::size_t count,
                                                double value) noexcept {
     auto* slot = track_segment_cursors() +
@@ -50,7 +51,7 @@ constexpr std::size_t kTrackSegmentCursorSlots = 128;
     }
     const auto* right_it = std::upper_bound(
         base, base + count, value,
-        [](double lhs, const CurveKeyframeProgram& key) {
+        [](double lhs, const KeyframeT& key) {
             return lhs < static_cast<double>(key.frame);
         });
     const std::size_t right = static_cast<std::size_t>(right_it - base);
@@ -122,7 +123,6 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
         sampled.time_dependent = false;
         sampled.local_time_frame = 0.0;
         sampled.text_index = 0;
-        sampled.payload = std::monostate{};
         sampled.elements.clear();  // keeps the capacity grown on earlier frames
         sampled.dirty = program.temporal_schedule().dirty(
             layer.id, frame_number);
@@ -137,14 +137,27 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                 sampled.payload = SampledColorParameters{layer.color};
                 break;
             case NodeKind::Image:
-                sampled.payload = SampledImageParameters{
-                    layer.asset, layer.size, layer.radius};
+                if (auto* img = std::get_if<SampledImageParameters>(&sampled.payload)) {
+                    img->asset = layer.asset;
+                    img->size = layer.size;
+                    img->radius = layer.radius;
+                } else {
+                    sampled.payload = SampledImageParameters{
+                        layer.asset, layer.size, layer.radius};
+                }
                 break;
-            case NodeKind::Video:
-                sampled.payload = SampledVideoParameters{
-                    layer.source.empty() ? layer.asset : layer.source,
-                    layer.size, layer.loop};
+            case NodeKind::Video: {
+                const auto& src = layer.source.empty() ? layer.asset : layer.source;
+                if (auto* vid = std::get_if<SampledVideoParameters>(&sampled.payload)) {
+                    vid->source = src;
+                    vid->size = layer.size;
+                    vid->loop = layer.loop;
+                } else {
+                    sampled.payload = SampledVideoParameters{
+                        src, layer.size, layer.loop};
+                }
                 break;
+            }
             case NodeKind::Text: {
                 if (layer.text_program_index < program.texts().size()) {
                     sampled.text_index = program.texts()[layer.text_program_index].text_index;
@@ -169,17 +182,15 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                                            .color = layer.color};
                 if (mesh.inline_mesh && !mesh.inline_mesh->animation.empty()) {
                     const auto& samples = mesh.inline_mesh->animation;
-                    const auto right = std::upper_bound(samples.begin(), samples.end(), frame_number,
-                        [](double value, const render_plan::InlineMeshFrameSamplePlan& sample) {
-                            return value < static_cast<double>(sample.frame);
-                        });
-                    if (right == samples.begin()) {
+                    if (frame_number < static_cast<double>(samples.front().frame)) {
                         mesh.animation_before = mesh.animation_after = &samples.front();
-                    } else if (right == samples.end()) {
+                    } else if (frame_number >= static_cast<double>(samples.back().frame)) {
                         mesh.animation_before = mesh.animation_after = &samples.back();
                     } else {
-                        mesh.animation_before = &*(right - 1);
-                        mesh.animation_after = &*right;
+                        const auto right_idx = locate_track_segment(
+                            samples.data(), samples.size(), frame_number);
+                        mesh.animation_before = &samples[right_idx - 1];
+                        mesh.animation_after = &samples[right_idx];
                         const auto span = mesh.animation_after->frame - mesh.animation_before->frame;
                         mesh.animation_mix = span > 0 ? std::clamp(
                             static_cast<float>(frame_number - mesh.animation_before->frame) /

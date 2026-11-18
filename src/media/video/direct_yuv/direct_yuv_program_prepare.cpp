@@ -201,7 +201,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare_impl(
             // concurrent jobs).  Pass the job resolver per-call instead.
             auto cached = image_cache.get_or_load(image.path, image.decode_options, asset_resolver);
             watermark_load_ms += profiling::duration_ms(img_t0, profiling::now());
-            if (!cached || !cached->valid() || cached->gpu_rgba.empty()) {
+            const auto rgba_span = cached->gpu_rgba_span();
+            if (!cached || !cached->valid() || rgba_span.empty()) {
                 reason = runtime::LaneReason{runtime::LaneDecision::Failed,
                                              "error", "image_cache_missing"};
                 return false;
@@ -212,7 +213,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare_impl(
             auto resource = video_runtime->get_or_upload_image(
                 cached->gpu_key.content_digest, image.decode_options,
                 static_cast<std::uint32_t>(cached->width),
-                static_cast<std::uint32_t>(cached->height), cached->gpu_rgba,
+                static_cast<std::uint32_t>(cached->height), rgba_span,
                 cache_hit, upload_ms, upload_error);
             if (!resource) {
                 reason = runtime::LaneReason{runtime::LaneDecision::Failed,

@@ -24,29 +24,57 @@ NodeExecResult execute_backdrop_software(
 
     const i32 width = bottom.width();
     const i32 height = bottom.height();
-    const std::size_t count = static_cast<std::size_t>(width) * height;
-    // `bottom` is CPU-resident and already full-canvas: the horizontal pass
-    // samples it in place instead of copying 33 MB/frame into a `source`
-    // vector, and when no blur is requested the backdrop reads `bottom`
-    // directly (no `blurred` copy either).
+
+    // Compute `top`'s active bounding box and max alpha before allocating
+    // scratch framebuffers so empty layers skip blur altogether and non-empty
+    // layers only blur the covered ROI (plus refraction margin).
+    float max_alpha = 0.0f;
+    i32 active_x0 = width, active_y0 = height, active_x1 = 0, active_y1 = 0;
+    for (i32 y = 0; y < top.height(); ++y) {
+        const i32 cy = top.origin_y() + y;
+        const auto* row = top.pixels_row(y);
+        for (i32 x = 0; x < top.width(); ++x) {
+            const float a = row[x].a;
+            if (a > 0.0f) {
+                max_alpha = std::max(max_alpha, a);
+                const i32 cx = top.origin_x() + x;
+                if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
+                    active_x0 = std::min(active_x0, cx);
+                    active_y0 = std::min(active_y0, cy);
+                    active_x1 = std::max(active_x1, cx + 1);
+                    active_y1 = std::max(active_y1, cy + 1);
+                }
+            }
+        }
+    }
+
     const int extent = static_cast<int>(std::ceil(settings.blur));
-    std::vector<Color> horizontal;
-    std::vector<Color> blurred;
-    const bool blurred_is_bottom = extent <= 0;
-    if (extent > 0) {
-        horizontal.resize(count);
-        blurred.resize(count);
+    const bool has_active_roi = max_alpha > 0.0f && active_x0 < active_x1 && active_y0 < active_y1;
+    const bool blurred_is_bottom = extent <= 0 || !has_active_roi;
+    OwnedFB horizontal_fb;
+    OwnedFB blurred_fb;
+    if (!blurred_is_bottom) {
+        horizontal_fb = ctx.acquire_owned_fb(width, height, false);
+        blurred_fb = ctx.acquire_owned_fb(width, height, false);
     }
     const auto backdrop_at = [&](i32 x, i32 y) -> Color {
         return bottom.pixels_row(y)[x];
     };
     const auto blurred_at = [&](i32 x, i32 y) -> Color {
         if (blurred_is_bottom) return bottom.pixels_row(y)[x];
-        return blurred[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
-                       static_cast<std::size_t>(x)];
+        return blurred_fb->pixels_row(y)[x];
     };
 
-    if (extent > 0) {
+    if (!blurred_is_bottom) {
+        const i32 refract_margin = settings.refraction > 0.0f
+            ? static_cast<i32>(std::ceil(settings.refraction)) + 1 : 0;
+        const i32 roi_x0 = std::max(0, active_x0 - refract_margin);
+        const i32 roi_y0 = std::max(0, active_y0 - refract_margin);
+        const i32 roi_x1 = std::min(width, active_x1 + refract_margin);
+        const i32 roi_y1 = std::min(height, active_y1 + refract_margin);
+        const i32 horiz_y0 = std::max(0, roi_y0 - extent);
+        const i32 horiz_y1 = std::min(height, roi_y1 + extent);
+
         const float sigma = std::max(settings.blur / 3.0f, 0.5f);
         std::vector<float> kernel(static_cast<std::size_t>(extent * 2 + 1));
         float weight_sum = 0.0f;
@@ -57,28 +85,30 @@ NodeExecResult execute_backdrop_software(
             weight_sum += value;
         }
         for (auto& value : kernel) value /= weight_sum;
-        const auto sample = [&](const std::vector<Color>& input, i32 x, i32 y) {
-            x = std::clamp(x, 0, width - 1);
-            y = std::clamp(y, 0, height - 1);
-            return input[static_cast<std::size_t>(y) * width + x];
-        };
-        for (i32 y = 0; y < height; ++y) for (i32 x = 0; x < width; ++x) {
-            Color out{0, 0, 0, 0};
-            for (int k = -extent; k <= extent; ++k) {
-                const Color c = backdrop_at(std::clamp(x + k, 0, width - 1), y);
-                const float w = kernel[static_cast<std::size_t>(k + extent)];
-                out.r += c.r * w; out.g += c.g * w; out.b += c.b * w; out.a += c.a * w;
+        for (i32 y = horiz_y0; y < horiz_y1; ++y) {
+            const Color* src_row = bottom.pixels_row(y);
+            Color* dst_row = horizontal_fb->pixels_row(y);
+            for (i32 x = roi_x0; x < roi_x1; ++x) {
+                Color out{0, 0, 0, 0};
+                for (int k = -extent; k <= extent; ++k) {
+                    const Color c = src_row[std::clamp(x + k, 0, width - 1)];
+                    const float w = kernel[static_cast<std::size_t>(k + extent)];
+                    out.r += c.r * w; out.g += c.g * w; out.b += c.b * w; out.a += c.a * w;
+                }
+                dst_row[x] = out;
             }
-            horizontal[static_cast<std::size_t>(y) * width + x] = out;
         }
-        for (i32 y = 0; y < height; ++y) for (i32 x = 0; x < width; ++x) {
-            Color out{0, 0, 0, 0};
-            for (int k = -extent; k <= extent; ++k) {
-                const Color c = sample(horizontal, x, y + k);
-                const float w = kernel[static_cast<std::size_t>(k + extent)];
-                out.r += c.r * w; out.g += c.g * w; out.b += c.b * w; out.a += c.a * w;
+        for (i32 y = roi_y0; y < roi_y1; ++y) {
+            Color* dst_row = blurred_fb->pixels_row(y);
+            for (i32 x = roi_x0; x < roi_x1; ++x) {
+                Color out{0, 0, 0, 0};
+                for (int k = -extent; k <= extent; ++k) {
+                    const Color c = horizontal_fb->pixels_row(std::clamp(y + k, 0, height - 1))[x];
+                    const float w = kernel[static_cast<std::size_t>(k + extent)];
+                    out.r += c.r * w; out.g += c.g * w; out.b += c.b * w; out.a += c.a * w;
+                }
+                dst_row[x] = out;
             }
-            blurred[static_cast<std::size_t>(y) * width + x] = out;
         }
     }
 
@@ -103,11 +133,6 @@ NodeExecResult execute_backdrop_software(
         return Color{mix(a.r, b.r, c.r, d.r), mix(a.g, b.g, c.g, d.g),
                      mix(a.b, b.b, c.b, d.b), mix(a.a, b.a, c.a, d.a)};
     };
-    float max_alpha = 0.0f;
-    for (i32 y = 0; y < top.height(); ++y) {
-        const auto* row = top.pixels_row(y);
-        for (i32 x = 0; x < top.width(); ++x) max_alpha = std::max(max_alpha, row[x].a);
-    }
     const auto mask_alpha = [&top, max_alpha](i32 x, i32 y) {
         if (max_alpha <= 0.0f || x < top.origin_x() || y < top.origin_y() ||
             x >= top.origin_x() + top.width() || y >= top.origin_y() + top.height())

@@ -27,6 +27,9 @@ struct PlanAdmissionShape {
     std::uint32_t width{0};
     std::uint32_t height{0};
     bool requires_composition{true};
+    /// Estimated physical frame-buffer slot count from the plan's layer
+    /// topology (0 when unknown/unparsed).
+    std::uint32_t estimated_physical_slots{0};
 };
 
 [[nodiscard]] PlanDimensions extract_plan_admission_shape(

@@ -321,6 +321,39 @@ struct RenderConcurrencyResolution {
     return std::max<std::uint64_t>(scaled, 2ULL * 1024ULL * 1024ULL * 1024ULL);
 }
 
+/// Shape-aware VRAM admission estimate (TICKET-PERF-A1).
+///
+/// Post-fix VMA telemetry on RTX A4000 (`export_handed_off` retention fixed in
+/// `vulkan_backend_submission_private.cpp`) measured ~238 MiB at 1080p and
+/// ~865 MiB at 4K for standard FullGraph overlay plans. When `physical_slots`
+/// is known (> 0), admission reserves:
+///   base_driver_codec (512 MiB) + (physical_slots + 6) * W * H * 16 + headroom
+/// When `physical_slots == 0` (no compilation/shape metadata), falls back to
+/// `estimate_peak_vram_bytes()` (`kMeasuredFullGraphPeakBytes` calibration).
+[[nodiscard]] inline std::uint64_t estimate_shaped_vram_bytes(
+    std::uint32_t width,
+    std::uint32_t height,
+    std::uint32_t physical_slots,
+    bool direct_yuv,
+    bool native_nvenc,
+    std::uint64_t asset_headroom_bytes = 256ULL * 1024ULL * 1024ULL) {
+    if (!native_nvenc) return 0;
+    if (width == 0) width = 1920;
+    if (height == 0) height = 1080;
+    if (direct_yuv) return kMeasuredDirectYuvPeakBytes;
+    if (physical_slots == 0) {
+        return estimate_peak_vram_bytes(width, height, direct_yuv, native_nvenc);
+    }
+    constexpr std::uint64_t kBaseDriverAndCodecBytes = 512ULL * 1024ULL * 1024ULL;
+    constexpr std::uint64_t kBytesPerRgba32fPixel = 16ULL;
+    const std::uint64_t surface_bytes =
+        static_cast<std::uint64_t>(physical_slots + 6U) *
+        static_cast<std::uint64_t>(width) *
+        static_cast<std::uint64_t>(height) *
+        kBytesPerRgba32fPixel;
+    return kBaseDriverAndCodecBytes + surface_bytes + asset_headroom_bytes;
+}
+
 // ── Derived working set (P0-2) ──────────────────────────────────────────────
 //
 // The admission estimate must come from what the job actually compiled, not
@@ -512,8 +545,10 @@ resolve_device_requirements(
     std::uint32_t width, std::uint32_t height,
     bool direct_yuv, bool native_nvenc,
     const std::string& codec,
-    const std::string& hot_path_mode) {
-    const std::uint64_t vram = estimate_peak_vram_bytes(width, height, direct_yuv, native_nvenc);
+    const std::string& hot_path_mode,
+    std::uint32_t physical_slots = 0) {
+    const std::uint64_t vram = estimate_shaped_vram_bytes(
+        width, height, physical_slots, direct_yuv, native_nvenc);
     chronon3d::runtime::DeviceSelectionRequirements req;
     req.resources.compute_units = native_nvenc ? 0.5f : 0.0f;
     req.cuda = native_nvenc;

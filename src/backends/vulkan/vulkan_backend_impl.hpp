@@ -133,6 +133,8 @@ struct VulkanBackend::Impl {
         descriptor_arena.particle_emitter_descriptor_layout};
     VkDescriptorSetLayout& inline_mesh_descriptor_layout{
         descriptor_arena.inline_mesh_descriptor_layout};
+    VkDescriptorSetLayout& inline_mesh_bin_descriptor_layout{
+        descriptor_arena.inline_mesh_bin_descriptor_layout};
     VkDescriptorSetLayout& text_tile_bin_descriptor_layout{
         descriptor_arena.text_tile_bin_descriptor_layout};
     VkDescriptorSetLayout& text_tile_raster_descriptor_layout{
@@ -209,6 +211,18 @@ struct VulkanBackend::Impl {
     static constexpr std::size_t kPathGeometryRingSize =
         FrameBatchState::kSlotCount * kPathGeometryPassesPerSlot + 1U;
     std::array<VulkanBufferAllocation, kPathGeometryRingSize> path_geometry_buffers{};
+    static constexpr std::size_t kInlineMeshStaticIndexSlots = 16;
+    struct InlineMeshStaticIndexEntry {
+        VulkanBufferAllocation buffer{};
+        std::uint64_t hash{0};
+        std::size_t bytes{0};
+        std::uint64_t last_use{0};
+    };
+    std::array<InlineMeshStaticIndexEntry, kInlineMeshStaticIndexSlots> inline_mesh_static_indices{};
+    std::uint64_t inline_mesh_static_use_seq{0};
+    VulkanBufferAllocation inline_mesh_tile_counts_buffer{};
+    VulkanBufferAllocation inline_mesh_tile_tris_buffer{};
+    VulkanBufferAllocation inline_mesh_dummy_ssbo{};
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_run_dynamic_buffers{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> text_run_dynamic_hashes{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> text_run_dynamic_sizes{};
@@ -432,6 +446,7 @@ struct VulkanBackend::Impl {
     [[nodiscard]] VkCommandBuffer active_command_buffer() const noexcept;
     VkDescriptorSet allocate_pass_descriptor_set();
     VkDescriptorSet allocate_inline_mesh_descriptor_set();
+    VkDescriptorSet allocate_inline_mesh_bin_descriptor_set();
     VkDescriptorSet allocate_text_tile_bin_descriptor_set();
     VkDescriptorSet allocate_text_tile_raster_descriptor_set();
     void write_text_tile_bin_descriptors(
@@ -454,10 +469,13 @@ struct VulkanBackend::Impl {
                                   const runtime::ResourceTransition& transition);
     void emit_plan_pass_transitions(VkCommandBuffer command,
                                     const runtime::CommandPlan& plan,
-                                    std::size_t pass_index);
+                                    std::size_t pass_index,
+                                    std::array<VkImage, 16>* transitioned_out = nullptr,
+                                    std::size_t* transitioned_count_out = nullptr);
     void emit_unplanned_compute_sync(
         VkCommandBuffer command,
-        std::initializer_list<const Image*> images);
+        std::initializer_list<const Image*> images,
+        std::span<const VkImage> skip_images = {});
     void emit_cuda_surface_ownership_transfer(VkCommandBuffer command,
                                              std::size_t physical_slot,
                                              bool acquire);
@@ -559,7 +577,8 @@ struct VulkanBackend::Impl {
     void record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                      const Image& destination, const Image& source,
                      float radius, bool horizontal, bool box_kernel = false,
-                     bool glow_kernel = false);
+                     bool glow_kernel = false,
+                     const int* dispatch_roi = nullptr);
     void record_directional_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                                  const Image& destination, const Image& source,
                                  float dir_x, float dir_y, float length, int tap_count);
@@ -773,7 +792,7 @@ struct VulkanBackend::Impl {
                           const runtime::SurfaceAffineTransform& transform);
     void blur(runtime::RenderSurfaceHandle destination,
               runtime::RenderSurfaceHandle source, float radius, bool horizontal,
-              bool box_kernel = false);
+              bool box_kernel = false, const int* dispatch_roi = nullptr);
     void directional_blur(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle source,
                           float dir_x, float dir_y, float length, int tap_count);

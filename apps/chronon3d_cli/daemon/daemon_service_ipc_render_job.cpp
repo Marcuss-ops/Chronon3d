@@ -124,7 +124,7 @@ ipc::Reply DaemonService::handle_render_job_request(
             // P0-2/4: single policy authority — no second ad-hoc builder.
             auto requirements = resolve_device_requirements(
                 plan_shape.width, plan_shape.height, direct_yuv, native_nvenc,
-                codec, hot_path);
+                codec, hot_path, plan_shape.estimated_physical_slots);
             const auto estimated_vram = requirements.resources.vram_bytes;
 
             // One RAII context owns the policy-selected execution lock and

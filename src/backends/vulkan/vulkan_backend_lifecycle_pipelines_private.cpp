@@ -283,6 +283,27 @@ void VulkanBackend::Impl::init_core_kernel_pipelines() {
         VkPipeline warp_bulk_pipeline = VK_NULL_HANDLE;
         const VkResult warp_bulk_result = vkCreateComputePipelines(
             device, kernels.pipeline_cache, 1, &warp_bulk_pipeline_info, nullptr, &warp_bulk_pipeline);
+        if (warp_bulk_result == VK_SUCCESS) {
+            std::array<std::int32_t, VulkanKernelStore::kWarpBulkSpecModeCount> spec_modes{};
+            std::array<VkSpecializationMapEntry, VulkanKernelStore::kWarpBulkSpecModeCount> spec_entries{};
+            std::array<VkSpecializationInfo, VulkanKernelStore::kWarpBulkSpecModeCount> spec_infos{};
+            std::array<VkComputePipelineCreateInfo, VulkanKernelStore::kWarpBulkSpecModeCount> spec_cpcis{};
+            for (std::size_t m = 0; m < VulkanKernelStore::kWarpBulkSpecModeCount; ++m) {
+                spec_modes[m] = static_cast<std::int32_t>(m);
+                spec_entries[m] = {0, 0, sizeof(std::int32_t)};
+                spec_infos[m] = {1, &spec_entries[m], sizeof(std::int32_t), &spec_modes[m]};
+                spec_cpcis[m] = warp_bulk_pipeline_info;
+                spec_cpcis[m].stage.pSpecializationInfo = &spec_infos[m];
+            }
+            const VkResult spec_res = vkCreateComputePipelines(
+                device, kernels.pipeline_cache,
+                static_cast<std::uint32_t>(spec_cpcis.size()),
+                spec_cpcis.data(), nullptr,
+                kernels.warp_bulk_mode_pipelines.data());
+            if (spec_res != VK_SUCCESS) {
+                kernels.warp_bulk_mode_pipelines.fill(VK_NULL_HANDLE);
+            }
+        }
         vkDestroyShaderModule(device, warp_bulk_shader, nullptr);
         check(warp_bulk_result, "vkCreateComputePipelines(warp_bulk)");
         register_kernel_or_throw(kernels.registry, device,
@@ -582,6 +603,27 @@ void VulkanBackend::Impl::init_core_kernel_pipelines() {
         VkPipeline color_matrix_pipeline = VK_NULL_HANDLE;
         const VkResult color_matrix_result = vkCreateComputePipelines(
             device, kernels.pipeline_cache, 1, &color_matrix_pipeline_info, nullptr, &color_matrix_pipeline);
+        if (color_matrix_result == VK_SUCCESS) {
+            std::array<std::int32_t, VulkanKernelStore::kColorMatrixSpecModeCount> spec_modes{};
+            std::array<VkSpecializationMapEntry, VulkanKernelStore::kColorMatrixSpecModeCount> spec_entries{};
+            std::array<VkSpecializationInfo, VulkanKernelStore::kColorMatrixSpecModeCount> spec_infos{};
+            std::array<VkComputePipelineCreateInfo, VulkanKernelStore::kColorMatrixSpecModeCount> spec_cpcis{};
+            for (std::size_t m = 0; m < VulkanKernelStore::kColorMatrixSpecModeCount; ++m) {
+                spec_modes[m] = static_cast<std::int32_t>(m);
+                spec_entries[m] = {0, 0, sizeof(std::int32_t)};
+                spec_infos[m] = {1, &spec_entries[m], sizeof(std::int32_t), &spec_modes[m]};
+                spec_cpcis[m] = color_matrix_pipeline_info;
+                spec_cpcis[m].stage.pSpecializationInfo = &spec_infos[m];
+            }
+            const VkResult spec_res = vkCreateComputePipelines(
+                device, kernels.pipeline_cache,
+                static_cast<std::uint32_t>(spec_cpcis.size()),
+                spec_cpcis.data(), nullptr,
+                kernels.color_matrix_mode_pipelines.data());
+            if (spec_res != VK_SUCCESS) {
+                kernels.color_matrix_mode_pipelines.fill(VK_NULL_HANDLE);
+            }
+        }
         vkDestroyShaderModule(device, color_matrix_shader, nullptr);
         check(color_matrix_result, "vkCreateComputePipelines(color matrix)");
         register_kernel_or_throw(kernels.registry, device,

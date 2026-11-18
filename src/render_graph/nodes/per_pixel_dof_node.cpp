@@ -229,17 +229,6 @@ NodeExecResult PerPixelDofNode::execute(
     // a full-frame memcpy (33 MB @1080p) or `copy_surface_auxiliary` pass.
     bool native_clone_failed = false;
     const auto clone_input = [&](const Framebuffer& input) {
-        // Zero-copy passthrough: the executor only offers `reusable_bottom`
-        // when this node is the input's sole consumer, and the pool
-        // swap-transfer moves the content out of the input instead of copying
-        // it, so no other reader can observe the input afterwards.
-        if (ctx.node_exec.reusable_bottom.get() == &input &&
-            ctx.node_exec.reusable_bottom.use_count() <= 2 &&
-            input.storage_transferable()) {
-            if (auto adopted = ctx.acquire_owned_fb(input)) {
-                return adopted;
-            }
-        }
         auto copy = ctx.acquire_owned_fb(input.width(), input.height(), false);
         const bool has_native_source =
             input.surface_handle() != runtime::kInvalidRenderSurfaceHandle;
@@ -351,7 +340,19 @@ NodeExecResult PerPixelDofNode::execute(
         return copy;
     };
     const auto cloned_result = [&]() -> NodeExecResult {
-        auto copy = clone_input(*inputs[0]);
+        // Zero-copy passthrough only: never steal `inputs[0]` on the blur
+        // paths, which still read `inputs[0]` as `source_handle` / `input`.
+        const Framebuffer& input = *inputs[0];
+        if (ctx.node_exec.reusable_bottom.get() == &input &&
+            ctx.node_exec.reusable_bottom.use_count() == 1 &&
+            input.storage_transferable()) {
+            auto& mutable_reusable =
+                const_cast<std::shared_ptr<Framebuffer>&>(ctx.node_exec.reusable_bottom);
+            if (auto adopted = ctx.acquire_owned_fb(std::move(mutable_reusable))) {
+                return NodeExecResult{std::move(adopted)};
+            }
+        }
+        auto copy = clone_input(input);
         if (native_clone_failed || !copy) {
             return NodeExecResult{NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,

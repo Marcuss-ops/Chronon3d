@@ -8,6 +8,9 @@ layout(push_constant) uniform BlurParams {
     float radius;
     int horizontal;
     int box_kernel;
+    int pad0;
+    ivec2 dispatch_origin;
+    ivec2 dispatch_end;
 } params;
 
 vec4 decode_glow_linear_premul(ivec2 coord, ivec2 size) {
@@ -32,8 +35,11 @@ shared vec4 s_glow_line[16][48];
 
 void main() {
     ivec2 size = imageSize(destination_image);
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-    bool in_bounds = pixel.x < size.x && pixel.y < size.y;
+    ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
+    ivec2 end = min(params.dispatch_end, size);
+    bool in_bounds = pixel.x >= params.dispatch_origin.x &&
+                     pixel.y >= params.dispatch_origin.y &&
+                     pixel.x < end.x && pixel.y < end.y;
 
     if (params.box_kernel == 2) {
         // Glow uses the CPU oracle's display-referred premultiplied
@@ -56,7 +62,9 @@ void main() {
         bool horiz = (params.horizontal != 0);
         int axis_tid = horiz ? lx : ly;
         int perp_tid = horiz ? ly : lx;
-        int base_axis = (horiz ? int(gl_WorkGroupID.x) : int(gl_WorkGroupID.y)) * 16;
+        int base_axis = horiz
+            ? (params.dispatch_origin.x + int(gl_WorkGroupID.x) * 16)
+            : (params.dispatch_origin.y + int(gl_WorkGroupID.y) * 16);
         int perp_coord = horiz ? pixel.y : pixel.x;
 
         for (int tile_start = -extent; tile_start <= extent; tile_start += 33) {

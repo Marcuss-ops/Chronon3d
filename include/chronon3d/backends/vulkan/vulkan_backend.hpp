@@ -512,6 +512,9 @@ public:
     graph::RenderOpResult blur_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, bool, bool) override;
+    graph::RenderOpResult blur_surface_roi(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        float, bool, bool, int, int, int, int) override;
     graph::RenderOpResult dof_depth_stamp_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, int, int, int, int, int, int, bool, bool = false) override;

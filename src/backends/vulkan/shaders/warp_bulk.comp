@@ -30,6 +30,7 @@
 // lowering time and never dispatches.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(constant_id = 0) const int kSpecMode = -1;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
 layout(binding = 1, rgba32f) uniform readonly image2D source_image;
 layout(binding = 2, rgba32f) uniform readonly image2D aux_image;
@@ -189,7 +190,7 @@ void main() {
     float h = float(size.y);
     float px = float(pixel.x) + 0.5;
     float py = float(pixel.y) + 0.5;
-    int mode = params.mode;
+    int mode = (kSpecMode >= 0) ? kSpecMode : params.mode;
 
     if (mode == 0) {
         vec2 a = vec2(params.p[0], params.p[1]);

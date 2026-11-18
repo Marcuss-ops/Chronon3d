@@ -1162,3 +1162,66 @@ TEST_CASE("Cross-job NVENC constant-QP session reuses with pixel parity") {
         fs::remove_all(dir, ec);
     }
 }
+
+TEST_CASE("NativeAvEncoder: 5-job NVENC cross-item codec session reuse chain") {
+    namespace fs = std::filesystem;
+    if (std::getenv("CHRONON3D_RUN_NVENC_TESTS") == nullptr) {
+        MESSAGE("set CHRONON3D_RUN_NVENC_TESTS=1 to run the 5-job NVENC reuse test");
+        return;
+    }
+
+    auto runtimes = std::make_shared<chronon3d::media::VideoRuntimeRegistry>();
+    auto device_runtime = runtimes->get_or_create(0, nullptr, -1);
+    if (!device_runtime) {
+        MESSAGE("CUDA runtime unavailable; skipping 5-job NVENC reuse test");
+        return;
+    }
+
+    ScopedEnvironmentValue reuse("CHRONON_ENCODER_SESSION_REUSE", "1");
+    chronon3d::cli::detail::drop_parked_codec_session();
+
+    std::error_code ec;
+    const auto dir = fs::temp_directory_path() / "chronon_nvenc_reuse_5jobs";
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+
+    for (int job = 0; job < 5; ++job) {
+        chronon3d::cli::FfmpegPipeOptions options;
+        options.width = 320;
+        options.height = 240;
+        options.fps_num = 24;
+        options.fps_den = 1;
+        options.codec = "h264_nvenc";
+        options.output_path = (dir / ("job_" + std::to_string(job) + ".mp4")).string();
+        options.qp = 23;
+        options.qp_explicit = true;
+
+        chronon3d::cli::NativeAvEncoder encoder(device_runtime);
+        REQUIRE(encoder.open(options));
+        CHECK(encoder.codec_session_adopted() == (job > 0));
+        chronon3d::Framebuffer frame(options.width, options.height);
+        for (int index = 0; index < 24; ++index) {
+            paint_frame(frame, index, 8);
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+
+        auto contract = chronon3d::media::video::resolve_output_contract("youtube_overlay_v1");
+        REQUIRE(contract.has_value());
+        contract->width = options.width;
+        contract->height = options.height;
+        contract->fps = chronon3d::FrameRate{24, 1};
+        contract->frame_count = 24;
+        contract->audio_required = false;
+        contract->audio_streams = 0;
+        const auto verification =
+            chronon3d::media::video::verify_output_contract(options.output_path, *contract);
+        CHECK(verification.passed);
+        CHECK(verification.frame_count == 24);
+    }
+
+    chronon3d::cli::detail::drop_parked_codec_session();
+    if (std::getenv("CHRONON3D_KEEP_FIXTURES") == nullptr) {
+        fs::remove_all(dir, ec);
+    }
+}

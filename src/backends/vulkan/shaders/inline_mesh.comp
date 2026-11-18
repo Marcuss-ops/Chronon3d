@@ -9,6 +9,8 @@
 // UV x/y, the host-evaluated light RGB (the no-material path), then the
 // world-space normal xyz used by the per-pixel material path.
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(constant_id = 0) const bool kSpecUseTileBins = false;
+layout(constant_id = 1) const bool kSpecSeparateIndexBuffer = false;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
 layout(binding = 1, rgba32f) uniform readonly image2D texture_image;
 // Optional per-pixel camera-depth companion (r = positive camera depth,
@@ -20,6 +22,11 @@ layout(binding = 3, std430) readonly buffer MeshData { float data[]; } mesh;
 // color image when the material has no metallic-roughness map, so the
 // descriptor is always valid; the flag gate decides whether it is read.
 layout(binding = 4, rgba32f) uniform readonly image2D metallic_roughness_image;
+layout(binding = 5, std430) readonly buffer IndexData { uint data[]; } static_indices;
+layout(binding = 6, std430) readonly buffer TileCounts { uint count[]; } tile_counts;
+layout(binding = 7, std430) readonly buffer TileTris { uint tri[]; } tile_tris;
+
+const uint kMaxTrisPerTile = 256u;
 
 layout(push_constant) uniform InlineMeshParams {
     int vertex_count;
@@ -87,6 +94,9 @@ vec3 vertex_normal(uint index) {
 }
 
 uint mesh_index(uint index) {
+    if (kSpecSeparateIndexBuffer) {
+        return static_indices.data[index];
+    }
     uint offset = uint(params.vertex_count) * uint(kVertexStride) + index;
     return floatBitsToUint(mesh.data[offset]);
 }
@@ -194,7 +204,20 @@ void main() {
     vec2 best_uv = vec2(0.0);
     vec4 best_texel = vec4(0.0);
     bool covered = false;
-    for (int i = 0; i + 2 < params.index_count; i += 3) {
+    uint tile_idx = 0u;
+    uint bin_count = 0u;
+    bool use_bin = false;
+    if (kSpecUseTileBins) {
+        tile_idx = gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x;
+        bin_count = tile_counts.count[tile_idx];
+        if (bin_count == 0u) return;
+        use_bin = (bin_count <= kMaxTrisPerTile);
+    }
+    int iter_count = use_bin ? int(bin_count) : (params.index_count / 3);
+    for (int iter = 0; iter < iter_count; ++iter) {
+        int i = use_bin
+            ? int(tile_tris.tri[tile_idx * kMaxTrisPerTile + uint(iter)]) * 3
+            : iter * 3;
         uint ia = mesh_index(uint(i));
         uint ib = mesh_index(uint(i + 1));
         uint ic = mesh_index(uint(i + 2));

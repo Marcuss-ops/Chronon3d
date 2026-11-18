@@ -230,3 +230,76 @@ TEST_CASE("PR2-Unit-DoF: compute_dof_blur_radius returns 0 when disabled") {
     const float r = compute_dof_blur_radius(d, lens, /*layer_world_z=*/500.0f, 1920.0f);
     CHECK(r == doctest::Approx(0.0f));
 }
+
+TEST_CASE("PR2-Unit-DoF: passthrough adopts reusable_bottom zero-copy without stealing on blur") {
+    using chronon3d::graph::PerPixelDofNode;
+
+    // (a) dof.enabled == false adopts reusable_bottom in O(1) without copying.
+    {
+        auto cam = make_cam2_5d(50.0f, 2.8f, 8.0f);
+        cam.dof.enabled = false;
+        auto node = PerPixelDofNode::create(cam);
+        graph::RenderGraphContext ctx;
+        ctx.frame_input = ctt::make_render_frame_info(8, 8);
+        ctx.framebuffer_pool = cache::FramebufferPool::create_shared(1024 * 1024);
+
+        auto input_fb = ctx.acquire_framebuffer(8, 8, false);
+        input_fb->clear(Color{0.25f, 0.5f, 0.75f, 1.0f});
+        const auto* original_ptr = input_fb->pixels_row(0);
+        std::array<FramebufferRef, 1> inputs{FramebufferRef{*input_fb}};
+        ctx.node_exec.reusable_bottom = std::move(input_fb);
+        std::array<std::optional<raster::BBox>, 1> bounds{};
+
+        auto res = node->execute(ctx, inputs, bounds);
+        REQUIRE(res);
+        CHECK(res.value()->width() == 8);
+        CHECK(res.value()->height() == 8);
+        CHECK(res.value()->pixels_row(0) == original_ptr);
+        CHECK(res.value()->get_pixel(3, 3).g == doctest::Approx(0.5f));
+    }
+
+    // (b) max_blur == 0 (below kVisibleBlurThreshold) adopts reusable_bottom zero-copy.
+    {
+        auto cam = make_cam2_5d(50.0f, 2.8f, 0.0f);
+        auto node = PerPixelDofNode::create(cam);
+        graph::RenderGraphContext ctx;
+        ctx.frame_input = ctt::make_render_frame_info(8, 8);
+        ctx.framebuffer_pool = cache::FramebufferPool::create_shared(1024 * 1024);
+        ctx.node_exec.dof_depth.assign(64, 200.0f);
+
+        auto input_fb = ctx.acquire_framebuffer(8, 8, false);
+        input_fb->clear(Color{0.8f, 0.2f, 0.1f, 1.0f});
+        const auto* original_ptr = input_fb->pixels_row(0);
+        std::array<FramebufferRef, 1> inputs{FramebufferRef{*input_fb}};
+        ctx.node_exec.reusable_bottom = std::move(input_fb);
+        std::array<std::optional<raster::BBox>, 1> bounds{};
+
+        auto res = node->execute(ctx, inputs, bounds);
+        REQUIRE(res);
+        CHECK(res.value()->pixels_row(0) == original_ptr);
+    }
+
+    // (c) Active blur path must NOT steal inputs[0] storage when reusable_bottom is set.
+    {
+        auto cam = make_cam2_5d(50.0f, 1.4f, 8.0f);
+        auto node = PerPixelDofNode::create(cam);
+        graph::RenderGraphContext ctx;
+        ctx.frame_input = ctt::make_render_frame_info(8, 8);
+        ctx.framebuffer_pool = cache::FramebufferPool::create_shared(1024 * 1024);
+        ctx.node_exec.dof_depth.assign(64, 500.0f);
+
+        auto input_fb = ctx.acquire_framebuffer(8, 8, false);
+        input_fb->clear(Color{0.1f, 0.9f, 0.3f, 1.0f});
+        ctx.node_exec.reusable_bottom = input_fb;
+        std::array<FramebufferRef, 1> inputs{FramebufferRef{*input_fb}};
+        std::array<std::optional<raster::BBox>, 1> bounds{};
+
+        auto res = node->execute(ctx, inputs, bounds);
+        REQUIRE(res);
+        CHECK(input_fb->width() == 8);
+        CHECK(input_fb->height() == 8);
+        CHECK(res.value()->width() == 8);
+        CHECK(res.value()->height() == 8);
+        CHECK(res.value()->get_pixel(4, 4).g == doctest::Approx(0.9f));
+    }
+}

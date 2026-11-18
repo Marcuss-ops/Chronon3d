@@ -438,3 +438,56 @@ TEST_CASE("device requirements: the direct and FullGraph policies differ only by
     CHECK(full.vulkan_interop != direct.vulkan_interop);
     CHECK(full.resources.vram_bytes != direct.resources.vram_bytes);
 }
+
+TEST_CASE("A1 shaped vram admission: light 1080p FullGraph jobs fit twice, heavy 4K jobs queue") {
+    using chronon3d::cli::estimate_shaped_vram_bytes;
+
+    // Without physical_slots metadata, shaped estimator falls back to the
+    // conservative calibration floor.
+    CHECK(estimate_shaped_vram_bytes(1920, 1080, 0, false, true) ==
+          estimate_peak_vram_bytes(1920, 1080, false, true));
+
+    // Light 1080p FullGraph overlay (4 physical slots) is ~1.1 GiB, well below
+    // half of a 16 GiB device, so DeviceScheduler admits 2 jobs concurrently.
+    const auto light_1080p_req =
+        resolve_device_requirements(1920, 1080, false, true, "h264", "", 4U);
+    CHECK(light_1080p_req.resources.vram_bytes < 2ULL * kGiB);
+
+    // Heavy 4K FullGraph (50 physical slots) exceeds half of a 13 GiB VMA
+    // budget, so DeviceScheduler admits the first and rejects/queues the second.
+    const auto heavy_4k_req =
+        resolve_device_requirements(3840, 2160, false, true, "h264", "", 50U);
+    CHECK(heavy_4k_req.resources.vram_bytes > 7ULL * kGiB);
+
+    chronon3d::runtime::DeviceScheduler scheduler;
+    chronon3d::runtime::DeviceCapabilities caps;
+    caps.name = "NVIDIA RTX A4000";
+    caps.cuda = true;
+    caps.vulkan_interop = true;
+    caps.nvenc = true;
+    caps.nvdec = true;
+    caps.h264 = true;
+    caps.nv12 = true;
+    chronon3d::runtime::DeviceResourceVector cap;
+    cap.compute_units = 2.0f;
+    cap.vram_bytes = 13ULL * kGiB;
+    cap.nvdec_sessions = 4;
+    cap.nvenc_sessions = 4;
+    cap.pcie_bandwidth = 1.0f;
+    cap.render_job_slots = 4;
+    scheduler.register_device(caps, cap);
+
+    {
+        auto res1 = scheduler.reserve(light_1080p_req);
+        auto res2 = scheduler.reserve(light_1080p_req);
+        CHECK(res1.has_value());
+        CHECK(res2.has_value());
+    }
+
+    {
+        auto res_4k_1 = scheduler.reserve(heavy_4k_req);
+        auto res_4k_2 = scheduler.reserve(heavy_4k_req);
+        CHECK(res_4k_1.has_value());
+        CHECK_FALSE(res_4k_2.has_value());
+    }
+}

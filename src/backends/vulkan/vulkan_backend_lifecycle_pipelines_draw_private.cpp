@@ -8,6 +8,7 @@
 #include "layer_batch_comp_spv.hpp"
 #include "particle_emitter_comp_spv.hpp"
 #include "inline_mesh_comp_spv.hpp"
+#include "inline_mesh_bin_comp_spv.hpp"
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
 
@@ -122,23 +123,72 @@ void VulkanBackend::Impl::init_draw_kernel_pipelines() {
         check(vkCreateShaderModule(device, &inline_mesh_shader_info, nullptr,
                                   &inline_mesh_shader),
               "vkCreateShaderModule(inline mesh)");
+        const VkSpecializationMapEntry inline_mesh_spec_entries[2]{
+            {0, 0, sizeof(VkBool32)},
+            {1, sizeof(VkBool32), sizeof(VkBool32)}};
+        const VkBool32 inline_mesh_unbinned_vals[2]{VK_FALSE, VK_TRUE};
+        const VkSpecializationInfo inline_mesh_unbinned_spec{
+            2, inline_mesh_spec_entries, sizeof(inline_mesh_unbinned_vals),
+            inline_mesh_unbinned_vals};
+        const VkBool32 inline_mesh_binned_vals[2]{VK_TRUE, VK_TRUE};
+        const VkSpecializationInfo inline_mesh_binned_spec{
+            2, inline_mesh_spec_entries, sizeof(inline_mesh_binned_vals),
+            inline_mesh_binned_vals};
         const VkPipelineShaderStageCreateInfo inline_mesh_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
-            VK_SHADER_STAGE_COMPUTE_BIT, inline_mesh_shader, "main", nullptr};
-        const VkComputePipelineCreateInfo inline_mesh_pipeline_info{
-            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            inline_mesh_stage, kernels.inline_mesh_layout, VK_NULL_HANDLE, -1};
-        VkPipeline inline_mesh_pipeline = VK_NULL_HANDLE;
+            VK_SHADER_STAGE_COMPUTE_BIT, inline_mesh_shader, "main",
+            &inline_mesh_unbinned_spec};
+        const VkPipelineShaderStageCreateInfo inline_mesh_binned_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+            VK_SHADER_STAGE_COMPUTE_BIT, inline_mesh_shader, "main",
+            &inline_mesh_binned_spec};
+        const VkComputePipelineCreateInfo inline_mesh_cpcis[2]{
+            {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+             inline_mesh_stage, kernels.inline_mesh_layout, VK_NULL_HANDLE, -1},
+            {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+             inline_mesh_binned_stage, kernels.inline_mesh_layout, VK_NULL_HANDLE, -1}};
+        VkPipeline inline_mesh_pipelines[2]{VK_NULL_HANDLE, VK_NULL_HANDLE};
         const VkResult inline_mesh_result = vkCreateComputePipelines(
-            device, kernels.pipeline_cache, 1, &inline_mesh_pipeline_info,
-            nullptr, &inline_mesh_pipeline);
+            device, kernels.pipeline_cache, 2, inline_mesh_cpcis,
+            nullptr, inline_mesh_pipelines);
         vkDestroyShaderModule(device, inline_mesh_shader, nullptr);
         check(inline_mesh_result, "vkCreateComputePipelines(inline mesh)");
         register_kernel_or_throw(kernels.registry, device,
-                GpuKernelId::InlineMesh, inline_mesh_pipeline, "InlineMesh");
-        if (debug_context)
-            debug_context->set_pipeline_name(inline_mesh_pipeline,
+                GpuKernelId::InlineMesh, inline_mesh_pipelines[0], "InlineMesh");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::InlineMeshBinned, inline_mesh_pipelines[1], "InlineMeshBinned");
+        if (debug_context) {
+            debug_context->set_pipeline_name(inline_mesh_pipelines[0],
                                               "Chronon3D.Pipeline.InlineMesh");
+            debug_context->set_pipeline_name(inline_mesh_pipelines[1],
+                                              "Chronon3D.Pipeline.InlineMeshBinned");
+        }
+
+        const VkShaderModuleCreateInfo inline_mesh_bin_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_inline_mesh_bin_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_inline_mesh_bin_comp_spv)};
+        VkShaderModule inline_mesh_bin_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &inline_mesh_bin_shader_info, nullptr,
+                                  &inline_mesh_bin_shader),
+              "vkCreateShaderModule(inline mesh bin)");
+        const VkPipelineShaderStageCreateInfo inline_mesh_bin_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+            VK_SHADER_STAGE_COMPUTE_BIT, inline_mesh_bin_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo inline_mesh_bin_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            inline_mesh_bin_stage, kernels.inline_mesh_bin_layout, VK_NULL_HANDLE, -1};
+        VkPipeline inline_mesh_bin_pipeline = VK_NULL_HANDLE;
+        const VkResult inline_mesh_bin_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &inline_mesh_bin_pipeline_info,
+            nullptr, &inline_mesh_bin_pipeline);
+        vkDestroyShaderModule(device, inline_mesh_bin_shader, nullptr);
+        check(inline_mesh_bin_result, "vkCreateComputePipelines(inline mesh bin)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::InlineMeshBin, inline_mesh_bin_pipeline, "InlineMeshBin");
+        if (debug_context)
+            debug_context->set_pipeline_name(inline_mesh_bin_pipeline,
+                                              "Chronon3D.Pipeline.InlineMeshBin");
 
         const VkShaderModuleCreateInfo text_tile_bin_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

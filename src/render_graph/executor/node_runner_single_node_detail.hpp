@@ -180,7 +180,7 @@ void execute_single_node(
 
         // Mutable node execution state is worker-local. Never write identity,
         // scratch or reporter fields into the shared parent context.
-        RenderGraphContext batch_ctx = ctx.clone_for_node_execution();
+        RenderGraphContext batch_ctx = ctx.clone_for_borrowed_node_execution();
         batch_ctx.node_exec.text_bbox_reporter = &state.text_bbox_reporter;
         batch_ctx.node_exec.sampled_layer = typed_layer;
         const auto& resource_table = compiled.resource_table();
@@ -274,7 +274,7 @@ void execute_single_node(
     }
 
     // Single worker-local mutable context for the actual node execution.
-    RenderGraphContext node_ctx = ctx.clone_for_node_execution();
+    RenderGraphContext node_ctx = ctx.clone_for_borrowed_node_execution();
     node_ctx.node_exec.text_bbox_reporter = &state.text_bbox_reporter;
     node_ctx.node_exec.sampled_layer = typed_layer;
     node_ctx.node_exec.planned_physical_slot = nullptr;

@@ -117,10 +117,13 @@ void VulkanBackend::Impl::init_descriptor_layouts() {
             {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
-            {4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
+            {4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
         const VkDescriptorSetLayoutCreateInfo inline_mesh_layout_info{
             VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, push_flag,
-            5, inline_mesh_bindings};
+            8, inline_mesh_bindings};
         check(vkCreateDescriptorSetLayout(device, &inline_mesh_layout_info, nullptr,
                                           &inline_mesh_descriptor_layout),
               "vkCreateDescriptorSetLayout(inline mesh)");
@@ -135,6 +138,26 @@ void VulkanBackend::Impl::init_descriptor_layouts() {
                                      &kernels.inline_mesh_layout),
               "vkCreatePipelineLayout(inline mesh)");
         if (debug_context) debug_context->set_pipeline_layout_name(kernels.inline_mesh_layout, "Chronon3D.PipelineLayout.InlineMesh");
+
+        const VkDescriptorSetLayoutBinding inline_mesh_bin_bindings[] = {
+            {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
+        const VkDescriptorSetLayoutCreateInfo inline_mesh_bin_layout_info{
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, push_flag,
+            4, inline_mesh_bin_bindings};
+        check(vkCreateDescriptorSetLayout(device, &inline_mesh_bin_layout_info, nullptr,
+                                          &inline_mesh_bin_descriptor_layout),
+              "vkCreateDescriptorSetLayout(inline mesh bin)");
+        const VkPushConstantRange inline_mesh_bin_push{
+            VK_SHADER_STAGE_COMPUTE_BIT, 0, 36};
+        const VkPipelineLayoutCreateInfo inline_mesh_bin_pipeline_layout_info{
+            VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1,
+            &inline_mesh_bin_descriptor_layout, 1, &inline_mesh_bin_push};
+        check(vkCreatePipelineLayout(device, &inline_mesh_bin_pipeline_layout_info, nullptr,
+                                     &kernels.inline_mesh_bin_layout),
+              "vkCreatePipelineLayout(inline mesh bin)");
 
         const VkPushConstantRange tile_bin_push{
             VK_SHADER_STAGE_COMPUTE_BIT, 0, 24};

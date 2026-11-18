@@ -1,6 +1,6 @@
 # TICKET-PERF-A1-DAEMON-VRAM-ADMISSION-CALIBRATION-20261117 — A1: Sostituzione del floor VRAM statico di `8800 MiB` con stima basata sulla shape del job in `daemon_render_concurrency.hpp`
 
-- **Stato:** OPEN (2026-11-17)
+- **Stato:** CLOSED (2026-11-17)
 - **Priorità:** P2 (Sblocco del parallelismo multi-job in-process sul daemon per composizioni FullGraph leggere)
 - **Verifica sul codice attuale:** **PROBLEMA VERO (`[CODICE]` verificato)**
 - **File coinvolti:**
@@ -52,3 +52,18 @@ Nessuno.
 
 1. **Test Concorrenza Daemon (P2-08)**:
    - `chronon3d_cli_tests` verde; verificare che 2 job FullGraph 1080p leggeri vengano ammessi senza OOM e che 2 job 4K pesanti che superano il budget vengano correttamente accodati dal `DeviceScheduler`.
+
+---
+
+## 5. Risoluzione Implementata (2026-11-17)
+
+- **Misura VMA post-fix su RTX A4000** (`chronon3d_cli render --plan`):
+  - `tools/fixtures/vram-calibration-1080p-overlay.plan.json`: `vma_usage_bytes = 238.3 MiB` (`vma_allocation_count = 14`).
+  - `tools/fixtures/vram-calibration-4k-overlay.plan.json`: `vma_usage_bytes = 864.8 MiB` (`vma_allocation_count = 19`).
+- **Stima shape-aware**:
+  - `apps/chronon3d_cli/daemon/daemon_service_ipc_protocol.hpp/.cpp`: aggiunto `PlanAdmissionShape::estimated_physical_slots` estratto dalla topologia `layers` del piano.
+  - `apps/chronon3d_cli/daemon/daemon_render_concurrency.hpp`: aggiunta `estimate_shaped_vram_bytes(width, height, physical_slots, direct_yuv, native_nvenc, asset_headroom_bytes)` (`512 MiB + (physical_slots + 6) * W * H * 16 + headroom`) con fallback su `estimate_peak_vram_bytes` (`kMeasuredFullGraphPeakBytes`) quando `physical_slots == 0`; collegata in `resolve_device_requirements` e `daemon_service_ipc_render_job.cpp`.
+- **Verifica**:
+  - `chronon3d_cli_tests`: `Passed (95.38 sec)`
+  - `chronon3d_daemon_render_concurrency_tests`: `Passed (0.06 sec)` (include test `A1 shaped vram admission`: 2 job 1080p leggeri ammessi in parallelo su `DeviceScheduler`, 2 job 4K pesanti accodati)
+  - `python3 tests/test_gpu_lane_profiles.py`: `Ran 3 tests ... OK`

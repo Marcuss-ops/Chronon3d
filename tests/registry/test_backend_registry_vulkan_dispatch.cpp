@@ -537,6 +537,80 @@ TEST_CASE("Vulkan inline mesh samples metallic-roughness per pixel") {
     CHECK(surfaces.release(destination));
 }
 
+TEST_CASE("Vulkan inline mesh tile-binned (>64 tris) and static index reuse") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry surfaces;
+
+    constexpr std::uint32_t width = 128;
+    constexpr std::uint32_t height = 128;
+    const auto format = make_frame_format(
+        PixelFormat::Rgba32Float, {}, runtime::AlphaMode::Premultiplied);
+    const auto desc = SurfaceDesc::make(
+        width, height, format, ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto tex_desc = SurfaceDesc::make(
+        4, 4, format, ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto dst = surfaces.create(desc);
+    const auto tex = surfaces.create(tex_desc);
+    REQUIRE(backend.create_surface(dst, desc).ok());
+    REQUIRE(backend.create_surface(tex, tex_desc).ok());
+
+    std::vector<float> clear(width * height * 4U, 0.f);
+    std::vector<float> tex_pixels(4U * 4U * 4U, 1.f);
+    REQUIRE(backend.upload_surface(dst, desc, clear).ok());
+    REQUIRE(backend.upload_surface(tex, tex_desc, tex_pixels).ok());
+
+    // 128 triangles (> kInlineMeshBinningThreshold=64) across 128x128 tiles.
+    constexpr int kTris = 128;
+    std::vector<float> vertices(static_cast<std::size_t>(kTris) * 3U * 11U, 0.f);
+    std::vector<std::uint32_t> indices(static_cast<std::size_t>(kTris) * 3U, 0U);
+    for (int t = 0; t < kTris; ++t) {
+        const int gx = t % 16;
+        const int gy = t / 16;
+        const float x0 = static_cast<float>(gx * 8 + 1);
+        const float y0 = static_cast<float>(gy * 16 + 1);
+        const float coords[3][2]{{x0, y0}, {x0 + 6.f, y0}, {x0, y0 + 6.f}};
+        for (int k = 0; k < 3; ++k) {
+            const std::size_t vi = static_cast<std::size_t>(t * 3 + k);
+            float* v = &vertices[vi * 11U];
+            v[0] = coords[k][0];
+            v[1] = coords[k][1];
+            v[2] = 1.f;
+            v[3] = 0.5f; v[4] = 0.5f;
+            v[5] = 0.25f; v[6] = 0.75f; v[7] = 0.5f;
+            v[8] = 0.f; v[9] = 0.f; v[10] = 1.f;
+            indices[vi] = static_cast<std::uint32_t>(vi);
+        }
+    }
+
+    graph::InlineMeshShadingParams shading;
+    shading.double_sided = true;
+    // Draw twice with identical static `indices` (exercises static index cache hit
+    // on the second draw + compute tile binning on both draws).
+    for (int pass = 0; pass < 2; ++pass) {
+        REQUIRE(backend.upload_surface(dst, desc, clear).ok());
+        const auto res = backend.draw_inline_mesh_surface(
+            dst, tex, vertices, indices, 0, 0, width, height,
+            Color::white(), std::nullopt, kInvalidRenderSurfaceHandle, 1.f, shading);
+        REQUIRE(res.ok());
+    }
+
+    std::vector<float> out(clear.size(), 0.f);
+    REQUIRE(backend.download_surface(dst, out).ok());
+    // Sample inside triangle (0,0) -> (2, 2) and outside in empty region (127, 127).
+    const std::size_t inside = (2U * width + 2U) * 4U;
+    const std::size_t outside = (127U * width + 127U) * 4U;
+    CHECK(out[inside + 1] == doctest::Approx(0.75f).epsilon(1e-4));
+    CHECK(out[inside + 3] == doctest::Approx(1.0f).epsilon(1e-4));
+    CHECK(out[outside + 3] == 0.0f);
+
+    REQUIRE(backend.release_surface(tex).ok());
+    REQUIRE(backend.release_surface(dst).ok());
+    CHECK(surfaces.release(tex));
+    CHECK(surfaces.release(dst));
+}
+
 TEST_CASE("Vulkan fill_rect_surface matches the CPU oracle pixel-for-pixel") {
     using namespace chronon3d;
     using namespace chronon3d::graph;

@@ -86,10 +86,11 @@ std::shared_ptr<ImageCache> make_cache() {
 double mean_alpha_weighted_r(const CachedImage& image) {
     const std::size_t expected =
         static_cast<std::size_t>(image.width) * image.height * 4;
-    REQUIRE(image.gpu_rgba.size() == expected);
+    const auto rgba = image.gpu_rgba_span();
+    REQUIRE(rgba.size() == expected);
     double sum = 0.0;
-    for (std::size_t i = 0; i + 3 < image.gpu_rgba.size(); i += 4) {
-        sum += image.gpu_rgba[i];
+    for (std::size_t i = 0; i + 3 < rgba.size(); i += 4) {
+        sum += rgba[i];
     }
     return sum / (static_cast<double>(image.width) * image.height);
 }
@@ -109,7 +110,7 @@ TEST_CASE("runtime image decode honours the display bound") {
     CHECK(image->width == 300);
     CHECK(image->height == 225);
     const std::size_t expected_floats = 300u * 225u * 4u;
-    CHECK(image->gpu_rgba.size() == expected_floats);
+    CHECK(image->gpu_rgba_span().size() == expected_floats);
 }
 
 TEST_CASE("bounded decode preserves the premultiplied-linear average") {
@@ -175,6 +176,6 @@ TEST_CASE("different display bounds are different cache entries") {
     CHECK(small->gpu_key.content_digest != full->gpu_key.content_digest);
     CHECK(small->gpu_key.width == static_cast<std::uint32_t>(small->width));
     CHECK(full->gpu_key.width == static_cast<std::uint32_t>(full->width));
-    CHECK(small->gpu_rgba.size() < full->gpu_rgba.size());
+    CHECK(small->gpu_rgba_span().size() < full->gpu_rgba_span().size());
     CHECK(cache->get_or_load(path, bounded) == small);
 }

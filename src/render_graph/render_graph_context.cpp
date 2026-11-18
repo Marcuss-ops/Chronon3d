@@ -10,6 +10,7 @@ void DofSourceCoverage::reset() noexcept {
 
 const std::string& FrameInput::assets_root() const noexcept {
     static const std::string kEmptyAssetsRoot;
+    if (static_context_view) return static_context_view->assets_root;
     return static_context ? static_context->assets_root : kEmptyAssetsRoot;
 }
 

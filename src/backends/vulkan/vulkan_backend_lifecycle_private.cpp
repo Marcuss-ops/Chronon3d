@@ -201,7 +201,10 @@ namespace chronon3d::backends::vulkan {
                 allocator.create(device, particle_emitter_descriptor_layout, 0, 1, 1);
             }
             for (auto& allocator : descriptor_arena.inline_mesh) {
-                allocator.create(device, inline_mesh_descriptor_layout, 4, 1);
+                allocator.create(device, inline_mesh_descriptor_layout, 4, 4);
+            }
+            for (auto& allocator : descriptor_arena.inline_mesh_bin) {
+                allocator.create(device, inline_mesh_bin_descriptor_layout, 0, 4);
             }
             for (auto& allocator : descriptor_arena.text_tile_bin) {
                 allocator.create(device, text_tile_bin_descriptor_layout, 0, 5);
@@ -295,6 +298,20 @@ VulkanBackend::Impl::~Impl() {
         }
         for (auto& buffer : path_geometry_buffers) {
             if (buffer.buffer != VK_NULL_HANDLE) memory_manager.destroy_buffer(buffer);
+        }
+        for (auto& entry : inline_mesh_static_indices) {
+            if (entry.buffer.buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(entry.buffer);
+            }
+        }
+        if (inline_mesh_tile_counts_buffer.buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(inline_mesh_tile_counts_buffer);
+        }
+        if (inline_mesh_tile_tris_buffer.buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(inline_mesh_tile_tris_buffer);
+        }
+        if (inline_mesh_dummy_ssbo.buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(inline_mesh_dummy_ssbo);
         }
         for (auto& slot : uploads.slots) destroy_upload_slot(slot);
         descriptor_arena.destroy();

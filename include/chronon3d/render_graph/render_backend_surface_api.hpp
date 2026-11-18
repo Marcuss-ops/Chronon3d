@@ -93,6 +93,13 @@ public:
     virtual RenderOpResult blur_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         float radius, bool horizontal, bool box_kernel = false);
+    virtual RenderOpResult blur_surface_roi(
+        runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
+        float radius, bool horizontal, bool box_kernel,
+        int roi_x0, int roi_y0, int roi_x1, int roi_y1) {
+        (void)roi_x0; (void)roi_y0; (void)roi_x1; (void)roi_y1;
+        return blur_surface(destination, source, radius, horizontal, box_kernel);
+    }
     virtual RenderOpResult dof_depth_stamp_surface(
         runtime::RenderSurfaceHandle depth, runtime::RenderSurfaceHandle layer,
         float depth_z, float radius, int clip_x0, int clip_y0, int clip_x1, int clip_y1,

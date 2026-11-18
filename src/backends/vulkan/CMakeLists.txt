@@ -34,6 +34,7 @@ set(_chronon3d_shaders
     layer_batch
     particle_emitter
     inline_mesh
+    inline_mesh_bin
     text_tile_bin
     text_tile_raster
     pixel_program_pointwise
@@ -92,6 +93,7 @@ set(_chronon3d_shader_abi_prefixes
     layer_batch:LayerBatch
     particle_emitter:ParticleEmitter
     inline_mesh:InlineMesh
+    inline_mesh_bin:InlineMeshBin
     text_tile_bin:TextTileBin
     text_tile_raster:TextTileRaster
     pixel_program_pointwise:PixelProgramPointwise
