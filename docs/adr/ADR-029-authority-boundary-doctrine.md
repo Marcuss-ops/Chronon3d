@@ -345,6 +345,17 @@ The doctrine has three concrete review usages in the current implementation:
    `preset_id` from the Go preset registry. The ownership test pins that only
    `PresetID` may change after the seal; reordering, re-selection and timing
    remain BrainRust authority.
+5. The second exception is entity-image promotion (`promoteVerifiedEntityCards`):
+   whether an entity has a certified portrait lives in the PipelineGen media
+   plane (`entity_image_catalog` in PostgreSQL), which BrainRust does not read,
+   so the Go pass promotes a card segment to an image segment after the seal.
+   The exception is bounded and machine-checked: it may add
+   `Kind`/`TemplateID`/`PresetID`/`ImagePresetID`/`EntityCaption`/`AssetID`/`Assets`
+   and drop the promoted segment's `Text`/`MotionID`/`MotionParams`/
+   `EntityStyleID`/`Params`, never order, `StartUS`/`DurationUS`, `EntityID` or
+   the number of items and segments. Feeding the certified-image set into the
+   compile request is what removes the exception; see
+   `TICKET-CHAIN-SEGMENT-SSOT-2026-11-18.md` in PipelineGen.
 
 ## Alternatives considered
 
