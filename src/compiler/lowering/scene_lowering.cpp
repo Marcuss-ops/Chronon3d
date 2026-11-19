@@ -78,13 +78,16 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             lowered.position[0] += box_w * 0.5f;
             lowered.position[1] += box_h * 0.5f;
         } else if (layer.type == render_plan::LayerType::Text &&
+                   !layer.enable_3d &&
                    layer.position_dimensions >= 2 &&
                    !(layer.style && layer.style->extruded_text)) {
             // 2D text is authored in top-left canvas space and the graph adds
-            // the canvas centre back.  Extruded text is real camera-space
-            // geometry already centred on the authored position; applying
-            // the 2D half-canvas bake pushed the mesh off the camera axis and
-            // made it render in the bottom-left corner.
+            // the canvas centre back. Camera-projected 3D text is authored in
+            // the same absolute canvas coordinates but the graph never adds
+            // that centre back, so the half-canvas bake moved every 3D caption
+            // to the left edge and half a canvas up. Extruded text is real
+            // camera-space geometry already centred on the authored position,
+            // so both 3D forms keep the authored absolute position.
             lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
             lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
         } else if ((layer.type == render_plan::LayerType::Shape ||

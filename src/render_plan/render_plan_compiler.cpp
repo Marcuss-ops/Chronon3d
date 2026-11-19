@@ -170,7 +170,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             const auto& layer = plan.layers[index];
             if (!layer.follow_path) continue;
             Vec3 base_position{layer.position[0], layer.position[1], layer.position[2]};
-            if ((layer.type == LayerType::Text || layer.type == LayerType::Shape ||
+            if (((layer.type == LayerType::Text && !layer.enable_3d) ||
+                 layer.type == LayerType::Shape ||
                  layer.type == LayerType::Particles || layer.type == LayerType::Light) &&
                 layer.position_dimensions >= 2) {
                 base_position.x -= static_cast<float>(plan.canvas.width) * 0.5f;

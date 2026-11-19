@@ -8,6 +8,7 @@
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/media/media_placement.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/animated_text_document.hpp>
@@ -99,6 +100,47 @@ TEST_CASE("compiler boundary returns an immutable CompiledProgram") {
     CHECK(program.nodes().empty());
     CHECK(program.passes().size() == 1);
     CHECK(program.fingerprint_data().algorithm_version == 1);
+}
+
+TEST_CASE("SceneMaterializer maps every image fit policy to the media vocabulary") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+
+    // `FitMode` esiste sia in `chronon3d` (media) sia in `chronon3d::render_plan`:
+    // con entrambi i namespace importati va qualificato esplicitamente.
+    const std::pair<render_plan::FitMode, chronon3d::FitMode> cases[] = {
+        {render_plan::FitMode::Cover, chronon3d::FitMode::Cover},
+        {render_plan::FitMode::Contain, chronon3d::FitMode::Contain},
+        {render_plan::FitMode::Stretch, chronon3d::FitMode::Stretch},
+        {render_plan::FitMode::None, chronon3d::FitMode::None},
+    };
+
+    assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::current_path());
+    FontEngine font_engine{resolver};
+    for (const auto& [planned, expected] : cases) {
+        RenderPlan plan;
+        plan.job_id = "materializer-image-fit";
+        plan.canvas = {.width = 1920, .height = 1080, .fps = FrameRate{24, 1},
+                       .duration = Frame{1}};
+        LayerPlan image;
+        image.id = "image";
+        image.type = LayerType::Image;
+        image.asset = "tests/fixtures/animated_image_residency/bright.png";
+        image.size = {960.0f, 700.0f};
+        image.size_dimensions = 2;
+        image.fit = planned;
+        plan.layers.push_back(std::move(image));
+
+        auto compiled = compiler::compile(plan, resolver);
+        REQUIRE(compiled);
+        const auto scene = compiler::SceneMaterializer{}.materialize_scene(
+            std::move(compiled).value(), std::pmr::get_default_resource(),
+            &font_engine);
+        REQUIRE(scene.layers().size() == 1);
+        REQUIRE(scene.layers()[0].nodes.size() == 1);
+        CHECK(scene.layers()[0].nodes[0].shape.image().fit == expected);
+    }
 }
 
 namespace {

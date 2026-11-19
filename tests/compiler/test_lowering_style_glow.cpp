@@ -103,6 +103,32 @@ TEST_CASE("lowering: text layers keep their materializer glow (none added here)"
     CHECK(count_kind(data, render_plan::LayerPlan::EffectKindPlan::Glow) == 0);
 }
 
+TEST_CASE("lowering: 3D text keeps the authored absolute position") {
+    // The v3 typed lane used to rebase every non-extruded text layer by half a
+    // canvas. Screen-space text gets that centre added back during placement,
+    // but a camera-projected 3D caption never does, so the rebase pinned it to
+    // the left edge (x 960 -> 0 on a 1920 canvas).
+    auto plan = canvas_with(render_plan::LayerType::Text);
+    plan.layers.front().position = {320.0f, 180.0f, 0.0f};
+    plan.layers.front().enable_3d = true;
+    compiler::CompiledProgramData data;
+    compiler::stages::lower_scene(plan, data);
+
+    REQUIRE(data.layers.size() == 1);
+    CHECK(data.layers.front().position[0] == doctest::Approx(320.0f));
+    CHECK(data.layers.front().position[1] == doctest::Approx(180.0f));
+
+    // Screen-space text keeps the centre-relative rebase: placement adds the
+    // canvas centre back exactly once.
+    auto flat = canvas_with(render_plan::LayerType::Text);
+    flat.layers.front().position = {320.0f, 180.0f, 0.0f};
+    compiler::CompiledProgramData flat_data;
+    compiler::stages::lower_scene(flat, flat_data);
+    REQUIRE(flat_data.layers.size() == 1);
+    CHECK(flat_data.layers.front().position[0] == doctest::Approx(0.0f));
+    CHECK(flat_data.layers.front().position[1] == doctest::Approx(0.0f));
+}
+
 TEST_CASE("lowering: a layer without style.glow adds no glow effect") {
     auto plan = canvas_with(render_plan::LayerType::Shape);
     plan.layers.front().style.reset();

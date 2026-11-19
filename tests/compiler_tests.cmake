@@ -8,6 +8,7 @@ chronon3d_add_test_suite(
     SOURCES
         compiler/test_compiler_boundary.cpp
         compiler/test_lowering_style_glow.cpp
+        compiler/test_scene_materializer_grid.cpp
 )
 
 add_test(

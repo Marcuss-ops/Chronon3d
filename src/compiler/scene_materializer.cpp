@@ -16,6 +16,7 @@
 #include <chronon3d/text/text_run_builder.hpp>
 #include <chronon3d/scene/builders/text_run_materialization.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
+#include <chronon3d/render_plan/shape_path_generator.hpp>
 #include "extruded_text_mesh.hpp"
 #include <limits>
 #include <chronon3d/effects/effect_param_animation.hpp>
@@ -93,6 +94,21 @@ bool shape_has_time_varying_path(const render_plan::ShapeContentPlan& shape) {
         if (op.trim_animation || op.morph_animation || op.repeater_animation)
             return true;
     return false;
+}
+
+// LayerFitMode is the compiled-IR spelling of the fit policy; chronon3d::FitMode
+// is the media vocabulary consumed by compute_media_placement(). The two enums
+// declare their enumerators in different orders (Cover/Contain/Stretch/None vs
+// Stretch/Contain/Cover/None), so a static_cast would silently swap cover with
+// stretch and distort every image that asks to be cropped.
+[[nodiscard]] chronon3d::FitMode media_fit_mode(LayerFitMode fit) {
+    switch (fit) {
+        case LayerFitMode::Cover: return chronon3d::FitMode::Cover;
+        case LayerFitMode::Contain: return chronon3d::FitMode::Contain;
+        case LayerFitMode::Stretch: return chronon3d::FitMode::Stretch;
+        case LayerFitMode::None: return chronon3d::FitMode::None;
+    }
+    return chronon3d::FitMode::Cover;
 }
 
 }  // namespace
@@ -241,7 +257,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     params.size = layer.size_dimensions == 2
                         ? Vec2{layer.size[0], layer.size[1]}
                         : Vec2{static_cast<float>(meta.width), static_cast<float>(meta.height)};
-                    params.fit = static_cast<chronon3d::FitMode>(layer.fit);
+                    params.fit = media_fit_mode(layer.fit);
                     params.radius = layer.radius;
                     builder.image("image", std::move(params));
                     if (layer.image_lighting) {
@@ -800,23 +816,72 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         auto pp = build_path_from_shape_plan(cmds, fs);
                         emit_procedural(std::move(pp));
                     };
+                    // The procedural grid lays its lines and dots on a whole number
+                    // of cells in [0,size]. Stepping by the raw spacing from 0 and
+                    // emitting one extra row/column left the remainder as a gap on one
+                    // axis and cut the border primitive in half on the other; rounding
+                    // the requested spacing to the nearest cell count closes the frame
+                    // on all four edges, at the cost of at most half a cell of drift in
+                    // the realised spacing.
+                    auto grid_cells = [&](float extent, float step) {
+                        return std::max(1, static_cast<int>(std::lround(extent / step)));
+                    };
                     auto make_grid = [&](bool dots) {
                         const float spacing = std::clamp(shape.grid_spacing, 4.0f, 512.0f);
                         graphics::FillStyle fs = fill_for_procedural();
+                        const int columns = grid_cells(size.x, spacing);
+                        const int rows = grid_cells(size.y, spacing);
+                        const float step_x = size.x / static_cast<float>(columns);
+                        const float step_y = size.y / static_cast<float>(rows);
                         if (dots) {
-                            const float r = std::clamp(shape.dot_radius, 0.5f, 64.0f);
-                            for (float y = spacing*0.5f; y < size.y; y += spacing) {
-                                for (float x = spacing*0.5f; x < size.x; x += spacing) {
-                                    CircleParams cp; cp.radius = r; cp.color = layer_color; cp.fill = fs; cp.pos = {x - r, y - r, 0.0f};
-                                    builder.circle("dot_"+std::to_string(int(x))+"_"+std::to_string(int(y)), std::move(cp));
+                            // One circle per cell: the radius may never exceed half a
+                            // cell, or neighbouring dots merge into a smudge. The cell
+                            // count is bounded so a tiny spacing fails closed instead
+                            // of asking the rasteriser for six figures of circles.
+                            if (static_cast<std::int64_t>(columns) * rows >
+                                static_cast<std::int64_t>(render_plan::kMaxGeneratedGridElements))
+                                throw std::length_error("generated dot count exceeds " +
+                                                        std::to_string(render_plan::kMaxGeneratedGridElements));
+                            const float max_radius = std::max(0.5f, std::min({64.0f, step_x * 0.5f, step_y * 0.5f}));
+                            const float r = std::clamp(shape.dot_radius, 0.5f, max_radius);
+                            for (int row = 0; row < rows; ++row) {
+                                const float cy = (static_cast<float>(row) + 0.5f) * step_y;
+                                for (int column = 0; column < columns; ++column) {
+                                    const float cx = (static_cast<float>(column) + 0.5f) * step_x;
+                                    CircleParams cp; cp.radius = r; cp.color = layer_color; cp.fill = fs; cp.pos = {cx, cy, 0.0f};
+                                    builder.circle("dot_"+std::to_string(row)+"_"+std::to_string(column), std::move(cp));
                                 }
                             }
                         } else {
                             const float lw = std::clamp(shape.grid_line_width, 0.25f, 32.0f);
-                            // vertical lines
-                            for (float x=0; x <= size.x; x += spacing) { RectParams rp; rp.size={lw, size.y}; rp.color=layer_color; rp.fill=fs; rp.pos={x,0,0}; builder.rect("grid_v_"+std::to_string(int(x)), std::move(rp)); }
-                            // horizontal lines
-                            for (float y=0; y <= size.y; y += spacing) { RectParams rp; rp.size={size.x, lw}; rp.color=layer_color; rp.fill=fs; rp.pos={0,y,0}; builder.rect("grid_h_"+std::to_string(int(y)), std::move(rp)); }
+                            if (static_cast<std::int64_t>(columns) + rows + 2 >
+                                static_cast<std::int64_t>(render_plan::kMaxGeneratedGridElements))
+                                throw std::length_error("generated grid line count exceeds " +
+                                                        std::to_string(render_plan::kMaxGeneratedGridElements));
+                            // Inset by half the stroke so every border line keeps its
+                            // full width inside the box, and round the stroke origin to
+                            // a whole pixel: a 1 px line on a fractional coordinate is
+                            // rasterised as two half-opacity pixels.
+                            const float inset = lw * 0.5f;
+                            const float usable_x = std::max(0.0f, size.x - lw);
+                            const float usable_y = std::max(0.0f, size.y - lw);
+                            // RectParams pos is the CENTRE of the rectangle (the
+                            // factory anchors at size/2), so a full-height vertical
+                            // line sits at (x, height/2) with its length reduced by
+                            // the inset; the previous ({x,0}) centred half of every
+                            // line outside the box.
+                            for (int column = 0; column <= columns; ++column) {
+                                const float raw = inset + usable_x * static_cast<float>(column) / static_cast<float>(columns);
+                                const float x = std::round(raw - inset) + inset;
+                                RectParams rp; rp.size={lw, usable_y}; rp.color=layer_color; rp.fill=fs; rp.pos={x, size.y*0.5f, 0.0f};
+                                builder.rect("grid_v_"+std::to_string(column), std::move(rp));
+                            }
+                            for (int row = 0; row <= rows; ++row) {
+                                const float raw = inset + usable_y * static_cast<float>(row) / static_cast<float>(rows);
+                                const float y = std::round(raw - inset) + inset;
+                                RectParams rp; rp.size={usable_x, lw}; rp.color=layer_color; rp.fill=fs; rp.pos={size.x*0.5f, y, 0.0f};
+                                builder.rect("grid_h_"+std::to_string(row), std::move(rp));
+                            }
                         }
                     };
                     auto make_arc = [&]() {
