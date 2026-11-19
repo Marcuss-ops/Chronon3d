@@ -33,11 +33,16 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     if (!layer.animation && !layer.follow_path) return;
     chronon3d::Vec3 base_position = source_position.value_or(
         chronon3d::Vec3{layer.position[0], layer.position[1], layer.position[2]});
-    if ((layer.type == LayerType::Text || layer.type == LayerType::Shape ||
+    if (((layer.type == LayerType::Text && !layer.enable_3d) ||
+         layer.type == LayerType::Shape ||
          layer.type == LayerType::Particles || layer.type == LayerType::Light) &&
         layer.position_dimensions >= 2) {
         // Primitive animation keyframes are offsets from the authored element
         // centre. Resolve that centre once before applying the offsets.
+        // Screen-space text gets the implicit canvas centre back during text
+        // placement; a camera-projected 3D text layer does not, so subtracting
+        // here would overwrite the absolute position with a centre-relative one
+        // and drive every 3D caption to the left edge.
         base_position.x -= static_cast<float>(canvas_width) * 0.5f;
         base_position.y -= static_cast<float>(canvas_height) * 0.5f;
     }
@@ -603,9 +608,14 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                 layer.position[0] + static_cast<float>(canvas_width) - sw * 0.5f,
                 layer.position[1] + static_cast<float>(canvas_height) - sh * 0.5f,
                 layer.position[2]});
-        } else if (layer.type == LayerType::Text ||
+        } else if ((layer.type == LayerType::Text && !layer.enable_3d) ||
                    layer.type == LayerType::Shape ||
                    layer.type == LayerType::Particles) {
+            // Screen-space text is centre-relative here because the text
+            // placement resolves the implicit canvas centre once more. A 3D
+            // text layer is camera-projected instead, so that second centring
+            // never happens: subtracting half a canvas would move every 3D
+            // caption to the left edge. Keep its authored absolute position.
             builder.position({
                 layer.position[0] - static_cast<float>(canvas_width) * 0.5f,
                 layer.position[1] - static_cast<float>(canvas_height) * 0.5f,
