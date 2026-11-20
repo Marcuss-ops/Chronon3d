@@ -13,6 +13,7 @@
 #include <vector>
 
 using nlohmann::json;
+using chronon3d::render_plan::render_plan_validator_construction_count;
 using chronon3d::render_plan::validate_render_plan;
 using chronon3d::render_plan::validate_render_plan_or_throw;
 using chronon3d::render_plan::ValidationIssueKind;
@@ -483,6 +484,25 @@ TEST_CASE("render_plan V3 schema rejects malformed path fields and gradient stop
                   {"color_stops", {{{"position", 0.5}, {"color", {1, 0, 0, 1}}}}}}}
     };
     check_schema_violation(validate_render_plan(plan));
+}
+
+// A plan decode used to construct (and therefore compile) a fresh json_validator
+// per call: ~51 ms of the per-overlay job against ~0.06 ms for the JSON parse.
+// The validator is now cached per schema, so decoding many plans must not
+// construct another one. This is the regression pin for that cache.
+TEST_CASE("render_plan: repeated decoding reuses one validator per schema") {
+    const auto before = render_plan_validator_construction_count();
+    auto invalid = make_minimal_valid_plan();
+    invalid["layers"][0]["type"] = "not-a-layer-type";
+    for (int i = 0; i < 32; ++i) {
+        // Both outcome paths must stay deterministic across reuse: the cache
+        // may not turn a rejection into a pass (or the reverse).
+        CHECK(validate_render_plan(make_minimal_valid_plan()).ok());
+        CHECK_FALSE(validate_render_plan(invalid).ok());
+    }
+    const auto after = render_plan_validator_construction_count();
+    CHECK(after == before);
+    CHECK(after <= 2);
 }
 
 TEST_CASE("render_plan: validator instance pointers are converted but never inferred") {

@@ -73,12 +73,23 @@ PipeExportResult render_and_encode_native(
 
     const auto warmup_t0 = profiling::now();
     RenderSettings render_opts = settings;
+    bool pool_warmup_ran = false;
     if (!session->direct_yuv_selected()) {
-        (void)warmup_pipe_renderer(*session->renderer_ptr(), *program, opts);
-        if (!session->renderer_ptr()->backend().supports_native_surfaces()) {
-            warmup_pipe_pool(*session);
+        if (session->reused_persistent_render_state) {
+            // TICKET-OVERLAY-THROUGHPUT fix 5: the persistent FullGraph state
+            // already owns the warmed renderer, framebuffer pool and slot
+            // surfaces. Re-running the warm-up on every job of a hot daemon
+            // measured 44.40 ms/overlay for work that was already done; only
+            // the per-job slot state reset is still required.
+            spdlog::info("[warm-session] reused persistent render state; skipped per-job renderer/pool/slot warm-up");
+        } else {
+            (void)warmup_pipe_renderer(*session->renderer_ptr(), *program, opts);
+            if (!session->renderer_ptr()->backend().supports_native_surfaces()) {
+                warmup_pipe_pool(*session);
+            }
+            warmup_pipe_slots(*session);
+            pool_warmup_ran = true;
         }
-        warmup_pipe_slots(*session);
         session->full_graph_session->execution_slots.reset_job_state();
     } else {
         spdlog::info("[direct-yuv] bypassed generic warmup_pipe_renderer and 273MB warmup_pipe_pool");
@@ -89,9 +100,10 @@ PipeExportResult render_and_encode_native(
             session->device_runtime->cuda_host_upload_bytes();
         session->cuda_host_upload_steady_window_started = true;
     }
-    if (!session->direct_yuv_selected()) {
-        // direct-yuv bypasses the warmup entirely: pool_warmup_ms stays
-        // absent (timing lexicon) instead of recording a fabricated 0.
+    if (pool_warmup_ran) {
+        // direct-yuv and a reused warm session bypass the warmup entirely:
+        // pool_warmup_ms stays absent (timing lexicon) instead of recording a
+        // fabricated 0 for work that did not run.
         session->prepare_breakdown.pool_warmup_ms =
             profiling::duration_ms(warmup_t0, warmup_t1);
     }

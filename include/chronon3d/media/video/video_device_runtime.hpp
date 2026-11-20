@@ -116,6 +116,21 @@ public:    /// Creates a runtime for `device`. If `gpu` is null a new GpuRuntime
     /// for null handles or a context mismatch; callers must fail closed.
     [[nodiscard]] bool context_matches(std::uintptr_t context) const noexcept;
 
+    /// One-shot CUDA NV12 compositor warm-up marker.
+    ///
+    /// Loading the compositor's NVRTC module is per-CONTEXT work (~17 ms), but
+    /// the daemon opens an encoder per job on the same persistent context, so
+    /// repeating it every job is pure latency. The marker lives on the context
+    /// owner: a context replacement starts cold instead of inheriting a stale
+    /// "warm" verdict. It is set only after a successful warm-up, so a failed
+    /// attempt is retried by the next job rather than silently skipped.
+    [[nodiscard]] bool cuda_compositor_warm() const noexcept {
+        return cuda_compositor_warm_.load(std::memory_order_acquire);
+    }
+    void mark_cuda_compositor_warm() noexcept {
+        cuda_compositor_warm_.store(true, std::memory_order_release);
+    }
+
     /// Cumulative host→device bytes uploaded through the CUDA image cache
     /// (`cuMemcpyHtoD` in get_or_upload_image). Persists for the lifetime of
     /// this device runtime; the timing sidecar exports it as the CUDA-lane
@@ -151,6 +166,7 @@ private:
     bool initialized_{false};
     bool init_ok_{false};
     std::atomic<std::uint64_t> cuda_host_upload_bytes_{0};
+    std::atomic<bool> cuda_compositor_warm_{false};
     std::mutex mutex_;
     ImageCache image_cache_;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP

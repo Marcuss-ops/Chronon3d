@@ -16,6 +16,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -84,6 +85,14 @@ ValidationResult validate_render_plan(const nlohmann::json& root);
 
 /// Throw std::runtime_error when validation produces any issue.
 void validate_render_plan_or_throw(const nlohmann::json& root);
+
+/// Number of JSON-schema validator instances this process has constructed.
+///
+/// Schema compilation dominated plan decoding (profiled at ~51 ms vs ~0.06 ms
+/// for the JSON parse), so validators are cached per schema and the steady-state
+/// value is at most 2 (v2 + v3 extensions). A value that grows with the number
+/// of decoded plans means the per-call construction regression is back.
+[[nodiscard]] std::size_t render_plan_validator_construction_count() noexcept;
 
 }  // namespace render_plan
 }  // namespace chronon3d

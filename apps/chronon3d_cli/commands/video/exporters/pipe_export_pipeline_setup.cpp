@@ -399,6 +399,9 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             retained_state.reset();
             execution->persistent_render_state.reset();
         }
+        // Remember the adoption BEFORE moving the pointer: the warm-up phase
+        // uses this to skip rebuilding a pool/slot set that already exists.
+        session->reused_persistent_render_state = static_cast<bool>(retained_state);
         session->full_graph_session = retained_state
             ? std::move(retained_state)
             : std::make_shared<FullGraphSession>();

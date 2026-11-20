@@ -272,16 +272,26 @@ bool NativeAvEncoder::configure_codec_and_surface() {
         open_hw_ctx_ms_ = elapsed_ms(hw_t0);
         if (!options_.direct_yuv_mode) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-            const auto warmup_t0 = Clock::now();
-            try {
-                media::video::CudaNv12Compositor::warm_up(
-                    reinterpret_cast<CUcontext>(cuda_context_));
-            } catch (const std::exception& error) {
-                spdlog::error("[native_av] CUDA compositor warm-up failed before NVENC: {}",
-                              error.what());
-                return false;
+            // One-shot per CUDA context: the persistent daemon re-opens an
+            // encoder per job on the SAME VideoDeviceRuntime context, so the
+            // module load must happen once, not once per overlay. Measured
+            // cost of the repeated load was 17.32 ms/item. Timing stays absent
+            // on the skip path (timing lexicon: never a fabricated 0).
+            if (device_runtime_->cuda_compositor_warm()) {
+                spdlog::debug("[native_av] CUDA compositor already warm for this context; skipping module warm-up");
+            } else {
+                const auto warmup_t0 = Clock::now();
+                try {
+                    media::video::CudaNv12Compositor::warm_up(
+                        reinterpret_cast<CUcontext>(cuda_context_));
+                } catch (const std::exception& error) {
+                    spdlog::error("[native_av] CUDA compositor warm-up failed before NVENC: {}",
+                                  error.what());
+                    return false;
+                }
+                cuda_compositor_warmup_ms_ = elapsed_ms(warmup_t0);
+                device_runtime_->mark_cuda_compositor_warm();
             }
-            cuda_compositor_warmup_ms_ = elapsed_ms(warmup_t0);
 #else
             spdlog::error("[native_av] FullGraph NVENC requires Vulkan interop");
             return false;

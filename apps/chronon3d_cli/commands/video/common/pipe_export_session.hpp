@@ -126,6 +126,12 @@ struct PipeExportSession {
     int canvas_width{0};
     int canvas_height{0};
 
+    /// True when this job adopted the persistent FullGraph state (renderer,
+    /// execution slots and slot surfaces) of the previous job on the same
+    /// device. The per-job pool/slot warm-up then has nothing left to build:
+    /// re-running it was measured at 44.40 ms per overlay on a hot daemon.
+    bool reused_persistent_render_state{false};
+
     // Timing lexicon: absent when the renderer came from the persistent
     // cache and these stages did not run (never a fabricated 0).
     std::optional<double> engine_init_ms;
