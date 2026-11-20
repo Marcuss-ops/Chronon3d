@@ -347,6 +347,9 @@ VulkanBackend::Impl::~Impl() {
         if (inline_mesh_descriptor_layout != VK_NULL_HANDLE) {
             vkDestroyDescriptorSetLayout(device, inline_mesh_descriptor_layout, nullptr);
         }
+        if (inline_mesh_bin_descriptor_layout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, inline_mesh_bin_descriptor_layout, nullptr);
+        }
         if (text_tile_bin_descriptor_layout != VK_NULL_HANDLE) {
             vkDestroyDescriptorSetLayout(device, text_tile_bin_descriptor_layout, nullptr);
         }
