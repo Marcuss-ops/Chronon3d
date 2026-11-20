@@ -1,4 +1,10 @@
-{"backend": "software", "date": "2026-11-16T09:48:59Z", "generator": "tests/e2e/golden/run_golden_e2e.py", "host": "YOutube", "renderer_sha": "30b4b721af22f80703aa7eabba41683d6f5a56ec", "review": "2026-11-16: frame0 PNG reviewed (01 CHRONON 2.0 editorial, 02 PACKSHOT 2.5D, 03 MIXED 3D red cube); deterministic PASS; delta vs fafa25c00 attributed to 6d939732b (GEL text/2.5D lighting) and 1ba7acb5f (Composition executor removal)",
+{
+  "backend": "software",
+  "date": "2026-11-20T08:10:00Z",
+  "generator": "tests/e2e/golden/run_golden_e2e.py",
+  "host": "YOutube",
+  "renderer_sha": "78a7473b74c4745ff8980127f4dc2c7a8fc1ca40",
+  "review": "2026-11-20: frame0 rendered and reviewed for all three scenes (01 editorial text, 02 packshot 2.5D, 03 mixed 3D red cube); delta vs 30b4b721a limited to the image panels of 02/03 and attributed to 78a7473b7 (media_fit_mode: Stretch no longer maps to Cover after the LayerFitMode/FitMode enum mismatch), not a regression; deterministic PASS. Hashes produced with that renderer plus the inline-mesh descriptor-layout teardown fix (pixel-neutral); the later perf/cache commits and the scanline effect mode do not touch these plans.",
   "scenes": {
     "01_editorial_text.plan.json": {
       "frames": 12,
@@ -25,18 +31,18 @@
       "height": 270,
       "plan": "plans/02_packshot_2p5d.plan.json",
       "sha256": [
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952",
-        "38d28c27625c0e4b15ee00ca265edd365ce458cf6c19808825cf3cb753916952"
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89",
+        "2ef9c9b7ed3aae8f9703a77cf921c33edd9891d8cb7e18101bd1791df5067b89"
       ],
       "width": 480
     },
@@ -45,18 +51,18 @@
       "height": 270,
       "plan": "plans/03_mixed_mesh.plan.json",
       "sha256": [
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73",
-        "eb961e58b33b616787713595047f5ab1daa788b2d7551674ec515b97d721ae73"
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6",
+        "0cf034343ca695d4d6e88cdbcfa69c3507603402f432f90f3048072c8af785c6"
       ],
       "width": 480
     }
