@@ -7,8 +7,10 @@
 #include <chronon3d/render_plan/render_plan_validator.hpp>
 
 #include <nlohmann/json.hpp>
+#include <atomic>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -503,6 +505,31 @@ TEST_CASE("render_plan: repeated decoding reuses one validator per schema") {
     const auto after = render_plan_validator_construction_count();
     CHECK(after == before);
     CHECK(after <= 2);
+}
+
+// The cache is a function-local static behind a mutex, and the daemon runs one
+// decode per GPU lane. This pins the other half: concurrent decodes must share
+// one validator per schema and must not turn a valid plan into a rejection (or
+// the reverse) through mutable validation scratch state.
+TEST_CASE("render_plan: validator cache is thread-safe across concurrent decodes") {
+    const auto before = render_plan_validator_construction_count();
+    std::atomic<int> accepted{0};
+    std::atomic<int> rejected{0};
+    std::vector<std::thread> workers;
+    for (int t = 0; t < 8; ++t) {
+        workers.emplace_back([&] {
+            auto invalid = make_minimal_valid_plan();
+            invalid["layers"][0]["type"] = "not-a-layer-type";
+            for (int i = 0; i < 32; ++i) {
+                if (validate_render_plan(make_minimal_valid_plan()).ok()) accepted.fetch_add(1);
+                if (!validate_render_plan(invalid).ok()) rejected.fetch_add(1);
+            }
+        });
+    }
+    for (auto& worker : workers) worker.join();
+    CHECK(accepted.load() == 8 * 32);
+    CHECK(rejected.load() == 8 * 32);
+    CHECK(render_plan_validator_construction_count() == before);
 }
 
 TEST_CASE("render_plan: validator instance pointers are converted but never inferred") {
