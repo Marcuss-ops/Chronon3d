@@ -3,9 +3,9 @@
 **Status:** CLOSED (2026-11-12, local) — selector-engine implementation and
 local gates complete. The closed expression profile and Smoothness contract
 are recorded in
-[`ADR-041`](../adr/ADR-041-selector-expression-and-smoothness-contract.md)
+[`ADR-041`](../../adr/ADR-041-selector-expression-and-smoothness-contract.md)
 (Proposed until CI promotion). This is **not** a new GPU pixel-parity claim;
-[`ADR-040`](../adr/ADR-040-text-parity-product-exception.md) remains
+[`ADR-040`](../../adr/ADR-040-text-parity-product-exception.md) remains
 authoritative for the frozen corpus.
 **Owner:** Chronon3D text/runtime.
 **Base revision:** `0ac4ef26a` plus this change.
@@ -385,6 +385,6 @@ now-trashed folder and is retained only as history.
 ## References
 
 - [`TICKET-TEXT-ANIMATOR-PARITY-20261107.md`](TICKET-TEXT-ANIMATOR-PARITY-20261107.md)
-- [`ADR-040`](../adr/ADR-040-text-parity-product-exception.md)
-- [`ADR-041`](../adr/ADR-041-selector-expression-and-smoothness-contract.md)
+- [`ADR-040`](../../adr/ADR-040-text-parity-product-exception.md)
+- [`ADR-041`](../../adr/ADR-041-selector-expression-and-smoothness-contract.md)
 - `docs/evidence/text-parity-20261110-product-exception/REPORT.md`

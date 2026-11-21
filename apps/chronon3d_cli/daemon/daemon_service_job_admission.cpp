@@ -27,6 +27,10 @@ RenderJobAdmissionContext::RenderJobAdmissionContext(
     runtime::DeviceScheduler& device_scheduler,
     const runtime::DeviceSelectionRequirements& requirements)
     : m_admission_cv(&admission_cv), m_running(&running) {
+    // Include both execution-lane contention and device-credit contention.
+    // Starting this clock after acquiring render_job_mutex hid the wait that
+    // the daemon sidecar is meant to expose when concurrent producers queue.
+    const auto admission_started = std::chrono::steady_clock::now();
     m_decision = decide_render_job_admission(
         parallel_disjoint, estimated_vram_bytes);
 
@@ -37,7 +41,6 @@ RenderJobAdmissionContext::RenderJobAdmissionContext(
     }
 
     m_admission_lock = std::unique_lock<std::mutex>(admission_mutex);
-    const auto admission_started = std::chrono::steady_clock::now();
     const bool admitted = m_admission_cv->wait_for(
         m_admission_lock, std::chrono::seconds(300), [&]() {
             if (!m_running->load(std::memory_order_acquire)) return true;

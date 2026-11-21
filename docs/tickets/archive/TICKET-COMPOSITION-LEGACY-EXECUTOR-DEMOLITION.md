@@ -241,7 +241,7 @@ Evidence on the C2 1,000-particle plan:
   (both SHA-256
   `87e9ac05c05a3152c0634f810e51cee5f8822d4b8c724c680fc99dedfcf01607`).
 - Durable raw artifacts, exact plan hash and strict-native telemetry are
-  recorded in [`typed-particle-parity-20261109`](../evidence/typed-particle-parity-20261109/REPORT.md).
+  recorded in [`typed-particle-parity-20261109`](../../evidence/typed-particle-parity-20261109/REPORT.md).
 - Vulkan `require_gpu_native` completed and wrote a 1-frame RGBA raw artifact
   (SHA-256 `ab409c9ecef064c1e2fc1377c9f030ef40f4ac9dc0b59674496a1b7ddcb7ed93`).
   This is route/execution evidence, not a CPU/Vulkan pixel-parity claim.
@@ -283,7 +283,7 @@ typed `compiler::CompiledProgram`:
 - `pipe_export_pipeline_setup` fails closed if a DirectYUV plan reaches setup
   without a typed program. It never calls a legacy overload.
 
-Evidence: [`composition-directyuv-typed-only-20261110/REPORT.md`](../evidence/composition-directyuv-typed-only-20261110/REPORT.md).
+Evidence: [`composition-directyuv-typed-only-20261110/REPORT.md`](../../evidence/composition-directyuv-typed-only-20261110/REPORT.md).
 The CLI build (`-j12`), architecture gate **218/218**, media/video suite
 **150/150**, CLI suite **293/293**, and zero-copy suite **49/49** pass; the
 DirectYUV text contract is **10/10**. The pinned production caller counts remain

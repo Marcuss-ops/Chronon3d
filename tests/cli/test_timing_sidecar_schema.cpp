@@ -422,7 +422,11 @@ TEST_CASE("diagnostics: prepare_breakdown exposes the measured prepare sub-phase
     timings.scene_materialize_count = 3u;
     timings.scene_materialize_cache_hits = 4u;
     timings.prepare.image_decode_ms = 91.0;
+    timings.prepare.image_cache_hits = 2u;
+    timings.prepare.image_cache_misses = 3u;
+    timings.prepare.image_post_decode_downscale_count = 1u;
     timings.prepare.font_load_ms = 3.5;
+    timings.runtime.codec_session_adopted = true;
     timings.startup_breakdown.vulkan_device_ms = 300.0;
 
     nlohmann::json out = nlohmann::json::object();
@@ -441,6 +445,10 @@ TEST_CASE("diagnostics: prepare_breakdown exposes the measured prepare sub-phase
     CHECK(out.at("job").at("prepare").at("scene_materialize_ms") == 12.75);
     CHECK(out.at("job").at("prepare").at("scene_materialize_count") == 3u);
     CHECK(out.at("job").at("prepare").at("scene_materialize_cache_hits") == 4u);
+    CHECK(out.at("job").at("image").at("cache_hits") == 2u);
+    CHECK(out.at("job").at("image").at("cache_misses") == 3u);
+    CHECK(out.at("job").at("image").at("post_decode_downscale_count") == 1u);
+    CHECK(out.at("job").at("runtime").at("codec_session_adopted") == true);
     CHECK(pb.at("prepare_asset_decode_ms") == 180.0);
     CHECK(pb.at("prepare_image_decode_ms") == 91.0);
     CHECK(pb.at("prepare_font_load_ms") == 3.5);

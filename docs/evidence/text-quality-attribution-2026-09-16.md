@@ -1,6 +1,6 @@
 # Attribuzione qualità testo — 2026-09-16
 
-Evidenza del diagnostico P0-0 di [`docs/tickets/TICKET-TEXT-QUALITY-V2.md`](../tickets/TICKET-TEXT-QUALITY-V2.md).
+Evidenza del diagnostico P0-0 di [`docs/tickets/TICKET-TEXT-QUALITY-V2.md`](../tickets/archive/TICKET-TEXT-QUALITY-V2.md).
 
 Obiettivo: stabilire **quale leg** causa la perdita di qualità percepita sul testo,
 prima di toccare qualunque riga. Host: `YOutube`, RTX A4000 16 GB, driver NVIDIA,

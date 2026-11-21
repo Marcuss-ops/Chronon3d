@@ -8,6 +8,7 @@
 #include "../../utils/job/render_job.hpp"
 #include "render_profiles.hpp"
 #include "command_render_plan.hpp"
+#include "render_plan_preparation.hpp"
 #include "../../utils/project/chronon_project_render.hpp"
 #include "render_plan_preparation.hpp"
 #include "caption_plan_expansion.hpp"
@@ -25,6 +26,7 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -318,6 +320,32 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<RenderState>();
     auto& args = *state->args;
 
+    render_job_preparer() = [](
+        const runtime::job::NormalizedRenderJob& job,
+        std::shared_ptr<SoftwareRenderer> existing_renderer,
+        std::string& error,
+        std::optional<double>& prelock_image_decode_ms) {
+        RenderPlanPreparationOptions options;
+        options.input = job.plan_path.string();
+        options.assets_root = job.assets_root.string();
+        options.prepared_package = job.prepared_package_path.string();
+        options.no_dirty_rects = job.no_dirty_rects;
+        auto prepared = prepare_render_plan(options);
+        if (!prepared) {
+            error = prepared.error().message;
+            return std::shared_ptr<PreparedRenderPlanContext>{};
+        }
+        auto context = std::make_shared<PreparedRenderPlanContext>(
+            std::move(prepared).value());
+        if (!prefetch_render_plan_images(
+                *context, existing_renderer.get(), error)) {
+            return std::shared_ptr<PreparedRenderPlanContext>{};
+        }
+        prelock_image_decode_ms = context->prelock_image_decode_ms;
+        context->prepared_at = std::chrono::steady_clock::now();
+        return context;
+    };
+
     // Phase 9 (CLI/IPC parity): ONE typed dispatcher over the normalized
     // job. The daemon parsed the wire JSON once and normalized once; this
     // registration only executes. `warm_renderer` is runtime state (null for
@@ -325,9 +353,11 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     render_job_dispatcher() = [registry = &ctx.registry](
         const runtime::job::NormalizedRenderJob& job,
         std::shared_ptr<SoftwareRenderer> renderer,
-        std::shared_ptr<media::VideoJobExecutionContext> video_execution) -> ipc::Reply {
+        std::shared_ptr<media::VideoJobExecutionContext> video_execution,
+        std::shared_ptr<PreparedRenderPlanContext> prepared_plan) -> ipc::Reply {
         return ipc_render_job(*registry, job, std::move(renderer),
-                              std::move(video_execution));
+                              std::move(video_execution),
+                              std::move(prepared_plan));
     };
 
     auto* cmd = app.add_subcommand("render", "Render a composition");

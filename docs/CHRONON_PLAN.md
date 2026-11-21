@@ -60,7 +60,7 @@ Rules:
 Correctness evidence: LruCache unit/stress tests, compiled-frame-program
 contract tests, executor level tests, and the developer architecture gate.
 Benchmark evidence for the normal/rendering hotspot work remains under
-[`TICKET-HOTSPOT-DECOMPOSITION`](tickets/TICKET-HOTSPOT-DECOMPOSITION.md);
+[`TICKET-HOTSPOT-DECOMPOSITION`](tickets/archive/TICKET-HOTSPOT-DECOMPOSITION.md);
 daemon job reuse remains data-gated in
 `TICKET-DAEMON-JOB-LIFECYCLE` (scheda chiusa e rimossa il 2026-10-27; storico in git).
 

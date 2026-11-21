@@ -33,6 +33,6 @@ Raw artifact SHA-256 values:
 - Vulkan: `382131e1a8daaa7a771931b082328a26a5c6636b217e4a96e3ac4728ef161364`
 
 The temporary plan, both raw files and their timing sidecars are retained in
-[`profile-256/`](profile-256/). The rerun corpus at
+[`profile-256/`](profile-256). The rerun corpus at
 [`../text-parity-20261109-rerun/REPORT.md`](../text-parity-20261109-rerun/REPORT.md)
 is the retained multi-frame evidence for the restored 128-em profile.

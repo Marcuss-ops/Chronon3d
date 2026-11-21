@@ -4,11 +4,15 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/runtime/asset_prepare_policy.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
 #include <algorithm>
 #include <atomic>
 #include <span>
+#include <unordered_map>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 
 namespace chronon3d::runtime::detail {
 namespace {
@@ -18,6 +22,7 @@ struct ImageCounterSnapshot {
     uint64_t decode_us{0};
     uint64_t convert_us{0};
     uint64_t decode_count{0};
+    uint64_t post_decode_downscale_count{0};
     uint64_t cache_hits{0};
     uint64_t cache_misses{0};
 };
@@ -28,6 +33,7 @@ ImageCounterSnapshot snapshot_image_counters(const RenderCounters& counters) {
     s.decode_us = counters.image_decode_wall_us.load(std::memory_order_relaxed);
     s.convert_us = counters.image_convert_wall_us.load(std::memory_order_relaxed);
     s.decode_count = counters.image_decode_count.load(std::memory_order_relaxed);
+    s.post_decode_downscale_count = counters.image_post_decode_downscale_count.load(std::memory_order_relaxed);
     s.cache_hits = counters.image_cache_hits.load(std::memory_order_relaxed);
     s.cache_misses = counters.image_cache_misses.load(std::memory_order_relaxed);
     return s;
@@ -134,13 +140,58 @@ RenderPreparationResult prepare_render_scene(
     const auto decode_t0 = profiling::now();
     const ImageCounterSnapshot image_before = snapshot_image_counters(*renderer->counters());
     if (options.resources.prepare_images) {
-        for (const auto& ref : image_refs_view) {
-            // Fix 6: warm the same display-bounded cache entry the render node
-            // resolves, so preparation never decodes a second representation.
+        auto& image_cache = renderer->execution_context().runtime->image_cache();
+        struct ImageDecodeTask {
+            std::string path;
+            ImageDecodeOptions options;
+        };
+        std::vector<ImageDecodeTask> decode_tasks;
+        std::vector<std::size_t> reference_task_indices(image_refs_view.size());
+        std::unordered_map<ImageAssetKey, std::size_t, ImageAssetKeyHash> task_by_key;
+        task_by_key.reserve(image_refs_view.size());
+
+        for (std::size_t index = 0; index < image_refs_view.size(); ++index) {
+            const auto& ref = image_refs_view[index];
             ImageDecodeOptions decode_options{};
             decode_options.max_dimension = ref.max_dimension;
             decode_options.color_space = ref.color_space;
-            const auto image = renderer->execution_context().runtime->image_cache().get_or_load(ref.path, decode_options);
+            const auto key = image_cache.canonical_key_for(ref.path, decode_options);
+            if (!key) {
+                reference_task_indices[index] = decode_tasks.size();
+                decode_tasks.push_back({ref.path, std::move(decode_options)});
+                continue;
+            }
+            const auto [it, inserted] = task_by_key.try_emplace(
+                *key, decode_tasks.size());
+            if (inserted) {
+                decode_tasks.push_back({ref.path, std::move(decode_options)});
+            }
+            reference_task_indices[index] = it->second;
+        }
+
+        std::vector<std::shared_ptr<const CachedImage>> decoded_tasks(
+            decode_tasks.size());
+        const auto decode_range = [&](std::size_t begin, std::size_t end) {
+                profiling::ProfilingGuard worker_profile(
+                    renderer->counters(), renderer->framebuffer_pool().get());
+                for (std::size_t task = begin; task != end; ++task) {
+                    decoded_tasks[task] = image_cache.get_or_load(
+                        decode_tasks[task].path, decode_tasks[task].options);
+                }
+        };
+        if (asset_prepare_serial_override_enabled()) {
+            decode_range(0, decode_tasks.size());
+        } else {
+            tbb::parallel_for(
+                tbb::blocked_range<std::size_t>(0, decode_tasks.size(), 1),
+                [&](const tbb::blocked_range<std::size_t>& range) {
+                    decode_range(range.begin(), range.end());
+            });
+        }
+
+        for (std::size_t index = 0; index < image_refs_view.size(); ++index) {
+            const auto& ref = image_refs_view[index];
+            const auto& image = decoded_tasks[reference_task_indices[index]];
             if (!image || !image->valid()) {
                 result.preparation_error = make_preparation_error(
                     PreparationError::Code::CorruptedAsset,
@@ -204,6 +255,8 @@ RenderPreparationResult prepare_render_scene(
         static_cast<double>(image_after.convert_us - image_before.convert_us) / 1000.0;
     result.timings.image_decode_count =
         image_after.decode_count - image_before.decode_count;
+    result.timings.image_post_decode_downscale_count =
+        image_after.post_decode_downscale_count - image_before.post_decode_downscale_count;
     result.timings.image_cache_hits = image_after.cache_hits - image_before.cache_hits;
     result.timings.image_cache_misses = image_after.cache_misses - image_before.cache_misses;
 

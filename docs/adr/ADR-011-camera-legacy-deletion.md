@@ -6,7 +6,7 @@
 | **Date** | 2026-06-23 |
 | **Deciders** | F2.3.1 owner (chronon3d camera authorship maintainers) |
 | **Tags** | `camera`, `canonicalisation`, `F2.3`, `deletion`, `SDK-surface`, `legacy-retire` |
-| **Related** | [ADR-008 — render-engine-renderer-ptr](./ADR-008-render-engine-renderer-ptr-return.md), [ADR-010 — boundary-gate-semantic-extension](./ADR-010-boundary-gate-semantic-extension.md), `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md`, TICKET-029/033/034 (camera_v1 rot history), TICKET-035 (rich Camera2_5D field + PIMPL re-light), AGENTS.md §"Piano operativo canonico" + §"Regole di lavoro", `tools/check_camera_architecture.sh` gates `[1/6]`+`[2/6]` |
+| **Related** | [ADR-008 — render-engine-renderer-ptr](ADR-008-render-engine-renderer-ptr-return.md), [ADR-010 — boundary-gate-semantic-extension](ADR-010-boundary-gate-semantic-extension.md), `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md`, TICKET-029/033/034 (camera_v1 rot history), TICKET-035 (rich Camera2_5D field + PIMPL re-light), AGENTS.md §"Piano operativo canonico" + §"Regole di lavoro", `tools/check_camera_architecture.sh` gates `[1/6]`+`[2/6]` |
 
 ## Context
 
@@ -159,9 +159,9 @@ come contesto della decisione, non come TODO eseguibile.
 ## References
 
 * AGENTS.md §"Piano operativo canonico" + §"Regole di lavoro" (single-identity + anti-duplication rules).
-* [ADR-001](./ADR-001-frame-graph-compiler.md) — anchors the runtime representation that `camera_v1::CameraProgram` evaluates against.
-* [ADR-008](./ADR-008-render-engine-renderer-ptr-return.md) — anchors the SDK INSTALL posture that this ADR's `[14/14]` attestation unblocks.
-* [ADR-010](./ADR-010-boundary-gate-semantic-extension.md) — gates `[12/14]/[13/14]/[14/14]` consume this ADR's status as part of their BLOCKING transition path (post-TICKET-041/042/043 sync).
+* [ADR-001](ADR-001-frame-graph-compiler.md) — anchors the runtime representation that `camera_v1::CameraProgram` evaluates against.
+* [ADR-008](ADR-008-render-engine-renderer-ptr-return.md) — anchors the SDK INSTALL posture that this ADR's `[14/14]` attestation unblocks.
+* [ADR-010](ADR-010-boundary-gate-semantic-extension.md) — gates `[12/14]/[13/14]/[14/14]` consume this ADR's status as part of their BLOCKING transition path (post-TICKET-041/042/043 sync).
 * `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md` — the canonical specification for camera_v1.
 * `docs/camera-plan/02-OPTICS_PROJECTION_ORIENTATION.md` — the Lens/Projection discrimination that this ADR relies on for the `projection_mode` migration.
 * `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` — outlines the OrbitMotion parity path that obsoletes `CameraRig`.

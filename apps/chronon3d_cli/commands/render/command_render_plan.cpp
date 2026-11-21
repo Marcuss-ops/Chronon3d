@@ -53,7 +53,10 @@ int run_render_plan_file(
     bool no_dirty_rects,
     std::string text_layout_debug_json_path) {
     // CLI boundary: parse happened at the flag layer, normalize happens here
-    // — exactly once per job, exactly like the IPC boundary.
+    // — exactly once per job, exactly like the IPC boundary. The flag is part
+    // of the request so the IPC payload (which carries the same key) and the
+    // CLI fingerprint agree on the rendering settings.
+    request.no_dirty_rects = request.no_dirty_rects || no_dirty_rects;
     const auto normalized = runtime::job::normalize_render_job(request);
     if (!normalized) {
         spdlog::error("Render job request normalization failed: {}",
@@ -64,7 +67,7 @@ int run_render_plan_file(
     state.normalized_request = std::move(normalized).value();
     state.warm_renderer = std::move(warm_renderer);
     state.video_execution = std::move(video_execution);
-    state.no_dirty_rects = no_dirty_rects;
+    state.no_dirty_rects = state.normalized_request->no_dirty_rects;
     state.text_layout_debug_json_path = std::move(text_layout_debug_json_path);
     return execute_render_plan(registry, state);
 }
@@ -72,13 +75,15 @@ int run_render_plan_file(
 ipc::Reply ipc_render_job(const CompositionRegistry& registry,
                           const runtime::job::NormalizedRenderJob& job,
                           std::shared_ptr<SoftwareRenderer> warm_renderer,
-                          std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
+                          std::shared_ptr<media::VideoJobExecutionContext> video_execution,
+                          std::shared_ptr<PreparedRenderPlanContext> prepared_plan) {
     // Phase 9 (CLI/IPC parity): the job arrives already normalized from the
     // daemon boundary. This function only executes; there is no JSON parse
     // and no re-normalization anywhere in the render execution layer.
     const auto output_path = job.output_path;
     const int rc = execute_normalized_render_job(
-        registry, job, std::move(warm_renderer), std::move(video_execution));
+        registry, job, std::move(warm_renderer), std::move(video_execution),
+        std::move(prepared_plan));
     if (rc != 0) {
         return ipc::Reply{ipc::Status::Error,
                           "render job failed with exit code " + std::to_string(rc)};

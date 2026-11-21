@@ -7,6 +7,7 @@
 #include <chronon3d/runtime/job/job_session.hpp>
 #include "native_surface.hpp"
 #include "effect_stack_node_native_api.hpp"
+#include "blur_half_res.hpp"
 
 #include <algorithm>
 #include <array>
@@ -17,17 +18,69 @@
 #include <vector>
 
 namespace chronon3d::graph {
-namespace native_effects {
-
-bool clip_covers_result(const std::optional<raster::BBox>& clip,
+namespace native_effects {bool clip_covers_result(const std::optional<raster::BBox>& clip,
                         const Framebuffer& result) {
     if (!clip) return true;
     const raster::BBox bounds{
         result.origin_x(), result.origin_y(),
-        result.origin_x() + result.width(),
-        result.origin_y() + result.height()};
+        result.origin_x() + result.width(), result.origin_y() + result.height()};
     return clip->x0 <= bounds.x0 && clip->y0 <= bounds.y0 &&
            clip->x1 >= bounds.x1 && clip->y1 >= bounds.y1;
+}
+
+// A halo-spreading stage in the same stack (drop shadow, blur) widens the
+// result to the canvas while the borrowed source still covers only the tight
+// layer ROI. The backend dispatches that copy source to destination in one
+// pass and rejects mismatched surfaces, so re-anchor the source into the
+// result's coordinate space once: same pixels, same canvas position,
+// transparent outside the layer.
+bool anchor_source_to_result(RenderGraphContext& ctx, const Framebuffer& result,
+                             runtime::RenderSurfaceHandle borrowed_source,
+                             const Framebuffer* borrowed_source_framebuffer,
+                             AnchoredSource& anchored) {
+    anchored = AnchoredSource{};
+    if (borrowed_source == runtime::kInvalidRenderSurfaceHandle) return false;
+    const bool needs_expansion = borrowed_source_framebuffer &&
+        (borrowed_source_framebuffer->width() != result.width() ||
+         borrowed_source_framebuffer->height() != result.height() ||
+         borrowed_source_framebuffer->origin_x() != result.origin_x() ||
+         borrowed_source_framebuffer->origin_y() != result.origin_y());
+    if (!needs_expansion) {
+        anchored.surface = borrowed_source;
+        return true;
+    }
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
+    const auto expanded = ctx.surface_registry->create(desc);
+    if (expanded == runtime::kInvalidRenderSurfaceHandle) return false;
+    if (!ctx.backend_surface_api()->create_surface(expanded, desc).ok()) {
+        ctx.surface_registry->release(expanded);
+        return false;
+    }
+    auto op = ctx.backend_surface_api()->initialize_transparent_surface(expanded);
+    if (op.ok()) {
+        op = ctx.backend_surface_api()->transform_surface(
+            expanded, borrowed_source,
+            borrowed_source_framebuffer->origin_x() - result.origin_x(),
+            borrowed_source_framebuffer->origin_y() - result.origin_y(), 1.0f);
+    }
+    if (!op.ok()) {
+        (void)ctx.backend_surface_api()->release_surface(expanded);
+        ctx.surface_registry->release(expanded);
+        return false;
+    }
+    anchored.surface = expanded;
+    anchored.owned = true;
+    return true;
+}
+
+void release_anchored_source(RenderGraphContext& ctx, AnchoredSource& anchored) {
+    if (!anchored.owned || anchored.surface == runtime::kInvalidRenderSurfaceHandle) {
+        anchored = AnchoredSource{};
+        return;
+    }
+    (void)ctx.backend_surface_api()->release_surface(anchored.surface);
+    ctx.surface_registry->release(anchored.surface);
+    anchored = AnchoredSource{};
 }
 
 // Native Glow/Bloom use caller-planned full-frame surfaces and scratch images.
@@ -991,24 +1044,136 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     const float r_plus = static_cast<float>(rounded_radius * rounded_radius + rounded_radius);
     const int box_radius = std::max(1, static_cast<int>(std::round(
         0.5f * (std::sqrt(1.0f + 6.0f * r_plus) - 1.0f))));
-    const auto pass1_horizontal = created_output.ok()
-        ? ctx.backend_surface_api()->blur_surface(horizontal, source, static_cast<float>(box_radius),
-                                    /*horizontal=*/true, /*box_kernel=*/true)
+    const auto box_radius_for = [](float radius) {
+        const int rounded = std::max(1, static_cast<int>(std::round(radius)));
+        const float plus = static_cast<float>(rounded * rounded + rounded);
+        return std::max(1, static_cast<int>(std::round(
+            0.5f * (std::sqrt(1.0f + 6.0f * plus) - 1.0f))));
+    };
+    // Half-resolution fast path: the measured production clips spend 62–77% of
+    // their GPU pass time in full-frame blur (up to 40 passes/frame). A blur is
+    // a low-pass filter, so computing it on a half-size plate and upscaling
+    // removes 75% of the pixels each pass touches. Eligibility (radius, clip,
+    // origin, canvas size, opt-out) is owned by blur_half_res.hpp; this block
+    // owns only the surfaces and the dispatch order.
+    const bool half_res = detail::blur_half_res_eligible(
+        result.width(), result.height(), params->radius, partial_clip,
+        result.origin_x() == 0 && result.origin_y() == 0,
+        detail::blur_half_res_env_enabled());
+    const auto try_half_res_blur = [&]() -> bool {
+        if (!created_output.ok()) return false;
+        const i32 half_w = std::max(1, result.width() / 2);
+        const i32 half_h = std::max(1, result.height() / 2);
+        const auto half_desc = native_surface_desc(ctx, half_w, half_h);
+        const runtime::RenderSurfaceHandle half_source = ctx.surface_registry->create(half_desc);
+        const runtime::RenderSurfaceHandle half_scratch = ctx.surface_registry->create(half_desc);
+        const runtime::RenderSurfaceHandle half_blurred = ctx.surface_registry->create(half_desc);
+        const std::array<runtime::RenderSurfaceHandle, 3> half_surfaces{
+            half_source, half_scratch, half_blurred};
+        std::array<bool, 3> half_device_created{false, false, false};
+        const auto release_half = [&] {
+            for (std::size_t index = 0; index < half_surfaces.size(); ++index) {
+                const auto handle = half_surfaces[index];
+                if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
+                if (half_device_created[index]) {
+                    (void)ctx.backend_surface_api()->release_surface(handle);
+                }
+                ctx.surface_registry->release(handle);
+            }
+        };
+        if (half_source == runtime::kInvalidRenderSurfaceHandle ||
+            half_scratch == runtime::kInvalidRenderSurfaceHandle ||
+            half_blurred == runtime::kInvalidRenderSurfaceHandle) {
+            release_half();
+            return false;
+        }
+        for (std::size_t index = 0; index < half_surfaces.size(); ++index) {
+            const auto created = ctx.backend_surface_api()->create_surface(
+                half_surfaces[index], half_desc);
+            if (!created.ok()) {
+                release_half();
+                return false;
+            }
+            half_device_created[index] = true;
+        }
+        // Scale a full-frame 0-based surface into a half-size one, and back.
+        // Bilinear=1 is mandatory: nearest sampling would alias the blur.
+        const auto scale_into = [&](runtime::RenderSurfaceHandle dst,
+                                    runtime::RenderSurfaceHandle src,
+                                    i32 dst_w, i32 dst_h, i32 src_w, i32 src_h,
+                                    float sx, float sy) {
+            runtime::SurfaceAffineTransform mapping{};
+            runtime::set_canvas_source_mapping(
+                mapping, sx, 0.0f, 0.0f, 0.0f, sy, 0.0f,
+                runtime::RectF{0.0f, 0.0f,
+                               static_cast<float>(src_w), static_cast<float>(src_h)});
+            mapping.opacity = 1.0f;
+            mapping.bilinear = 1u;
+            mapping.clip_enabled = 1u;
+            mapping.clip_rect[0] = 0;
+            mapping.clip_rect[1] = 0;
+            mapping.clip_rect[2] = dst_w;
+            mapping.clip_rect[3] = dst_h;
+            return ctx.backend_surface_api()->transform_surface_affine(dst, src, mapping);
+        };
+        auto op = scale_into(half_source, source, half_w, half_h,
+                             result.width(), result.height(), 2.0f, 2.0f);
+        const int half_box_radius = box_radius_for(params->radius * 0.5f);
+        if (op.ok()) op = ctx.backend_surface_api()->blur_surface(
+            half_scratch, half_source, static_cast<float>(half_box_radius),
+            /*horizontal=*/true, /*box_kernel=*/true);
+        if (op.ok()) op = ctx.backend_surface_api()->blur_surface(
+            half_blurred, half_scratch, static_cast<float>(half_box_radius),
+            /*horizontal=*/false, /*box_kernel=*/true);
+        if (op.ok()) op = ctx.backend_surface_api()->blur_surface(
+            half_scratch, half_blurred, static_cast<float>(half_box_radius),
+            /*horizontal=*/true, /*box_kernel=*/true);
+        if (op.ok()) op = ctx.backend_surface_api()->blur_surface(
+            half_blurred, half_scratch, static_cast<float>(half_box_radius),
+            /*horizontal=*/false, /*box_kernel=*/true);
+        if (op.ok()) op = scale_into(output, half_blurred, result.width(), result.height(),
+                                     half_w, half_h, 0.5f, 0.5f);
+        release_half();
+        if (!op.ok()) {
+            spdlog::warn("[native-blur] half-res radius={} failed: {} — falling back to full-res",
+                         params->radius, op.error().message);
+            return false;
+        }
+        return true;
+    };
+    RenderOpResult blurred_vertical = half_res
+        ? (try_half_res_blur()
+               ? RenderOpResult(RenderOpOutcome{})
+               : RenderOpResult(graph::make_render_backend_error(
+                     graph::RenderBackendErrorCode::ExecutionFailure,
+                     "native full-frame blur: half-res path rejected")))
         : created_output;
-    const auto pass1_vertical = pass1_horizontal.ok()
-        ? ctx.backend_surface_api()->blur_surface(output, horizontal, static_cast<float>(box_radius),
-                                    /*horizontal=*/false, /*box_kernel=*/true)
-        : pass1_horizontal;
-    const auto pass2_horizontal = pass1_vertical.ok()
-        ? ctx.backend_surface_api()->blur_surface(
-            horizontal, output, static_cast<float>(box_radius),
-            /*horizontal=*/true, /*box_kernel=*/true)
-        : pass1_vertical;
-    const auto blurred_vertical = pass2_horizontal.ok()
-        ? ctx.backend_surface_api()->blur_surface(
-            output, horizontal, static_cast<float>(box_radius),
-            /*horizontal=*/false, /*box_kernel=*/true)
-        : pass2_horizontal;
+    if (!half_res || !blurred_vertical.ok()) {
+        // Full-resolution path (historical): also the fallback when the
+        // half-res surfaces or affine dispatch are unavailable.
+        if (half_res) {
+            spdlog::warn("[native-blur] half-res unavailable for radius={} — using full-res",
+                         params->radius);
+        }
+        blurred_vertical = created_output.ok()
+            ? ctx.backend_surface_api()->blur_surface(horizontal, source, static_cast<float>(box_radius),
+                                        /*horizontal=*/true, /*box_kernel=*/true)
+            : created_output;
+        blurred_vertical = blurred_vertical.ok()
+            ? ctx.backend_surface_api()->blur_surface(output, horizontal, static_cast<float>(box_radius),
+                                        /*horizontal=*/false, /*box_kernel=*/true)
+            : blurred_vertical;
+        blurred_vertical = blurred_vertical.ok()
+            ? ctx.backend_surface_api()->blur_surface(
+                horizontal, output, static_cast<float>(box_radius),
+                /*horizontal=*/true, /*box_kernel=*/true)
+            : blurred_vertical;
+        blurred_vertical = blurred_vertical.ok()
+            ? ctx.backend_surface_api()->blur_surface(
+                output, horizontal, static_cast<float>(box_radius),
+                /*horizontal=*/false, /*box_kernel=*/true)
+            : blurred_vertical;
+    }
     const auto clipped_result = blurred_vertical.ok() && partial_clip
         ? ctx.backend_surface_api()->copy_surface(source, output, local_clip)
         : blurred_vertical;
@@ -1044,7 +1209,8 @@ bool try_native_full_frame_sharpen(RenderGraphContext& ctx,
                                    const EffectStack& effect_stack,
                                    Framebuffer& result,
                                    const std::optional<raster::BBox>& clip,
-                                   runtime::RenderSurfaceHandle borrowed_source) {
+                                   runtime::RenderSurfaceHandle borrowed_source,
+                                   const Framebuffer* borrowed_source_framebuffer) {
     if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
         effect_stack.size() != 1) {
         return false;
@@ -1070,7 +1236,16 @@ bool try_native_full_frame_sharpen(RenderGraphContext& ctx,
     if (!has_borrowed && !has_result_surface) {
         return false;
     }
-    const auto source = has_borrowed ? borrowed_source : result.surface_handle();
+    AnchoredSource anchored;
+    if (has_borrowed &&
+        !anchor_source_to_result(ctx, result, borrowed_source,
+                                 borrowed_source_framebuffer, anchored)) {
+        return false;
+    }
+    const auto source = anchored.surface != runtime::kInvalidRenderSurfaceHandle
+        ? anchored.surface
+        : result.surface_handle();
+    const auto anchor_cleanup = [&] { release_anchored_source(ctx, anchored); };
     const auto scratch_a = ctx.surface_registry->create(desc);
     const auto scratch_b = ctx.surface_registry->create(desc);
     const auto blurred = ctx.surface_registry->create(desc);
@@ -1083,6 +1258,7 @@ bool try_native_full_frame_sharpen(RenderGraphContext& ctx,
         if (scratch_b != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(scratch_b);
         if (blurred != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(blurred);
         if (destination != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(destination);
+        anchor_cleanup();
         return false;
     }
     const auto release_scratch = [&] {
@@ -1106,6 +1282,7 @@ bool try_native_full_frame_sharpen(RenderGraphContext& ctx,
     if (!dst_ready.ok()) {
         release_scratch();
         ctx.surface_registry->release(destination);
+        anchor_cleanup();
         return false;
     }
     const auto blurred_ok = ctx.backend_surface_api()->blur_surface(scratch_a, source, box, true, true).ok()
@@ -1125,9 +1302,11 @@ bool try_native_full_frame_sharpen(RenderGraphContext& ctx,
         release_scratch();
         (void)ctx.backend_surface_api()->release_surface(destination);
         ctx.surface_registry->release(destination);
+        anchor_cleanup();
         return false;
     }
     release_scratch();
+    anchor_cleanup();
     result.set_surface_handle(destination);
     result.mark_gpu_authoritative();
     return true;

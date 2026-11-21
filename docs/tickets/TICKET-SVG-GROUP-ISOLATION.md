@@ -6,7 +6,7 @@ passa 10/10 sulla lane CLI, inclusi overlap isolato, opacità animata di gruppo,
 nested opacity, clip/mask per elemento e determinismo. Il vecchio blocco «frame
 statico trasparente» è risolto dalla materializzazione di `imported_subpaths` e
 dal sampling per-frame
-([TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md)).
+([TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](archive/TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md)).
 Restano aperti l'oracle Vulkan strict-native, le misure GPU/memoria e la CI
 clean-SHA; nessuna certificazione hardware è implicata dal PASS software.
 

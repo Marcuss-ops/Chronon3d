@@ -163,6 +163,7 @@ normalize_render_job(
     resolved.trace = request.trace;
     resolved.receipt_verification = request.receipt_verification;
     resolved.report = request.report;
+    resolved.no_dirty_rects = request.no_dirty_rects;
 
     // A certified encoder profile is an exact recipe, not a hint. An unknown
     // name fails at this boundary instead of reaching the encoder as an
@@ -310,6 +311,7 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     append_field(fp, "trace_output", job.trace.output.string());
     append_field(fp, "trace_level", job.trace.level);
     append_field(fp, "receipt_verify", job.receipt_verification);
+    append_flag(fp, "no_dirty_rects", job.no_dirty_rects);
     // Segmented output (P4): the per-item windows are part of the output
     // contract, so two jobs with different windows are not the same job.
     append_int(fp, "out_output_segments_count",

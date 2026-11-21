@@ -30,6 +30,8 @@ namespace chronon3d {
 
 namespace chronon3d::cli {
 
+struct PreparedRenderPlanContext;
+
 /// RENDER_JOB dispatcher, registered by the render command group when it is
 /// linked into the executable. Unset by default so a render-less build
 /// answers RENDER_JOB with NotFound. Keeps chronon3d_cli_core free of any
@@ -45,8 +47,20 @@ namespace chronon3d::cli {
 using RenderJobDispatcher = std::function<ipc::Reply(
     const runtime::job::NormalizedRenderJob&,
     std::shared_ptr<SoftwareRenderer>,
-    std::shared_ptr<media::VideoJobExecutionContext>)>;
+    std::shared_ptr<media::VideoJobExecutionContext>,
+    std::shared_ptr<PreparedRenderPlanContext>)>;
 RenderJobDispatcher& render_job_dispatcher();
+
+/// Optional plan/CPU preparation registered by the render command group. The
+/// daemon core stays linkable without the render group and answers NotFound
+/// when this callback is absent. `existing_renderer` is borrowed shared state:
+/// preparers may use its CPU asset cache but must not create a renderer.
+using RenderJobPreparer = std::function<std::shared_ptr<PreparedRenderPlanContext>(
+    const runtime::job::NormalizedRenderJob&,
+    std::shared_ptr<SoftwareRenderer>,
+    std::string&,
+    std::optional<double>&)>;
+RenderJobPreparer& render_job_preparer();
 
 struct DaemonOptions {
     /// Root directory for asset resolution (fonts, images, etc.).
@@ -174,6 +188,10 @@ private:
     // RenderEngine mutation domain (asset import). The legacy prepared-plan
     // and overlay state was removed with the Composition executor.
     mutable std::mutex m_engine_mutex;
+    // Bound CPU plan preparation to one job per daemon. This stage is pure
+    // plan read/parse/compile and may run while the previous job owns GPU
+    // execution; image preparation and GPU promotion remain in execution.
+    mutable std::mutex m_plan_prepare_mutex;
     // Warm per-device session map. IPC workers run one thread per connection
     // (serve_concurrent), and the RENDER_JOB path does not hold any IPC
     // mutex; the map needs its own lock (audit N1).

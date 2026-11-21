@@ -83,6 +83,7 @@ namespace chronon3d {
     X(image_upload_wall_us) \
     X(image_draw_wall_us) \
     X(image_decode_count) \
+    X(image_post_decode_downscale_count) \
     X(image_upload_count) \
     X(image_draw_count)
 

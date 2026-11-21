@@ -51,6 +51,7 @@ runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& ar
     request.output_path = args.output;
     request.assets_root = args.assets_root;
     request.report = args.report;
+    request.no_dirty_rects = args.no_dirty_rects;
     request.backend = args.backend;
     request.trace.output = args.trace_output;
     request.trace.level = args.trace_level;
@@ -244,20 +245,27 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         }
         const auto& normalized_job = *args.normalized_request;
 
-        RenderPlanPreparationOptions options;
-        options.input = normalized_job.plan_path.string();
-        options.assets_root = normalized_job.assets_root.string();
-        options.prepared_package = normalized_job.prepared_package_path.string();
-        options.no_dirty_rects = args.no_dirty_rects;
-        options.text_layout_debug_json_path = args.text_layout_debug_json_path;
-        // Typed FullGraph and DirectYUV execute directly from CompiledProgram.
-        auto preparation = prepare_render_plan(options);
-        if (!preparation) {
-            spdlog::error("Render plan preparation failed: {}",
-                          preparation.error().message);
-            return 1;
+        std::shared_ptr<PreparedRenderPlanContext> prepared_plan =
+            std::move(args.prepared_plan);
+        if (!prepared_plan) {
+            RenderPlanPreparationOptions options;
+            options.input = normalized_job.plan_path.string();
+            options.assets_root = normalized_job.assets_root.string();
+            options.prepared_package = normalized_job.prepared_package_path.string();
+            options.no_dirty_rects = normalized_job.no_dirty_rects;
+            options.text_layout_debug_json_path = args.text_layout_debug_json_path;
+            // CLI single-shot jobs prepare here; daemon jobs pass a bounded
+            // CPU-prepared context from before their GPU admission lock.
+            auto preparation = prepare_render_plan(options);
+            if (!preparation) {
+                spdlog::error("Render plan preparation failed: {}",
+                              preparation.error().message);
+                return 1;
+            }
+            prepared_plan = std::make_shared<PreparedRenderPlanContext>(
+                std::move(preparation).value());
         }
-        auto context = std::move(preparation).value();
+        auto& context = *prepared_plan;
 
         if (context.decoded.audio &&
             (!normalized_job.output.gop_source.empty() ||
@@ -788,11 +796,14 @@ int execute_normalized_render_job(
     const CompositionRegistry& registry,
     runtime::job::NormalizedRenderJob job,
     std::shared_ptr<SoftwareRenderer> warm_renderer,
-    std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
+    std::shared_ptr<media::VideoJobExecutionContext> video_execution,
+    std::shared_ptr<PreparedRenderPlanContext> prepared_plan) {
     RenderPlanState state;
+    state.no_dirty_rects = job.no_dirty_rects;
     state.normalized_request = std::move(job);
     state.warm_renderer = std::move(warm_renderer);
     state.video_execution = std::move(video_execution);
+    state.prepared_plan = std::move(prepared_plan);
     return execute_render_plan(registry, state);
 }
 

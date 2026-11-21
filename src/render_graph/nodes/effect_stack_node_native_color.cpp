@@ -454,6 +454,24 @@ lower_native_color_effect(const effects::EffectInstance& instance,
         out.honors_clip = true;
         return out;
     }
+    case effects::EffectType::Scanlines: {
+        // Horizontal/vertical scanlines are a per-row triangle-wave luminance
+        // modulation, which the color-matrix kernel can evaluate from the
+        // destination coordinate. Values outside the software contract fail
+        // closed instead of being clamped into a different look.
+        const auto* p = std::get_if<ScanlinesParams>(&instance.params);
+        if (!p) return std::nullopt;
+        try {
+            p->validate();
+        } catch (const std::invalid_argument&) {
+            return std::nullopt;
+        }
+        out.transform.mode = NativeColorTransform::Mode::Scanlines;
+        out.transform.p[0] = {p->spacing_px, p->amount, p->phase,
+                              p->axis == 0 ? 0.0f : 1.0f};
+        out.honors_clip = true;
+        return out;
+    }
     case effects::EffectType::LightSweep: {
         const auto* p = std::get_if<LightSweepParams>(&instance.params);
         if (!p) return std::nullopt;

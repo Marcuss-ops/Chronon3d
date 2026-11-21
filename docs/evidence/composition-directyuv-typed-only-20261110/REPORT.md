@@ -1,6 +1,6 @@
 # Composition legacy executor — DirectYUV typed-only tranche (2026-11-10)
 
-**Ticket:** [TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION](../../tickets/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md)
+**Ticket:** [TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION](../../tickets/archive/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md)
 
 **Status:** CODE COMPLETE — working tree only, not committed; the parent ticket remains **ACTIVE**.
 

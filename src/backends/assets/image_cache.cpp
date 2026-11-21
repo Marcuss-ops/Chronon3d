@@ -1,4 +1,5 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/runtime/asset_prepare_policy.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/color/output_transform.hpp>
 #ifdef CHRONON3D_ENABLE_OCIO
@@ -34,13 +35,13 @@ namespace {
 // which aliased badly below ~2x. The authored asset is never modified.
 constexpr int kMaxImageDimension = 2048;
 
-void downscale_for_runtime(image::ImageBuffer& buffer, int max_dimension) {
+bool downscale_for_runtime(image::ImageBuffer& buffer, int max_dimension) {
     const int cap = max_dimension > 0
         ? std::min(max_dimension, kMaxImageDimension)
         : kMaxImageDimension;
     if (!buffer.has_pixels() || buffer.width <= 0 || buffer.height <= 0 ||
         std::max(buffer.width, buffer.height) <= cap) {
-        return;
+        return false;
     }
 
     const double scale = static_cast<double>(cap) /
@@ -68,44 +69,57 @@ void downscale_for_runtime(image::ImageBuffer& buffer, int max_dimension) {
         }
     };
     const auto downsample = [&](auto* source, auto* target) {
-        for (int y = 0; y < target_height; ++y) {
-            const double src_y0 = (static_cast<double>(y) / target_height) * buffer.height;
-            const double src_y1 = (static_cast<double>(y + 1) / target_height) * buffer.height;
-            const int y0 = std::min(buffer.height - 1, static_cast<int>(src_y0));
-            const int y1 = std::min(buffer.height, std::max(y0 + 1, static_cast<int>(std::ceil(src_y1))));
-            for (int x = 0; x < target_width; ++x) {
-                const double src_x0 = (static_cast<double>(x) / target_width) * buffer.width;
-                const double src_x1 = (static_cast<double>(x + 1) / target_width) * buffer.width;
-                const int x0 = std::min(buffer.width - 1, static_cast<int>(src_x0));
-                const int x1 = std::min(buffer.width, std::max(x0 + 1, static_cast<int>(std::ceil(src_x1))));
+        // Each output row is independent. Parallelize the runtime resize so a
+        // single oversized image does not leave the asset barrier serial when
+        // there are no other unique images to decode alongside it.
+        const auto process_rows = [&](int begin, int end) {
+                for (int y = begin; y < end; ++y) {
+                    const double src_y0 = (static_cast<double>(y) / target_height) * buffer.height;
+                    const double src_y1 = (static_cast<double>(y + 1) / target_height) * buffer.height;
+                    const int y0 = std::min(buffer.height - 1, static_cast<int>(src_y0));
+                    const int y1 = std::min(buffer.height, std::max(y0 + 1, static_cast<int>(std::ceil(src_y1))));
+                    for (int x = 0; x < target_width; ++x) {
+                        const double src_x0 = (static_cast<double>(x) / target_width) * buffer.width;
+                        const double src_x1 = (static_cast<double>(x + 1) / target_width) * buffer.width;
+                        const int x0 = std::min(buffer.width - 1, static_cast<int>(src_x0));
+                        const int x1 = std::min(buffer.width, std::max(x0 + 1, static_cast<int>(std::ceil(src_x1))));
 
-                double acc[4] = {0.0, 0.0, 0.0, 0.0};
-                double weight_sum = 0.0;
-                for (int sy = y0; sy < y1; ++sy) {
-                    const double wy = std::min(src_y1, static_cast<double>(sy) + 1.0) -
-                                      std::max(src_y0, static_cast<double>(sy));
-                    for (int sx = x0; sx < x1; ++sx) {
-                        const double wx = std::min(src_x1, static_cast<double>(sx) + 1.0) -
-                                          std::max(src_x0, static_cast<double>(sx));
-                        const double weight = wx * wy;
-                        if (weight <= 0.0) {
-                            continue;
+                        double acc[4] = {0.0, 0.0, 0.0, 0.0};
+                        double weight_sum = 0.0;
+                        for (int sy = y0; sy < y1; ++sy) {
+                            const double wy = std::min(src_y1, static_cast<double>(sy) + 1.0) -
+                                              std::max(src_y0, static_cast<double>(sy));
+                            for (int sx = x0; sx < x1; ++sx) {
+                                const double wx = std::min(src_x1, static_cast<double>(sx) + 1.0) -
+                                                  std::max(src_x0, static_cast<double>(sx));
+                                const double weight = wx * wy;
+                                if (weight <= 0.0) {
+                                    continue;
+                                }
+                                const auto source_offset =
+                                    (static_cast<std::size_t>(sy) * buffer.width + sx) * 4;
+                                for (int c = 0; c < 4; ++c) {
+                                    const double value = static_cast<double>(source[source_offset + c]);
+                                    acc[c] += value * weight;
+                                }
+                                weight_sum += weight;
+                            }
                         }
-                        const auto source_offset =
-                            (static_cast<std::size_t>(sy) * buffer.width + sx) * 4;
+
+                        const auto target_offset = (static_cast<std::size_t>(y) * target_width + x) * 4;
                         for (int c = 0; c < 4; ++c) {
-                            const double value = static_cast<double>(source[source_offset + c]);
-                            acc[c] += value * weight;
+                            store_mean(target, target_offset + c, acc[c] / weight_sum);
                         }
-                        weight_sum += weight;
                     }
                 }
-
-                const auto target_offset = (static_cast<std::size_t>(y) * target_width + x) * 4;
-                for (int c = 0; c < 4; ++c) {
-                    store_mean(target, target_offset + c, acc[c] / weight_sum);
-                }
-            }
+        };
+        if (runtime::detail::asset_prepare_serial_override_enabled()) {
+            process_rows(0, target_height);
+        } else {
+            tbb::parallel_for(tbb::blocked_range<int>(0, target_height),
+                [&](const tbb::blocked_range<int>& rows) {
+                    process_rows(rows.begin(), rows.end());
+                });
         }
     };
     if (buffer.pixels) {
@@ -118,6 +132,7 @@ void downscale_for_runtime(image::ImageBuffer& buffer, int max_dimension) {
                  buffer.width, buffer.height, target_width, target_height, cap);
     buffer.width = target_width;
     buffer.height = target_height;
+    return true;
     buffer.pixels = std::move(resized_bytes);
     buffer.linear_pixels = std::move(resized_linear);
 }
@@ -218,7 +233,11 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
 #endif
 
     spdlog::warn("[imgprof] decode={:.1f}ms", profiling::elapsed_ms(t0));
-    downscale_for_runtime(*buffer, options.max_dimension);
+    if (downscale_for_runtime(*buffer, options.max_dimension) &&
+        profiling::g_current_counters) {
+        profiling::g_current_counters->image_post_decode_downscale_count.fetch_add(
+            1, std::memory_order_relaxed);
+    }
     spdlog::warn("[imgprof] downscale={:.1f}ms", profiling::elapsed_ms(t0));
 
     auto entry = std::make_shared<CachedImage>();

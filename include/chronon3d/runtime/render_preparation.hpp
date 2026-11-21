@@ -51,6 +51,7 @@ struct RenderPreparationTimings {
     std::optional<double> image_convert_ms;
     std::optional<double> image_upload_ms;
     std::optional<uint64_t> image_decode_count;
+    std::optional<uint64_t> image_post_decode_downscale_count;
     std::optional<uint64_t> image_upload_count;
 
     // ── Cache efficiency during the prepare barrier (decode/font load) ────
@@ -90,6 +91,7 @@ struct RenderPreparationTimings {
             if (src) dst = dst ? std::optional<uint64_t>{*dst + *src} : src;
         };
         add_u64(image_decode_count, other.image_decode_count);
+        add_u64(image_post_decode_downscale_count, other.image_post_decode_downscale_count);
         add_u64(image_upload_count, other.image_upload_count);
         add_u64(image_cache_hits, other.image_cache_hits);
         add_u64(image_cache_misses, other.image_cache_misses);

@@ -13,9 +13,13 @@ extern "C" {
 #include <libavutil/hwcontext_cuda.h>
 }
 
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <atomic>
+#include <cstdlib>
 #include <stdexcept>
 #include <mutex>
 #include <spdlog/spdlog.h>
+#include <string_view>
 #include <vector>
 
 namespace chronon3d::backends::vulkan {
@@ -54,6 +58,63 @@ public:
         const auto* frame = static_cast<const AVFrame*>(view.frame);
         if (!frame->data[0] || !frame->data[1]) return nullptr;
 
+        // PERF-DISPATCH-01 — the native video import is the per-frame cost the
+        // dispatch counter actually pays on decoded layers. The four phases
+        // below are timed independently behind an opt-in env gate so the cost
+        // can be attributed instead of guessed.
+        static const bool diag_import = [] {
+            const char* value = std::getenv("CHRONON3D_DIAG_IMPORT");
+            if (!value) return false;
+            const std::string_view setting(value);
+            return !setting.empty() && setting != "0" && setting != "false" &&
+                   setting != "off";
+        }();
+        // PERF-DISPATCH-02 — the four phases must be sampled at regime, not on
+        // the first calls, which still pay one-time surface creation. With
+        // CHRONON3D_DIAG_IMPORT_FRAMES="first-last" (inclusive, same syntax as
+        // CHRONON3D_DIAG_EXEC_FRAMES) the window applies to the import-call
+        // sequence, one call per rendered frame. Unset keeps the historical
+        // first twelve calls. Parsed once, only when the gate is on.
+        struct ImportWindow {
+            std::int64_t first{-1};
+            std::int64_t last{-1};
+        };
+        static const ImportWindow import_window = [] {
+            ImportWindow window{};
+            const char* value = std::getenv("CHRONON3D_DIAG_IMPORT_FRAMES");
+            if (!value) return window;
+            const std::string_view setting(value);
+            if (setting.empty()) return window;
+            const auto to_int = [](std::string_view text,
+                                   std::int64_t fallback) noexcept {
+                if (text.empty()) return fallback;
+                std::int64_t parsed = 0;
+                for (const char c : text) {
+                    if (c < '0' || c > '9') return fallback;
+                    parsed = parsed * 10 + (c - '0');
+                }
+                return parsed;
+            };
+            const auto dash = setting.find('-');
+            window.first = dash == std::string_view::npos
+                ? to_int(setting, window.first)
+                : to_int(setting.substr(0, dash), window.first);
+            window.last = dash == std::string_view::npos
+                ? window.first
+                : to_int(setting.substr(dash + 1), window.first);
+            if (window.first < 0) return ImportWindow{};
+            if (window.last < window.first) window.last = window.first;
+            return window;
+        }();
+        static std::atomic<std::uint64_t> diag_calls{0};
+        const std::uint64_t import_call =
+            diag_import ? diag_calls.fetch_add(1) : 0;
+        const bool diag = diag_import &&
+            (import_window.first < 0
+                 ? import_call < 12
+                 : (static_cast<std::int64_t>(import_call) >= import_window.first &&
+                    static_cast<std::int64_t>(import_call) <= import_window.last));
+        const auto t_slot0 = diag ? profiling::now() : profiling::Clock::time_point{};
         auto& slot = slots_[next_slot_++ % slots_.size()];
         if (slot.pending) {
             // A slot is reusable only after both halves of the external
@@ -62,14 +123,30 @@ public:
             // P1 (TICKET-PERF-P1): only the slots that recorded this surface
             // must be idle before CUDA rewrites it.  The former full-ring drain
             // stalled the five frames still in flight every ring turn.
-            if (!backend_.wait_for_surface_idle(slot.surface) ||
-                !slot.compositor || !slot.compositor->synchronize()) {
+            // PERF-DISPATCH-02 — the drain is the whole cost of the import
+            // (conversion and handoff are ~0.05 ms), so the two halves are
+            // timed separately: the Vulkan side (downstream render still using
+            // the surface) and the CUDA side (the compositor stream, which the
+            // conversion kernel shares with the decoder stream).
+            const auto t_drain0 = diag ? profiling::now() : profiling::Clock::time_point{};
+            const bool idle_ok = backend_.wait_for_surface_idle(slot.surface);
+            const auto t_drain1 = diag ? profiling::now() : profiling::Clock::time_point{};
+            const bool sync_ok = idle_ok && slot.compositor != nullptr &&
+                                 slot.compositor->synchronize();
+            const auto t_drain2 = diag ? profiling::now() : profiling::Clock::time_point{};
+            if (!idle_ok || !slot.compositor || !sync_ok) {
                 spdlog::error("[native-import] pending slot {} generation {} did not drain",
                               slot.index, slot.generation);
                 return nullptr;
             }
+            if (diag) {
+                spdlog::info("[native-import-drain] slot={} idle_ms={:.3f} sync_ms={:.3f}",
+                             slot.index, profiling::duration_ms(t_drain0, t_drain1),
+                             profiling::duration_ms(t_drain1, t_drain2));
+            }
             slot.pending = false;
         }
+        const auto t_slot1 = diag ? profiling::now() : profiling::Clock::time_point{};
         if (slot.surface != runtime::kInvalidRenderSurfaceHandle &&
             (!registry_.lookup(slot.surface) ||
              !backend_.is_native_surface_valid(slot.surface))) {
@@ -146,13 +223,24 @@ public:
             spdlog::error("[native-import] CUDA compositor unavailable");
             return nullptr;
         }
-        if (!slot.compositor->composite(
-                reinterpret_cast<CUdeviceptr>(frame->data[0]), frame->linesize[0],
-                reinterpret_cast<CUdeviceptr>(frame->data[1]), frame->linesize[1],
-                view.width, view.height, decode_stream, format, params) ||
-            !backend_.prepare_cuda_surface_for_vulkan(slot.surface).ok()) {
+        const auto t_comp0 = diag ? profiling::now() : profiling::Clock::time_point{};
+        const bool composed = slot.compositor->composite(
+            reinterpret_cast<CUdeviceptr>(frame->data[0]), frame->linesize[0],
+            reinterpret_cast<CUdeviceptr>(frame->data[1]), frame->linesize[1],
+            view.width, view.height, decode_stream, format, params);
+        const auto t_comp1 = diag ? profiling::now() : profiling::Clock::time_point{};
+        if (!composed || !backend_.prepare_cuda_surface_for_vulkan(slot.surface).ok()) {
             spdlog::error("[native-import] CUDA NV12 composite or Vulkan sync failed");
             return nullptr;
+        }
+        if (diag) {
+            spdlog::info(
+                "[native-import-diag] slot={} drain_ms={:.3f} setup_ms={:.3f} "
+                "composite_ms={:.3f} handoff_ms={:.3f}",
+                slot.index, profiling::duration_ms(t_slot0, t_slot1),
+                profiling::duration_ms(t_slot1, t_comp0),
+                profiling::duration_ms(t_comp0, t_comp1),
+                profiling::duration_ms(t_comp1, profiling::now()));
         }
         slot.pending = true;
         ++slot.generation;

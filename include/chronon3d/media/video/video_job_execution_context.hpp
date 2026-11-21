@@ -5,6 +5,7 @@
 #include <chronon3d/media/video/video_device_runtime.hpp>
 
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -107,6 +108,10 @@ struct VideoJobExecutionContext {
     std::shared_ptr<VideoRuntimeRegistry> video_runtimes;
     std::shared_ptr<PersistentVideoRenderState> persistent_render_state;
     runtime::DeviceId device_id{0};
+    /// CPU image-cache population performed before daemon execution admission.
+    /// The exporter folds it into prepare timings so overlapped work remains
+    /// visible in per-job receipts and sidecars.
+    std::optional<double> prelock_image_decode_ms;
     std::uint32_t physical_device_index{0};
     std::int32_t cuda_device_ordinal{-1};
     /// Wall anchor of the render request inside a persistent daemon: the

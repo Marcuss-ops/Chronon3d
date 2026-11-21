@@ -53,13 +53,17 @@ RUN --mount=type=cache,id=chronon-vcpkg-archives,target=/root/.cache/vcpkg/archi
 # below — advance the pins together with the plugin.
 FROM deps AS maps
 
+# EditorialMapPack uses the same bundled fonts as Chronon3d. Keep their build
+# and install paths available while the standalone map renderer is packaged.
+COPY assets/fonts/ /src/chronon3d/assets/fonts/
+
 ARG CHRONONPLUGIN_REF=5e33bd09283fdf728803b1305ee1399b7ba84124
 ARG CHRONONTEMPLATE_REF=7812872e7c9ade2ce0202025be3d09478f438324
 
 # python3 is only needed at build time: the plugin's CMake registers the
 # parity-gate tests behind a Python interpreter. None of it reaches the image.
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
-        libopencv-dev python3 \
+        libopencv-dev libfreetype-dev python3 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN git clone https://github.com/Marcuss-ops/ChrononPlugin.git /src/chrononplugin \

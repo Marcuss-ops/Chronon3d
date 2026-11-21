@@ -3,7 +3,7 @@
 - **Stato:** DONE — 2026-11-16 (lane software; CI same-SHA resta esterna)
 - **Ambito:** Chronon3d, `render --plan` CLI, `compiler::compile` → `SceneMaterializer`, path SVG importati e animazioni degli operatori path/SVG
 - **Origine:** chiusura area SVG del 2026-11-16; sei gate path/motion falliscono mentre gli otto gate di testo passano
-- **Parent:** [TICKET-SVG-RENDER-PLAN.md](TICKET-SVG-RENDER-PLAN.md)
+- **Parent:** [TICKET-SVG-RENDER-PLAN.md](../TICKET-SVG-RENDER-PLAN.md)
 
 ## Sintomo misurato
 

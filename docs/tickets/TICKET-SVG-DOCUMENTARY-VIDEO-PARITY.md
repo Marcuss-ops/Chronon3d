@@ -13,7 +13,7 @@ supplied video.
 sulla CLI Release corrente (tutti i campioni a 0) e il path SVG statico non
 viene materializzato; l'evidenza "path trim sampling" sopra non è riproducibile
 su questa lane. Vedi
-[TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
+[TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](archive/TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
 
 ## TODO — cosa manca (agg. 2026-10-28)
 

@@ -44,6 +44,9 @@ void build_diagnostics_sections(
     const auto put_rt_f = [&runtime](const char* key, const std::optional<double>& value) {
         if (value) runtime[key] = *value; else runtime[key] = nullptr;
     };
+    const auto put_rt_bool = [&runtime](const char* key, const std::optional<bool>& value) {
+        if (value) runtime[key] = *value; else runtime[key] = nullptr;
+    };
     put_rt_u64("video_runtime_created", timings.runtime.video_runtime_created);
     put_rt_u64("video_runtime_reused", timings.runtime.video_runtime_reused);
     put_rt_u64("cuda_hwdevice_created", timings.runtime.cuda_hwdevice_created);
@@ -53,6 +56,7 @@ void build_diagnostics_sections(
     put_rt_u64("cuda_image_cache_hit", timings.runtime.cuda_image_cache_hit);
     put_rt_u64("cuda_image_cache_miss", timings.runtime.cuda_image_cache_miss);
     put_rt_f("encoder_open_nvenc_ms", timings.runtime.encoder_open_nvenc_ms);
+    put_rt_bool("codec_session_adopted", timings.runtime.codec_session_adopted);
     const uint64_t rt_created = timings.runtime.video_runtime_created.value_or(uint64_t{0});
     const uint64_t rt_reused = timings.runtime.video_runtime_reused.value_or(uint64_t{0});
     runtime["runtime_reuse_ratio"] = (rt_created + rt_reused > 0)

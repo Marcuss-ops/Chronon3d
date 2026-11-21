@@ -5,7 +5,7 @@
 - **Data:** 2026-11-16
 - **Ambito:** Chronon3d — encoder native sink, mux session, render receipt. Consumatore: RenderingGen (`canonicalizePreparedOutputs`)
 - **Owner:** Chronon3d encoder/muxer owner
-- **Coordina:** [`TICKET-FINAL-JOB-BITSTREAM-REUSE-2026-11-01`](../../../refactored/docs/operations/TICKET-FINAL-JOB-BITSTREAM-REUSE-2026-11-01.md) (P1/P5); RenderingGen [`canonical_overlay.go`](../../../RenderingGen/renderinggen/internal/processor/canonical_overlay.go)
+- **Coordina:** [`TICKET-FINAL-JOB-BITSTREAM-REUSE-2026-11-01`](../../../../refactored/docs/operations/TICKET-FINAL-JOB-BITSTREAM-REUSE-2026-11-01.md) (P1/P5); RenderingGen [`canonical_overlay.go`](../../../../RenderingGen/renderinggen/internal/processor/canonical_overlay.go)
 - **Tipo:** engine feature + certificazione di byte-identità; nessun cambio di schema RenderPlan, nessun secondo renderer
 
 > Evidenza di codice letta sull'albero di lavoro al 2026-11-16. Non è una

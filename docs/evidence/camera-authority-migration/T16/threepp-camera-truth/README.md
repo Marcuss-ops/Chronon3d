@@ -5,7 +5,7 @@ using Mesa D3D12 on the WSL NVIDIA RTX 4060 Ti. The output metadata reports
 `D3D12 (NVIDIA GeForce RTX 4060 Ti)`; this is the device check for the run.
 The contact sheet covers frames 0, 30, 75, 120, and 149, plus the 180°
 shutter result. Full sample frames, ablation images, and machine-readable
-measurements are in [`current-wsl-rtx-4060-ti/`](current-wsl-rtx-4060-ti/).
+measurements are in [`current-wsl-rtx-4060-ti/`](current-wsl-rtx-4060-ti).
 
 Run from `ChrononMotion3D/`:
 

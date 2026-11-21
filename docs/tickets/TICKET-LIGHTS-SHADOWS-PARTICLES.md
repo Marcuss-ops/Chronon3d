@@ -50,7 +50,7 @@ stabile in tutte le cinque repliche di ciascuna modalità. Ripetuto il
 2026-10-30 sul binario finale SHA-256
 `67b8c1d5ed32160b4d33a32d1e996ecfe20d981690a407da0802a2f12e6212d4`:
 5/5 off + 5/5 on, gate **30/30 PASS**, stessi valori e hash RGB decodificato identico per modalità (`bb1bd061…` off, `46c38550…` on); artefatti in
-[`closeout-20261030/t05/`](../evidence/closeout-20261030/t05/).
+[`closeout-20261030/t05/`](../evidence/closeout-20261030/t05).
 
 Le cause corrette già nel codice corrente sono distinte: dispatch concorrente
 su command buffer/pool condivisi (serializzazione dei nodi nativi) e dipendenza
@@ -83,7 +83,7 @@ aperte. Le sezioni successive sono cronologia, non stato dell'ultimo rerun.
 
 - Il RenderPlan A/B C3D software produce pixel validi e modifica i pixel del
   receiver quando i caster sono attivi. Evidenza e metriche:
-  [`T05 C3D shadow investigation`](../evidence/lights-shadows/T05-c3d-production-20261022/).
+  [`T05 C3D shadow investigation`](../evidence/lights-shadows/T05-c3d-production-20261022).
 - La qualità non è certificata: nella scena di verifica le ombre sul pavimento
   hanno contrasto debole e il confronto con gap caster/receiver ridotto non lo
   migliora. Non è una composizione di produzione approvata.

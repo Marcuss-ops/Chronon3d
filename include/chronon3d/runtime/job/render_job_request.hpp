@@ -125,6 +125,11 @@ struct RenderJobRequest {
     std::string receipt_verification;
     std::string backend{std::string{media::kDefaultBackend}};
     bool report{false};
+    /// Disable dirty-rectangle invalidation for this job. It is a rendering
+    /// optimization, not a plan property: the CLI flag `--no-dirty-rects` and
+    /// the IPC payload key `no_dirty_rects` carry the same intent, so a worker
+    /// on either transport can opt out of the per-frame dirty-rect update.
+    bool no_dirty_rects{false};
 };
 
 struct RuntimeCapabilities {
@@ -176,6 +181,7 @@ struct NormalizedRenderJob {
     std::string receipt_verification;
     std::string backend{std::string{media::kDefaultBackend}};
     bool report{false};
+    bool no_dirty_rects{false};
 
     /// Final policy decision consumed by the execution adapter. No transport
     /// layer is allowed to resolve these fields again.

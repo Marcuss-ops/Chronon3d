@@ -23,6 +23,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <memory>
@@ -147,6 +148,29 @@ TEST_CASE("display bound never upscales and leaves small images untouched") {
     REQUIRE(image->valid());
     CHECK(image->width == 200);
     CHECK(image->height == 150);
+}
+
+TEST_CASE("parallel display-bound downscale is bit-stable across decodes") {
+    const std::string path = fixture().solid_png(
+        1279, 719, "parallel-stable.png", 0.31f, 0.57f, 0.83f);
+    auto first_cache = make_cache();
+    auto second_cache = make_cache();
+    ImageDecodeOptions bounded;
+    bounded.max_dimension = 257;
+
+    const auto first = first_cache->get_or_load(path, bounded);
+    const auto second = second_cache->get_or_load(path, bounded);
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+    REQUIRE(first->valid());
+    REQUIRE(second->valid());
+    REQUIRE(first->width == second->width);
+    REQUIRE(first->height == second->height);
+    const auto first_pixels = first->gpu_rgba_span();
+    const auto second_pixels = second->gpu_rgba_span();
+    REQUIRE(first_pixels.size() == second_pixels.size());
+    CHECK(std::equal(first_pixels.begin(), first_pixels.end(),
+                     second_pixels.begin()));
 }
 
 TEST_CASE("different display bounds are different cache entries") {

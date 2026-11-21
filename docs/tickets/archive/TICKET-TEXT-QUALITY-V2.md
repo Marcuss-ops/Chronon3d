@@ -5,7 +5,7 @@ stantio, vedi §3; il gate GPU è ora `tools/verify_text_tile_gpu_canary.sh`).
 Verifiche di codice: PASS; diagnostico di attribuzione P0-0: **ESEGUITO**, esito
 in §4.1. **P0-0b (verità pre-encode): PASS 2026-10-21** — il PNG fedele è
 una proiezione del raw sink (`tools/raw_frame_to_png.py`, evidenza
-[`docs/evidence/pre-encode-pixel-truth-2026-09-17.md`](../evidence/pre-encode-pixel-truth-2026-09-17.md));
+[`docs/evidence/pre-encode-pixel-truth-2026-09-17.md`](../../evidence/pre-encode-pixel-truth-2026-09-17.md));
 eseguita anche sul frame 75 del render T16 reale il 2026-10-21 (raw RGBA Vulkan
 convertito verbatim in PNG; confronto contro i frame sequenziale e random
 NVENC in `docs/evidence/camera-authority-migration/T16/README.md`). Questo
@@ -83,7 +83,7 @@ build del target alle 07:00 UTC, mentre l'ABI fix `5b59cfd48` ("restore text til
 canary ABI contract") atterra alle 16:33 UTC; il target era escluso da ogni
 gate, quindi nessuno lo ricostruiva dopo il fix. Ricostruito dallo stesso albero:
 **78/78, 0 failed, 0 skipped, tre run identici**. Evidenza:
-[`docs/evidence/text-tile-canary-2026-09-16.md`](../evidence/text-tile-canary-2026-09-16.md);
+[`docs/evidence/text-tile-canary-2026-09-16.md`](../../evidence/text-tile-canary-2026-09-16.md);
 gate GPU/WBH: `tools/verify_text_tile_gpu_canary.sh`.
 
 La suite resta **fuori** dalla lane headless `vulkan-gated-unit`: quella gira su
@@ -113,14 +113,14 @@ Letture: PSNR/SSIM decoded-vs-PNG (peso encode/chroma) e profilo del bordo
 encode/chroma; FullGraph pulito + DirectYUV no → compositing/color path; PNG
 sporco → rasterizzatore. Shadow e stroke vanno ripetuti ON/OFF separatamente.
 
-### 4.1 Esito (evidenza: [`docs/evidence/text-quality-attribution-2026-09-16.md`](../evidence/text-quality-attribution-2026-09-16.md))
+### 4.1 Esito (evidenza: [`docs/evidence/text-quality-attribution-2026-09-16.md`](../../evidence/text-quality-attribution-2026-09-16.md))
 
 | Leg | Esito | Numero |
 |---|---|---|
 | Lane usata dai job reali | PASS | **24/24 FullGraph, 0 DirectYUV** in 30 min; `require_direct_yuv` → `FAIL_CLOSED` (`requires_full_frame_rgba`) |
 | Peso dell'encode su overlay | PASS | produzione vs HQ (`qp18/p5`) = **53.30 dB**, `mean|d| 0.034/255`, 16 pixel oltre 64/255 su 2 073 600 |
 | Verità pre-encode (PNG still) | **FAIL** | il frame PNG è **uniforme** (`uniq=1`, luma 0.498): la via still **non compone il testo** → nessuna certificazione pixel-level possibile |
-| VRAM shape overlay | PASS | **592 / 593 MiB** delta per job attivo, due run indipendenti (la calibrazione 8.8 GB non copre questa shape). **Aggiornato 2026-09-16:** il probe è stato **promosso** da strumento one-off a harness riproducibile — `cmd/vram-probe -mode two-runtime-pool` + evidenza [`docs/evidence/vram-two-runtime-pool-2026-09-16.md`](../evidence/vram-two-runtime-pool-2026-09-16.md) — con **due pool caldi posseduti** e fasi etichettate. Non è ancora un gate pass/fail: il passo successivo è la **telemetria interna degli allocator**, perché su host condiviso il contatore device-wide varia di oltre 3× a parità di attribuzione per processo |
+| VRAM shape overlay | PASS | **592 / 593 MiB** delta per job attivo, due run indipendenti (la calibrazione 8.8 GB non copre questa shape). **Aggiornato 2026-09-16:** il probe è stato **promosso** da strumento one-off a harness riproducibile — `cmd/vram-probe -mode two-runtime-pool` + evidenza [`docs/evidence/vram-two-runtime-pool-2026-09-16.md`](../../evidence/vram-two-runtime-pool-2026-09-16.md) — con **due pool caldi posseduti** e fasi etichettate. Non è ancora un gate pass/fail: il passo successivo è la **telemetria interna degli allocator**, perché su host condiviso il contatore device-wide varia di oltre 3× a parità di attribuzione per processo |
 | Budget daemon | PASS (parziale) | 1 280 ms per job non attribuiti da nessun timer; receipt 284 ms + 253 ms (verifica doppia); `CHRONON_RENDER_JOB_SLOTS=2` è no-op |
 
 Conseguenze sul piano, in ordine:
@@ -142,9 +142,9 @@ Conseguenze sul piano, in ordine:
 | Priorità | Lavoro | Gate |
 |---|---|---|
 | ~~P0-0~~ | Diagnostico §4 — **eseguito** (evidenza in `docs/evidence/`) | PASS/FAIL registrati |
-| P0-0b | **Verità pre-encode** — **PASS 2026-10-21**: via immagine non canonica ([chiusa 2026-09-17](../evidence/pre-encode-pixel-truth-2026-09-17.md), exit condition 2); PNG fedele proiettato dal raw sink con `tools/raw_frame_to_png.py` su frame 75 del render T16 reale. | Il campione non compresso è confrontato con gli output NVENC sequenziale e random; `README.md` in `docs/evidence/camera-authority-migration/T16/` registra differenze e comando. Questo chiude la prova pre-encode, non i gate di resa P1/P2. |
+| P0-0b | **Verità pre-encode** — **PASS 2026-10-21**: via immagine non canonica ([chiusa 2026-09-17](../../evidence/pre-encode-pixel-truth-2026-09-17.md), exit condition 2); PNG fedele proiettato dal raw sink con `tools/raw_frame_to_png.py` su frame 75 del render T16 reale. | Il campione non compresso è confrontato con gli output NVENC sequenziale e random; `README.md` in `docs/evidence/camera-authority-migration/T16/` registra differenze e comando. Questo chiude la prova pre-encode, non i gate di resa P1/P2. |
 | ~~P0-1~~ | Canary text tile verde (§3) — **CHIUSO 2026-09-16** | suite verde su GPU, **78/78**, 3 run; gate `tools/verify_text_tile_gpu_canary.sh` |
-| P0-2 | **CHIUSO 2026-09-17** — `parse_hex_color()` converte CSS/sRGB in linear una sola volta al lowering, prima dei backend | test `Color contract: CSS hex is lowered to canonical linear space`, `#808080` → ≈0.21586; evidenza [`color-contract-framehash-2026-09-17.md`](../evidence/color-contract-framehash-2026-09-17.md) |
+| P0-2 | **CHIUSO 2026-09-17** — `parse_hex_color()` converte CSS/sRGB in linear una sola volta al lowering, prima dei backend | test `Color contract: CSS hex is lowered to canonical linear space`, `#808080` → ≈0.21586; evidenza [`color-contract-framehash-2026-09-17.md`](../../evidence/color-contract-framehash-2026-09-17.md) |
 | P0-3 | **CONTRATTO GIÀ ATTERRATO** — resolver NVENC fail-closed per rate control/preset e `validate_for_benchmark()` rifiuta `driver-default`; doctor osserva le capability FFmpeg | `tests/cli/test_encoder_config_resolution.cpp`, `docs/RELEASE_GATE.md`; nessun nuovo resolver |
 | ~~P1-1~~ | **IMPLEMENTATO** — DirectYUV usa `field_px + 0.5` come rampa di coverage (`src/media/video/compositor/cuda/cuda_nv12_kernels.hpp:439`); la matrice CUDA/Vulkan include il contratto fill e la parità per stroke (`tests/media/nv12/nv12_equivalence_test.cpp:709,730`) | Test e gate esistenti; non rieseguiti in questo audit |
 | ~~P1-2~~ | **IMPLEMENTATO** — Vulkan usa `atlas_tap_bilinear()` con clamp al rect del glifo (`src/backends/vulkan/shaders/text_tile_raster.comp:101,319`) e coverage texel→screen (`:232-253,335`); DirectYUV interpola quattro tap nel rect sorgente (`src/media/video/compositor/cuda/cuda_nv12_kernels.hpp:277-303`) | Canary include campionamento frazionario e confine del rect (`tests/backends/test_text_tile_raster_canary.cpp:780-820`); non rieseguito in questo audit |

@@ -109,6 +109,9 @@ public:
     /// (CHRONON_ENCODER_SESSION_REUSE=1). Survives close() so tests and
     /// telemetry can pin whether an item actually reused a session.
     [[nodiscard]] bool codec_session_adopted() const { return codec_session_adopted_; }
+    [[nodiscard]] std::optional<bool> codec_session_adoption_metric() const override {
+        return codec_session_adopted_;
+    }
     [[nodiscard]] EncoderFrameTelemetry last_frame_telemetry() const override { return last_frame_telemetry_; }
 
     [[nodiscard]] double native_convert_ms()          const override { return native_convert_ms_; }

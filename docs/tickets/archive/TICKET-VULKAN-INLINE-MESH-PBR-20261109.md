@@ -5,7 +5,7 @@
 - **Data:** 2026-11-09
 - **Ambito:** Chronon3d Vulkan strict-native; inline mesh V3; consumatore del bridge ChrononMotion3D
 - **Owner:** Chronon3d Vulkan inline-mesh owner
-- **Parent:** [TICKET-RENDER-STACK-HARDENING-20261106](TICKET-RENDER-STACK-HARDENING-20261106.md) W3; [TICKET-CM3D-REMAINING-WORK-20261106](../../../ChrononMotion3D/docs/tickets/TICKET-CM3D-REMAINING-WORK-20261106.md) §4/§7
+- **Parent:** [TICKET-RENDER-STACK-HARDENING-20261106](../TICKET-RENDER-STACK-HARDENING-20261106.md) W3; [TICKET-CM3D-REMAINING-WORK-20261106](../../../../ChrononMotion3D/docs/tickets/TICKET-CM3D-REMAINING-WORK-20261106.md) §4/§7
 - **Tipo:** engine feature + pixel certification; nessun cambio di schema RenderPlan, nessun secondo renderer
 
 > Evidenza di codice letta sull'albero di lavoro al 2026-11-09. Non è una

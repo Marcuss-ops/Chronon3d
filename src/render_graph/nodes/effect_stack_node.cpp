@@ -295,8 +295,10 @@ NodeExecResult EffectStackNode::execute(
             Framebuffer* current_source_framebuffer =
                 native_source_available ? inputs[0].get() : nullptr;
             bool current_source_owned = false;
+            std::size_t stage_index = 0;
             for (const auto& effect : active_effects) {
                 if (!native_handled) continue;
+                const std::size_t current_stage = stage_index++;
                 EffectStack one_effect;
                 one_effect.push_back(effect);
                 bool stage_handled = false;
@@ -318,7 +320,8 @@ NodeExecResult EffectStackNode::execute(
                     break;
                 case effects::EffectType::Sharpen:
                     stage_handled = native_effects::try_native_full_frame_sharpen(
-                        ctx, one_effect, *result, native_clip, current_source);
+                        ctx, one_effect, *result, native_clip, current_source,
+                        current_source_framebuffer);
                     break;
                 case effects::EffectType::DirectionalBlur:
                     stage_handled = native_effects::try_native_full_frame_directional_blur(
@@ -375,7 +378,8 @@ NodeExecResult EffectStackNode::execute(
                 case effects::EffectType::LuminanceResponse:
                 case effects::EffectType::CreaseShading:
                     stage_handled = native_effects::try_native_full_frame_generate_bulk(
-                        ctx, one_effect, *result, native_clip, current_source);
+                        ctx, one_effect, *result, native_clip, current_source,
+                        current_source_framebuffer);
                     break;
                 case effects::EffectType::Curves:
                 case effects::EffectType::Lut3D:
@@ -425,6 +429,14 @@ NodeExecResult EffectStackNode::execute(
                     break;
                 }
                 if (!stage_handled) {
+                    if (std::getenv("CHRONON3D_PATH_DIAG")) {
+                        spdlog::warn(
+                            "[native-effect-stack-diag] stage rejected name={} stage={} effect={} "
+                            "source={} source_cpu={} result={}x{}",
+                            name(), current_stage, static_cast<int>(effect.effect_type),
+                            current_source, current_source_framebuffer != nullptr,
+                            result->width(), result->height());
+                    }
                     native_handled = false;
                     break;
                 }
@@ -471,7 +483,8 @@ NodeExecResult EffectStackNode::execute(
             // backends fall through to their registered software processor.
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_sharpen(
-                    ctx, active_effects, *result, native_clip, native_source);
+                    ctx, active_effects, *result, native_clip, native_source,
+                    native_source_available ? inputs[0].get() : nullptr);
             }
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_directional_blur(
@@ -512,7 +525,8 @@ NodeExecResult EffectStackNode::execute(
             }
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_generate_bulk(
-                    ctx, active_effects, *result, native_clip, native_source);
+                    ctx, active_effects, *result, native_clip, native_source,
+                    native_source_available ? inputs[0].get() : nullptr);
             }
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_lut_bulk(

@@ -10,12 +10,19 @@
 | Render-stack hardening (C3D↔CM3D) | P0 | OPEN — W1 SyncVal audit and W2 same-SHA pair are the gates; W3/W4 closure; no new graphics stack | [RENDER-STACK-HARDENING](tickets/TICKET-RENDER-STACK-HARDENING-20261106.md) |
 | WBH certification | P1 | PARTIAL — clean same-SHA machine qualification remains | [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
 | FFmpeg pipe demolition | P1 | BLOCKED — codec/routing same-SHA green gate remains; explicit diagnostic pipe stays | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) |
-| SVG CLI render lane (path + operator animation) | P1 | OPEN — six path/motion gates fail on the current CLI lane: imported SVG subpaths are not materialized and operator animations are baked at frame 0; eight text gates pass (2026-11-16) | [SVG-CLI-LANE](tickets/TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md) |
+| Legacy scene `Fill` demolition (scene/SDK) | P1 | ACTIVE — 15-file migration to `graphics::FillStyle`, `ShapeTextureFill` pixel goldens per fit mode and the zero-match exit scan; `fill.hpp` is installed SDK surface, so removal needs an ABI window | [SHAPE-FILL-COMPAT](tickets/TICKET-SHAPE-FILL-COMPAT.md) |
 | Maintenance hotspots (W0–W5) | P1 | ACTIVE — umbrella: GPU lifetime/teardown, text hot-path fixes, certification-truthfulness decisions (B.1/B.2/F.2), effects-lane arch gate; coordinates C22/C23 and MAIN-TRUTH owners | [MAINTENANCE-HOTSPOTS-BONIFICATION](tickets/TICKET-MAINTENANCE-HOTSPOTS-BONIFICATION.md) |
 | Shadow map / PCF graph integration | P1 | PARTIAL — backend PCF PASS on RTX A4000 (2026-11-16); light-space depth pass not consumed by the render graph, production audit and same-SHA CI open | [SHADOW-MAP-PCF](tickets/TICKET-SHADOW-MAP-PCF-20261106.md) |
 | Fused-storage/native-image parity | P1 | PARTIAL — broader overlay corpus parity remains after the focused native-image certificate | [SCALE-P0-ASSET-VRAM-GOP](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) |
 | GPU benchmark corpus | P1 | PARTIAL — manifest and runner are ready; the active content pack is absent from this checkout (external) | [GPU-BASELINE-CORPUS](tickets/TICKET-GPU-BASELINE-CORPUS.md) |
 | Gel text surface | P1 | PARTIAL — supplied still matches; extreme tracking, depth/DoF, moving-footage and performance gates remain open or NOT RUN | [TEXT-COMPOSITE-GEL-SURFACE](tickets/TICKET-TEXT-COMPOSITE-GEL-SURFACE.md) |
+
+The SVG CLI render lane closed on 2026-11-16: all six path/motion gates pass on
+the SVG-enabled Release CLI (group isolation 10/10, composite 31/31, motion
+17/17, static composite 132 px, trim `[0,0,67,96,96]`, distinct endpoint hashes)
+after `imported_subpaths` materialization and per-frame operator sampling. Its
+remaining items are strict-native Vulkan certification and clean-SHA CI, both
+tracked in [SVG-RENDER-PLAN](tickets/TICKET-SVG-RENDER-PLAN.md).
 
 Text AE parity is no longer an active blocker: it closed on 2026-11-10 by
 product exception [ADR-040](adr/ADR-040-text-parity-product-exception.md); 1/8

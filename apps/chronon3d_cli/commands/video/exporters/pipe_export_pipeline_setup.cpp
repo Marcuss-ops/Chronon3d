@@ -511,6 +511,19 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             return session;
         }
         session->prepare_timings.accumulate(preparation.timings);
+        if (execution && execution->prelock_image_decode_ms) {
+            const auto prelock_ms = *execution->prelock_image_decode_ms;
+            const auto accumulate = [prelock_ms](std::optional<double>& value) {
+                value = value ? std::optional<double>{*value + prelock_ms}
+                              : std::optional<double>{prelock_ms};
+            };
+            accumulate(session->prepare_timings.asset_decode_ms);
+            accumulate(session->prepare_timings.image_decode_ms);
+            auto& prepare_render_ms = session->prepare_breakdown.prepare_render_ms;
+            prepare_render_ms = prepare_render_ms
+                ? std::optional<double>{*prepare_render_ms + prelock_ms}
+                : std::optional<double>{prelock_ms};
+        }
     } else {
         // The phase did not run: prepare_render_ms stays absent (timing
         // lexicon) instead of recording a fabricated 0.

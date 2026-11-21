@@ -26,24 +26,24 @@ Nessun altro file deve ridefinire questi contenuti. Tutto il resto *punta* qui.
 4. [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) — cosa manca, con quale priorità.
 5. [`../AGENTS.md`](../AGENTS.md) — come si tocca il codice.
 6. Solo se serve il dettaglio di un'area: architecture / adr / design / evidence.
-7. Per scavare nel passato: [`tickets/archive/`](tickets/archive/) e `git log --follow`.
+7. Per scavare nel passato: [`tickets/archive/`](tickets/archive) e `git log --follow`.
 
 ## Mappa delle sezioni
 
 | Sezione | Cosa contiene | Quando aprirla |
 |---|---|---|
 | radice `docs/` | stato, gate, piano, roadmap, governance, protocolli di certificazione | sempre, come punto di partenza |
-| [`adr/`](adr/) | 36 decisioni architetturali registrate (ADR) | prima di cambiare un confine tra moduli |
-| [`architecture/`](architecture/) | descrizione strutturale del sistema | per capire un sottosistema |
-| [`design/`](design/) | proposte di design non ancora landed | prima di implementare una feature nuova |
-| [`evidence/`](evidence/) | 31 registri di prova (run, host, numeri) | quando devi *dimostrare* qualcosa |
-| [`baselines/`](baselines/) | baseline di performance e golden | per confrontare una misura |
-| [`benchmarks/`](benchmarks/) | corpus e metodologia di misura | per toccare le performance |
-| [`gpu/`](gpu/) | vincoli del backend GPU | per il percorso Vulkan/CUDA |
-| [`reference/`](reference/) | regole di lint, riferimenti normativi | quando un gate ti boccia |
-| [`schemas/`](schemas/) | contratto degli schema versionati | per RenderPlan e IPC |
-| [`tickets/`](tickets/) | **solo lavoro aperto** | per prendere in carico un blocker |
-| [`tickets/archive/`](tickets/archive/) | ticket chiusi, conservati come prova storica | per ricostruire perché una scelta è stata fatta |
+| [`adr/`](adr) | 36 decisioni architetturali registrate (ADR) | prima di cambiare un confine tra moduli |
+| [`architecture/`](architecture) | descrizione strutturale del sistema | per capire un sottosistema |
+| [`design/`](design) | proposte di design non ancora landed | prima di implementare una feature nuova |
+| [`evidence/`](evidence) | 31 registri di prova (run, host, numeri) | quando devi *dimostrare* qualcosa |
+| [`baselines/`](baselines) | baseline di performance e golden | per confrontare una misura |
+| [`benchmarks/`](benchmarks) | corpus e metodologia di misura | per toccare le performance |
+| [`gpu/`](gpu) | vincoli del backend GPU | per il percorso Vulkan/CUDA |
+| [`reference/`](reference) | regole di lint, riferimenti normativi | quando un gate ti boccia |
+| [`schemas/`](schemas) | contratto degli schema versionati | per RenderPlan e IPC |
+| [`tickets/`](tickets) | **solo lavoro aperto** | per prendere in carico un blocker |
+| [`tickets/archive/`](tickets/archive) | ticket chiusi, conservati come prova storica | per ricostruire perché una scelta è stata fatta |
 
 ## Ticket: aperto vs archiviato
 

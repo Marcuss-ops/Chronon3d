@@ -1,10 +1,10 @@
 # TICKET-TEXT-CLOSURE-20261109 — Chiusura del testo: pixel truth, caret RTL e qualità avanzata
 
-**Status:** CLOSED — product exception (ADR-040, 2026-11-10). T1-01/T1-02/T2-01 were implemented on 2026-11-13, but the frozen pixel gate is still not green: 1/8 cases pass. The other 7 cases and the three implemented paths' pixel-parity gaps are accepted by explicit product decision, not passed. See §17 and [ADR-040](../adr/ADR-040-text-parity-product-exception.md).
+**Status:** CLOSED — product exception (ADR-040, 2026-11-10). T1-01/T1-02/T2-01 were implemented on 2026-11-13, but the frozen pixel gate is still not green: 1/8 cases pass. The other 7 cases and the three implemented paths' pixel-parity gaps are accepted by explicit product decision, not passed. See §17 and [ADR-040](../../adr/ADR-040-text-parity-product-exception.md).
 **Parent:** [TICKET-TEXT-ANIMATOR-PARITY-20261107](TICKET-TEXT-ANIMATOR-PARITY-20261107.md)
 **Quality authority:** [TICKET-TEXT-QUALITY-V2](TICKET-TEXT-QUALITY-V2.md)
-**Related:** [TICKET-SVG-TEXT-PARITY-REMAINING](TICKET-SVG-TEXT-PARITY-REMAINING.md), [TICKET-CHRONON-2.0-MASTER](TICKET-CHRONON-2.0-MASTER.md), [ADR-037](../adr/ADR-037-pre-shaping-selector-unit-map.md)
-**Closeout evidence:** [text-parity-20261110-product-exception/REPORT.md](../evidence/text-parity-20261110-product-exception/REPORT.md) — CLI SHA `ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e`; 1/8 PASS. Implementation update: [text-parity-20261113/REPORT.md](../evidence/text-parity-20261113/REPORT.md) — CLI SHA `410d7395a2c8782695f4e43a69e91b4312088742f7f2679b81bccea5647d20d3`; T1-01/T1-02/T2-01 implemented, still 1/8 PASS.
+**Related:** [TICKET-SVG-TEXT-PARITY-REMAINING](../TICKET-SVG-TEXT-PARITY-REMAINING.md), [TICKET-CHRONON-2.0-MASTER](../TICKET-CHRONON-2.0-MASTER.md), [ADR-037](../../adr/ADR-037-pre-shaping-selector-unit-map.md)
+**Closeout evidence:** [text-parity-20261110-product-exception/REPORT.md](../../evidence/text-parity-20261110-product-exception/REPORT.md) — CLI SHA `ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e`; 1/8 PASS. Implementation update: [text-parity-20261113/REPORT.md](../../evidence/text-parity-20261113/REPORT.md) — CLI SHA `410d7395a2c8782695f4e43a69e91b4312088742f7f2679b81bccea5647d20d3`; T1-01/T1-02/T2-01 implemented, still 1/8 PASS.
 **Owner:** Chronon3D text/runtime.
 **Scope:** chiusura del testo non-SVG: certificazione pixel CPU/GPU su glifi reali, caret RTL/bidi, shadow canonica sul run, `VectorStroke`, policy di generazione MTSDF/`msdfgen`, e residui di parità oggi documentati.
 **Non-goals:** SVG text (P2-02, ticket separato), DirectYUV/NV12 (lane separata), un secondo text renderer, un nuovo resolver o una nuova cache authority.
@@ -18,18 +18,18 @@ contract. ADR-040 is the explicit product decision that closes this ticket with
 those gates accepted/deferred; the thresholds themselves are unchanged and the
 seven failing cases are not PASS.
 
-**Prior same-SHA evidence:** [`text-parity-20261109-final-sha/REPORT.md`](../evidence/text-parity-20261109-final-sha/REPORT.md) — CLI SHA `fe39acb857280be500fc8c8149f014687e683ccf7c5b7dc8f9c33a4247b9582d`; software repeats match, all eight Vulkan cases use MTSDF, and all eight remain FAIL against unchanged thresholds. The pre-revert post-cache-migration evidence is linked below; the final
+**Prior same-SHA evidence:** [`text-parity-20261109-final-sha/REPORT.md`](../../evidence/text-parity-20261109-final-sha/REPORT.md) — CLI SHA `fe39acb857280be500fc8c8149f014687e683ccf7c5b7dc8f9c33a4247b9582d`; software repeats match, all eight Vulkan cases use MTSDF, and all eight remain FAIL against unchanged thresholds. The pre-revert post-cache-migration evidence is linked below; the final
 post-revert checkpoint is in §17.
 The pre-revert current-checkout rerun on 2026-11-10 after the typed cache
 migration used CLI SHA
 `74d9b861e7509e81ef271dda96294f896c93989c1c7824f77e83611687b2cf22` and
 reproduced 0/8; see
-[`text-parity-current-cache-20261110/REPORT.md`](../evidence/text-parity-current-cache-20261110/REPORT.md)
+[`text-parity-current-cache-20261110/REPORT.md`](../../evidence/text-parity-current-cache-20261110/REPORT.md)
 and its per-frame `report.json`. That historical result is superseded by §17.
 The follow-up MTSDF B-spline reconstruction probe on `latin_basic` was rejected:
 alpha IoU moved 0.947735 → 0.947630 while MAE/PSNR improved only marginally;
 all gates still fail. Its candidate run and rollback are recorded in
-[`text-parity-20261110-bspline-latin/REPORT.md`](../evidence/text-parity-20261110-bspline-latin/REPORT.md).
+[`text-parity-20261110-bspline-latin/REPORT.md`](../../evidence/text-parity-20261110-bspline-latin/REPORT.md).
 The 2026-11-10 High-profile range-24 probe was also rejected on the focused
 `latin_basic` case: IoU 0.947987, coverage 1.00036, MAE 0.02023,
 p99 0.50980, SSIM 0.98288 and PSNR 21.13 dB. It is slightly below the
@@ -43,7 +43,7 @@ rejected and reverted; the rebuilt CLI is back to SHA
 corpus is 1/8 PASS (`multipage`); the other seven remain below the frozen gate.
 ADR-040 closes this ticket by product exception, not by a parity PASS. The
 per-frame report is in
-[`text-parity-20261110-product-exception/REPORT.md`](../evidence/text-parity-20261110-product-exception/REPORT.md).
+[`text-parity-20261110-product-exception/REPORT.md`](../../evidence/text-parity-20261110-product-exception/REPORT.md).
 
 ## Glyph-edge source audit — 2026-11-10
 
@@ -60,13 +60,13 @@ changes have not closed the gap. Any coverage-mode candidate must retain
 native Vulkan execution and compare against the same frozen corpus before it
 can replace the current path.
 
-The first targeted coverage experiment was rejected: 2×2 MTSDF subpixel sampling worsened `latin_basic` IoU (0.947735 → 0.946881) and raised coverage to 1.04002. Its run and reason for rejection are recorded in [`coverage2x/REPORT.md`](../evidence/text-parity-20261109-coverage2x/REPORT.md); the experiment is not retained in source. The projected-scale shader candidate also produced a byte-identical `exact_3d` raw, so it was removed; see [`coverage-diagnosis/REPORT.md`](../evidence/text-parity-20261109-coverage-diagnosis/REPORT.md).
-Matching the MTSDF flattener's curve minimum subdivision to the software flattener was also rejected after a same-SHA full-corpus run showed no material metric improvement; its payload generation-ID change was reverted. See [`contour-step/REPORT.md`](../evidence/text-parity-20261110-contour-step/REPORT.md).
+The first targeted coverage experiment was rejected: 2×2 MTSDF subpixel sampling worsened `latin_basic` IoU (0.947735 → 0.946881) and raised coverage to 1.04002. Its run and reason for rejection are recorded in [`coverage2x/REPORT.md`](../../evidence/text-parity-20261109-coverage2x/REPORT.md); the experiment is not retained in source. The projected-scale shader candidate also produced a byte-identical `exact_3d` raw, so it was removed; see [`coverage-diagnosis/REPORT.md`](../../evidence/text-parity-20261109-coverage-diagnosis/REPORT.md).
+Matching the MTSDF flattener's curve minimum subdivision to the software flattener was also rejected after a same-SHA full-corpus run showed no material metric improvement; its payload generation-ID change was reverted. See [`contour-step/REPORT.md`](../../evidence/text-parity-20261110-contour-step/REPORT.md).
 
 The pre-cache-migration current-checkout rerun on 2026-11-10 uses CLI SHA
 `fe39acb857280be500fc8c8149f014687e683ccf7c5b7dc8f9c33a4247b9582d` and also
 has a 0/8 result; see
-[`text-parity-current-20261110/REPORT.md`](../evidence/text-parity-current-20261110/REPORT.md).
+[`text-parity-current-20261110/REPORT.md`](../../evidence/text-parity-current-20261110/REPORT.md).
 The targeted generator, animator, driver, selector metadata and tile-raster
 canary binaries pass (7/7, 55/55, 22/22, 3/3 and 1/1 test cases respectively),
 but those functional tests do not satisfy T0-01's pixel gate. The final
@@ -339,7 +339,7 @@ Per un insertion point `b` (byte offset UTF-8 valido):
 > **2026-11-13:** `T1-01` è implementato (maschera unione, blur separabile 3σ,
 > source-over lineare). Gate mirato: IoU `0.994251`, coverage `0.994642`; resta
 > sotto la soglia `0.995` e non è PASS. Vedi
-> [text-parity-20261113](../evidence/text-parity-20261113/REPORT.md).
+> [text-parity-20261113](../../evidence/text-parity-20261113/REPORT.md).
 
 - Il software raster ha già un pass di shadow con maschera unione (`src/backends/software/processors/text_run/text_run_processor/raster.cpp`, Stage 4: render di tutti i glifi su una superficie, poi blur, poi composite). Questo è il punto di partenza giusto; non va reimplementato da zero.
 - Il blur software usa `apply_separable_box_blur()` con tier (`kBlurTierRadii`), quindi è una **box blur a tier**, non una gaussiana canonica.
@@ -407,7 +407,7 @@ Per `Fast`, il comportamento attuale può restare, ma deve essere esplicito nel 
 > **2026-11-13:** `T1-02` è implementato su Vulkan con atlas `CoverageRgba`
 > dedicato, espansione Clipper2 e canali fill/stroke per-glico. Gate mirato:
 > IoU `0.966888`, coverage `1.032781`; il residuo di outline/AA non è PASS.
-> Vedi [text-parity-20261113](../evidence/text-parity-20261113/REPORT.md).
+> Vedi [text-parity-20261113](../../evidence/text-parity-20261113/REPORT.md).
 
 Il software raster usa già uno stroke vettoriale Blend2D: `BL_STROKE_JOIN_ROUND/BEVEL/MITER_CLIP` e `setStrokeMiterLimit` in `raster.cpp`. Il Vulkan usa invece la dilatazione del campo distanza. La differenza è reale e oggi non è dichiarata nel piano: va resa esplicita, non “aggiustata” facendo sembrare un miter un SDF.
 
@@ -496,7 +496,7 @@ Solo se il corpus fallisce in modo riproducibile si apre lo spike `msdfgen`.
 The original plan below was authored for generation 2. The active High
 candidate is generation 4 (128 em, distance range 40, padding 60); the 256-em
 test profile was discarded. Same-SHA evidence and cache identity are recorded
-in ADR-038 and [`text-parity-20261109-range40/REPORT.md`](../evidence/text-parity-20261109-range40/REPORT.md).
+in ADR-038 and [`text-parity-20261109-range40/REPORT.md`](../../evidence/text-parity-20261109-range40/REPORT.md).
 
 - Cambiare `MtsdfProfile::generation_id` solo quando il payload cambia davvero.
 - Aggiornare `MtsdfGlyphCacheKey`, `GpuGlyphKey`, `generation_profile` e i test di hash.
@@ -531,7 +531,7 @@ in ADR-038 and [`text-parity-20261109-range40/REPORT.md`](../evidence/text-parit
 > fallback layer-level è accettato solo se le range restano valide. La route
 > nativa propaga `GlyphInstanceState::fill` nel record dinamico. Gate mirato:
 > IoU `0.983597`, p99 `0.070588`; il residuo di maschera MTSDF non è PASS.
-> Vedi [text-parity-20261113](../evidence/text-parity-20261113/REPORT.md).
+> Vedi [text-parity-20261113](../../evidence/text-parity-20261113/REPORT.md).
 
 Il vecchio contratto falliva closed con:
 
@@ -687,7 +687,7 @@ reopened full-parity exit criteria are authoritative.
 
 > These items remain technically unmet. ADR-040 closes the ticket by product
 > exception; the unchecked boxes below are not a parity pass. Current evidence:
-> [`text-parity-20261110-product-exception/REPORT.md`](../evidence/text-parity-20261110-product-exception/REPORT.md)
+> [`text-parity-20261110-product-exception/REPORT.md`](../../evidence/text-parity-20261110-product-exception/REPORT.md)
 > (1/8 PASS, CLI `ba6e14ad…`).
 
 - [ ] Every frozen T0-01 corpus case passes unchanged thresholds on a strict
@@ -833,7 +833,7 @@ equivalence evidence; the entries below are not completion claims.
 The attempted 256-em MTSDF variant did not improve `latin_basic` parity
 (alpha IoU 0.947848 vs 0.948086 at 128 em) and has been discarded. Its one-frame
 measurement and raw artifact hashes are recorded in
-[`profile-256-single-frame.md`](../evidence/text-parity-20261109-hq/profile-256-single-frame.md).
+[`profile-256-single-frame.md`](../../evidence/text-parity-20261109-hq/profile-256-single-frame.md).
 
 - Il pixel gate T0-01/T0-02 resta rosso. Le soglie non sono state abbassate.
   Il corpus standard e HQ sono in `docs/evidence/text-parity-20261109/REPORT.md`
@@ -881,7 +881,7 @@ risultato non eseguito viene dichiarato PASS.
 
 ## 17. Product-exception closeout — 2026-11-10
 
-**Decision:** [ADR-040](../adr/ADR-040-text-parity-product-exception.md) records
+**Decision:** [ADR-040](../../adr/ADR-040-text-parity-product-exception.md) records
 the product owner's explicit authorization to close this ticket with the AA and
 GPU-gate residual accepted. This is **not** a parity PASS; the frozen
 thresholds are unchanged.
@@ -905,9 +905,9 @@ one unchanged threshold.
 | `effects` | 0.923020 | 0.923020 | 0.180392 | 28.594 | FAIL IoU/coverage/bbox/RGB/flat |
 
 The per-frame raw metrics and the verifier's `pass: false` are in
-[`report.json`](../evidence/text-parity-20261110-product-exception/report.json);
+[`report.json`](../../evidence/text-parity-20261110-product-exception/report.json);
 the human-readable summary is in
-[`REPORT.md`](../evidence/text-parity-20261110-product-exception/REPORT.md).
+[`REPORT.md`](../../evidence/text-parity-20261110-product-exception/REPORT.md).
 
 **Rejected probe:** a second 2×2 coverage probe on this baseline worsened
 `latin_basic` (IoU 0.985900 → 0.962797, coverage 0.998673 → 1.038640) and

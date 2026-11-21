@@ -1,6 +1,7 @@
 #pragma once
 
 #include "command_render_plan.hpp"
+#include "render_plan_preparation.hpp"
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 
@@ -36,6 +37,7 @@ struct RenderPlanState {
     std::string video_sink;
     std::string receipt_verify;
     std::shared_ptr<media::VideoJobExecutionContext> video_execution;
+    std::shared_ptr<PreparedRenderPlanContext> prepared_plan;
     std::optional<runtime::job::NormalizedRenderJob> normalized_request;
 };
 
@@ -47,6 +49,7 @@ int execute_normalized_render_job(
     const CompositionRegistry& registry,
     runtime::job::NormalizedRenderJob job,
     std::shared_ptr<SoftwareRenderer> warm_renderer,
-    std::shared_ptr<media::VideoJobExecutionContext> video_execution);
+    std::shared_ptr<media::VideoJobExecutionContext> video_execution,
+    std::shared_ptr<PreparedRenderPlanContext> prepared_plan = {});
 
 } // namespace chronon3d::cli

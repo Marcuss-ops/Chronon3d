@@ -23,6 +23,11 @@ RenderJobDispatcher& render_job_dispatcher() {
     return dispatcher;
 }
 
+RenderJobPreparer& render_job_preparer() {
+    static RenderJobPreparer preparer;
+    return preparer;
+}
+
 void DaemonService::run_socket(const std::string& path) {
     ipc::UnixSocketServer server;
     try {

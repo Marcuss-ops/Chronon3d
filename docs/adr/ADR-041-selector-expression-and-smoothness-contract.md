@@ -6,7 +6,7 @@
 | **Date** | 2026-11-12 |
 | **Deciders** | Chronon3D text/runtime |
 | **Tags** | `text`, `selector`, `expression`, `smoothness`, `3d` |
-| **Related** | [`TICKET-AE-SELECTOR-PARITY-20261112`](../tickets/TICKET-AE-SELECTOR-PARITY-20261112.md), [`ADR-040`](ADR-040-text-parity-product-exception.md) |
+| **Related** | [`TICKET-AE-SELECTOR-PARITY-20261112`](../tickets/archive/TICKET-AE-SELECTOR-PARITY-20261112.md), [`ADR-040`](ADR-040-text-parity-product-exception.md) |
 
 ## Context
 
@@ -112,7 +112,7 @@ pixel diff remains outside this contract.
 
 ## References
 
-- [`TICKET-AE-SELECTOR-PARITY-20261112`](../tickets/TICKET-AE-SELECTOR-PARITY-20261112.md)
+- [`TICKET-AE-SELECTOR-PARITY-20261112`](../tickets/archive/TICKET-AE-SELECTOR-PARITY-20261112.md)
 - [`ADR-040`](ADR-040-text-parity-product-exception.md)
 - `include/chronon3d/math/expression.hpp`
 - `include/chronon3d/text/selector_expression.hpp`

@@ -44,6 +44,7 @@ struct RuntimeMetrics {
     std::optional<std::uint64_t> cuda_image_cache_hit;
     std::optional<std::uint64_t> cuda_image_cache_miss;
     std::optional<double> encoder_open_nvenc_ms;
+    std::optional<bool> codec_session_adopted;
 };
 
 struct TextMetrics {

@@ -1,5 +1,6 @@
 #include "executor_level_dispatch.hpp"
 
+#include "diag_frame_window.hpp"
 #include "executor_levels.hpp"
 #include "node_runner.hpp"
 
@@ -31,7 +32,8 @@ void dispatch_level_nodes(
     const CompiledFrameGraph& compiled)
 {
     const bool log_node_diagnostics =
-        ctx.frame_input.frame <= 2 && diag_exec_logging_enabled();
+        diag_frame_window_enabled(ctx.frame_input.frame.as_i64()) &&
+        diag_exec_logging_enabled();
     // OPT-DEAD-TIMINGS — the LevelTimings per-node accumulator surface was
     // retired with Stage 3 (per-node fine timing); the dead 7-vector heap
     // object and the 7 dead out-param pointers on execute_single_node are

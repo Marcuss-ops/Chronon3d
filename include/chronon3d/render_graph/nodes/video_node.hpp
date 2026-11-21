@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/frame_source_provider.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <spdlog/spdlog.h>
@@ -121,10 +122,24 @@ public:
         }
 
         const Frame source_frame = video::map_video_frame(local_frame, m_source);
+        // PERF-DISPATCH-01 — the video source node is the single largest slice
+        // of the per-frame dispatch window on plans whose layers come from a
+        // decoded file, so the phase split has to be visible: asset path
+        // resolution, the decoder call itself, and the rest of the node.
+        // Off by default, same opt-in gate as the per-node stream.
+        static const bool diag = [] {
+            const char* value = std::getenv("CHRONON3D_DIAG_EXEC_LOG");
+            if (!value) return false;
+            const std::string_view setting(value);
+            return !setting.empty() && setting != "0" && setting != "false" &&
+                   setting != "off";
+        }();
+        const auto node_t0 = diag ? profiling::now() : profiling::Clock::time_point{};
         // The render plan carries workspace-relative logical asset paths.
         // The decoder opens the path directly and does not know the mounted
         // assets root, so resolve it here before the first decode/retry.
         const std::string resolved_source_path = ctx.resolve_asset(m_source.path);
+        const auto resolve_t1 = diag ? profiling::now() : profiling::Clock::time_point{};
 
         const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
         const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
@@ -136,7 +151,19 @@ public:
             resolved_source_path, source_time, render_w, render_h,
             media::VideoColorTransform{m_source.ocio_config_path,
                 m_source.ocio_input_space, m_source.ocio_working_space});
+        const auto decode_t1 = diag ? profiling::now() : profiling::Clock::time_point{};
         const auto* decoded_frame = media::decoded_frame_if(decoded);
+        if (diag) {
+            spdlog::info(
+                "[video-node-diag] frame={} resolve_ms={:.3f} decode_ms={:.3f} "
+                "size={}x{} native_surface={}",
+                static_cast<int>(ctx.frame_input.frame),
+                profiling::duration_ms(node_t0, resolve_t1),
+                profiling::duration_ms(resolve_t1, decode_t1), render_w, render_h,
+                decoded_frame && decoded_frame->framebuffer &&
+                    decoded_frame->framebuffer->surface_handle() !=
+                        runtime::kInvalidRenderSurfaceHandle);
+        }
         if (!decoded_frame || !decoded_frame->framebuffer) {
             if (media::decode_is_eos(decoded) && source_frame > 0) {
                 m_source.duration = source_frame;

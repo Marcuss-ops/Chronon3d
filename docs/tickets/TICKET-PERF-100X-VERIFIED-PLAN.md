@@ -12,6 +12,141 @@
 Questo ticket dice **in che ordine** e **con quale evidenza** quei lavori si eseguono; non duplica le loro specifiche.
 **Inventario demolizioni:** §12 (2026-11-03) — assurdità correnti, cosa eliminare, ordine d'attacco e tetto risultante.
 
+## Nuovi ticket aperti 2026-11-20 (misure sui job r2/r3)
+
+I job overlay del 2026-11-19 mostrano che il costo dominante non è il piano: `asset_decode_ms` vale **1,9–3,7 s/item** e il render loop 2,4–4,3 s. Questi ticket attaccano quel costo e i due costi fissi che restano; non duplicano P0–P7 qui sopra.
+
+| Ticket | Priorità | Costo misurato |
+|---|---|---|
+| [`TICKET-PERF-ASSET-DECODE-HOTPATH`](TICKET-PERF-ASSET-DECODE-HOTPATH.md) | P0 | decode asset 1,9–3,7 s/item; decodifica full-res prima del bound di display |
+| [`TICKET-PERF-PREPARE-RENDER-OVERLAP`](TICKET-PERF-PREPARE-RENDER-OVERLAP.md) | P0 | il prepare CPU sta dentro il lock GPU; non si sovrappone al render precedente |
+| [`TICKET-PERF-RECEIPT-CONTRACT-FASTPATH`](TICKET-PERF-RECEIPT-CONTRACT-FASTPATH.md) | P2 | contract probe 33–75 ms + SHA 8–15 ms per item |
+| [`TICKET-PERF-ENCODER-OPEN-REUSE`](TICKET-PERF-ENCODER-OPEN-REUSE.md) | P2 | apertura NVENC 39–99 ms/item; P4 fuori dal riuso cross-job |
+
+`[MISURA]` Nei job caption r2/r3 `plan_ms` è 1–2 ms e `plan_compile_ms` è `null`: il prepared-plan LRU resta il TODO di [`TICKET-DAEMON-JOB-RUNTIME`](TICKET-DAEMON-JOB-RUNTIME.md), non viene aperto un secondo ticket per lo stesso lavoro.
+
+### A/B decode parallelo — 2026-11-20
+
+Il fixture locale software a tre asset 4K verifica il decode parallelo e la
+deduplicazione per chiave canonica: prepare p50 **4.615 s → 1.574 s** e wall
+p50 **5.184 s → 2.136 s**, tre run per variante, MP4 SHA-256 identico. I
+sidecar, piano e fixture sono in
+[`ops/jobs/asset_decode_parallel_20261120`](../../../ops/jobs/asset_decode_parallel_20261120/REPORT.md).
+È evidenza locale del sottopasso asset, non sostituisce il gate r2/r3 né quelli
+P0–P5 del piano 100×.
+
+### Misura admission — 2026-11-20
+
+`[CODICE]` `daemon_admission_wait_ms` ora misura dal momento precedente
+all'acquisizione del lock di execution fino alla reservation del device; prima
+il timer partiva dopo il lock e sottostimava la contesa tra producer concorrenti.
+`[NOT RUN]` replay con almeno due producer concorrenti e correlazione temporale
+prepare N+1/render N; nessun valore di throughput è attribuito a questa sola
+correzione di telemetria.
+
+### Preparazione prima dell'admission e downscale immagini — 2026-11-20
+
+`[CODICE]` Il daemon sposta read/parse/compile del RenderPlan prima del lock di
+execution, con uno slot CPU condiviso e un solo `PreparedRenderPlanContext`
+passato al dispatcher. Il callback opzionale del gruppo render, quando riceve
+un renderer già caldo, materializza il manifest, verifica l'identità delle
+chiavi cache dei due resolver e decodifica le immagini CPU in TBB prima
+dell'admission; non crea renderer/encoder/surface e non promuove asset GPU.
+`[MISURA]` il test IPC usa un'immagine reale e root condivisa, blocca il job N,
+accoda N+1, verifica `prepared_at` prima del rilascio del lock e il timing
+positivo di prefetch nel contesto di N+1. Il caso mirato e l'intera suite CLI
+passano. Build Release `-j10`: PASS.
+`[NOT RUN]` replay su producer concorrenti r2/r3 (20/100 item), misure di
+throughput p50/p95/item-min, VRAM e parità end-to-end; il test prova overlap
+temporale del prefetch, non un guadagno wall sul corpus produttivo. Report:
+[`prepare_overlap_prefetch_20261121`](../../../ops/jobs/prepare_overlap_prefetch_20261121/REPORT.md).
+
+`[MISURA — SOLO RENDERER LOCALE]` 2026-11-21: 100 render job per run × 3,
+90 piani immagine e 10 piani semantici ModernMap1, Vulkan/NVENC CQP QP23/p1,
+24 frame/item. I 100 item completano ciascun run; throughput 141,88 / 141,57 /
+145,16 item/min con riuso, mediana 141,88/min. Senza riuso: 123,52 / 122,88 /
+125,00, mediana 123,52/min. I rate soddisfano G5.1/G5.2 **solo per questo
+renderer fixture locale**. G5.3 non è certificato: i frame confrontati fra
+varianti sono diversi in cinque job mappa (115/2.400 frame totali, SSIM medio
+mappa 0,999996); G5.4 non è il payload/host del worker. Il gate P5 resta
+NOT RUN fino al replay worker immutabile con retry/DTS verificati. Script,
+metriche e output: [`throughput_map_assets_20261121`](../../../ops/jobs/throughput_map_assets_20261121/REPORT.md).
+
+`[CODICE]` Il ridimensionamento runtime per bound display ora parallelizza le
+righe TBB, mantenendo l'ordine di accumulo per pixel. `[MISURA]` A/B sintetico,
+tre run per variante: asset prepare p50 1,629 → 1,403 s; job wall p50 2,673 →
+2,683 s; MP4 byte-identico. Il risultato non dimostra un guadagno wall
+end-to-end. Dettagli: [`asset_resize_parallel_20261120`](../../../ops/jobs/asset_resize_parallel_20261120/REPORT.md).
+
+`[MISURA]` Build CUDA/Vulkan e test espliciti NVENC cross-job CQP passano
+(2 casi, 309 asserzioni, 24 frame). Questo non chiude il gate qualità p1/P4 né
+i run sul corpus di produzione, descritti in
+[`TICKET-PERF-ENCODER-OPEN-REUSE`](TICKET-PERF-ENCODER-OPEN-REUSE.md).
+`[MISURA]` Un A/B aggiuntivo p1/P4 su fixture NVENC di due frame dà SSIM
+0,999911 ma non certifica qualità/bitrate del corpus; sidecar e limiti sono in
+[`encoder_nvenc_p1_p4_20261120`](../../../ops/jobs/encoder_nvenc_p1_p4_20261120/REPORT.md).
+
+### Replay P5 sul worker locale — 2026-11-21
+
+`[MISURA]` Tre batch reali RenderingGen → worker locale, 100 job ciascuno
+(90 testo + 10 ModernMap1, 1920×1080, 24 frame), completano 100/100 senza
+retry o decode failure. Throughput: 203,952 / 164,110 / 164,185 item/min,
+mediana 164,185; p50 wall per job: 613,412 / 718,995 / 710,849 ms.
+G5.1/G5.2 PASS per il workload worker queue-to-render.
+`[MISURA — G5.3 FAIL]` gli stessi piani ModernMap1 producono MP4 diversi;
+SSIM decoded 0,894924, con il fill territoriale rosso assente da frame 10 in
+uno dei due output. Probe con plan/item ID univoci: 4 hash distinti su 10 nel
+run 1 e 5/10 nel run 2, quindi il solo riuso dell'identità del piano non è la
+causa. Nessuna correzione è ancora attribuita.
+`[NOT RUN — G5.4]` non certificato: 13/14 worker registrati offline, carico
+host variabile e GPU 0% al campionamento con 5.989 MiB allocati. È il path del
+worker RenderingGen, ma non un replay PipelineGen completo fino alla consegna.
+Ricevute, batch, sample MP4 e confronto: [`worker P5 2026-11-21`](../../../ops/jobs/chronon3d_worker_p5_20261121/REPORT.md).
+Build Release `cmake --build build/chronon/linux-video-release -j10`:
+PASS (Ninja: nessun lavoro da eseguire).
+
+### Diagnostica ripetibilità IPC — 2026-11-21
+
+`[MISURA]` Il plan e il prepared package catturati dal job worker sono stati
+renderizzati direttamente via IPC ai tre daemon già attivi, mantenendo gli
+stessi `plan_id`/`item.id`: 9/9 output hanno SHA
+`bff23393ad0446deb9b199fee3d4a264c8e1b858d248380afdf9198243ea5c59`.
+Un probe sequenziale `mappa → testo → mappa`, ripetuto due volte sullo stesso
+daemon, ha dato lo stesso SHA mappa in tutti e quattro i render. Il worker
+aveva invece prodotto hash diversi sul piano catturato. Questo esclude, per
+questi probe, sia il solo riuso degli ID sia la semplice contaminazione della
+cache tra composizioni mappa/testo; la causa resta non attribuita e G5.3 resta
+FAIL. Il probe diretto non sostituisce la riproduzione tramite worker.
+
+`[MISURA]` Tre nuovi job worker sequenziali con lo stesso piano mappa hanno
+prodotto tutti SHA `4947624e6bf41c5b02e09b18d3476f02d2581c999f8edfa1835cda9c3815d19d`
+(38.791 byte), identico al sample worker archiviato. Il replay IPC diretto del
+plan/package catturato, includendo `TotalFrames=24`, resta sull'altro SHA
+`bff23393…` (64.259 byte); anche `NoDirtyRects=true` non lo cambia. Il frame 12
+worker mostra il fill mappa incompleto, mentre il frame 12 diretto mostra la
+composizione completa. Quindi il replay diretto non riproduce la condizione
+worker. La ripetizione successiva con `no_dirty_rects=true` sul worker ha
+risolto il difetto per il caso sequenziale ModernMap1; dettagli sotto.
+Evidenza: [`worker P5 2026-11-21`](../../../ops/jobs/chronon3d_worker_p5_20261121/REPORT.md).
+
+`[MISURA — G5.3 CASO MIRATO PASS]` Tre job worker ModernMap1 sequenziali con
+`no_dirty_rects=true` producono SHA identico `097fb0c5…` (62.555 byte), 24
+frame, fill completo e zero handoff NV12 parziali; job wall mediano 962,924
+ms. Tre render worker precedenti con flag spento producevano SHA
+`4947624e…` (38.791 byte), fill incompleto e tre handoff parziali. Il
+confronto wall non dimostra un guadagno per via della varianza. Dopo aver
+incorporato i font ufficiali nel worker Go (`go:embed`) e aggiunto il test che
+staging funziona fuori dalla directory del modulo, i run 6/7/8 del mix 100 job
+con 3 pipeline worker / 3 GPU lane completano 100/100, zero retry e zero
+artifact invalidi; tutti i 100 indici sono byte-identici tra i tre run, incluse
+le 10 mappe. Throughput 177,223 / 196,896 / 197,318 item/min, mediana
+196,896/min (+19,9% rispetto a 164,185/min precedente); G5.1/G5.2/G5.3 PASS
+per il worker locale. Un run 9 avviato dalla root del progetto completa
+100/100 a 178,901/min, confermando l'indipendenza dal cwd. G5.4 resta NOT RUN
+per pool registrato incompleto e host non quiescente. La config operativa non
+è stata modificata né riavviata. Report e record:
+[`worker P5 2026-11-21`](../../../ops/jobs/chronon3d_worker_p5_20261121/REPORT.md).
+
 ---
 
 ## 0. Regola di evidenza (vincolante)
@@ -322,7 +457,8 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 - Picco 101,71/min su 70 item (`gate-100-r4`).
 - Con mappe: 83,98/min di mediana (serie 25-10).
 - Packed cross-scene: 43,73/min, FAIL; tornato opt-in.
-- Mix 100 item con mappe: **NOT RUN**.
+- Mix 100 item del worker con mappe: **PASS locale** sui run 6/7/8 con
+  `no_dirty_rects=true`; G5.4 host/pool completo resta NOT CERTIFIED.
 
 **Gate P5:**
 
@@ -333,7 +469,21 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 | G5.3 | 0 retry, 0 errori DTS, stessi SHA artefatto. |
 | G5.4 | Stesso payload immutabile e host quiescente. |
 
-**Stato:** `[FAIL/NOT RUN]` secondo la documentazione; da rieseguire.
+**Stato:** `[PARTIAL — worker locale PASS, G5.4 NON CERTIFICATO]`. I run
+  RenderingGen worker 6/7/8 hanno completato 100/100 job ciascuno a mediana
+  196,896 item/min, zero retry/errori DTS, e hash identici per tutti i 100
+  indici fra run. G5.1/G5.2/G5.3 PASS sul mix locale con `no_dirty_rects=true`.
+  Il run 9 da cwd esterno completa 100/100. G5.4 resta non certificato:
+  singolo worker locale, host non quiescente e pool registrato non disponibile.
+
+`[MISURA]` 2026-11-21, replay locale Chronon3D separato dal gate P5: daemon
+Vulkan privato + NVENC CQP nativo, 100 render job identici da 24 frame, 3 run
+per variante, immagini in cache. La mediana è 179,98 item/min con session reuse
+contro 149,66 senza (+20,3%); 99/100 sessioni adottate per run e hash pixel dei
+7.200 frame decodificati invariati. Questo misura il tetto del render job con
+un piano già pronto; non contiene generazione overlay, classi miste o mappe e
+non soddisfa G5.1–G5.4. Evidenza completa:
+[`prepare_overlap_prefetch_20261121`](../../../ops/jobs/prepare_overlap_prefetch_20261121/REPORT.md).
 
 ---
 

@@ -6,7 +6,7 @@
 | **Date** | 2026-06-22 |
 | **Deciders** | `codex/agent1-renderer-boundary` author, code-reviewer-minimax-m3 |
 | **Tags** | `api-break`, `boundary-gate`, `sdk`, `software-renderer` |
-| **Related** | [ADR-002 — RenderRuntime Ownership](./ADR-002-render-runtime-ownership.md), [docs/ARCHIVE/stabilization-plan/04-cmake-module-registry.md](../ARCHIVE/stabilization-plan/04-cmake-module-registry.md) |
+| **Related** | [ADR-002 — RenderRuntime Ownership](ADR-002-render-runtime-ownership.md), [docs/ARCHIVE/stabilization-plan/04-cmake-module-registry.md](../ARCHIVE/stabilization-plan/04-cmake-module-registry.md) |
 
 ## Context
 

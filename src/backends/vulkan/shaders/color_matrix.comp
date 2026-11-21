@@ -33,6 +33,9 @@
 // mode 18 (LightSweep): p[0] = center xy, angle radians, full width px;
 //                     p[1] = softness, intensity, edge intensity, edge width;
 //                     p[2].rgb = light color. Additive inside existing alpha.
+// mode 19 (Scanlines): p[0] = pitch px, amount, phase, axis (0 horizontal /
+//                     1 vertical). Multiplies RGB by a triangle wave, exactly
+//                     like apply_scanlines() in the software postprocess path.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(constant_id = 0) const int kSpecMode = -1;
@@ -362,6 +365,26 @@ void main() {
         ivec2 sample_global = cell * block_size + ivec2(block_size / 2);
         ivec2 sample_coord = clamp(sample_global - origin, ivec2(0), size - ivec2(1));
         imageStore(destination_image, coord, imageLoad(source_image, sample_coord));
+        return;
+    }
+    if (ae_mode == 19) {
+        // Line pitch, modulation depth and grid phase come straight from the
+        // software contract: t = (line + phase * pitch) / pitch, triangle wave
+        // dipping the light at every line boundary, RGB scaled and clamped with
+        // alpha preserved. Transparent pixels are processed like the software
+        // processor instead of being skipped: their premultiplied RGB is zero
+        // anyway, so the two paths agree.
+        float pitch = max(params.p[0].x, 1.0);
+        float depth = clamp(params.p[0].y, 0.0, 1.0);
+        float phase = params.p[0].z;
+        bool repeat_y = params.p[0].w < 0.5;
+        float line_coord = repeat_y ? float(coord.y) : float(coord.x);
+        float t = (line_coord + phase * pitch) / pitch;
+        float fract_t = t - floor(t);
+        float triangle = abs(fract_t * 2.0 - 1.0);
+        float scan_factor = 1.0 - depth * triangle;
+        imageStore(destination_image, coord,
+                   vec4(clamp(source.rgb * scan_factor, 0.0, 1.0), source.a));
         return;
     }
     if (source.a <= 0.0) {

@@ -72,6 +72,9 @@ struct IVideoEncoder {
     virtual ~IVideoEncoder() = default;
     virtual bool open(const struct FfmpegPipeOptions& options) = 0;
     virtual bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) = 0;
+    [[nodiscard]] virtual std::optional<bool> codec_session_adoption_metric() const {
+        return std::nullopt;
+    }
 
     /// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — packet-level frame
     /// duplication. An encoder that reports true implements

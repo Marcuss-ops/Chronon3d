@@ -242,7 +242,7 @@ accuracy and zoom/rotation stability remain open, so M1 is not fully certified.
 
 A single-frame T06 render also confirms the lit filled face with specular and no glow; its raw exactly matches T07-off. T08 adds a layer shadow and chromatic aberration; its 720p raw keeps the title legible and preserves core alpha over 8,002 eroded interior pixels. The moving sweep remains P1 T12. The raw-video route now emits per-frame glyph-coordinate JSON from the same TextRun snapshot. T00 reports 23 glyphs; T00–T08 layout hashes, positions and world matrices compare identical. P1 is partially run (see the T09–T15 results below); P2 remains NOT RUN, and the integrated visual result still needs reviewer comparison against the reference. Raw data,
 plans, debug PNGs and field metrics are in
-[`docs/evidence/gel-text-stress-20261105/`](../evidence/gel-text-stress-20261105/).
+[`docs/evidence/gel-text-stress-20261105/`](../evidence/gel-text-stress-20261105).
 The 13.2-second H.264 review proxy, including T04 validity, is uploaded to the requested Drive folder;
 it is not a pixel oracle. The `linux-video-test` build completed 350/350 steps with `-j14`. The C ABI gel
 filter exposed a stale test expectation that rejected debug mode 4; that test

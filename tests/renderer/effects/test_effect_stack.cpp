@@ -7,6 +7,8 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include "src/render_graph/nodes/blur_half_res.hpp"
+#include <limits>
 using namespace chronon3d;
 
 
@@ -148,4 +150,34 @@ TEST_CASE("EffectStack: tint applied via stack produces coloured output") {
     CHECK(c.r > 0.9f);
     CHECK(c.g < 0.1f);
     CHECK(c.b < 0.1f);
+}
+
+// ---------------------------------------------------------------------------
+// Native full-frame blur: half-resolution admission rule
+// ---------------------------------------------------------------------------
+TEST_CASE("Blur half-res: production radius is eligible") {
+    CHECK(graph::detail::blur_half_res_eligible(1920, 1080, 24.0f, false, true, true));
+}
+
+TEST_CASE("Blur half-res: opt-out flag keeps the historical path") {
+    CHECK_FALSE(graph::detail::blur_half_res_eligible(1920, 1080, 24.0f, false, true, false));
+}
+
+TEST_CASE("Blur half-res: partial clip and non-zero origin fall back") {
+    CHECK_FALSE(graph::detail::blur_half_res_eligible(1920, 1080, 24.0f, true, true, true));
+    CHECK_FALSE(graph::detail::blur_half_res_eligible(1920, 1080, 24.0f, false, false, true));
+}
+
+TEST_CASE("Blur half-res: small radius keeps detail") {
+    CHECK_FALSE(graph::detail::blur_half_res_eligible(1920, 1080, 7.9f, false, true, true));
+    CHECK(graph::detail::blur_half_res_eligible(1920, 1080, 8.0f, false, true, true));
+}
+
+TEST_CASE("Blur half-res: small canvas keeps the full-resolution path") {
+    CHECK_FALSE(graph::detail::blur_half_res_eligible(160, 120, 24.0f, false, true, true));
+}
+
+TEST_CASE("Blur half-res: NaN radius is never promoted") {
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    CHECK_FALSE(graph::detail::blur_half_res_eligible(1920, 1080, nan, false, true, true));
 }

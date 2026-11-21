@@ -1,7 +1,7 @@
 # Text tile raster canary — VERDE 78/78 — 2026-09-16
 
 Evidenza di chiusura del blocco **P0-1** di
-[`docs/tickets/TICKET-TEXT-QUALITY-V2.md`](../tickets/TICKET-TEXT-QUALITY-V2.md) e
+[`docs/tickets/TICKET-TEXT-QUALITY-V2.md`](../tickets/archive/TICKET-TEXT-QUALITY-V2.md) e
 della riga `Text tile raster canary` di
 [`docs/FOLLOWUP_TICKETS.md`](../FOLLOWUP_TICKETS.md).
 

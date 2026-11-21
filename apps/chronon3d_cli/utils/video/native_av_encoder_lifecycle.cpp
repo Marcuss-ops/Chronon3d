@@ -31,11 +31,12 @@ CodecSession::~CodecSession() {
 }
 
 bool codec_session_reuse_enabled() noexcept {
-    // Cross-job codec adoption is opt-in via CHRONON_ENCODER_SESSION_REUSE=1
-    // AND additionally gated per configuration (Fix 5 supported-config gate
+    // Cross-job codec adoption requires CHRONON_ENCODER_SESSION_REUSE=1 and
+    // is additionally gated per configuration (Fix 5 supported-config gate
     // in NativeAvEncoder::codec_session_config_supported): a constant-QP
     // zero-latency single-thread software session or a constant-QP NVENC
-    // session may be parked or adopted.
+    // session may be parked or adopted. Persistent daemons set this flag by
+    // default; other callers leave it disabled unless they opt in explicitly.
     //
     // Safety invariant (why the default/CRF path stays fail-closed): a
     // completed MP4 requires sending end-of-stream to its encoder, after

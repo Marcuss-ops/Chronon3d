@@ -1,5 +1,26 @@
 # Chronon3D — Current Status
 
+Local reconciliation checkpoint (2026-11-20): `main` is **`78a7473b7`**
+(`feat: improve scene materialization`, 2026-11-19) with a clean working tree;
+the release CLI rebuilds at that SHA (`chronon3d_cli`, `-j8`, exit 0) and the
+test tree builds clean (756 edges, exit 0). The suite is **92/94**: the two
+reds are attributed in
+[`TICKET-SUITE-RED-20261120`](tickets/TICKET-SUITE-RED-20261120.md): the
+Vulkan layout leak was fixed on 2026-11-20 and `chronon3d_deterministic_tests`
+now passes 94/94 with an encoder-capable CLI, while the golden 02/03 drift from
+the HEAD materializer change remains, so "suite green" is **not** claimed. This supersedes the 2026-11-01 local checkpoint
+below. The configured build lanes
+are `linux-video-release` (`CHRONON3D_BUILD_TESTS=OFF`) and
+`linux-video-test` (`BUILD_TESTS=ON`, 94 CTest entries), both with
+`CHRONON3D_ENABLE_SVG=OFF`, `CHRONON3D_BUILD_CONTENT=OFF`,
+`CHRONON3D_ENABLE_OCIO=OFF` and `CHRONON3D_ENABLE_MOTION_ADAPTER=OFF`: SVG,
+content-corpus and OCIO gates are not compiled in these lanes and must be run
+from a dedicated configuration. `kNativeRoutes` now declares **65** routes
+(verified 2026-11-20 in
+`include/chronon3d/render_graph/effect_gpu_capability.hpp:30`); the 57/57
+measurement below is the historical 2026-11-02 run. The SVG CLI lane closed on
+2026-11-16 (six path/motion gates PASS) and is no longer an open blocker.
+
 Text/Composition closure checkpoint (2026-11-10): the `linux-video-release`
 build passes with `-j14` after removing the unused `CompiledComposition`
 FlatBuffer cache API and schema; the rebuilt cache suite passes 206/206 cases
@@ -16,7 +37,7 @@ span/paint-range (`T2-01`) implementations landed; the frozen corpus on CLI
 SHA `410d7395a2c8782695f4e43a69e91b4312088742f7f2679b81bccea5647d20d3` is
 still 1/8 PASS (`multipage`). The seven residual cases and the three new
 paths' pixel-parity gaps remain accepted, not PASS. See the
-[text closure ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md), the
+[text closure ticket](tickets/archive/TICKET-TEXT-CLOSURE-20261109.md), the
 [2026-11-13 evidence](evidence/text-parity-20261113/REPORT.md), and the
 [exception report](evidence/text-parity-20261110-product-exception/REPORT.md).
 
@@ -33,7 +54,7 @@ from 7 284 ms cold to 970 ms warm. Evidence is in
 `evidence/closeout-20261030/README.md` and
 `evidence/100x-perf-waves-b2-20261029/b2-encoder-bound-20261102-runs.json`.
 
-Local source checkpoint (2026-11-01): `main` is at `03e41d5b1` (2026-10-31),
+Historical local source checkpoint (2026-11-01, superseded): `main` was at `03e41d5b1` (2026-10-31),
 with the composition legacy-executor demolition now tracked as an active ticket.
 The camera surface consolidation and camera/video parity blockers remain open;
 the current local checkout does not establish a newer same-SHA CI certification.
@@ -106,6 +127,7 @@ abort report is historical and no longer describes the current harness.
 | Strict motion corpus (2026-10-10) | 479/479 PASS same-tree (`e3f14fbf4`+wave / RG `5e1b7f5`+harness): web_rect 12, light_leak 12, entity_caption 56, image 126, phrase 203, presentation 70 — strict vulkan/nvenc/native/require_gpu_native, h264 1280x720 48f; clean-SHA re-cert owed after commit |
 | GPU text route | packed compatibility route CLOSED 2026-09-22; prepared MTSDF is the only native graph route, with explicit software/reject handling |
 | Remote main (observed 2026-10-29) | `a214fad27efdaa597ccf4e4a8ae34baa6677146e` was the last recorded remote observation; it is not the current local HEAD. Its latest recorded Actions batch was not green. T05 GPU A/B and same-SHA certification remain open; recheck remote Actions before claiming current CI state. |
+| Local HEAD (2026-11-20) | `78a7473b7`, working tree clean; release CLI rebuilt at that SHA (exit 0). No same-SHA CI run is recorded for it, so this is build evidence only. |
 
 ## Area authority census
 
@@ -144,7 +166,7 @@ tracked in [`TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`](tickets/TICKET-WAVE-CLOSEOUT
 | TICKET-RENDER-STACK-HARDENING-20261106 | P0 | Vulkan/render stack | OPEN | [ticket](tickets/TICKET-RENDER-STACK-HARDENING-20261106.md) — W1 SyncVal audit and W2 same-SHA C3D/CM3D pair are the gates; W3/W4 closure; no new graphics stack |
 | CERT-SEQUENCE-WBH | P1 | testing/cert | PARTIAL | [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — protocol, toolchain manifest and local qualification delivered; clean same-SHA certification remains |
 | FFMPEG-PIPE-SINK-DEMOLITION | P1 | video cleanup | BLOCKED | [ticket](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — exits 2/4/5 verified 2026-10-23 (zero pipe callers, anti-resurrection gate 209/209); exit 3 CI-green evidence outstanding |
-| TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116 | P1 | SVG/CLI render lane | OPEN | [ticket](tickets/TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md) — path SVG importati non materializzati e animazioni operator cotte al frame 0; 6 gate path/motion FAIL, 8 gate testo PASS (2026-11-16) |
+| TICKET-SHAPE-FILL-COMPAT | P1 | scene/SDK demolition | ACTIVE | [ticket](tickets/TICKET-SHAPE-FILL-COMPAT.md) — 15-file `Fill` legacy migration, `ShapeTextureFill` pixel goldens per fit mode and the zero-match exit scan; `fill.hpp` is installed SDK surface, so removal needs an ABI window |
 | MAINTENANCE-HOTSPOTS-BONIFICATION | P1 | engine maintenance | ACTIVE | [ticket](tickets/TICKET-MAINTENANCE-HOTSPOTS-BONIFICATION.md) — GPU lifetime/teardown, text hot-path fixes, certification-truthfulness decisions (B.1/B.2/F.2), effects-lane arch gate |
 | TICKET-SHADOW-MAP-PCF-20261106 | P1 | lights/shadows | PARTIAL | [ticket](tickets/TICKET-SHADOW-MAP-PCF-20261106.md) — backend PCF PASS su RTX A4000 (2026-11-16); depth pass in light space non consumato dal render graph, audit di produzione e CI same-SHA aperti |
 | FUSED-STORAGE-IMAGE-DEMOLITION | P1 | render graph cleanup | PARTIAL | [ticket](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — compiler/executor image branch demolished; one same-SHA native-image video certificate is PASS, broader overlay corpus parity remains |
@@ -160,9 +182,9 @@ This table mirrors the canonical 10-row blocker index in
 |---|---|
 | Render-plan V3 coherence | PASS on 264b3c3d — v3 extensions dedup + per-key timing + flash hex + fingerprint v10 golden pinned (c_abi 138/138) — see git log 264b3c3dc |
 | Lottie Bodymovin lowering | IN PROGRESS — bounded local contract and software CLI/reference gates pass; unsupported Bezier/procedural text is an explicit fail-closed exclusion. Same-SHA CI certification remains open — [ticket](tickets/TICKET-LOTTIE-ANIMATED.md) |
-| SVG import | PARTIAL — bounded paths/styles, object-bounding-box gradients with static `gradientTransform` and synchronized two-keyframe stop-color/stop-opacity animation, compile-time local `<use>/<defs>` expansion, path morphs, path/group SMIL transform/opacity tracks, animated path paint, and static clip/vector masks on root or single-path scopes lower through native plans; animated gradient coordinates, mixed clip scopes, nested group transforms and SVG text remain open. 2026-11-16: lane SVG-enabled ricostruita, loader 59/59 casi (487 assertion) PASS; fix paint-only chunk (0 px alpha diff) e 8/8 gate raw testo PASS; i 6 gate path/motion restano BLOCCATI dalla lane CLI che materializza solo shape.path e congela le animazioni operator al frame 0 (imported_subpaths e sampling per-frame non cablati); CI clean-SHA resta aperta — [ticket](tickets/TICKET-SVG-RENDER-PLAN.md) |
+| SVG import | PARTIAL — bounded paths/styles, object-bounding-box gradients with static `gradientTransform` and synchronized two-keyframe stop-color/stop-opacity animation, compile-time local `<use>/<defs>` expansion, path morphs, path/group SMIL transform/opacity tracks, animated path paint, and static clip/vector masks on root or single-path scopes lower through native plans; animated gradient coordinates, mixed clip scopes, nested group transforms and SVG text remain open. 2026-11-16: lane SVG-enabled ricostruita, loader 59/59 casi (487 assertion) PASS; fix paint-only chunk (0 px alpha diff), 8/8 gate raw testo PASS e **6/6 gate path/motion PASS** dopo la materializzazione di `imported_subpaths` e il sampling per-frame degli operatori (group isolation 10/10, composite 31/31, motion 17/17, static 132 px, trim `[0,0,67,96,96]`); restano la certificazione strict-native Vulkan e la CI clean-SHA — [ticket](tickets/TICKET-SVG-RENDER-PLAN.md) |
 | Documentary SVG video recreation | IN PROGRESS — imported SVG pixel, sampled trim, marker alignment, synthetic moving-marker glow, text-stroke and deterministic raw gates pass; registry-backed configurable graph-study preset and MP4 render through software CLI. The combined gate reproduces SVG pixel loss without a constant-opacity workaround and verifies the workaround; disabling composite input storage transfer does not change the loss. Underlying cause, exact reference comparison, source-footage composite, target-scene glow and GPU lane remain open — [ticket](tickets/TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md) |
-| Vulkan effect parity | **Local PASS on RTX A4000 (2026-11-02)**: `kNativeRoutes` now declares 57 native routes after the 2026-11-08 SDF Bevel addition, and every catalog effect outside them is explicitly Unsupported. The 2026-11-02 full-suite run recorded `Vulkan*` 57/57 cases and 1,925,534 assertions, `Strict Vulkan*` 25/25 and 5,422, `chronon3d_effects_tests` 308/308 and 5,540,429 — zero failed assertions. Closed: [AE effects ticket](tickets/archive/TICKET-AE-EFFECT-PARITY.md), [Color Matrix](tickets/archive/TICKET-COLOR-MATRIX-EFFECT.md), [pool-surface](tickets/archive/TICKET-POOL-SURFACE-REUSE.md). Remaining gate: the whole registry binary under llvmpipe runs 130/139 cases with **0 `vkCreateInstance -9`**; 9 effect-parity mismatches remain and are tracked in the [harness ticket](tickets/TICKET-REGISTRY-HARNESS-VK-INSTANCES.md), together with CI same-SHA |
+| Vulkan effect parity | **Local PASS on RTX A4000 (2026-11-02, historical measurement)**: `kNativeRoutes` declared 57 native routes then and declares **65** now (2026-11-20), and every catalog effect outside them is explicitly Unsupported. The 2026-11-02 full-suite run recorded `Vulkan*` 57/57 cases and 1,925,534 assertions, `Strict Vulkan*` 25/25 and 5,422, `chronon3d_effects_tests` 308/308 and 5,540,429 — zero failed assertions. Closed: [AE effects ticket](tickets/archive/TICKET-AE-EFFECT-PARITY.md), [Color Matrix](tickets/archive/TICKET-COLOR-MATRIX-EFFECT.md), [pool-surface](tickets/archive/TICKET-POOL-SURFACE-REUSE.md). Remaining gate: the whole registry binary under llvmpipe runs 130/139 cases with **0 `vkCreateInstance -9`**; 9 effect-parity mismatches remain and are tracked in the [harness ticket](tickets/TICKET-REGISTRY-HARNESS-VK-INSTANCES.md), together with CI same-SHA |
 | CLI V3 / RenderPlan | PASS (focused) |
 | Camera authority | CLOSED — CM3D owns authoring/sampling; Template uses resolved-sample lowering; C3D consumes resolved camera state. Focused value/adapter checks and T16 integration were recorded in the camera-authority ticket, closed and removed 2026-10-27 (history in git). |
 | Cinematic compositions T16–T18 | CLOSED FOR CURRENT RELEASE — T16 150-frame strict-native export and raw renderer parity pass. T17/T18 are optional showcase scenes parked until selected for production; codec p99 and same-SHA/CI are not release gates; the optional T17/T18 showcase work was retired with its ticket (removed 2026-10-27). |
@@ -170,7 +192,7 @@ This table mirrors the canonical 10-row blocker index in
 | Lights / shadows (T05) | PARTIAL — 2026-10-30 final-binary no-probe acceptance: 5/5 caster-off + 5/5 caster-on, gate 30/30 PASS, zero black; 2026-11-11 review visiva dei frame on/off: ombre portate visibili e controllo off pulito, ma la scena non è una composizione di produzione approvata. 2026-11-16: shadow-map PCF backend PASS su RTX A4000 (edge error 0 px, PCF addolcito, bias senza acne, delta CPU/GPU 0); registry lighting/spot/shadow 188/188 assertion. Restano integrazione del depth pass nel render graph, qualità su produzione e CI same-SHA; C2 2.047/2.607/7.998 s e GPU instancing/parity aperti — [ticket and evidence](tickets/TICKET-LIGHTS-SHADOWS-PARTICLES.md) |
 | Render-plan audio mix | PASS (focused) — V3 clips, trim, gain automation, ducking and native mux integration; GPU/CI same-SHA certification remains separate |
 | Text Core V1 | PASS (focused) |
-| Text animator AE parity | CLOSED — product exception (ADR-040): functional selectors/caret and ordered multi-shadow paths are implemented; Vulkan canonical shadow, vector stroke and transition+span landed on 2026-11-13, but the frozen corpus is still 1/8 PASS and those pixel gates are not PASS — [ticket](tickets/TICKET-TEXT-CLOSURE-20261109.md), [ADR-040](adr/ADR-040-text-parity-product-exception.md), [2026-11-13 evidence](evidence/text-parity-20261113/REPORT.md) |
+| Text animator AE parity | CLOSED — product exception (ADR-040): functional selectors/caret and ordered multi-shadow paths are implemented; Vulkan canonical shadow, vector stroke and transition+span landed on 2026-11-13, but the frozen corpus is still 1/8 PASS and those pixel gates are not PASS — [ticket](tickets/archive/TICKET-TEXT-CLOSURE-20261109.md), [ADR-040](adr/ADR-040-text-parity-product-exception.md), [2026-11-13 evidence](evidence/text-parity-20261113/REPORT.md) |
 | Text depth focus (text_depth_focus_v1) | PARTIAL — resolver and preset recipes are in `ChrononPlugin/plugins/typography`; text animator primitives remain in Chronon3D |
 | Text Production V1 | PARTIAL — acceptance contract is in [`RELEASE_GATE.md`](RELEASE_GATE.md): 20 general + 8 subtitle presets, timed JSON/SRT input, productive word styling, per-preset 16:9/9:16 short/long multi-time goldens, installed-SDK use, and serial/parallel determinism. The claimed 20+8 catalog count is not backed by a current inventory artifact found in this checkout; the other end-to-end criteria are not certified. |
 | GPU Production V1 | PARTIAL / scope not separately defined — no dedicated ticket or acceptance contract named “GPU Production V1” was found. Related measurable C3D gates are [zero-copy Z-waves](tickets/TICKET-ZERO-COPY-ZWAVES.md), [GPU corpus](tickets/TICKET-GPU-BASELINE-CORPUS.md), and the GPU-native video evidence above; the content corpus and broad release certification remain open. |

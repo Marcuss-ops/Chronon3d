@@ -6,11 +6,11 @@
 | **Date** | 2026-07-04 |
 | **Deciders** | Camera_v1 architecture owner (post-F2.3 ADR-011 close-out) |
 | **Tags** | `camera_v1`, `compiler`, `session`, `cache`, `lease`, `frame-rate`, `keep-last-valid-camera`, `F2.3.1`, `A3-cluster`, `telemetry-contracts` |
-| **Related** | [ADR-011 — camera-legacy-deletion](./ADR-011-camera-legacy-deletion.md) (especially **Decision 5** + the **pre-existing rot** at `src/render_graph/pipeline/camera_change_policy.cpp:24` fixata in commit `ac514fea` projection_mode→optics_mode, which is the documentation precedent the 4 contracts below exist to *prevent recurrence of*); `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md`; `docs/camera-plan/02-OPTICS_PROJECTION_ORIENTATION.md`; `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md`; `tools/check_camera_architecture.sh` gates `[1/6]`–`[6/6]`; `tools/check_doc_sync.sh`; TICKET-A3-METADATA / TICKET-A3-SESSION-POLICY / TICKET-A3-CACHE-LEASE / TICKET-A3-CTX-FRAMERATE / TICKET-A3-DAMPED-HISTORY / TICKET-A3-LOOKAT-DIAGNOSTIC (the 6-ticket A3 cluster on `main` that this ADR locks). |
+| **Related** | [ADR-011 — camera-legacy-deletion](ADR-011-camera-legacy-deletion.md) (especially **Decision 5** + the **pre-existing rot** at `src/render_graph/pipeline/camera_change_policy.cpp:24` fixata in commit `ac514fea` projection_mode→optics_mode, which is the documentation precedent the 4 contracts below exist to *prevent recurrence of*); `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md`; `docs/camera-plan/02-OPTICS_PROJECTION_ORIENTATION.md`; `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md`; `tools/check_camera_architecture.sh` gates `[1/6]`–`[6/6]`; `tools/check_doc_sync.sh`; TICKET-A3-METADATA / TICKET-A3-SESSION-POLICY / TICKET-A3-CACHE-LEASE / TICKET-A3-CTX-FRAMERATE / TICKET-A3-DAMPED-HISTORY / TICKET-A3-LOOKAT-DIAGNOSTIC (the 6-ticket A3 cluster on `main` that this ADR locks). |
 
 ## Context and scope
 
-Chronon3d's `camera_v1::*` compiled-evaluation path (`compile_camera()` → `CameraProgram::evaluate(ctx, session)` with optional `CameraSessionCache` for per-worker pre-roll) is the canonical authoring+runtime surface post-F2.3 (per [ADR-011](./ADR-011-camera-legacy-deletion.md)).  The 6-ticket A3 cluster landed 7 individual fixes that each prevent a *class* of silent behavioural drift — but the fixes themselves are scattered across `src/scene/camera/camera_v1/*.cpp` and only the regression-locks in `tests/` make them auditable.
+Chronon3d's `camera_v1::*` compiled-evaluation path (`compile_camera()` → `CameraProgram::evaluate(ctx, session)` with optional `CameraSessionCache` for per-worker pre-roll) is the canonical authoring+runtime surface post-F2.3 (per [ADR-011](ADR-011-camera-legacy-deletion.md)).  The 6-ticket A3 cluster landed 7 individual fixes that each prevent a *class* of silent behavioural drift — but the fixes themselves are scattered across `src/scene/camera/camera_v1/*.cpp` and only the regression-locks in `tests/` make them auditable.
 
 This ADR consolidates the 6 fixes into a single document so that any future maintainer reading the `camera_v1` source tree has ONE place to look for the contracts.  Each contract has:
 
@@ -326,7 +326,7 @@ This ADR is the consolidating node for the 8 tickets in the A3 cluster (C5-compl
 
 ### Chain to ADR-011 Decision 5 (call-site migration list)
 
-[ADR-011 Decision 5](./ADR-011-camera-legacy-deletion.md#decision-5-camera2_5dprojection_mode-field--delete) enumerates the 106 in-tree matches for `Camera2_5D::projection_mode` — the field whose deletion was the FIRST canonicalisation close-out after F2.3.  The contracts in this ADR are **structurally similar**: each of the 6 A3 tickets addresses a "silent fallback that emits no observable signal" risk.  The 4 contracts + 2 close-outs (Decisions 5 + 6) above are the SECOND close-out pass: `camera_v1` runtime contracts whose broken state was previously of the same "no diagnostic, no test lock, no canonical channel" shape as `projection_mode` was pre-ADR-011.
+[ADR-011 Decision 5](ADR-011-camera-legacy-deletion.md#decision-5-camera2_5dprojection_mode-field--delete) enumerates the 106 in-tree matches for `Camera2_5D::projection_mode` — the field whose deletion was the FIRST canonicalisation close-out after F2.3.  The contracts in this ADR are **structurally similar**: each of the 6 A3 tickets addresses a "silent fallback that emits no observable signal" risk.  The 4 contracts + 2 close-outs (Decisions 5 + 6) above are the SECOND close-out pass: `camera_v1` runtime contracts whose broken state was previously of the same "no diagnostic, no test lock, no canonical channel" shape as `projection_mode` was pre-ADR-011.
 
 Specifically:
 
@@ -394,10 +394,10 @@ The cluster row's last entry — "TICKET-camera-policy-pre-existing" carryover (
 ## References
 
 * AGENTS.md §"Piano operativo canonico" + §"Feature freeze" (`5/11 GATES`, `11/11 GATES` revocation path) + §"Regole di lavoro" (Doc-only ticket policy, single-commit-per-ticket principle).
-* [ADR-001 — frame-graph-compiler](./ADR-001-frame-graph-compiler.md) — the runtime representation that this ADR's `CameraProgram::evaluate()` evaluates against.
-* [ADR-008 — render-engine-renderer-ptr](./ADR-008-render-engine-renderer-ptr-return.md) — anchors the SDK INSTALL posture that this ADR's runtime contracts unblock.
-* [ADR-010 — boundary-gate-semantic-extension](./ADR-010-boundary-gate-semantic-extension.md) — gate `[14/14]` consumes this ADR's status as part of the BLOCKING transition path (post-F2.3 sync).
-* **<a id="adr011-decs5"></a>[ADR-011 — camera-legacy-deletion](./ADR-011-camera-legacy-deletion.md), Decision 5 in particular** — the `Camera2_5D::projection_mode` migration list that the 4 contracts above are designed to prevent *recurrence of*.
+* [ADR-001 — frame-graph-compiler](ADR-001-frame-graph-compiler.md) — the runtime representation that this ADR's `CameraProgram::evaluate()` evaluates against.
+* [ADR-008 — render-engine-renderer-ptr](ADR-008-render-engine-renderer-ptr-return.md) — anchors the SDK INSTALL posture that this ADR's runtime contracts unblock.
+* [ADR-010 — boundary-gate-semantic-extension](ADR-010-boundary-gate-semantic-extension.md) — gate `[14/14]` consumes this ADR's status as part of the BLOCKING transition path (post-F2.3 sync).
+* **<a id="adr011-decs5"></a>[ADR-011 — camera-legacy-deletion](ADR-011-camera-legacy-deletion.md), Decision 5 in particular** — the `Camera2_5D::projection_mode` migration list that the 4 contracts above are designed to prevent *recurrence of*.
 * `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md` — the F2.3 design spec.
 * `docs/camera-plan/02-OPTICS_PROJECTION_ORIENTATION.md` — the Projection vs FieldOfView discrimination contract that Decision 5 (`DampedFollow`-forces-RequiresHistory) is consistent with (Projection-vs-Fov is a compile-time surface; DampedFollow's identity-preserving-requirement is a runtime surface; both are compile-baked into `CameraProgram`).
 * `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` — the canonical pre-roll procedure that Decision 3 (`commit()` as sole writepoint for `last_evaluated_frame`) implements.

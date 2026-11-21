@@ -6,7 +6,7 @@
 | **Date** | 2026-07-10 |
 | **Deciders** | Text pipeline architecture owner |
 | **Tags** | `text`, `coordinates`, `placement`, `layout`, `bbox`, `predicted_bbox`, `Canvas`, `Layer`, `Box`, `Glyph`, `TextRunPlacement`, `TextDefinition`, `simplicity-action-plan` |
-| **Related** | [ADR-015 — screen-space TRS invariant](./ADR-015-screen-space-trs-invariant.md) (2.5D projection output contract); [ADR-018 — auto-fit text](./ADR-018-auto-fit-text.md) (box-level layout); [ADR-014 — text golden coverage](./ADR-014-text-golden-coverage.md) (visual regression tests); `docs/TEXT_SIMPLICITY_ACTION_PLAN.md` §F1.A; `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` §4 (canonical pipeline); `docs/FOLLOWUP_TICKETS.md` `TICKET-SIMPLICITY-COORDINATES`; `TICKET-TEXT-CLIP-PREDICTED-BBOX` (predicted_bbox divergence bug) |
+| **Related** | [ADR-015 — screen-space TRS invariant](ADR-015-screen-space-trs-invariant.md) (2.5D projection output contract); [ADR-018 — auto-fit text](ADR-018-auto-fit-text.md) (box-level layout); [ADR-014 — text golden coverage](ADR-014-text-golden-coverage.md) (visual regression tests); `docs/TEXT_SIMPLICITY_ACTION_PLAN.md` §F1.A; `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` §4 (canonical pipeline); `docs/FOLLOWUP_TICKETS.md` `TICKET-SIMPLICITY-COORDINATES`; `TICKET-TEXT-CLIP-PREDICTED-BBOX` (predicted_bbox divergence bug) |
 
 ---
 

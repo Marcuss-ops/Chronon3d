@@ -3,7 +3,7 @@
 **Status:** CLOSED BY PRODUCT EXCEPTION — this is **not** a parity PASS.
 
 - **Decision:** [ADR-040](../../adr/ADR-040-text-parity-product-exception.md)
-- **Ticket:** [TICKET-TEXT-CLOSURE-20261109](../../tickets/TICKET-TEXT-CLOSURE-20261109.md)
+- **Ticket:** [TICKET-TEXT-CLOSURE-20261109](../../tickets/archive/TICKET-TEXT-CLOSURE-20261109.md)
 - **Build:** `cmake --build build/chronon/linux-video-release --target chronon3d_cli -j12`
   — exit 0
 - **CLI SHA-256:** `ba6e14ad788fcab97000affb177f0f7bbb367595b3ffe52dd579c6990a1da75e`

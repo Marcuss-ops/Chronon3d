@@ -192,3 +192,19 @@ from `/dev/shm/chronon3d-final-bin` to avoid filling the workspace filesystem:
 CTest 1/1 PASS (278.26 s). This closes the local SDK link/ABI check only; the
 ticket remains PARTIAL until reviewed changes are on `main` and same-SHA CI is
 green.
+
+## Local verification — 2026-11-20
+
+Local HEAD is `78a7473b7` (2026-11-19) with a **clean** working tree, so the
+2026-11-16 "uncommitted edits" caveat no longer applies to this SHA. The
+Release CLI rebuilds from it (`cmake --build build/chronon/linux-video-release
+--target chronon3d_cli -j8` → exit 0, 100.9 s, peak RSS 1.7 GiB). The test tree
+build (`CHRONON3D_BUILD_TESTS=ON`, 756 pending edges) was started and did not
+finish within the session, so the aggregate/suite criterion remains **NOT
+RUN**; no suite result is claimed. `CURRENT_STATUS.md` and
+`FOLLOWUP_TICKETS.md` were reconciled with this HEAD, and the closed sheets
+were archived per `docs/INDEX.md` (38 moved, 0 new broken internal links).
+
+Evidence: `docs/evidence/reconciliation-20261120/README.md`. The ticket stays
+`PARTIAL`: `main-truth` and `Chronon CI` still need a green run on this exact
+SHA, which cannot be produced from this checkout alone.

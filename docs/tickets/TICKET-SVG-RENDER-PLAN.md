@@ -7,7 +7,7 @@ e i sei gate path/motion passano sulla CLI Release con SVG ON; il loader resta
 operatori sono cablati nella lane CLI. Resta la certificazione strict-native
 Vulkan (hardware/CI); fuori contratto arbitrary filter graphs e SMIL completo.
 Dettaglio nella scheda figlia
-[TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
+[TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](archive/TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
 
 ## Verifica locale 2026-11-16 — lane SVG abilitata
 
@@ -67,7 +67,7 @@ Root cause risolta, due gap dello stesso lane:
    campiona operatori e animazioni SVG; il video non ripete più il frame 0.
 
 Dettaglio, misure e comandi in
-[TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
+[TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](archive/TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
 
 ## TODO — cosa manca (agg. 2026-10-28)
 

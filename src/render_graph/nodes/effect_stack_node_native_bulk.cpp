@@ -554,15 +554,30 @@ bool try_native_full_frame_warp_bulk(RenderGraphContext& ctx,
         return false;
     }
 
+    // Same re-anchoring as the generate route: LensDistortion and the warp
+    // family sample a source that a halo stage may have pushed out of the
+    // result's coordinate space. The displacement map variant keeps the raw
+    // source because its offsets are authored against the map's own origin.
+    AnchoredSource anchored;
+    if (!anchor_source_to_result(ctx, result, borrowed_source,
+                                 bulk.mode == 12 ? nullptr : src_framebuffer,
+                                 anchored)) {
+        return false;
+    }
     runtime::RenderSurfaceHandle source = runtime::kInvalidRenderSurfaceHandle;
-    const auto destination = bulk_alloc_destination(ctx, result, borrowed_source, source);
-    if (destination == runtime::kInvalidRenderSurfaceHandle) return false;
+    const auto destination = bulk_alloc_destination(ctx, result, anchored.surface, source);
+    if (destination == runtime::kInvalidRenderSurfaceHandle) {
+        release_anchored_source(ctx, anchored);
+        return false;
+    }
     const auto aux = (bulk.mode == 12) ? map_source : source;
     const auto dispatched = ctx.backend_surface_api()->warp_bulk_surface(destination, source, aux, bulk);
     if (!dispatched.ok()) {
         bulk_release_surface(ctx, destination);
+        release_anchored_source(ctx, anchored);
         return false;
     }
+    release_anchored_source(ctx, anchored);
     result.set_surface_handle(destination);
     result.mark_gpu_authoritative();
     return true;
@@ -573,7 +588,8 @@ bool try_native_full_frame_generate_bulk(RenderGraphContext& ctx,
                                          const EffectStack& effect_stack,
                                          Framebuffer& result,
                                          const std::optional<raster::BBox>& clip,
-                                         runtime::RenderSurfaceHandle borrowed_source) {
+                                         runtime::RenderSurfaceHandle borrowed_source,
+                                         const Framebuffer* borrowed_source_framebuffer) {
     using namespace bulk_detail;
     if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
         effect_stack.size() != 1) {
@@ -722,14 +738,27 @@ bool try_native_full_frame_generate_bulk(RenderGraphContext& ctx,
         return false;
     }
 
+    // A halo-spreading stage earlier in the stack renders into a canvas-sized
+    // result while the borrowed source still covers only the tight layer ROI;
+    // the dispatch rejects mismatched surfaces, so re-anchor the source first.
+    AnchoredSource anchored;
+    if (!anchor_source_to_result(ctx, result, borrowed_source,
+                                 borrowed_source_framebuffer, anchored)) {
+        return false;
+    }
     runtime::RenderSurfaceHandle source = runtime::kInvalidRenderSurfaceHandle;
-    const auto destination = bulk_alloc_destination(ctx, result, borrowed_source, source);
-    if (destination == runtime::kInvalidRenderSurfaceHandle) return false;
+    const auto destination = bulk_alloc_destination(ctx, result, anchored.surface, source);
+    if (destination == runtime::kInvalidRenderSurfaceHandle) {
+        release_anchored_source(ctx, anchored);
+        return false;
+    }
     const auto dispatched = ctx.backend_surface_api()->generate_bulk_surface(destination, source, bulk);
     if (!dispatched.ok()) {
         bulk_release_surface(ctx, destination);
+        release_anchored_source(ctx, anchored);
         return false;
     }
+    release_anchored_source(ctx, anchored);
     result.set_surface_handle(destination);
     result.mark_gpu_authoritative();
     return true;

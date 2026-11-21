@@ -190,7 +190,11 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     );
 
     const bool full_source = src_x == 0 && src_y == 0 && src_w == img_w && src_h == img_h;
-    const bool use_cached_fb = full_source && !using_placeholder && image.fit == FitMode::Stretch && cached && cached->fb_img;
+    // Fit mode has already been resolved into src_rect/dst_rect and therefore
+    // scaled_model. When the full source survives that placement, composite it
+    // directly for every fit mode instead of copying the entire cached image
+    // into a temporary framebuffer on every frame (notably Cover camera pans).
+    const bool use_cached_fb = full_source && !using_placeholder && cached && cached->fb_img;
 
     const auto composite_start = profiling::now();
 

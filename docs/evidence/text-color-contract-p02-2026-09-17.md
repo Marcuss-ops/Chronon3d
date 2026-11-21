@@ -3,7 +3,7 @@
 Data: 2026-09-17 · SHA di partenza: `c6f4c69d1` · Lane: `linux-fast-dev`
 (preset `linux-fast-dev`, `-j16`, ccache, `-fuse-ld=mold`).
 
-Consuma P0-2 di [`docs/tickets/TICKET-TEXT-QUALITY-V2.md`](../tickets/TICKET-TEXT-QUALITY-V2.md)
+Consuma P0-2 di [`docs/tickets/TICKET-TEXT-QUALITY-V2.md`](../tickets/archive/TICKET-TEXT-QUALITY-V2.md)
 §5 e l'ordine vincolante §5.1 voce 3: *«risolto alla boundary di authoring/lowering,
 non dentro gli shader … deve diventare linear una volta sola prima di arrivare ai
 backend (niente `to_linear()` separato in Vulkan e CUDA)»*.

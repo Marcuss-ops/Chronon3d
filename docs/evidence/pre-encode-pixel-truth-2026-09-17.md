@@ -2,7 +2,7 @@
 
 Ambito: `TICKET-IMAGE-PATH-PIXEL-TRUTH` (chiusa 2026-09-17, exit condition 2; la
 scheda si consulta in git history) e
-[`TICKET-TEXT-QUALITY-V2`](../tickets/TICKET-TEXT-QUALITY-V2.md)
+[`TICKET-TEXT-QUALITY-V2`](../tickets/archive/TICKET-TEXT-QUALITY-V2.md)
 §P0-0b (la verità pre-encode che blocca la campagna qualità).
 
 Ogni numero qui sotto è **misurato in questa sessione**; ciò che non è stato

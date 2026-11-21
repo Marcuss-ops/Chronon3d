@@ -3,6 +3,7 @@
 #include "daemon/chronon_ipc.hpp"
 #include "daemon/daemon_service.hpp"
 #include "commands/render/command_render_plan.hpp"
+#include "commands/render/render_plan_preparation.hpp"
 #include <chronon3d/api/render_engine.hpp>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
@@ -10,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
@@ -31,6 +33,70 @@
 #endif
 
 using namespace chronon3d::cli::ipc;
+
+namespace {
+chronon3d::cli::RenderJobPreparer make_test_preparer() {
+    return [](const chronon3d::runtime::job::NormalizedRenderJob& job,
+              std::shared_ptr<chronon3d::SoftwareRenderer> renderer,
+              std::string& error, std::optional<double>& prelock_decode_ms) {
+        chronon3d::cli::RenderPlanPreparationOptions options;
+        options.input = job.plan_path.string();
+        options.assets_root = job.assets_root.string();
+        options.prepared_package = job.prepared_package_path.string();
+        options.no_dirty_rects = job.no_dirty_rects;
+        auto prepared = chronon3d::cli::prepare_render_plan(options);
+        if (!prepared) {
+            error = prepared.error().message;
+            return std::shared_ptr<chronon3d::cli::PreparedRenderPlanContext>{};
+        }
+        auto context = std::make_shared<chronon3d::cli::PreparedRenderPlanContext>(
+            std::move(prepared).value());
+        const char* previous_prefetch =
+            std::getenv("CHRONON3D_DAEMON_IMAGE_PREFETCH");
+        const std::optional<std::string> saved_prefetch = previous_prefetch
+            ? std::optional<std::string>{previous_prefetch}
+            : std::nullopt;
+#ifdef _WIN32
+        (void)::_putenv_s("CHRONON3D_DAEMON_IMAGE_PREFETCH", "");
+#else
+        (void)::unsetenv("CHRONON3D_DAEMON_IMAGE_PREFETCH");
+#endif
+        const bool default_prefetch_ok =
+            chronon3d::cli::prefetch_render_plan_images(
+                *context, renderer.get(), error);
+        CHECK(default_prefetch_ok);
+        CHECK_FALSE(context->prelock_image_decode_ms.has_value());
+#ifdef _WIN32
+        (void)::_putenv_s("CHRONON3D_DAEMON_IMAGE_PREFETCH", "1");
+#else
+        (void)::setenv("CHRONON3D_DAEMON_IMAGE_PREFETCH", "1", 1);
+#endif
+        const bool prefetch_ok = chronon3d::cli::prefetch_render_plan_images(
+            *context, renderer.get(), error);
+        if (saved_prefetch) {
+#ifdef _WIN32
+            (void)::_putenv_s("CHRONON3D_DAEMON_IMAGE_PREFETCH",
+                              saved_prefetch->c_str());
+#else
+            (void)::setenv("CHRONON3D_DAEMON_IMAGE_PREFETCH",
+                           saved_prefetch->c_str(), 1);
+#endif
+        } else {
+#ifdef _WIN32
+            (void)::_putenv_s("CHRONON3D_DAEMON_IMAGE_PREFETCH", "");
+#else
+            (void)::unsetenv("CHRONON3D_DAEMON_IMAGE_PREFETCH");
+#endif
+        }
+        if (!prefetch_ok) {
+            return std::shared_ptr<chronon3d::cli::PreparedRenderPlanContext>{};
+        }
+        prelock_decode_ms = context->prelock_image_decode_ms;
+        context->prepared_at = std::chrono::steady_clock::now();
+        return context;
+    };
+}
+}
 
 // ---------------------------------------------------------------------------
 // TICKET-DAEMON-IPC-REJECTION-RESILIENCE
@@ -135,32 +201,62 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
         ("chronon3d-daemon-rejection-" + suffix + ".json");
     const auto output_path = std::filesystem::temp_directory_path() /
         ("chronon3d-daemon-rejection-" + suffix + ".png");
+    const auto assets_root = std::filesystem::current_path() /
+        "tests/install_consumer/assets";
     {
         std::ofstream plan(plan_path);
         REQUIRE(plan.is_open());
-        plan << R"({"schema":"chronon.render-plan.v2","version":2,"job_id":"daemon-rejection-test","canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},"layers":[{"id":"bg","type":"color","color":[0,0,0,1],"size":[64,64],"start_frame":0,"duration_frames":1}],"output":{"path":"unused.png","format":"png"}})";
+        plan << R"({"schema":"chronon.render-plan.v2","version":2,"job_id":"daemon-rejection-test","canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},"layers":[{"id":"img","type":"image","asset":"test_image.png","size":[64,64],"start_frame":0,"duration_frames":1}],"output":{"path":"unused.png","format":"png"}})";
     }
 
     chronon3d::CompositionRegistry registry;
     chronon3d::cli::DaemonOptions options;
     options.backend = "software";
+    options.assets_root = assets_root.string();
     chronon3d::cli::DaemonService service(registry, std::move(options));
 
     auto& dispatcher = chronon3d::cli::render_job_dispatcher();
     auto previous_dispatcher = std::move(dispatcher);
+    auto& preparer = chronon3d::cli::render_job_preparer();
+    auto previous_preparer = std::move(preparer);
+    std::atomic<unsigned> image_prefetch_count{0};
+    auto base_preparer = make_test_preparer();
+    preparer = [&base_preparer, &image_prefetch_count](
+        const chronon3d::runtime::job::NormalizedRenderJob& job,
+        std::shared_ptr<chronon3d::SoftwareRenderer> renderer,
+        std::string& error, std::optional<double>& prelock_decode_ms) {
+        auto context = base_preparer(job, std::move(renderer), error, prelock_decode_ms);
+        if (context && prelock_decode_ms) {
+            image_prefetch_count.fetch_add(1, std::memory_order_relaxed);
+        }
+        return context;
+    };
     std::atomic<unsigned> dispatch_count{0};
     std::mutex dispatch_mutex;
     std::condition_variable dispatch_cv;
     bool full_video_dispatch_waiting = false;
     bool allow_full_video_dispatch = false;
+    std::chrono::steady_clock::time_point first_dispatch_released_at{};
+    std::chrono::steady_clock::time_point queued_plan_prepared_at{};
+    std::optional<double> queued_image_prefetch_ms;
     dispatcher = [&dispatch_count, &registry, &dispatch_mutex, &dispatch_cv,
-                  &full_video_dispatch_waiting, &allow_full_video_dispatch](
+                  &full_video_dispatch_waiting, &allow_full_video_dispatch,
+                  &queued_plan_prepared_at, &queued_image_prefetch_ms](
         const chronon3d::runtime::job::NormalizedRenderJob& job,
         std::shared_ptr<chronon3d::SoftwareRenderer> renderer,
-        std::shared_ptr<chronon3d::media::VideoJobExecutionContext> video_execution) -> Reply {
-        if (dispatch_count.fetch_add(1, std::memory_order_relaxed) == 0) {
+        std::shared_ptr<chronon3d::media::VideoJobExecutionContext> video_execution,
+        std::shared_ptr<chronon3d::cli::PreparedRenderPlanContext> prepared_plan) -> Reply {
+        REQUIRE(prepared_plan);
+        REQUIRE(prepared_plan->program);
+        const auto call = dispatch_count.fetch_add(1, std::memory_order_relaxed);
+        if (call == 0) {
             throw std::runtime_error(
                 "UnsupportedCapability: deterministic test rejection");
+        }
+        if (call == 2) {
+            queued_plan_prepared_at = prepared_plan->prepared_at;
+            queued_image_prefetch_ms = prepared_plan->prelock_image_decode_ms;
+            return Reply{Status::Ok, "queued plan prepared before execution admission"};
         }
         {
             std::unique_lock lock(dispatch_mutex);
@@ -171,7 +267,8 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
             });
         }
         return chronon3d::cli::ipc_render_job(
-            registry, job, std::move(renderer), std::move(video_execution));
+            registry, job, std::move(renderer), std::move(video_execution),
+            std::move(prepared_plan));
     };
 
     std::thread daemon_thread([&service, &socket_path] {
@@ -180,12 +277,14 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
 
     UnixSocketClient client;
     UnixSocketClient status_client;
+    UnixSocketClient queued_client;
     bool connected = false;
     for (int attempt = 0; attempt < 200 && !connected; ++attempt) {
         if (std::filesystem::exists(socket_path)) {
             try {
                 client.connect(socket_path.string());
                 status_client.connect(socket_path.string());
+                queued_client.connect(socket_path.string());
                 connected = true;
             } catch (const std::system_error&) {
                 // The socket inode may appear just before listen() completes.
@@ -202,12 +301,14 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
     std::optional<Reply> running_status;
     std::optional<Reply> accepted_status;
     std::optional<Reply> duplicate_job;
+    std::optional<Reply> queued_reply;
     std::optional<Reply> shutdown;
     if (connected) {
         const auto make_payload = [&](std::string_view job_id) {
             return nlohmann::json{
                 {"job_id", job_id},
                 {"plan_path", plan_path.generic_string()},
+                {"assets_root", assets_root.generic_string()},
                 {"output", output_path.generic_string()},
                 {"range_enabled", true},
                 {"first_frame", 0},
@@ -243,13 +344,36 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
         if (dispatch_waiting) {
             running_status = status_client.request(
                 Command::GetJobStatus, "daemon-rejection-completed");
+            std::thread queued_render_thread([&] {
+                queued_reply = queued_client.request(
+                    Command::RenderJob,
+                    make_payload("daemon-rejection-queued"));
+            });
+            std::this_thread::sleep_for(200ms);
+            {
+                std::lock_guard lock(dispatch_mutex);
+                first_dispatch_released_at = std::chrono::steady_clock::now();
+                allow_full_video_dispatch = true;
+            }
+            dispatch_cv.notify_all();
+            render_thread.join();
+            queued_render_thread.join();
+            CHECK(queued_reply.has_value());
+            if (queued_reply) CHECK(queued_reply->status == Status::Ok);
+            CHECK(queued_plan_prepared_at != std::chrono::steady_clock::time_point{});
+            CHECK(queued_plan_prepared_at < first_dispatch_released_at);
+            REQUIRE(queued_image_prefetch_ms.has_value());
+            CHECK(*queued_image_prefetch_ms > 0.0);
+            CHECK(image_prefetch_count.load(std::memory_order_relaxed) >= 2);
+        } else {
+            {
+                std::lock_guard lock(dispatch_mutex);
+                first_dispatch_released_at = std::chrono::steady_clock::now();
+                allow_full_video_dispatch = true;
+            }
+            dispatch_cv.notify_all();
+            render_thread.join();
         }
-        {
-            std::lock_guard lock(dispatch_mutex);
-            allow_full_video_dispatch = true;
-        }
-        dispatch_cv.notify_all();
-        render_thread.join();
         accepted_status = status_client.request(
             Command::GetJobStatus, "daemon-rejection-completed");
         duplicate_job = client.request(
@@ -260,9 +384,11 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
 
     client.close();
     status_client.close();
+    queued_client.close();
     if (daemon_thread.joinable()) daemon_thread.join();
     const bool output_created = std::filesystem::exists(output_path);
     dispatcher = std::move(previous_dispatcher);
+    preparer = std::move(previous_preparer);
     std::error_code ignored;
     std::filesystem::remove(plan_path, ignored);
     std::filesystem::remove(output_path, ignored);
@@ -292,10 +418,10 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
     CHECK(accepted_status->message.find("\"state\":\"completed\"") != std::string::npos);
     REQUIRE(duplicate_job.has_value());
     CHECK(duplicate_job->status == Status::BadRequest);
-    CHECK(dispatch_count.load(std::memory_order_relaxed) == 2);
+    CHECK(dispatch_count.load(std::memory_order_relaxed) == 3);
     REQUIRE(shutdown.has_value());
     CHECK(shutdown->status == Status::Shutdown);
-    CHECK(dispatch_count.load(std::memory_order_relaxed) == 2);
+    CHECK(dispatch_count.load(std::memory_order_relaxed) == 3);
 }
 
 TEST_CASE("daemon RENDER_BATCH preserves segment order and isolates a failed segment retry") {
@@ -319,12 +445,16 @@ TEST_CASE("daemon RENDER_BATCH preserves segment order and isolates a failed seg
 
     auto& dispatcher = chronon3d::cli::render_job_dispatcher();
     auto previous_dispatcher = std::move(dispatcher);
+    auto& preparer = chronon3d::cli::render_job_preparer();
+    auto previous_preparer = std::move(preparer);
+    preparer = make_test_preparer();
     std::atomic<unsigned> dispatch_count{0};
     std::vector<std::string> dispatched_outputs;
     dispatcher = [&dispatch_count, &dispatched_outputs](
         const chronon3d::runtime::job::NormalizedRenderJob& job,
         std::shared_ptr<chronon3d::SoftwareRenderer>,
-        std::shared_ptr<chronon3d::media::VideoJobExecutionContext>) -> Reply {
+        std::shared_ptr<chronon3d::media::VideoJobExecutionContext>,
+        std::shared_ptr<chronon3d::cli::PreparedRenderPlanContext>) -> Reply {
         const auto call = dispatch_count.fetch_add(1, std::memory_order_relaxed);
         const auto output = job.output_path.string();
         dispatched_outputs.push_back(output);
@@ -385,6 +515,7 @@ TEST_CASE("daemon RENDER_BATCH preserves segment order and isolates a failed seg
     client.close();
     if (daemon_thread.joinable()) daemon_thread.join();
     dispatcher = std::move(previous_dispatcher);
+    preparer = std::move(previous_preparer);
     std::error_code ignored;
     std::filesystem::remove(plan_path, ignored);
     std::filesystem::remove(socket_path, ignored);
@@ -445,6 +576,9 @@ TEST_CASE("daemon runs the deferred receipt step after releasing the render lane
 
     auto& dispatcher = chronon3d::cli::render_job_dispatcher();
     auto previous_dispatcher = std::move(dispatcher);
+    auto& preparer = chronon3d::cli::render_job_preparer();
+    auto previous_preparer = std::move(preparer);
+    preparer = make_test_preparer();
     std::atomic<unsigned> dispatch_count{0};
     std::mutex state_mutex;
     std::condition_variable state_cv;
@@ -456,7 +590,8 @@ TEST_CASE("daemon runs the deferred receipt step after releasing the render lane
     dispatcher = [&](const chronon3d::runtime::job::NormalizedRenderJob&,
                      std::shared_ptr<chronon3d::SoftwareRenderer>,
                      std::shared_ptr<chronon3d::media::VideoJobExecutionContext>
-                         video_execution) -> Reply {
+                         video_execution,
+                     std::shared_ptr<chronon3d::cli::PreparedRenderPlanContext>) -> Reply {
         if (dispatch_count.fetch_add(1, std::memory_order_relaxed) == 0) {
             // The job layer's deferred receipt step (stands in for probe +
             // sha256 + decode gate): handed to the daemon's sink, to be run
@@ -568,6 +703,7 @@ TEST_CASE("daemon runs the deferred receipt step after releasing the render lane
     client_a.close();
     client_b.close();
     dispatcher = std::move(previous_dispatcher);
+    preparer = std::move(previous_preparer);
 }
 
 TEST_CASE("daemon startup diagnostic reports resolved lane") {

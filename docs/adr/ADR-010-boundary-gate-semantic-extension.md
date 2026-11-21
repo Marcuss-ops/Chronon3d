@@ -6,7 +6,7 @@
 | **Date** | 2026-06-23 |
 | **Deciders** | `codex/agent3` author of branch `chore/boundary-gate-semantic-checks`, code-reviewer-minimax-m3 |
 | **Tags** | `boundary-gate`, `gates`, `semantic-checks`, `regression-resistance` |
-| **Related** | [ADR-008 — `RenderEngine::renderer()` returns pointer](./ADR-008-render-engine-renderer-ptr-return.md), [TICKET-011]((...) — render-runtime ownership), F0.2 PR (`p0/fix-software-renderer-move-ctor` branch on which `m_renderer->settings()` was renamed to `m_renderer->render_settings()` in 3 callsites), F2.4 prior work (`p1/render-pipeline-single-identity` branch on which `runtime::RenderPipeline` was deleted as part of ADR-009 single-identity elimination of the cross-class `m_renderer` sidecar). |
+| **Related** | [ADR-008 — `RenderEngine::renderer()` returns pointer](ADR-008-render-engine-renderer-ptr-return.md), [TICKET-011]((...) — render-runtime ownership), F0.2 PR (`p0/fix-software-renderer-move-ctor` branch on which `m_renderer->settings()` was renamed to `m_renderer->render_settings()` in 3 callsites), F2.4 prior work (`p1/render-pipeline-single-identity` branch on which `runtime::RenderPipeline` was deleted as part of ADR-009 single-identity elimination of the cross-class `m_renderer` sidecar). |
 
 ## Context
 
@@ -101,7 +101,7 @@ Not applicable.  Internal tooling (gate script + self-test) + one internal acces
 * `tools/check_architecture_boundaries_selftest.sh` — extended with cases 8, 9, 10.
 * `src/runtime/render_engine.cpp` lines 71, 90, 202 — the 3 fixed callsites.
 * `src/backends/software/software_renderer.cpp` lines 152, 153, 172, 173 — the 4 sites scanned by Check 12; only lines 172, 173 are filtered via `other.` exclusion; lines 152, 153 are filtered via the documented destructor exception.
-* [ADR-008 — `RenderEngine::renderer()` returns pointer](./ADR-008-render-engine-renderer-ptr-return.md).
+* [ADR-008 — `RenderEngine::renderer()` returns pointer](ADR-008-render-engine-renderer-ptr-return.md).
 * [TICKET-011]((...) — render-runtime ownership, the construction-sequence invariant that constrains `m_runtime`/`m_registry`/`m_renderer` lifetime).
 * F0.2 PR (`p0/fix-software-renderer-move-ctor`) — the original `settings()` → `render_settings()` rename.  Re-applied here to the 3 callsites that escaped the original wave.
 * F2.4 prior work (`p1/render-pipeline-single-identity`) — the `runtime::RenderPipeline` deletion that ADR-010 Check 14 regression-guards.

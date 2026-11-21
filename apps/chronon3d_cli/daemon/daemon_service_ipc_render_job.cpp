@@ -64,6 +64,43 @@ ipc::Reply DaemonService::handle_render_job_request(
             update_job_status(job_id, JobState::Prepared, "normalized");
             const auto& resolved = normalized.value();
             const auto& canon = resolved.execution;
+            const auto job_started_at = profiling::now();
+            std::shared_ptr<PreparedRenderPlanContext> prepared_plan;
+            std::optional<double> prelock_image_decode_ms;
+            {
+                // One bounded CPU preparation slot. It serializes competing
+                // plan compiles while allowing this work to overlap the prior
+                // job's GPU execution, then releases before admission waits.
+                std::lock_guard prepare_lock(m_plan_prepare_mutex);
+                auto& preparer = render_job_preparer();
+                if (!preparer) {
+                    update_job_status(job_id, JobState::Failed,
+                                      "render job preparation unavailable");
+                    return ipc::Reply{ipc::Status::NotFound,
+                        "RENDER_JOB unavailable: render group not compiled"};
+                }
+                std::shared_ptr<SoftwareRenderer> existing_renderer;
+                if (!canon.direct_yuv &&
+                    m_device_scheduler.device_count() == 1U) {
+                    std::lock_guard session_lock(m_device_sessions_mutex);
+                    if (m_device_sessions.size() == 1U) {
+                        existing_renderer = m_device_sessions.begin()->second;
+                    }
+                }
+                std::string preparation_error;
+                prepared_plan = preparer(resolved,
+                    std::move(existing_renderer), preparation_error,
+                    prelock_image_decode_ms);
+                if (!prepared_plan) {
+                    if (preparation_error.empty()) {
+                        preparation_error = "render plan preparation failed";
+                    }
+                    update_job_status(job_id, JobState::Failed,
+                                      preparation_error);
+                    return ipc::Reply{ipc::Status::BadRequest,
+                        "RENDER_JOB plan preparation failed: " + preparation_error};
+                }
+            }
             // serve_concurrent keeps IPC ingress responsive, but a video job
             // owns a complete Vulkan/CUDA exporter and its frame-transient
             // surface ring. Running several such exporters on one device
@@ -180,8 +217,9 @@ ipc::Reply DaemonService::handle_render_job_request(
                 };
             // Per-job wall anchor for the exclusive-wall timeline: startup is
             // measured from THIS request, never from daemon boot.
-            video_execution->job_started_at = profiling::now();
+            video_execution->job_started_at = job_started_at;
             video_execution->daemon_admission_wait_ms = daemon_admission_wait_ms;
+            video_execution->prelock_image_decode_ms = prelock_image_decode_ms;
             video_execution->device_id = reserved_device;
             if (const auto caps = m_device_scheduler.capability_snapshot(reserved_device)) {
                 video_execution->cuda_device_ordinal = caps->cuda_device_ordinal;
@@ -211,7 +249,7 @@ ipc::Reply DaemonService::handle_render_job_request(
                 auto& dispatcher = render_job_dispatcher();
                 if (dispatcher) {
                     reply = dispatcher(resolved, std::move(warm_renderer),
-                                      video_execution);
+                                      video_execution, std::move(prepared_plan));
                 } else {
                     reply = ipc::Reply{ipc::Status::NotFound,
                                       "RENDER_JOB unavailable: render group not compiled"};

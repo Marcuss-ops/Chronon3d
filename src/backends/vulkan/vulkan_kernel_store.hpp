@@ -33,7 +33,7 @@ public:
     VkPipelineLayout text_tile_bin_layout{VK_NULL_HANDLE};
     VkPipelineLayout text_tile_raster_layout{VK_NULL_HANDLE};
 
-    static constexpr std::size_t kColorMatrixSpecModeCount = 19;
+    static constexpr std::size_t kColorMatrixSpecModeCount = 20;
     static constexpr std::size_t kWarpBulkSpecModeCount = 13;
     std::array<VkPipeline, kColorMatrixSpecModeCount> color_matrix_mode_pipelines{};
     std::array<VkPipeline, kWarpBulkSpecModeCount> warp_bulk_mode_pipelines{};

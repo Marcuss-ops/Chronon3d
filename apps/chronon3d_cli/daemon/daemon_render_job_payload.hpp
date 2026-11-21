@@ -15,6 +15,7 @@
 // internal/chronon ipc.go): plan_path / assets_root / output / range_enabled
 // + first_frame + last_frame / report / audio_source_path / encode_preset /
 // fragmented_mp4 (fragmented MP4 artifact output) / receipt_verify /
+// no_dirty_rects (per-job opt-out of the dirty-rectangle optimization) /
 // execution_requirements{backend,gpu_required,
 // cpu_fallback_allowed,composition_required,video_source_required,
 // packet_copy_allowed} / output_spec{codec,width,height,fps_num,fps_den}.

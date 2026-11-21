@@ -253,21 +253,23 @@ TEST_CASE("Post-process FX: anamorphic streak elongates highlights along X") {
 
 TEST_CASE("Post-process FX: GPU capability rows fail closed without crashing") {
     using effects::EffectType;
-    // Halation has a certified strict-native dispatch (it is a kNativeRoutes
-    // entry: highlight mask + separable blur + screen dispatch). The other V1
+    // Halation and Scanlines have certified strict-native dispatches (they are
+    // kNativeRoutes entries: highlight mask + separable blur + screen, and the
+    // per-axis triangle-wave color-matrix scanline dispatch). The remaining V1
     // post-process effects are CPU-only and must stay fail-closed so strict
     // Vulkan never silently falls back.
-    for (const EffectType type : {EffectType::Scanlines, EffectType::RetroTv,
-                                  EffectType::AnamorphicStreak}) {
+    for (const EffectType type : {EffectType::RetroTv, EffectType::AnamorphicStreak}) {
         const auto* row = chronon3d::graph::gpu_effect_capability(type);
         REQUIRE(row != nullptr);
         CHECK(row->route == chronon3d::graph::GpuEffectRoute::Unsupported);
         CHECK_FALSE(row->diagnostic.empty());
     }
-    const auto* halation = chronon3d::graph::gpu_effect_capability(EffectType::Halation);
-    REQUIRE(halation != nullptr);
-    CHECK(halation->route == chronon3d::graph::GpuEffectRoute::NativeZeroReadback);
-    CHECK_FALSE(halation->diagnostic.empty());
+    for (const EffectType type : {EffectType::Halation, EffectType::Scanlines}) {
+        const auto* native = chronon3d::graph::gpu_effect_capability(type);
+        REQUIRE(native != nullptr);
+        CHECK(native->route == chronon3d::graph::GpuEffectRoute::NativeZeroReadback);
+        CHECK_FALSE(native->diagnostic.empty());
+    }
 }
 
 TEST_CASE("Post-process FX: animatable parameter whitelist") {

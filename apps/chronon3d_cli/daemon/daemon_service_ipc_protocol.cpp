@@ -60,6 +60,7 @@ constexpr std::string_view kRenderJobRootKeys[] = {
     "audio_target_sample_rate", "gop_copy_only", "fragmented_mp4", "changed_intervals",
     "pipe_pixfmt", "fps_num", "fps_den", "backend",
     "execution_requirements", "output_spec", "output_segments",
+    "no_dirty_rects",
 };
 
 constexpr std::string_view kRenderJobOutputSpecKeys[] = {
@@ -331,6 +332,9 @@ DecodedRenderJobPayload decode_render_job_payload(
     job_request.trace.output = request.value("trace_output", "");
     job_request.trace.level = request.value("trace_level", "pipeline");
     job_request.receipt_verification = request.value("receipt_verify", "");
+    // The same knob as the CLI's --no-dirty-rects. It is a job-level render
+    // setting, so it stays at the payload root rather than in output_spec.
+    job_request.no_dirty_rects = request.value("no_dirty_rects", false);
 
     if (request.value("range_enabled", false)) {
         job_request.frame_range = runtime::job::FrameRange{

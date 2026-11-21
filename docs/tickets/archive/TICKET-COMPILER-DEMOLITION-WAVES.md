@@ -164,13 +164,13 @@ is claimed.
 Residual items transferred, not closed by this ticket:
 
 - **D28/D30** (physical graph-builder header moves and reverse include roots)
-  → [`TICKET-COMPILER-BOUNDARY-WAVE7-9.md`](TICKET-COMPILER-BOUNDARY-WAVE7-9.md).
+  → [`TICKET-COMPILER-BOUNDARY-WAVE7-9.md`](../TICKET-COMPILER-BOUNDARY-WAVE7-9.md).
 - **E31/E32/E34** (post-compatibility `RenderGraphContext` collapse and
   duplicate-pointer removal) → [`TICKET-HOTSPOT-DECOMPOSITION.md`](TICKET-HOTSPOT-DECOMPOSITION.md).
 - **G42/G46/G47** (text-heavy benchmark, `SceneProgramStore` and
   `DeviceScheduler` contention measurements) → `TICKET-HOTSPOT-DECOMPOSITION.md`.
 - **H49-H53** (Vulkan `recursive_mutex` follow-up) remain owned by
-  [`archive/TICKET-VK-LOCK-SHARDING.md`](archive/TICKET-VK-LOCK-SHARDING.md).
+  [`archive/TICKET-VK-LOCK-SHARDING.md`](TICKET-VK-LOCK-SHARDING.md).
 
 The anti-resurrection caps were tightened on the same date:
 `render_compatibility*` and `render_compiled_composition_frame*` must stay at
@@ -256,7 +256,7 @@ deleted.
 - **H49-H51 call-graph — CENSUS DONE / DEFERRED:** `VulkanBackend::Impl::api_mutex` era unico `recursive_mutex`; dalla sharding P1 ora sono
   3 shard non-ricorsivi (`surface_mutex → upload_mutex → submission_mutex`, `Impl::wait_for_standalone()` + `wait_for_pending()` split).
   I 2 siti ricorsivi residui sono SDK `sdk_render_engine.cpp` state + Vulkan backend API shim — conversione a `api_mutex/api_locked`
-  pattern (`public_api(){lock_guard lock(api_mutex); return api_locked();}`) è DEFERRED after green baseline: richiede re-entry test + GPU cert rerun (deadlock risk). Spec in [TICKET-VK-LOCK-SHARDING](archive/TICKET-VK-LOCK-SHARDING.md).
+  pattern (`public_api(){lock_guard lock(api_mutex); return api_locked();}`) è DEFERRED after green baseline: richiede re-entry test + GPU cert rerun (deadlock risk). Spec in [TICKET-VK-LOCK-SHARDING](TICKET-VK-LOCK-SHARDING.md).
 - **H52-H53 re-entry test — DEFERRED:** test di re-entry prima della sostituzione + intera GPU certification dopo la sostituzione;
   non eseguire finché baseline non è green.
 

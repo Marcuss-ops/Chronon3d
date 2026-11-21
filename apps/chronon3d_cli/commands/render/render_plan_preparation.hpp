@@ -34,9 +34,12 @@
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 
 #include <memory>
+#include <chrono>
 #include <optional>
 #include <string>
 #include <vector>
+
+namespace chronon3d { class SoftwareRenderer; }
 
 namespace chronon3d::cli {
 
@@ -89,12 +92,25 @@ struct PreparedRenderPlanContext {
     chronon3d::assets::AssetResolver resolver;
     std::string effective_assets_root;
     chronon3d::RenderSettings settings;
+    std::chrono::steady_clock::time_point prepared_at{};
+    // CPU image decode may be performed before daemon execution admission by
+    // using an already-warm renderer's thread-safe runtime cache. These values
+    // are carried into the exporter so sidecars include the overlapped work.
+    std::optional<double> prelock_image_decode_ms;
 };
 
 /// Canonical render-plan preparation.  Throws nothing: file-read and JSON
 /// parse failures are mapped into `render_plan::PlanDecodeError`.
 [[nodiscard]] Result<PreparedRenderPlanContext, render_plan::PlanDecodeError>
 prepare_render_plan(const RenderPlanPreparationOptions& options);
+
+/// Populate the existing renderer's CPU image cache for a compiled plan.
+/// Returns false only for a decode failure; cache identity mismatch disables
+/// speculative prefetch and leaves the normal execution preparation intact.
+[[nodiscard]] bool prefetch_render_plan_images(
+    PreparedRenderPlanContext& prepared,
+    ::chronon3d::SoftwareRenderer* existing_renderer,
+    std::string& error);
 
 /// Canonical render-plan validation gate.  Runs `prepare_render_plan()` and
 /// emits a `{valid, status, ...}` JSON report to stdout.  Returns 0 on VALID,

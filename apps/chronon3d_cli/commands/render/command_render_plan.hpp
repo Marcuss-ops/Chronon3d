@@ -16,6 +16,8 @@ namespace CLI { class App; }
 
 namespace chronon3d::cli {
 
+struct PreparedRenderPlanContext;
+
 struct RenderPlanVideoOverrides {
     std::string codec;
     /// Requested output audio sample rate (Hz) for the muxed master audio.
@@ -55,6 +57,7 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx);
 ipc::Reply ipc_render_job(const CompositionRegistry& registry,
                           const runtime::job::NormalizedRenderJob& job,
                           std::shared_ptr<SoftwareRenderer> warm_renderer = {},
-                          std::shared_ptr<media::VideoJobExecutionContext> video_execution = {});
+                          std::shared_ptr<media::VideoJobExecutionContext> video_execution = {},
+                          std::shared_ptr<PreparedRenderPlanContext> prepared_plan = {});
 
 }  // namespace chronon3d::cli

@@ -4,6 +4,10 @@
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>  // is_motion_blur_active
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/compiler/scene_materializer.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include "../../utils/process_start.hpp"
 
 #include <nlohmann/json.hpp>
@@ -16,9 +20,13 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <spdlog/spdlog.h>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <tbb/task_arena.h>
 
 namespace chronon3d::cli {
 
@@ -407,10 +415,88 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
         context.resolver = std::move(resolver);
         context.effective_assets_root = effective_assets_root;
         context.settings = settings;
+        context.prepared_at = profiling::now();
         return context;
     } catch (const std::exception& error) {
         return render_plan::PlanDecodeError{options.input, error.what()};
     }
+}
+
+bool prefetch_render_plan_images(
+    PreparedRenderPlanContext& prepared, SoftwareRenderer* existing_renderer,
+    std::string& error) {
+    // Concurrent pre-admission decode regressed throughput in both software
+    // and Vulkan 20-item A/B runs. Keep it opt-in until decode work is reduced
+    // or a production corpus demonstrates a net end-to-end win.
+    if (const char* setting = std::getenv("CHRONON3D_DAEMON_IMAGE_PREFETCH");
+        !setting || std::string_view{setting} != "1") {
+        return true;
+    }
+    if (!existing_renderer || !prepared.program) return true;
+    auto* runtime = existing_renderer->execution_context().runtime;
+    if (!runtime) return true;
+
+    // Materialize only to obtain the canonical asset manifest. A null font
+    // engine deliberately avoids mutating the renderer's font/glyph state
+    // while another job may be rendering on this same warm renderer.
+    const auto scene = compiler::SceneMaterializer{}.materialize_scene(
+        *prepared.program, std::pmr::get_default_resource(), nullptr);
+    const auto image_refs = scene.asset_manifest().filter(assets::AssetKind::Image);
+    if (image_refs.empty()) return true;
+
+    auto& cache = runtime->image_cache();
+    const auto& runtime_resolver = runtime->resolver();
+    struct DecodeTask {
+        std::string path;
+        ImageDecodeOptions options;
+    };
+    std::vector<DecodeTask> tasks;
+    std::vector<std::size_t> ref_tasks(image_refs.size());
+    std::unordered_map<ImageAssetKey, std::size_t, ImageAssetKeyHash> by_key;
+    by_key.reserve(image_refs.size());
+    for (std::size_t i = 0; i < image_refs.size(); ++i) {
+        const auto& ref = image_refs[i];
+        ImageDecodeOptions options{};
+        options.max_dimension = ref.max_dimension;
+        options.color_space = ref.color_space;
+        const auto plan_key = cache.canonical_key_for(ref.path, options, prepared.resolver);
+        const auto runtime_key = cache.canonical_key_for(ref.path, options, runtime_resolver);
+        // The persistent cache may belong to a daemon configured with a
+        // different asset root. Never seed an alias that execution won't hit.
+        if (!plan_key || !runtime_key || *plan_key != *runtime_key) return true;
+        const auto [it, inserted] = by_key.try_emplace(*runtime_key, tasks.size());
+        if (inserted) tasks.push_back({ref.path, std::move(options)});
+        ref_tasks[i] = it->second;
+    }
+
+    const auto started = profiling::now();
+    std::vector<std::shared_ptr<const CachedImage>> decoded(tasks.size());
+    // Keep N+1's background decode from consuming the CPU pool while N is
+    // rendering. A single worker bounds speculative CPU pressure; the rest of
+    // the machine remains available to the current execution.
+    tbb::task_arena prefetch_arena(1);
+    prefetch_arena.execute([&] {
+        tbb::parallel_for(tbb::blocked_range<std::size_t>(0, tasks.size(), 1),
+            [&](const tbb::blocked_range<std::size_t>& range) {
+                profiling::ProfilingGuard worker_profile(
+                    existing_renderer->counters(),
+                    existing_renderer->framebuffer_pool().get());
+                for (std::size_t i = range.begin(); i != range.end(); ++i) {
+                    decoded[i] = cache.get_or_load(
+                        tasks[i].path, tasks[i].options, prepared.resolver);
+                }
+            });
+    });
+    prepared.prelock_image_decode_ms =
+        profiling::duration_ms(started, profiling::now());
+    for (std::size_t i = 0; i < image_refs.size(); ++i) {
+        if (!decoded[ref_tasks[i]] || !decoded[ref_tasks[i]]->valid()) {
+            error = "image could not be decoded during pre-admission preparation: " +
+                    image_refs[i].path;
+            return false;
+        }
+    }
+    return true;
 }
 
 int validate_render_plan(const RenderPlanPreparationOptions& options) {

@@ -6,7 +6,7 @@
 > gradienti, testo animato, marker, reveal e transizioni.
 
 **Parent:** [TICKET-SVG-RENDER-PLAN.md](TICKET-SVG-RENDER-PLAN.md)
-**Related:** [TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md](TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md), [TICKET-MOTION-COMPOSITING-PRESETS.md](TICKET-MOTION-COMPOSITING-PRESETS.md), [TICKET-SVG-GROUP-ISOLATION.md](TICKET-SVG-GROUP-ISOLATION.md), [TICKET-SVG-TEXT-PARITY-REMAINING.md](TICKET-SVG-TEXT-PARITY-REMAINING.md), [TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md)
+**Related:** [TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md](TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md), [TICKET-MOTION-COMPOSITING-PRESETS.md](TICKET-MOTION-COMPOSITING-PRESETS.md), [TICKET-SVG-GROUP-ISOLATION.md](TICKET-SVG-GROUP-ISOLATION.md), [TICKET-SVG-TEXT-PARITY-REMAINING.md](TICKET-SVG-TEXT-PARITY-REMAINING.md), [TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](archive/TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md)
 
 Lo stato della parità descritto qui sotto deriva da questo checkout 2026-10-29:
 loader SVG, C ABI suite, raw gates sotto `scripts/ci/` e roadmap Stage 0–5 nel
@@ -26,7 +26,7 @@ SVG 1.1/browser.
 le animazioni operator/SVG non sono materializzati per frame; sei gate
 path/motion falliscono (path statico trasparente, 31/31 frame identici, trim a
 0). La matrice sotto descrive il contratto, non un PASS riproducibile su questa
-lane. Vedi [TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
+lane. Vedi [TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md](archive/TICKET-SVG-CLI-RENDER-PLAN-LANE-20261116.md).
 
 ## Matrice di parità primitive (stato 2026-10-29)
 

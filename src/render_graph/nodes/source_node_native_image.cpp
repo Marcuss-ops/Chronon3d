@@ -426,7 +426,10 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     }
 
     if (effective_clip_x1 <= effective_clip_x0 || effective_clip_y1 <= effective_clip_y0) {
-        release_native_surface(ctx, fb);
+        // ensure_empty_native_surface() above already created a cleared
+        // transparent destination. Keep that valid surface for downstream
+        // composites: returning success with an invalidated handle makes a
+        // fully off-canvas image fail strict native execution.
         return true;
     }
 

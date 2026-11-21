@@ -13,10 +13,17 @@
 #include <doctest/doctest.h>
 
 #include "daemon/daemon_render_concurrency.hpp"
+#include "daemon/daemon_service_job_admission.hpp"
 
 #include <array>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
+#include <future>
+#include <mutex>
 #include <string>
+#include <thread>
 
 using chronon3d::cli::derive_vram_working_set;
 using chronon3d::cli::estimate_peak_vram_bytes;
@@ -234,6 +241,37 @@ TEST_CASE("concurrency policy: the derived execution-domain flag agrees with the
     CHECK(kRenderJobExecutionSerialized == policy_serial);
     CHECK(policy_serial);
     CHECK(kDefaultRenderJobClass == RenderJobClass::MonolithicSamePlan);
+}
+
+TEST_CASE("daemon admission wait includes time queued on the execution lock") {
+    using namespace std::chrono_literals;
+    std::shared_mutex execution_mutex;
+    std::unique_lock execution_owner(execution_mutex);
+    std::mutex admission_mutex;
+    std::condition_variable admission_cv;
+    std::atomic<bool> running{true};
+    chronon3d::runtime::DeviceScheduler scheduler;
+    scheduler.register_device(
+        chronon3d::runtime::DeviceCapabilities{.name = "test-device"},
+        chronon3d::runtime::DeviceResourceVector{.compute_units = 1.0f});
+    chronon3d::runtime::DeviceSelectionRequirements requirements;
+    requirements.resources.compute_units = 0.5f;
+
+    std::promise<void> entering_admission;
+    double observed_wait_ms = 0.0;
+    std::thread queued_job([&] {
+        entering_admission.set_value();
+        chronon3d::cli::RenderJobAdmissionContext admission(
+            false, 0, execution_mutex, admission_mutex, admission_cv,
+            running, scheduler, requirements);
+        observed_wait_ms = admission.wait_ms();
+    });
+    entering_admission.get_future().wait();
+    std::this_thread::sleep_for(150ms);
+    execution_owner.unlock();
+    queued_job.join();
+
+    CHECK(observed_wait_ms >= 100.0);
 }
 
 // ---------------------------------------------------------------------------

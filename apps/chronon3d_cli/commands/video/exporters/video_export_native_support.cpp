@@ -570,6 +570,9 @@ void project_render_counters(
         timings.gpu.software_fallback_nodes = c->gpu_text_fallback_count.load(std::memory_order_relaxed);
     }
     timings.runtime.encoder_open_nvenc_ms = session.startup_breakdown.encoder_open_nvenc_ms;
+    if (session.encoder)
+        timings.runtime.codec_session_adopted =
+            session.encoder->codec_session_adoption_metric();
 }
 
 void account_internal_profiling(
