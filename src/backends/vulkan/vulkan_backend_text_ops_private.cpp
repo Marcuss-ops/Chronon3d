@@ -8,6 +8,31 @@
 #include <atomic>
 #include <cmath>
 
+namespace {
+
+// vkCmdUpdateBuffer limits each individual transfer to 64 KiB.  Text batches
+// can legitimately exceed that size, so split aligned records across multiple
+// updates instead of rejecting an otherwise valid render.
+void cmd_update_buffer_chunked(VkCommandBuffer command_buffer, VkBuffer buffer,
+                               VkDeviceSize byte_count, const void* data) {
+    constexpr VkDeviceSize kMaxCmdUpdateBytes = 65536;
+    constexpr VkDeviceSize kUpdateAlignment = 4;
+    if (byte_count == 0) return;
+    if ((byte_count % kUpdateAlignment) != 0 || data == nullptr) {
+        throw std::invalid_argument("Vulkan buffer update must be 4-byte aligned");
+    }
+
+    const auto* bytes = static_cast<const std::uint8_t*>(data);
+    for (VkDeviceSize offset = 0; offset < byte_count;) {
+        const VkDeviceSize remaining = byte_count - offset;
+        const VkDeviceSize chunk = std::min(kMaxCmdUpdateBytes, remaining);
+        vkCmdUpdateBuffer(command_buffer, buffer, offset, chunk, bytes + offset);
+        offset += chunk;
+    }
+}
+
+} // namespace
+
 namespace chronon3d::backends::vulkan {
 
 void VulkanBackend::Impl::text_run_surface(
@@ -26,12 +51,8 @@ void VulkanBackend::Impl::text_run_surface(
     if (frame_batch.pass_count >= kGlyphInstancePassesPerSlot) {
         throw std::logic_error("Vulkan text upload pass capacity exhausted");
     }
-    constexpr VkDeviceSize kMaxCmdUpdateBytes = 65536;
     const VkDeviceSize instance_bytes =
         static_cast<VkDeviceSize>(glyphs.size() * sizeof(runtime::GlyphInstance));
-    if (instance_bytes > kMaxCmdUpdateBytes) {
-        throw std::logic_error("Vulkan text instances exceed vkCmdUpdateBuffer limit");
-    }
     const std::size_t pass_slot =
         frame_batch.next_slot * kGlyphInstancePassesPerSlot +
         (frame_batch.pass_count % kGlyphInstancePassesPerSlot);
@@ -59,7 +80,8 @@ void VulkanBackend::Impl::text_run_surface(
     }
     const auto cmd = active_command_buffer();
     emit_pass_sync(cmd, {&dst_image, &atlas_image}, runtime::GpuPassKind::LayerBatch);
-    vkCmdUpdateBuffer(cmd, buffer_state.buffer, 0, instance_bytes, glyphs.data());
+    cmd_update_buffer_chunked(cmd, buffer_state.buffer, instance_bytes,
+                              glyphs.data());
     record_text_run(cmd, descriptors, dst_image,
                     static_cast<std::int32_t>(glyphs.size()),
                     buffer_state.buffer, true, current_frame,
@@ -289,12 +311,6 @@ void VulkanBackend::Impl::draw_text_batch(
         runs.size() * sizeof(GpuTextRunDynamic));
     const VkDeviceSize glyph_dynamic_bytes = static_cast<VkDeviceSize>(
         glyphs.size() * sizeof(VulkanGpuGlyphDynamic));
-    constexpr VkDeviceSize kMaxCmdUpdateBytes = 65536;
-    if (glyph_bytes > kMaxCmdUpdateBytes || run_bytes > kMaxCmdUpdateBytes ||
-        glyph_dynamic_bytes > kMaxCmdUpdateBytes) {
-        throw std::logic_error(
-            "Vulkan text metadata exceeds vkCmdUpdateBuffer limit");
-    }
     if (frame_batch.active &&
         frame_batch.pass_count >= kGlyphInstancePassesPerSlot) {
         throw std::logic_error(
@@ -370,18 +386,19 @@ void VulkanBackend::Impl::draw_text_batch(
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image, &atlas_image}, runtime::GpuPassKind::LayerBatch);
         if (glyph_updated) {
-            vkCmdUpdateBuffer(cmd, glyph_buffer, 0, glyph_bytes, gpu_glyphs);
+            cmd_update_buffer_chunked(cmd, glyph_buffer, glyph_bytes,
+                                      gpu_glyphs);
             glyph_instance_hashes[pass_slot] = glyph_hash;
             glyph_instance_sizes[pass_slot] = glyph_bytes;
         }
         if (run_updated) {
-            vkCmdUpdateBuffer(cmd, run_buffer, 0, run_bytes, gpu_runs);
+            cmd_update_buffer_chunked(cmd, run_buffer, run_bytes, gpu_runs);
             text_run_dynamic_hashes[pass_slot] = run_hash;
             text_run_dynamic_sizes[pass_slot] = run_bytes;
         }
         if (glyph_dynamic_updated) {
-            vkCmdUpdateBuffer(cmd, glyph_dynamic_buffer, 0, glyph_dynamic_bytes,
-                              gpu_glyph_dynamic);
+            cmd_update_buffer_chunked(cmd, glyph_dynamic_buffer,
+                                      glyph_dynamic_bytes, gpu_glyph_dynamic);
             text_glyph_dynamic_hashes[pass_slot] = glyph_dynamic_hash;
             text_glyph_dynamic_sizes[pass_slot] = glyph_dynamic_bytes;
         }
