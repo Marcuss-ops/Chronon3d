@@ -1,10 +1,10 @@
 # TICKET-SUITE-RED — due gate rossi a HEAD dopo il checkpoint 2026-11-20
 
-**Stato:** PARTIAL (aggiornato 2026-11-20 sera) — A e B **risolti** con evidenza
+**Stato:** CLOSED (aggiornato 2026-11-21) — A e B **risolti** con evidenza
 (`deterministic_tests` 94/94 con CLI con encoder; `golden_e2e_tests` Passed 7,43 s dopo
-il rebaseline `997d684d4`). Resta un solo item di configurazione: la lane test gira con
-`CHRONON3D_ENABLE_NATIVE_FFMPEG=OFF`, quindi il test deterministico si ferma prima di
-esercitare l'encoder e il rosso iniziale può mascherare quello vero.
+il rebaseline `997d684d4`). A3 chiuso: la lane `linux-video-test` è riconfigurata con
+`CHRONON3D_ENABLE_NATIVE_FFMPEG=ON` e la suite gira verde **con il CLI della lane**
+(94/94, 11.797 assert, rc 0).
 **Priorità:** P1
 **Data:** 2026-11-20
 **Ambito:** Chronon3d — suite `linux-video-test`, gate golden e2e e lifetime Vulkan
@@ -41,7 +41,7 @@ Criteri di accettazione:
 - [x] Il layout dedicato viene distrutto prima del device; il test
       `test_text_warm_cold` passa senza sopprimere gli errori di validazione.
 - [x] Nessun nuovo VUID `vkDestroyDevice-device-00378` nei log della suite.
-- [ ] La lane test viene riconfigurata con `CHRONON3D_ENABLE_NATIVE_FFMPEG=ON`
+- [x] La lane test viene riconfigurata con `CHRONON3D_ENABLE_NATIVE_FFMPEG=ON`
       (o il test salta esplicitamente quando l'encoder manca), così il rosso
       iniziale non maschera quello vero.
 
@@ -57,9 +57,25 @@ Verifica: rebuild Release incrementale (`5/5`, 50 s) e
 `CHRONON3D_CLI_BINARY=<release>/chronon3d_cli chronon3d_deterministic_tests`
 → **94/94 casi, 11.797 assert, 0 errori di validazione, rc 0**.
 
-Resta aperto il solo punto di configurazione: con il CLI della lane test
-(`CHRONON3D_ENABLE_NATIVE_FFMPEG=OFF`) il test continua a fermarsi prima, perché
-l'encoder non esiste; con un CLI dotato di encoder è verde.
+A3 — chiuso 2026-11-21. `build/chronon/linux-video-test/CMakeCache.txt` ha ora
+`CHRONON3D_ENABLE_NATIVE_FFMPEG:BOOL=ON`, quindi il CLI della lane compila il percorso
+nativo. Verifica end-to-end, senza puntare al CLI Release:
+
+```
+ninja -C build/chronon/linux-video-test -j4 chronon3d_deterministic_tests chronon3d_cli
+CHRONON3D_CLI_BINARY=$PWD/build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli \
+  ./build/chronon/linux-video-test/tests/chronon3d_deterministic_tests
+# [doctest] test cases: 94 | 94 passed | 0 failed | 0 skipped
+# [doctest] assertions: 11797 | 11797 passed | 0 failed
+# [doctest] Status: SUCCESS!   (rc 0)
+```
+
+Il caso `Typed native shutter submits each sample before encoder handoff` viene quindi
+esercitato davvero (0 skipped) e il rosso iniziale non può più mascherare una
+regressione dietro un limite di configurazione. In aggiunta, il caso ora dichiara
+esplicitamente il limite quando la lane è costruita con l'encoder OFF
+(`MESSAGE` + `return` in `tests/deterministic/test_text_warm_cold.cpp`), così una
+configurazione senza encoder non produce più un rosso indistinguibile da un bug.
 
 ## B — `chronon3d_golden_e2e_tests`: drift di 02 e 03 rispetto ai golden
 

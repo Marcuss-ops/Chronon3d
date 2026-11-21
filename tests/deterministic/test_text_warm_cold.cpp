@@ -232,6 +232,17 @@ PixelComparison compare_rgba(const std::vector<unsigned char>& a,
 }  // namespace
 
 TEST_CASE("Typed native shutter submits each sample before encoder handoff") {
+#ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    // SUITE-RED criterion A3: this lane is configured with
+    // CHRONON3D_ENABLE_NATIVE_FFMPEG=OFF, so the CLI cannot open the native
+    // encoder this contract is about. The case used to fail at the render step
+    // and mask a real shutter regression behind a configuration limit. Say so
+    // explicitly and leave the lane green; build the test lane with
+    // -DCHRONON3D_ENABLE_NATIVE_FFMPEG=ON to exercise it.
+    MESSAGE("skipped: native FFmpeg encoder is not compiled into this test lane "
+            "(configure with CHRONON3D_ENABLE_NATIVE_FFMPEG=ON)");
+    return;
+#endif
     const auto cli = cli_path();
     REQUIRE_MESSAGE(cli.has_value(), "chronon3d_cli not found; set CHRONON3D_CLI_BINARY");
     REQUIRE_MESSAGE(run_command({"ffmpeg", "-version"}) == 0,

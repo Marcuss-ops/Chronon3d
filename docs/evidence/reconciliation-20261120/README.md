@@ -80,6 +80,15 @@ matches. HEAD changes `scene_materializer.cpp` and `scene_lowering.cpp`, which
 matches the affected scenes (2.5D packshot and mixed mesh) and not the text
 scene. The drift needs a reviewed rebaseline, not a blind `--update-goldens`.
 
+**Continuation 2026-11-21.** The configuration limit under item A is closed:
+`build/chronon/linux-video-test` is configured with
+`CHRONON3D_ENABLE_NATIVE_FFMPEG=ON`, and after rebuilding that lane's
+`chronon3d_deterministic_tests` and `chronon3d_cli`,
+`CHRONON3D_CLI_BINARY=<lane>/apps/chronon3d_cli/chronon3d_cli
+chronon3d_deterministic_tests` reports 94/94 cases, 11.797 assertions, 0 skipped,
+rc 0. The native-shutter case therefore executes against an encoder-capable CLI
+from the same lane instead of the Release binary.
+
 Both items are recorded in `docs/tickets/TICKET-SUITE-RED-20261120.md`.
 
 ## Limitations
