@@ -60,3 +60,34 @@ TEST_CASE("audio mix compiler uses exact frame sample trims and deterministic du
     CHECK(compiled->inputs[1].gain_db_per_frame[10] == doctest::Approx(-12.0f));
     std::filesystem::remove_all(root);
 }
+
+TEST_CASE("constant clip gain compiles to one volume filter without a per-frame envelope") {
+    const auto root = std::filesystem::temp_directory_path() / "chronon-audio-mix-constant-gain-test";
+    std::filesystem::create_directories(root);
+    std::ofstream(root / "cue.wav").put('\0');
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::absolute(root));
+
+    chronon3d::render_plan::CanvasSpec canvas;
+    canvas.fps = chronon3d::FrameRate{24, 1};
+    canvas.duration = chronon3d::Frame{240};
+    chronon3d::render_plan::AudioMixPlan mix;
+    chronon3d::render_plan::AudioClipPlan cue;
+    cue.id = "overlay-sfx-0";
+    cue.asset = "cue.wav";
+    cue.start = chronon3d::Frame{48};
+    cue.role = "sfx";
+    cue.gain_db = -18.0f;
+    mix.clips.push_back(cue);
+
+    const auto compiled = chronon3d::render_plan::AudioMixCompiler::compile(
+        mix, canvas, resolver, 48000);
+    REQUIRE(compiled);
+    REQUIRE(compiled->inputs.size() == 1);
+    CHECK(compiled->inputs[0].gain_db_per_frame.empty());
+    const auto& filter = compiled->filter_complex;
+    CHECK(filter.find("volume=") != std::string::npos);
+    CHECK(filter.find("eval=frame") == std::string::npos);
+    CHECK(filter.find("if(lt(") == std::string::npos);
+    std::filesystem::remove_all(root);
+}

@@ -88,8 +88,13 @@ Result<MixerSpec, AudioMixCompileError> AudioMixCompiler::compile(
                 input.source_end_sample = frame_to_sample(*clip.clip_out, canvas.fps, sample_rate);
             input.timeline_start_sample = frame_to_sample(
                 clip.start.value_or(Frame{0}), canvas.fps, sample_rate);
-            input.gain_db_per_frame.assign(
-                static_cast<std::size_t>(canvas.duration.integral()), clip.gain_db);
+            input.gain_db = clip.gain_db;
+            // Only a genuinely varying track pays for per-frame gain. A
+            // constant clip (clip.gain absent, or a flat animated track) is a
+            // single linear volume filter: building one if(lt(t,...)) node per
+            // frame on a 20-minute 24fps canvas used to produce ~28,800 nested
+            // expressions and hit the 8 MiB filter budget for a plain cue.
+            bool animated_gain = false;
             if (clip.gain) {
                 chronon3d::AnimatedValue<float> gain{clip.gain_db};
                 for (const auto& key : clip.gain->keyframes) {
@@ -99,13 +104,25 @@ Result<MixerSpec, AudioMixCompileError> AudioMixCompiler::compile(
                     gain.add_keyframe(key.frame, key.value.front(),
                                       detail::animation_keyframe_easing(*clip.gain, key));
                 }
-                for (std::int64_t frame = 0; frame < canvas.duration.integral(); ++frame)
-                    input.gain_db_per_frame[static_cast<std::size_t>(frame)] =
-                        gain.evaluate(static_cast<double>(frame));
+                const auto frames = static_cast<std::size_t>(canvas.duration.integral());
+                std::vector<float> envelope(frames);
+                const float first = gain.evaluate(0.0);
+                bool flat = true;
+                for (std::size_t frame = 0; frame < frames; ++frame) {
+                    envelope[frame] = gain.evaluate(static_cast<double>(frame));
+                    if (std::abs(envelope[frame] - first) > 1e-4f)
+                        flat = false;
+                }
+                if (flat) {
+                    input.gain_db = first;
+                } else {
+                    animated_gain = true;
+                    input.gain_db = clip.gain_db;
+                    input.gain_db_per_frame = std::move(envelope);
+                }
             }
-            input.gain_db = clip.gain_db;
             if (clip.muted)
-                std::fill(input.gain_db_per_frame.begin(), input.gain_db_per_frame.end(), -120.0f);
+                input.gain_db = -120.0f;
             const std::string label = "clip" + std::to_string(index);
             if (!clip.muted) {
                 graph << '[' << index << ":a]aresample=" << sample_rate
@@ -115,9 +132,17 @@ Result<MixerSpec, AudioMixCompileError> AudioMixCompiler::compile(
                 graph << ",asetpts=PTS-STARTPTS,adelay="
                       << input.timeline_start_sample << "S:all=1,apad=whole_len="
                       << spec.duration_samples << ",atrim=end_sample="
-                      << spec.duration_samples << ",volume='"
-                      << sample_gain_expression(input.gain_db_per_frame, canvas.fps)
-                      << "':eval=frame[" << label << "];";
+                      << spec.duration_samples << ",volume=";
+                if (animated_gain) {
+                    graph << '\'' << sample_gain_expression(input.gain_db_per_frame, canvas.fps)
+                          << "':eval=frame";
+                } else {
+                    std::ostringstream factor;
+                    factor.precision(12);
+                    factor << std::pow(10.0, static_cast<double>(input.gain_db) / 20.0);
+                    graph << factor.str();
+                }
+                graph << '[' << label << "];";
                 if (clip.role == "voice") voice_labels.push_back(label);
                 else if (clip.role == "music") music_labels.push_back(label);
                 else sfx_labels.push_back(label);
