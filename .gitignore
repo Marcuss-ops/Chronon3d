@@ -180,3 +180,18 @@ __pycache__/
 docs/evidence/**/*.mp4
 docs/evidence/**/*.mov
 docs/evidence/**/*.webm
+
+# Purged from history 2026-11-21: evidence renders, raw frame dumps and
+# reference images stay local (or on Drive). History carries code and docs.
+*.mp4
+*.mov
+*.webm
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.rgba
+*.ppm
+*.pgm
+*.mp3
+*.wav
