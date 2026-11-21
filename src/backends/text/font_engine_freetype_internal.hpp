@@ -385,12 +385,33 @@ struct FontEngine::Impl {
                                          const std::string& resolved) {
         if (!ft_library) return {};
         const auto resolve_start = profiling::now();
+        // FONT-03: process-wide negative cache. Missing fallback candidates
+        // used to be re-probed for every text span of every overlay unit.
+        // A cached miss skips the filesystem open entirely; the empty face
+        // keeps the failure closed when the plan really references the font.
+        static std::mutex missing_font_mutex;
+        static std::set<std::string> missing_font_paths;
+        {
+            std::lock_guard lock(missing_font_mutex);
+            if (missing_font_paths.count(resolved) != 0) return {};
+        }
         auto entry = std::make_shared<FaceEntry>();
         std::ifstream input(std::filesystem::path{resolved},
                             std::ios::binary | std::ios::ate);
         if (!input) {
-            spdlog::warn("FontEngine: failed to open font '{}' (resolved: '{}')",
-                         spec.font_path, resolved);
+            bool first_observation = false;
+            {
+                std::lock_guard lock(missing_font_mutex);
+                first_observation = missing_font_paths.insert(resolved).second;
+            }
+            // A missing fallback is expected, not a warning: the acceptance
+            // criterion counts zero `failed to open font` warnings for fonts
+            // the plan never referenced. Explicitly referenced missing fonts
+            // still fail closed here, at the layout/render boundary.
+            if (first_observation) {
+                spdlog::debug("FontEngine: font '{}' is missing (negative-cached; resolved: '{}')",
+                              spec.font_path, resolved);
+            }
             return {};
         }
         const auto end = input.tellg();

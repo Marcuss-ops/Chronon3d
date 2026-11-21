@@ -97,6 +97,7 @@ struct EncoderSinkContext {
     RenderFrameQueue& queue;
     PipelineDepthMetrics& pipeline_metrics;
     std::atomic<bool>& writer_failed;
+    chronon3d::CancellationToken* cancellation_token{nullptr};
     TripleBufferArena* triple_arena{nullptr};
     IVideoEncoder& encoder;
     SoftwareRenderer* renderer{nullptr};

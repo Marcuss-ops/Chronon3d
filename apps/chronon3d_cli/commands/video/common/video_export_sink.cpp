@@ -12,6 +12,11 @@ namespace chronon3d::cli {
 
 namespace {
 
+// The daemon transport cannot observe per-frame milestones yet. A quiet
+// producer beyond this interval is treated as a failed render so the writer
+// does not wait forever on an empty SPSC queue.
+constexpr auto kFrameQueueStallTimeout = std::chrono::minutes(3);
+
 double anchor_offset_ms(const EncoderSinkContext& ctx,
                         std::chrono::steady_clock::time_point point) noexcept {
     const auto anchor_ns = ctx.telemetry_anchor_ns.load(std::memory_order_acquire);
@@ -93,6 +98,7 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
     profiling::g_current_framebuffer_pool = ctx.renderer
         ? ctx.renderer->framebuffer_pool().get() : nullptr;
     bool arena_notified = false;
+    auto last_frame_progress = std::chrono::steady_clock::now();
     for (;;) {
         // Perfetto counter tracks (pipeline health): frames waiting between
         // the render thread and the writer, and encode work still in flight
@@ -114,8 +120,19 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
 
         if (!popped) {
             if (ctx.queue.closed_and_empty()) break;
+            if (std::chrono::steady_clock::now() - last_frame_progress >=
+                kFrameQueueStallTimeout) {
+                spdlog::error("[video] render frame queue made no progress for {}s; aborting the render",
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                        kFrameQueueStallTimeout).count());
+                ctx.writer_failed.store(true, std::memory_order_release);
+                ctx.queue.fail();
+                if (ctx.cancellation_token) ctx.cancellation_token->cancel();
+                break;
+            }
             continue;
         }
+        last_frame_progress = std::chrono::steady_clock::now();
         if (ctx.counters) {
             ctx.counters->io_queue_pop_wait_ms.fetch_add(
                 dequeue_ms, std::memory_order_relaxed);

@@ -11,9 +11,11 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <variant>
 
@@ -90,12 +92,10 @@ using RenderFramePackage =
 //     still drains what was already handed off so no frame leaks an arena or
 //     a slot lease.
 //
-// Blocking semantics are preserved WITHOUT a CV on the data path:
-//   * push() blocks while the ring is full (backpressure) by retrying
-//     try_push(); cancellation is checked between attempts, so no callback is
-//     registered on the token per frame.
-//   * pop_for() polls try_pop() until an item or a deadline, giving the GPU
-//     writer the same ~1 ms interop-poll cadence BoundedChannel::pop_for had.
+// The ring remains the sole data path. A condition variable only parks a
+// blocked producer and wakes the consumer; timed consumer waits retain the
+// encoder's interop-poll cadence. Cancellation is polled at 1 ms while the
+// producer is backpressured, so no callback is registered per frame.
 //
 // SPSC precondition: exactly one producer thread and one consumer thread may
 // touch the queue at any time. Both the FullGraph render loop and the
@@ -138,12 +138,18 @@ public:
                 std::visit([published_at](auto& package) {
                     package.enqueued_at = published_at;
                 }, item);
-                if (ring_.try_push(std::move(item))) return true;
+                if (ring_.try_push(std::move(item))) {
+                    std::lock_guard lock(wait_mutex_);
+                    not_empty_.notify_one();
+                    return true;
+                }
             }
             if (token && token->is_cancelled()) return false;
-            // Queue is full: backpressure. Tiny sleep so the producer does not
-            // spin-burn a core while the consumer encodes the in-flight frame.
-            std::this_thread::sleep_for(std::chrono::microseconds(200));
+            std::unique_lock lock(wait_mutex_);
+            not_full_.wait_for(lock, std::chrono::milliseconds(1), [this, token] {
+                return state_.load(std::memory_order_acquire) != State::Open ||
+                       !ring_.full() || (token && token->is_cancelled());
+            });
         }
     }
 
@@ -160,9 +166,16 @@ public:
     bool pop_for(RenderFramePackage& item, std::chrono::milliseconds timeout) {
         const auto deadline = std::chrono::steady_clock::now() + timeout;
         for (;;) {
-            if (ring_.try_pop(item)) return true;
+            if (ring_.try_pop(item)) {
+                std::lock_guard lock(wait_mutex_);
+                not_full_.notify_one();
+                return true;
+            }
             if (std::chrono::steady_clock::now() >= deadline) return false;
-            std::this_thread::sleep_for(std::chrono::microseconds(200));
+            std::unique_lock lock(wait_mutex_);
+            not_empty_.wait_until(lock, deadline, [this] {
+                return !ring_.empty() || state_.load(std::memory_order_acquire) != State::Open;
+            });
         }
     }
 
@@ -181,13 +194,23 @@ public:
 
     /// Orderly close: consumers keep draining until empty. Idempotent.
     void close() noexcept {
-        state_.store(State::Closed, std::memory_order_release);
+        {
+            std::lock_guard lock(wait_mutex_);
+            state_.store(State::Closed, std::memory_order_release);
+        }
+        not_empty_.notify_all();
+        not_full_.notify_all();
     }
 
     /// Abnormal close (writer/encoder failure): producers stop pushing.
     /// Idempotent. Consumers still drain handed-off items.
     void fail() noexcept {
-        state_.store(State::Failed, std::memory_order_release);
+        {
+            std::lock_guard lock(wait_mutex_);
+            state_.store(State::Failed, std::memory_order_release);
+        }
+        not_empty_.notify_all();
+        not_full_.notify_all();
     }
 
     [[nodiscard]] State state() const noexcept {
@@ -197,6 +220,9 @@ public:
 private:
     runtime::BoundedSpscRing<RenderFramePackage, kCapacity> ring_;
     alignas(64) std::atomic<State> state_{State::Open};
+    mutable std::mutex wait_mutex_;
+    std::condition_variable not_empty_;
+    std::condition_variable not_full_;
 };
 
 } // namespace chronon3d::cli
