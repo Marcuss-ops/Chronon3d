@@ -40,6 +40,24 @@ public:
         std::pmr::memory_resource* resource = std::pmr::get_default_resource(),
         FontEngine* font_engine = nullptr,
         double frame_number = 0.0) const;
+
+    /// Materializes only the shape layers whose path paint, geometry or
+    /// operators vary with time. The render pipeline caches the static scene
+    /// base by program fingerprint and replaces just these layers per frame,
+    /// instead of re-running every static layer through the materializer.
+    [[nodiscard]] chronon3d::Scene materialize_path_overlay(
+        const CompiledProgram& program,
+        std::pmr::memory_resource* resource = std::pmr::get_default_resource(),
+        FontEngine* font_engine = nullptr,
+        double frame_number = 0.0) const;
+
+private:
+    [[nodiscard]] chronon3d::Scene materialize_impl(
+        const CompiledProgram& program,
+        std::pmr::memory_resource* resource,
+        FontEngine* font_engine,
+        double frame_number,
+        bool paths_only) const;
 };
 
 }  // namespace chronon3d::compiler

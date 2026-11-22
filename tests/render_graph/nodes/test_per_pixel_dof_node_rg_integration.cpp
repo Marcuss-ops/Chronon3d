@@ -411,14 +411,16 @@ TEST_CASE("PR2-RG-DoF: cache invalidates when animated position changes") {
     auto first = r.render(scene, 0);
     REQUIRE(first != nullptr);
     const auto first_hash = ctt::framebuffer_hash(*first);
-    const auto hits_before = r.counters()->cache_hits.load(std::memory_order_relaxed);
+    const auto graph_hits_before = r.counters()->graph_cache_hits.load(
+        std::memory_order_relaxed);
 
     auto changed = r.render(scene, 150);
     REQUIRE(changed != nullptr);
     CHECK(ctt::framebuffer_hash(*changed) != first_hash);
-    // Frame-dependent transforms are intentionally cache-bypassed rather than
-    // recorded as cache misses; unrelated static nodes can still hit.
-    CHECK(r.counters()->cache_hits.load(std::memory_order_relaxed) > hits_before);
+    // The animated source is frame-dependent, but the compiled graph must be
+    // reused and refreshed rather than rebuilt from scratch.
+    CHECK(r.counters()->graph_cache_hits.load(std::memory_order_relaxed) >
+          graph_hits_before);
     CHECK(r.counters()->dof_blur_source_pixels.load(std::memory_order_relaxed) > 0);
 }
 
@@ -457,6 +459,11 @@ TEST_CASE("PR2-RG-DoF: cache warm hit preserves DOF output and coverage") {
     CHECK(ctt::framebuffer_hash(*warm) == cold_hash);
     CHECK(warm_counters->dof_blur_source_pixels.load(std::memory_order_relaxed) > 0);
     CHECK(warm_counters->dof_roi_pixels.load(std::memory_order_relaxed) > 0);
+    // A DoF-enabled warm frame must refresh the cached graph, not force a
+    // fresh build or fall back to a rebuild.
+    CHECK(warm_counters->graph_cache_hits.load(std::memory_order_relaxed) > 0);
+    CHECK(warm_counters->graph_cache_refresh_fallback_total.load(
+              std::memory_order_relaxed) == 0);
 
     auto uncached = ctt::make_renderer();
     uncached.execution_context().scratch.node_cache->set_capacity(0);

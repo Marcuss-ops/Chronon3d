@@ -301,7 +301,8 @@ void execute_single_node(
                 &state.physical_slots[allocation.physical_slot];
         }
     }
-    if (std::getenv("CHRONON3D_PATH_DIAG") && id < resource_table.resources.size()) {
+    static const bool path_diag_alloc = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    if (path_diag_alloc && id < resource_table.resources.size()) {
         const auto& allocation = resource_table.resources[id];
         std::string inputs;
         for (const auto& input : pr.inputs) {
@@ -425,7 +426,8 @@ void execute_single_node(
         &compiled.nodes[id].stable_node_id,
         local_nodes_executed
     );
-    if (std::getenv("CHRONON3D_T05_SURFACE_SNAPSHOT") && cache_eval.result &&
+    static const bool surface_snapshot_diag = std::getenv("CHRONON3D_T05_SURFACE_SNAPSHOT") != nullptr;
+    if (surface_snapshot_diag && cache_eval.result &&
         ctx.backend && ctx.surface_registry &&
         cache_eval.result->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
         ctx.backend->is_native_surface_valid(cache_eval.result->surface_handle())) {
@@ -463,7 +465,8 @@ void execute_single_node(
             (void)ctx.surface_registry->release(snapshot_handle);
         }
     }
-    if (std::getenv("CHRONON3D_PATH_DIAG") && cache_eval.result)
+    static const bool path_diag_result = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    if (path_diag_result && cache_eval.result)
         spdlog::info("[native-graph-node-diag] frame={} node_id={} node={} kind={} surface={} cpu={} opaque={} size={}x{}",
             static_cast<int>(ctx.frame_input.frame), id,
             node.name(), to_string(node.kind()), cache_eval.result->surface_handle(),

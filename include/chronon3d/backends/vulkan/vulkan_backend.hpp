@@ -306,8 +306,18 @@ public:
     processor_snapshot() const noexcept override;
     [[nodiscard]] bool requires_processor_snapshot() const noexcept override;
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool() override;
+    /// Compatibility lane policy. Strict/certified jobs disable this before
+    /// attaching anything; unsupported operations then fail with a typed
+    /// capability error instead of reading pixels back through the CPU.
+    void set_cpu_fallback_allowed(bool allowed) noexcept {
+        m_cpu_fallback_allowed = allowed;
+        if (!allowed) m_fallback_backend.reset();
+    }
+    [[nodiscard]] bool cpu_fallback_allowed() const noexcept {
+        return m_cpu_fallback_allowed;
+    }
     void attach_fallback_backend(std::shared_ptr<graph::RenderBackend> fallback) noexcept {
-        m_fallback_backend = std::move(fallback);
+        if (m_cpu_fallback_allowed) m_fallback_backend = std::move(fallback);
     }
     [[nodiscard]] VulkanBackendStats stats() const noexcept;
     [[nodiscard]] const GpuKernelRegistry& kernel_registry() const noexcept;
@@ -596,8 +606,11 @@ public:
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const Color&, std::span<const float>, std::uint32_t,
         Vec3, float, int, int, float,
-        const Vec4& relight_params = Vec4{0.0f},
-        const Vec4& relight_specular = Vec4{0.0f}) override;
+        const Vec4& relight_params,
+        const Vec4& relight_specular,
+        runtime::RenderSurfaceHandle light_wrap,
+        const Vec4& light_wrap_params,
+        const Vec4& light_wrap_raster) override;
     graph::RenderOpResult matte_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, bool, bool,
@@ -754,7 +767,9 @@ private:
     double m_init_device_ms{0.0};
     double m_init_pipelines_ms{0.0};
 #endif
+    bool m_cpu_fallback_allowed{true};
     std::shared_ptr<graph::RenderBackend> m_fallback_backend{};
+    void note_cpu_fallback() noexcept;
 };
 
 [[nodiscard]] std::unique_ptr<graph::RenderBackend> make_vulkan_backend(

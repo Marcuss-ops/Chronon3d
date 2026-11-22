@@ -203,7 +203,10 @@ public:
         int origin_y,
         float diffuse,
         const Vec4& relight_params = Vec4{0.0f},
-        const Vec4& relight_specular = Vec4{0.0f});
+        const Vec4& relight_specular = Vec4{0.0f},
+        runtime::RenderSurfaceHandle light_wrap = runtime::kInvalidRenderSurfaceHandle,
+        const Vec4& light_wrap_params = Vec4{0.0f},
+        const Vec4& light_wrap_raster = Vec4{0.0f});
     /// Per-pixel cross-layer occlusion tag for device-local surfaces.
     /// `layer_depth` and `frame_depth` share one encoding: r = positive
     /// camera depth, g > 0 = covered. Writes `mask` (a = 1 visible, 0

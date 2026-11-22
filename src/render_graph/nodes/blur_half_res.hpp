@@ -31,10 +31,13 @@ namespace chronon3d::graph::detail {
 // measured production corpus is radius 24 (clip background) and the A/B gate
 // lives in docs/tickets, not in every deployment's environment.
 inline bool blur_half_res_env_enabled() {
-    const char* value = std::getenv("CHRONON3D_BLUR_HALF_RES");
-    if (value == nullptr) return true;
-    const std::string_view setting(value);
-    return !(setting == "0" || setting == "false" || setting == "off");
+    static const bool enabled = [] {
+        const char* value = std::getenv("CHRONON3D_BLUR_HALF_RES");
+        if (value == nullptr) return true;
+        const std::string_view setting(value);
+        return !(setting == "0" || setting == "false" || setting == "off");
+    }();
+    return enabled;
 }
 
 // blur_half_res_eligible is the complete admission rule. It takes the already

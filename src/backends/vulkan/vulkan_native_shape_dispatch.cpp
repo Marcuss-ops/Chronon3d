@@ -1,6 +1,7 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include "vulkan_native_shape_dispatch_detail.hpp"
 #include <chronon3d/cache/framebuffer_copy.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/math/path_utils.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
@@ -98,6 +99,13 @@ void sync_cpu_to_gpu(VulkanBackend& backend, Framebuffer& fb) {
 
 } // namespace
 
+void VulkanBackend::note_cpu_fallback() noexcept {
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->silent_cpu_fallback_count.fetch_add(
+            1, std::memory_order_relaxed);
+    }
+}
+
 void VulkanBackend::unsupported(const char* operation) {
     throw std::runtime_error(std::string{"VulkanBackend::"} + operation +
                              ": RenderSurface execution is not wired yet");
@@ -116,7 +124,7 @@ void VulkanBackend::apply_per_pixel_dof(
 graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,
                                                const RenderState& state, const Camera& camera,
                                                int width, int height) {
-    const bool path_diag = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    static const bool path_diag = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
     if (path_diag && node.shape.type() == ShapeType::Path)
         spdlog::info("[native-path-dispatch] node={} handle={} backend_valid={} cpu_data={} fill={} stroke={} brush={} projected={}",
             node.name, framebuffer.surface_handle(),
@@ -149,7 +157,8 @@ graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const R
     if (path_diag && node.shape.type() == ShapeType::Path)
         spdlog::warn("[native-path-dispatch] native path routes rejected node={}", node.name);
 
-    if (m_fallback_backend) {
+    if (m_cpu_fallback_allowed && m_fallback_backend) {
+        note_cpu_fallback();
         sync_gpu_to_cpu(*this, framebuffer);
         auto result = m_fallback_backend->draw_node(framebuffer, node, state, camera, width, height);
         if (!result.ok()) return result;
@@ -168,7 +177,8 @@ graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const R
 void VulkanBackend::apply_effect_stack(
     Framebuffer& framebuffer, const EffectStack& stack,
     const effects::EffectExecutionContext& context) {
-    if (m_fallback_backend) {
+    if (m_cpu_fallback_allowed && m_fallback_backend) {
+        note_cpu_fallback();
         sync_gpu_to_cpu(*this, framebuffer);
         m_fallback_backend->apply_effect_stack(framebuffer, stack, context);
         sync_cpu_to_gpu(*this, framebuffer);
@@ -185,7 +195,8 @@ void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer&
         source.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
         mode != BlendMode::Normal || op != CompositeOperator::SourceOver ||
         destination.width() != source.width() || destination.height() != source.height()) {
-        if (m_fallback_backend) {
+        if (m_cpu_fallback_allowed && m_fallback_backend) {
+            note_cpu_fallback();
             sync_gpu_to_cpu(*this, destination);
             sync_gpu_to_cpu(*this, const_cast<Framebuffer&>(source));
             m_fallback_backend->composite_layer(destination, source, mode, clip, op);
@@ -214,7 +225,8 @@ void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer&
 graph::RenderOpResult VulkanBackend::draw_text_run(
     Framebuffer& framebuffer, const TextRunShape& shape,
     const glm::mat4& model_matrix, float opacity) {
-    if (m_fallback_backend) {
+    if (m_cpu_fallback_allowed && m_fallback_backend) {
+        note_cpu_fallback();
         // The software text rasterizer writes through Framebuffer::data().
         // A GPU-only layer surface has no CPU storage, so the fallback used
         // to return success while compositing into a null pixel buffer. Allocate
@@ -248,7 +260,8 @@ graph::RenderOpResult VulkanBackend::draw_text_run(
             return maximum;
         };
         const auto cpu_max_rgb = max_rgb();
-        if (std::getenv("CHRONON3D_TEXT_DEBUG")) {
+        static const bool text_debug = std::getenv("CHRONON3D_TEXT_DEBUG") != nullptr;
+        if (text_debug) {
             spdlog::info(
                 "[vulkan-text-fallback] handle={} size={}x{} items={} alpha_before={} alpha_after={} cpu_max_rgb={}",
                 framebuffer.surface_handle(), framebuffer.width(), framebuffer.height(),
@@ -256,7 +269,7 @@ graph::RenderOpResult VulkanBackend::draw_text_run(
         }
         framebuffer.mark_cpu_authoritative();
         sync_cpu_to_gpu(*this, framebuffer);
-        if (std::getenv("CHRONON3D_TEXT_DEBUG")) {
+        if (text_debug) {
             std::vector<float> readback(
                 static_cast<std::size_t>(framebuffer.width()) *
                 static_cast<std::size_t>(framebuffer.height()) * 4u);
@@ -289,7 +302,8 @@ graph::RenderOpResult VulkanBackend::draw_text_run(
 void VulkanBackend::apply_blur(
     Framebuffer& framebuffer, float radius,
     const std::optional<raster::BBox>& clip) {
-    if (m_fallback_backend) {
+    if (m_cpu_fallback_allowed && m_fallback_backend) {
+        note_cpu_fallback();
         sync_gpu_to_cpu(*this, framebuffer);
         m_fallback_backend->apply_blur(framebuffer, radius, clip);
         sync_cpu_to_gpu(*this, framebuffer);

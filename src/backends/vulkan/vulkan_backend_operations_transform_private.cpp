@@ -49,7 +49,8 @@ void VulkanBackend::Impl::transform(runtime::RenderSurfaceHandle destination,
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst_image, src_image);
-        if (std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG")) {
+        static const bool descriptor_diag = std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG") != nullptr;
+        if (descriptor_diag) {
             spdlog::info(
                 "[t05-descriptor] op=transform pass={} set=0x{:x} "
                 "src_image=0x{:x} src_view=0x{:x} src_alloc=0x{:x} "
@@ -90,7 +91,8 @@ void VulkanBackend::Impl::transform_affine(
         throw std::invalid_argument(
             "Vulkan affine transform references incompatible surfaces");
     }
-    if (std::getenv("CHRONON3D_T05_SURFACE_ID_DIAG")) {
+    static const bool surface_id_diag = std::getenv("CHRONON3D_T05_SURFACE_ID_DIAG") != nullptr;
+    if (surface_id_diag) {
         spdlog::info(
             "[t05-surface-identity] op=affine-transform src={} src_image=0x{:x} "
             "dst={} dst_image=0x{:x} src_init={} dst_init={} pass={} plan={}",
@@ -102,7 +104,8 @@ void VulkanBackend::Impl::transform_affine(
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst_image, src_image);
-        if (std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG")) {
+        static const bool descriptor_diag = std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG") != nullptr;
+        if (descriptor_diag) {
             spdlog::info(
                 "[t05-descriptor] op=affine-transform pass={} set=0x{:x} "
                 "src_image=0x{:x} src_view=0x{:x} src_alloc=0x{:x} "

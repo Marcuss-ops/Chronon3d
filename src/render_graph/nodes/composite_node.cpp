@@ -472,7 +472,8 @@ NodeExecResult CompositeNode::execute(
                                                 m_gel_transmission);
         if (ctx.policy.require_native_gpu &&
             !native_composite && !native_dimension_composite) {
-            if (std::getenv("CHRONON3D_PATH_DIAG"))
+            static const bool path_diag = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+            if (path_diag)
                 spdlog::error("[native-residency-diag] frame={} node={} mode={} operator={} bottom={}x{} origin={},{} handle={} cpu={} top={}x{} origin={},{} handle={} cpu={} opaque={}",
                     static_cast<int>(ctx.frame_input.frame), m_unique_id,
                     static_cast<int>(m_mode), static_cast<int>(m_operator),
@@ -504,7 +505,8 @@ NodeExecResult CompositeNode::execute(
             // the handle is the authoritative value for subsequent native
             // composite nodes.
             result->mark_gpu_authoritative();
-            if (std::getenv("CHRONON3D_TEXT_DEBUG") &&
+            static const bool text_debug = std::getenv("CHRONON3D_TEXT_DEBUG") != nullptr;
+            if (text_debug &&
                 result->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
                 std::vector<float> readback(
                     static_cast<std::size_t>(result->width()) *

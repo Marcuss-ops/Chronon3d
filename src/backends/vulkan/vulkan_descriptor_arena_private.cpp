@@ -39,6 +39,25 @@ void VulkanBackend::Impl::write_descriptors(VkDescriptorSet set,
     vkUpdateDescriptorSets(device, 2, writes, 0, nullptr);
 }
 
+void VulkanBackend::Impl::write_lighting_descriptors(
+    VkDescriptorSet set, const Image& destination, const Image& source,
+    const Image& light_wrap) {
+    const VkDescriptorImageInfo dst_info{
+        VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
+    const VkDescriptorImageInfo src_info{
+        VK_NULL_HANDLE, source.view, VK_IMAGE_LAYOUT_GENERAL};
+    const VkDescriptorImageInfo wrap_info{
+        VK_NULL_HANDLE, light_wrap.view, VK_IMAGE_LAYOUT_GENERAL};
+    const VkWriteDescriptorSet writes[] = {
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 1, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &src_info, nullptr, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 2, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &wrap_info, nullptr, nullptr}};
+    vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
+}
+
 void VulkanBackend::Impl::write_fill_rect_descriptors(
     VkDescriptorSet set, const Image& destination, VkBuffer geometry_buffer) {
     if (geometry_buffer == VK_NULL_HANDLE) {

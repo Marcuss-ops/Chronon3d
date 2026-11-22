@@ -200,12 +200,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     ctx.policy.graph_structure_unchanged =
         execution_plan.scene_structure_unchanged &&
         !execution_plan.static_camera_changed;
-    // DOF changes post-composite payload and depth-tracking execution state.
-    // Until cached-graph refresh updates that state atomically, rebuild this
-    // graph path to preserve warm/cold byte determinism.
-    if (ctx.frame_input.has_camera_2_5d && ctx.frame_input.camera_2_5d.dof.enabled) {
-        ctx.policy.graph_structure_unchanged = false;
-    }
+    // DOF depth is execution state, not graph structure. The cached-graph
+    // refresh resets dof_depth/dof_source_coverage for every frame before the
+    // refreshed payload executes, so a camera-DOF-only change must not force a
+    // full graph rebuild here. Keeping the structure hint true is what makes
+    // warm/cold DoF frames share the same compiled topology.
 
     if (ctx.policy.diagnostics_enabled && !isolated_temporal_sample) {
         const auto& history = sw_renderer->frame_history();

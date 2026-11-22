@@ -43,7 +43,8 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
                                     bool gel_transmission) {
     auto& dst_image = resolve_image(destination);
     auto& src_image = resolve_image(source);
-    if (std::getenv("CHRONON3D_TEXT_COMPOSITE_DIAG")) {
+    static const bool composite_diag = std::getenv("CHRONON3D_TEXT_COMPOSITE_DIAG") != nullptr;
+    if (composite_diag) {
         spdlog::info(
             "[vk-composite-diag] dst_handle={} dst_image={} dst_view={} "
             "dst_fmt={} {}x{} dst_init={} | src_handle={} src_image={} "

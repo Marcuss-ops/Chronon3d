@@ -134,6 +134,18 @@ bool program_has_time_varying_paths(const CompiledProgram& program) {
 chronon3d::Scene SceneMaterializer::materialize_scene(
     const CompiledProgram& program, std::pmr::memory_resource* resource,
     FontEngine* font_engine, double frame_number) const {
+    return materialize_impl(program, resource, font_engine, frame_number, false);
+}
+
+chronon3d::Scene SceneMaterializer::materialize_path_overlay(
+    const CompiledProgram& program, std::pmr::memory_resource* resource,
+    FontEngine* font_engine, double frame_number) const {
+    return materialize_impl(program, resource, font_engine, frame_number, true);
+}
+
+chronon3d::Scene SceneMaterializer::materialize_impl(
+    const CompiledProgram& program, std::pmr::memory_resource* resource,
+    FontEngine* font_engine, double frame_number, bool paths_only) const {
     const auto& meta = program.metadata();
     const FrameRate canvas_fps{meta.fps_numerator, meta.fps_denominator};
     const FrameContext frame_ctx = make_frame_context(FrameContextParams{
@@ -170,6 +182,10 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
     }
     std::vector<rendering::PointLightSource> point_sources;
     for (const auto& layer : program.layers()) {
+        // A path overlay only carries the layers whose SVG path content is
+        // sampled at materialization time. Everything else stays in the
+        // cached static base.
+        if (paths_only && !layer_has_time_varying_path(layer)) continue;
         if (layer.kind == NodeKind::Light && layer.light &&
             layer.light->kind != render_plan::LightKindPlan::Radial) {
             render_plan::LayerPlan light_view;
@@ -534,7 +550,8 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     const Vec2 emitter_center = layer.screen_space
                         ? Vec2{layer.size[0] * 0.5f, layer.size[1] * 0.5f}
                         : Vec2{0.0f, 0.0f};
-                    if (std::getenv("CHRONON3D_PARTICLE_DEBUG") != nullptr) {
+                    static const bool particle_debug_typed = std::getenv("CHRONON3D_PARTICLE_DEBUG") != nullptr;
+                    if (particle_debug_typed) {
                         spdlog::info("[particle-mat] route=typed id={} screen={} size=({},{}) center=({},{}) count={}",
                             layer.name, layer.screen_space ? 1 : 0, layer.size[0], layer.size[1],
                             emitter_center.x, emitter_center.y, initial.particles.size());

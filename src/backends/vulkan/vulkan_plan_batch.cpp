@@ -15,7 +15,7 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
     // still needs, timed (see Impl::DomainLock).
     Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
     m_impl->require_healthy();
-    const bool trace_plan_bind = std::getenv("CHRONON3D_TRACE_PLAN_BIND") != nullptr;
+    static const bool trace_plan_bind = std::getenv("CHRONON3D_TRACE_PLAN_BIND") != nullptr;
     if (plan.pass_count() > Impl::FrameBatchState::kCompiledPassTimingCapacity) {
         throw std::length_error(
             "Vulkan compiled pass timing capacity exhausted");
@@ -56,7 +56,7 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
                                         allocation.surface);
     }
 
-    if (std::getenv("CHRONON3D_TRACE_PLAN_BIND") != nullptr) {
+    if (trace_plan_bind) {
         std::fprintf(stderr, "[planbind] slots=%zu allocations=%zu\n",
                      resources.slots.size(), resources.allocations.size());
         for (const auto& allocation : resources.allocations) {

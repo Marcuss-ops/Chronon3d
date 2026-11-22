@@ -427,6 +427,10 @@ struct VulkanBackend::Impl {
     void bind_descriptors(const Image& destination, const Image& source);
     void write_descriptors(VkDescriptorSet set,
                            const Image& destination, const Image& source);
+    void write_lighting_descriptors(VkDescriptorSet set,
+                                    const Image& destination,
+                                    const Image& source,
+                                    const Image& light_wrap);
     void write_dof_descriptors(VkDescriptorSet set, const Image& destination,
                                const Image& source, const Image& depth);
     void write_fill_rect_descriptors(VkDescriptorSet set, const Image& destination,
@@ -679,8 +683,11 @@ struct VulkanBackend::Impl {
                          int origin_x, int origin_y, float diffuse,
                          std::uint32_t light_count, VkBuffer light_buffer,
                          VkDeviceSize light_buffer_bytes,
-                         const Vec4& relight_params = Vec4{0.0f},
-                         const Vec4& relight_specular = Vec4{0.0f});
+                         const Vec4& relight_params,
+                         const Vec4& relight_specular,
+                         const Image& light_wrap,
+                         const Vec4& light_wrap_params,
+                         const Vec4& light_wrap_raster);
     void record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
                       const Image& destination, const Image& target,
                       const Image& matte, bool luma, bool inverted,
@@ -885,8 +892,11 @@ struct VulkanBackend::Impl {
                          std::uint32_t light_count,
                          Vec3 normal, float layer_z,
                          int origin_x, int origin_y, float diffuse,
-                         const Vec4& relight_params = Vec4{0.0f},
-                         const Vec4& relight_specular = Vec4{0.0f});
+                         const Vec4& relight_params,
+                         const Vec4& relight_specular,
+                         runtime::RenderSurfaceHandle light_wrap,
+                         const Vec4& light_wrap_params,
+                         const Vec4& light_wrap_raster);
     void matte(runtime::RenderSurfaceHandle destination,
                runtime::RenderSurfaceHandle target,
                runtime::RenderSurfaceHandle matte_surface,

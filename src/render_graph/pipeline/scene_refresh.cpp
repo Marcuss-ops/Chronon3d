@@ -4,6 +4,7 @@
 #include "refresh/multi_source.hpp"
 #include "refresh/effect_stack.hpp"
 #include "refresh/transform.hpp"
+#include <chronon3d/render_graph/nodes/composite_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include "../builder/graph_builder_coordinates.hpp"
 #include "refresh/layer_item.hpp"
@@ -210,10 +211,13 @@ SceneRefreshResult validate_compiled_structure(
                 return missing_processor("transform graph node has no registered processor at node " +
                     std::to_string(id));
             }
+            // `Effect` is also used by intrinsic post-process nodes (DoF,
+            // lighting, shadow, depth-grade). Their processor identity was
+            // validated above; unlike EffectStackNode they have no scene-layer
+            // payload to refresh and no layer binding to require.
             if (node.kind() == RenderGraphNodeKind::Effect &&
                 dynamic_cast<const EffectStackNode*>(&node) == nullptr) {
-                return missing_processor("effect graph node has no registered processor at node " +
-                    std::to_string(id));
+                continue;
             }
             if (node.kind() == RenderGraphNodeKind::TextRun &&
                 dynamic_cast<const TextRunNode*>(&node) == nullptr) {
@@ -360,7 +364,13 @@ SceneRefreshResult refresh_compiled_graph_payloads(
             case RenderGraphNodeKind::Effect: {
                 const auto* effect_node = dynamic_cast<const EffectStackNode*>(&graph_node);
                 if (!effect_node) {
-                    return topology_mismatch("effect graph node has an invalid concrete implementation at node " + std::to_string(id));
+                    // Intrinsic effects (PerPixelDofNode, LightingNode,
+                    // ShadowNode, DepthGradeNode) are configured by the frame
+                    // context, not by a scene-layer payload. Keep the compiled
+                    // node and let execution read the current camera/lighting
+                    // state; there is nothing to refresh or commit here.
+                    refresh_pending[node_id] = false;
+                    break;
                 }
                 auto* prepared = acquire_refresh_node(
                     compiled.refresh_scratch, node_id, *effect_node,
@@ -476,8 +486,36 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                 }
                 break;
             }
+            case RenderGraphNodeKind::Composite: {
+                const auto* composite = dynamic_cast<const CompositeNode*>(&graph_node);
+                if (composite && !composite->layer_id().empty()) {
+                    const auto layer_it = resolved_by_name.find(composite->layer_id());
+                    if (layer_it != resolved_by_name.end() &&
+                        layer_it->second && layer_it->second->layer) {
+                        const auto& layer = *layer_it->second->layer;
+                        if (layer.uses_2_5d_projection && !layer.screen_space) {
+                            const auto item = make_layer_graph_item_for_refresh(
+                                *layer_it->second, ctx);
+                            auto* prepared = acquire_refresh_node(
+                                compiled.refresh_scratch, node_id, *composite,
+                                ctx.node_exec.counters);
+                            // Depth provenance must follow the animated layer
+                            // transform. A cached Composite otherwise publishes
+                            // the frame-0 world Z even though its TransformNode
+                            // moved, leaving DoF focused on the old plane.
+                            const auto world = item.world_matrix[3];
+                            Vec3 position{};
+                            position.x = world.x;
+                            position.y = world.y;
+                            position.z = world.z;
+                            prepared->set_world_position(position);
+                            prepared->set_world_z(item.world_z);
+                        }
+                    }
+                }
+                break;
+            }
             case RenderGraphNodeKind::Mask:
-            case RenderGraphNodeKind::Composite:
             case RenderGraphNodeKind::Precomp:
             case RenderGraphNodeKind::Video:
             case RenderGraphNodeKind::Adjustment:

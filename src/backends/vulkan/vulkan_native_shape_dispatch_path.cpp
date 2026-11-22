@@ -40,7 +40,8 @@ bool try_native_path_fill(
         return false;
     }
     const auto& path = node.shape.path();
-    if (std::getenv("CHRONON3D_PATH_DIAG"))
+    static const bool path_diag_fill = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    if (path_diag_fill)
         spdlog::info("[native-path-fill-diag] node={} fill={} fill_type={} stroke={} brush={} commands={} operators={} projected={}",
             node.name, path.fill.enabled, static_cast<int>(path.fill.type),
             path.stroke.enabled, path.stroke.brush.has_value(), path.commands.size(),
@@ -103,7 +104,8 @@ bool try_native_path_fill(
         return true;  // empty intersection: nothing to fill
     }
 
-    if (std::getenv("CHRONON3D_PATH_DIAG")) {
+    static const bool path_diag_geometry = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    if (path_diag_geometry) {
         const Vec4 origin = state.matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
         spdlog::info("[native-path-fill-geometry] node={} verts={} rect=({},{})-({},{}) fb={}x{} matrix_origin=({:.2f},{:.2f}) scale=({:.2f},{:.2f})",
             node.name, vertices.size(), x0, y0, x1, y1, framebuffer.width(),
@@ -199,7 +201,8 @@ bool try_native_path_stroke(
         framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle)
         return false;
     const auto& path = node.shape.path();
-    if (std::getenv("CHRONON3D_PATH_DIAG"))
+    static const bool path_diag_stroke = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    if (path_diag_stroke)
         spdlog::info("[native-path-stroke-entry] node={} stroke={} brush={} width={} cap={} fill={} fill_type={} operators={} projected={}",
             node.name, path.stroke.enabled, path.stroke.brush.has_value(), path.stroke.width,
             static_cast<int>(path.stroke.cap), path.fill.enabled, static_cast<int>(path.fill.type),
@@ -207,7 +210,7 @@ bool try_native_path_stroke(
     // Brush profiles currently have software semantics only; never promote
     // them to the native Vulkan stroke path until pixel parity is certified.
     if (path.stroke.brush.has_value()) return false;
-    const bool path_diag = [] {
+    static const bool path_diag = [] {
         const char* value = std::getenv("CHRONON3D_PATH_DIAG");
         return value && std::string_view(value) == "1";
     }();

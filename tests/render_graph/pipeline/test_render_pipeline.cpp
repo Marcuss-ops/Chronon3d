@@ -1,6 +1,10 @@
 #include <doctest/doctest.h>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/compiler/compiler.hpp>
+#include <chronon3d/compiler/scene_materializer.hpp>
+#include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
@@ -483,4 +487,97 @@ TEST_CASE("RenderGraph: glow on unpinned centered layer is not clipped") {
     // This is the measured near-edge floor for the single Gaussian glow.
     CHECK(near_edge.b > 0.009f);
     CHECK(far_edge.b < near_edge.b);
+}
+
+TEST_CASE("RenderPipeline - animated path updates an overlay without rematerializing the static base") {
+    using namespace chronon3d::render_plan;
+
+    RenderPlan plan;
+    plan.schema = kRenderPlanSchemaV3;
+    plan.job_id = "animated-path-overlay";
+    plan.canvas = {.width = 128, .height = 128,
+                   .fps = FrameRate{24, 1}, .duration = Frame{30}};
+    plan.output.path = "animated-path-overlay.mp4";
+
+    LayerPlan background;
+    background.id = "background";
+    background.type = LayerType::Shape;
+    background.size = {128.0f, 128.0f};
+    background.size_dimensions = 2;
+    background.color = {0.1f, 0.1f, 0.1f, 1.0f};
+    background.shape = ShapeContentPlan{};
+    background.shape->type = ShapeContentTypePlan::Rect;
+    background.shape->fill_color = std::array<float, 4>{0.1f, 0.1f, 0.1f, 1.0f};
+    plan.layers.push_back(background);
+
+    LayerPlan animated;
+    animated.id = "animated_path";
+    animated.type = LayerType::Shape;
+    animated.size = {128.0f, 128.0f};
+    animated.size_dimensions = 2;
+    animated.shape = ShapeContentPlan{};
+    animated.shape->type = ShapeContentTypePlan::Path;
+    animated.shape->fill_color = std::array<float, 4>{1.0f, 1.0f, 1.0f, 1.0f};
+    animated.shape->stroke = chronon3d::render_plan::StrokeStyle{
+        .color = "#FFFFFF", .width = 5.0f};
+    animated.shape->path = {
+        {ShapePathCommandTypePlan::MoveTo, {16.0f, 16.0f}},
+        {ShapePathCommandTypePlan::LineTo, {112.0f, 16.0f}},
+        {ShapePathCommandTypePlan::LineTo, {112.0f, 112.0f}},
+        {ShapePathCommandTypePlan::LineTo, {16.0f, 112.0f}},
+        {ShapePathCommandTypePlan::Close, {16.0f, 16.0f}}};
+    PathOperatorPlan trim;
+    trim.kind = PathOperatorKindPlan::Trim;
+    trim.trim_start = 0.0f;
+    trim.trim_end = 0.1f;
+    trim.trim_animation = AnimationTrackPlan{};
+    trim.trim_animation->property = "trim_end";
+    trim.trim_animation->keyframes.push_back({Frame{0}, {0.0f, 0.1f}});
+    trim.trim_animation->keyframes.push_back({Frame{29}, {0.0f, 1.0f}});
+    trim.trim_animation->easing = "linear";
+    animated.shape->operators.push_back(trim);
+    plan.layers.push_back(animated);
+
+    assets::AssetResolver resolver;
+    auto compiled = compiler::compile(plan, resolver);
+    REQUIRE(compiled);
+    auto program = std::move(compiled).value();
+    REQUIRE(compiler::program_has_time_varying_paths(program));
+
+    const auto overlay0 = compiler::SceneMaterializer{}.materialize_path_overlay(
+        program, std::pmr::get_default_resource(), nullptr, 0.0);
+    const auto overlay29 = compiler::SceneMaterializer{}.materialize_path_overlay(
+        program, std::pmr::get_default_resource(), nullptr, 29.0);
+    REQUIRE(overlay0.layers().size() == 1);
+    REQUIRE(overlay29.layers().size() == 1);
+    REQUIRE(overlay0.layers().front().nodes.size() == 1);
+    REQUIRE(overlay29.layers().front().nodes.size() == 1);
+    REQUIRE(overlay0.layers().front().nodes.front().shape.type() == ShapeType::Path);
+    REQUIRE(overlay29.layers().front().nodes.front().shape.type() == ShapeType::Path);
+    const auto path_signature = [](const auto& scene) {
+        float signature = 0.0f;
+        for (const auto& command : scene.layers().front().nodes.front().shape.path().commands)
+            signature += command.p0.x + command.p0.y;
+        return signature;
+    };
+    CHECK(path_signature(overlay0) != path_signature(overlay29));
+
+    auto renderer = test::make_renderer();
+    renderer.reset_counters();
+    uint64_t first_hash = 0;
+    uint64_t last_hash = 0;
+    for (int frame = 0; frame < 30; ++frame) {
+        auto framebuffer = renderer.render_program(program, Frame{frame});
+        REQUIRE(framebuffer != nullptr);
+        const auto hash = test::framebuffer_hash(*framebuffer);
+        if (frame == 0) first_hash = hash;
+        if (frame == 29) last_hash = hash;
+    }
+
+    // The static base is cached once; only the animated path layer is rebuilt.
+    CHECK(renderer.counters()->scene_materialize_count.load(
+              std::memory_order_relaxed) == 1);
+    CHECK(renderer.counters()->scene_path_update_count.load(
+              std::memory_order_relaxed) == 30);
+    CHECK(first_hash != last_hash);
 }

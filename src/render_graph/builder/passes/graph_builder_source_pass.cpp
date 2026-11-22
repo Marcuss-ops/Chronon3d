@@ -275,7 +275,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                         sample.position.z, sample.velocity});
                 }
             }
-            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+            static const bool typed_diag_build = std::getenv("CHRONON3D_TYPED_DIAG") != nullptr;
+            if (typed_diag_build) {
                 std::fprintf(stderr,
                     "[gpu-particles-build] layer='%s' node='%s' instances=%zu shape=%d pos=(%.2f,%.2f,%.2f)\n",
                     layer.name.c_str(), node.name.c_str(),
@@ -301,7 +302,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             const Mat4 shape_matrix = finalize_source_placement_matrix(
                 source_placement, item, node, ctx);
             const f32 shape_opacity = source_placement.opacity;
-            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+            static const bool typed_diag_matrices = std::getenv("CHRONON3D_TYPED_DIAG") != nullptr;
+            if (typed_diag_matrices) {
                 std::fprintf(stderr,
                     "[gpu-particles-matrices] item_t=(%.2f,%.2f) source_t=(%.2f,%.2f) node_t=(%.2f,%.2f) final_t=(%.2f,%.2f) centered=%d\n",
                     static_cast<double>(item.world_matrix[3][0]),

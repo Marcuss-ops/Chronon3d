@@ -515,7 +515,10 @@ RenderOpResult RenderBackendSurfaceApi::lighting_surface_points(
         int /*origin_y*/,
         float /*diffuse*/,
         const Vec4& /*relight_params*/,
-        const Vec4& /*relight_specular*/) {
+        const Vec4& /*relight_specular*/,
+        runtime::RenderSurfaceHandle /*light_wrap*/,
+        const Vec4& /*light_wrap_params*/,
+        const Vec4& /*light_wrap_raster*/) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::lighting_surface_points: native per-pixel lighting is not supported"));

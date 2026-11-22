@@ -191,7 +191,8 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
         }
         return false;
     }
-    if (std::getenv("CHRONON3D_TEXT_COMPOSITE_DIAG")) {
+    static const bool text_composite_diag = std::getenv("CHRONON3D_TEXT_COMPOSITE_DIAG") != nullptr;
+    if (text_composite_diag) {
         spdlog::info(
             "[vk-composite-fb] dst_handle={} dst_cpu={} dst_gpu={} dst_data={} "
             "src_handle={} src_cpu={} src_gpu={} src_data={} {}x{}",
@@ -204,7 +205,8 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
             source.data() != nullptr ? 1 : 0,
             source.width(), source.height());
     }
-    if (std::getenv("CHRONON3D_TEXT_COMPOSITE_COPY_PROBE")) {
+    static const bool text_composite_copy_probe = std::getenv("CHRONON3D_TEXT_COMPOSITE_COPY_PROBE") != nullptr;
+    if (text_composite_copy_probe) {
         // Temporary diagnostic: a full-frame replace copy isolates the source
         // descriptor/shader read from the blend/clip path.
         const auto copied = ctx.backend_surface_api()->copy_surface(

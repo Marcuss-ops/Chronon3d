@@ -70,6 +70,11 @@ SoftwareExecutionContext make_software_execution_context(
     context.backend = runtime.backend_attached() ? &runtime.backend() : nullptr;
     context.counters = renderer->counters();
     context.video_decoder = renderer->video_decoder();
+    // attach_software_backend() replaces the execution context after the
+    // renderer constructor created its engine-lifetime cache. Carry it across
+    // so every RenderPipeline built for this renderer still shares one base
+    // topology instead of falling back to a per-pipeline materialization.
+    context.topology_cache = renderer->execution_context().topology_cache;
     return context;
 }
 
@@ -167,6 +172,7 @@ void attach_software_backend(
                 (renderer && (renderer->config().gpu_hot_path_mode() == chronon3d::GpuHotPathMode::RequireGpuNative ||
                               renderer->render_settings().require_native_gpu)) ||
                 (runtime.config().gpu_hot_path_mode() == chronon3d::GpuHotPathMode::RequireGpuNative);
+            vulkan->set_cpu_fallback_allowed(!strict_gpu);
             if (!strict_gpu) {
                 vulkan->attach_fallback_backend(make_software_backend_instance(renderer, runtime));
             }

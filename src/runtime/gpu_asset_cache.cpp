@@ -110,6 +110,31 @@ void GpuAssetCache::evict_to_budget() {
     }
 }
 
+GpuAssetAcquireResult GpuAssetCache::find(const GpuAssetKey& key) {
+    std::lock_guard lock(m_mutex);
+    if (!m_registry || !m_backend) {
+        return {kInvalidRenderSurfaceHandle, false, "GPU asset cache is not attached"};
+    }
+    const auto it = m_entries.find(key);
+    if (it == m_entries.end()) {
+        return {kInvalidRenderSurfaceHandle, false, {}};
+    }
+    // A stale physical handle is reported as a miss; acquire() owns the
+    // eviction and rebuild path for it.
+    if (!m_registry->lookup(it->second.handle) ||
+        !m_backend->is_native_surface_valid(it->second.handle)) {
+        return {kInvalidRenderSurfaceHandle, false, {}};
+    }
+    m_lru.splice(m_lru.end(), m_lru, it->second.lru_position);
+    it->second.lru_position = std::prev(m_lru.end());
+    ++m_stats.hits;
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->gpu_asset_cache_hits.fetch_add(
+            1, std::memory_order_relaxed);
+    }
+    return {it->second.handle, true, {}};
+}
+
 GpuAssetAcquireResult GpuAssetCache::acquire(
     const GpuAssetKey& key, SurfaceDesc desc, std::span<const float> rgba) {
     std::unique_lock lock(m_mutex);

@@ -237,7 +237,8 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             image.last_vulkan_to_cuda_value = value;
             image.cuda_export_fence_slot = slot;
             image.cuda_export_standalone_fence = false;
-            if (std::getenv("CHRONON3D_CUDA_INTEROP_DIAG")) {
+            static const bool cuda_interop_diag_decode = std::getenv("CHRONON3D_CUDA_INTEROP_DIAG") != nullptr;
+            if (cuda_interop_diag_decode) {
                 spdlog::info("[cuda-interop-diag] frame={} slot={} surface={} lane=decode c2v_wait={} v2c_signal={} timeline={}",
                     active_frame_index, slot, physical_slot,
                     image.cuda_timeline ? image.interop_generation->cuda_to_vulkan() : 0,
@@ -259,7 +260,8 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             image.last_vulkan_to_cuda_value = value;
             image.cuda_export_fence_slot = slot;
             image.cuda_export_standalone_fence = false;
-            if (std::getenv("CHRONON3D_CUDA_INTEROP_DIAG")) {
+            static const bool cuda_interop_diag_encode = std::getenv("CHRONON3D_CUDA_INTEROP_DIAG") != nullptr;
+            if (cuda_interop_diag_encode) {
                 spdlog::info("[cuda-interop-diag] frame={} slot={} surface={} lane=encode v2c_signal={} timeline={}",
                     active_frame_index, slot, physical_slot, value,
                     image.cuda_timeline);

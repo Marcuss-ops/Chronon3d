@@ -222,7 +222,8 @@ NodeExecResult execute_multi_source_items(
                         "backend does not support draw_text_run"
                     }};
                 }
-    if (std::getenv("CHRONON3D_PATH_DIAG"))
+    static const bool path_diag = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    if (path_diag)
         spdlog::info("[native-multisource-diag] node={} surface_support={} registry={} surface={} cpu={} items={}",
             node_name, ctx.backend_stats_api()->supports_native_surfaces(), ctx.surface_registry != nullptr,
             fb->surface_handle(), fb->data() != nullptr, items.size());

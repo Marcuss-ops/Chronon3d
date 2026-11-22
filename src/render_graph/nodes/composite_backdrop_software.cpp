@@ -98,16 +98,24 @@ NodeExecResult execute_backdrop_software(
                 dst_row[x] = out;
             }
         }
+        // Accumulate one horizontal row at a time so the vertical pass reads
+        // and writes contiguous scanlines instead of walking columns. The
+        // per-pixel accumulation order over k is unchanged; only compiler
+        // contraction can differ, within the pixel-suite tolerance.
         for (i32 y = roi_y0; y < roi_y1; ++y) {
             Color* dst_row = blurred_fb->pixels_row(y);
-            for (i32 x = roi_x0; x < roi_x1; ++x) {
-                Color out{0, 0, 0, 0};
-                for (int k = -extent; k <= extent; ++k) {
-                    const Color c = horizontal_fb->pixels_row(std::clamp(y + k, 0, height - 1))[x];
-                    const float w = kernel[static_cast<std::size_t>(k + extent)];
-                    out.r += c.r * w; out.g += c.g * w; out.b += c.b * w; out.a += c.a * w;
+            for (i32 x = roi_x0; x < roi_x1; ++x)
+                dst_row[x] = Color{0, 0, 0, 0};
+            for (int k = -extent; k <= extent; ++k) {
+                const Color* src_row = horizontal_fb->pixels_row(
+                    std::clamp(y + k, 0, height - 1));
+                const float w = kernel[static_cast<std::size_t>(k + extent)];
+                for (i32 x = roi_x0; x < roi_x1; ++x) {
+                    dst_row[x].r += src_row[x].r * w;
+                    dst_row[x].g += src_row[x].g * w;
+                    dst_row[x].b += src_row[x].b * w;
+                    dst_row[x].a += src_row[x].a * w;
                 }
-                dst_row[x] = out;
             }
         }
     }

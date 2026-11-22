@@ -481,20 +481,26 @@ graph::RenderOpResult VulkanBackend::lighting_surface_points(
     int origin_y,
     float diffuse,
     const Vec4& relight_params,
-    const Vec4& relight_specular) {
+    const Vec4& relight_specular,
+    runtime::RenderSurfaceHandle light_wrap,
+    const Vec4& light_wrap_params,
+    const Vec4& light_wrap_raster) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    const std::array<runtime::RenderSurfaceHandle, 3> touched{
+        destination, source, light_wrap};
     return run_batched_surface_op(touched, {}, [&] {
         m_impl->lighting_points(destination, source, scene_multiplier,
                                 packed_lights, light_count, normal, layer_z,
                                 origin_x, origin_y, diffuse,
-                                relight_params, relight_specular);
+                                relight_params, relight_specular,
+                                light_wrap, light_wrap_params, light_wrap_raster);
     });
 #else
     (void)destination; (void)source; (void)scene_multiplier;
     (void)packed_lights; (void)light_count; (void)normal; (void)layer_z;
     (void)origin_x; (void)origin_y; (void)diffuse;
-    (void)relight_params; (void)relight_specular;
+    (void)relight_params; (void)relight_specular; (void)light_wrap;
+    (void)light_wrap_params; (void)light_wrap_raster;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::lighting_surface_points: Vulkan support is disabled"));

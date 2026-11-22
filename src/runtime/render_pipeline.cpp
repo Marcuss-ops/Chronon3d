@@ -192,13 +192,43 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     // that carry no shared cache (unit fixtures).
     // SVG path paint, geometry and operators are sampled by the materializer,
     // not by TypedProgramSampler. Their topology is therefore frame-specific
-    // and must bypass the per-program cache; caching frame 0 would freeze the
-    // animation and was the root cause of the missing SVG path/motion pixels.
+    // and cannot be cached as a whole at frame 0. Only those path layers need
+    // a per-frame update: the static base is materialized once and cached by
+    // program fingerprint, then cloned and patched with the path overlay.
     const bool time_varying_paths =
         compiler::program_has_time_varying_paths(program);
     std::shared_ptr<const Scene> topology;
     if (time_varying_paths) {
-        topology = materialize(static_cast<double>(frame.integral())).first;
+        std::shared_ptr<const Scene> base;
+        if (m_context.topology_cache) {
+            base = m_context.topology_cache->cache().compute_if_absent(
+                topology_key, [&] { return materialize(0.0); });
+        } else {
+            base = m_topologies.compute_if_absent(
+                topology_key, [&] { return materialize(0.0); });
+        }
+        auto patched = std::make_shared<Scene>(base->clone());
+        auto* const font_engine = m_context.runtime
+            ? &m_context.runtime->font_engine() : nullptr;
+        auto overlay = compiler::SceneMaterializer{}.materialize_path_overlay(
+            program, std::pmr::get_default_resource(), font_engine,
+            static_cast<double>(frame.integral()));
+        for (auto& layer : overlay.layers()) {
+            auto destination = std::find_if(
+                patched->layers().begin(), patched->layers().end(),
+                [&](const Layer& candidate) { return candidate.name == layer.name; });
+            if (destination != patched->layers().end()) {
+                *destination = std::move(layer);
+            } else {
+                patched->layers().push_back(std::move(layer));
+            }
+        }
+        patched->asset_manifest().merge(overlay.asset_manifest());
+        if (m_context.counters) {
+            m_context.counters->scene_path_update_count.fetch_add(
+                1, std::memory_order_relaxed);
+        }
+        topology = std::move(patched);
     } else if (m_context.topology_cache) {
         topology = m_context.topology_cache->cache().compute_if_absent(
             topology_key, [&] { return materialize(0.0); });

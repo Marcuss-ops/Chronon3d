@@ -290,14 +290,17 @@ static void log_graph_cache_diagnostics(
     if (ctx.frame_input.has_camera_2_5d &&
         ctx.frame_input.camera_2_5d.dof.enabled) {
         ctx.policy.track_dof_depth = true;
-        ctx.node_exec.dof_depth.assign(
+        // The executor may share the depth/coverage buffers with cloned
+        // contexts. Reset the effective buffers, not the local fallbacks, or
+        // a warm frame keeps the depth from the previous cached frame.
+        ctx.node_exec.dof_depth_buffer().assign(
             static_cast<size_t>(width) * static_cast<size_t>(height),
             kUnsetDofDepth);
-        ctx.node_exec.dof_source_coverage.reset();
+        ctx.node_exec.dof_sources().reset();
     } else {
         ctx.policy.track_dof_depth = false;
-        ctx.node_exec.dof_depth.clear();
-        ctx.node_exec.dof_source_coverage.reset();
+        ctx.node_exec.dof_depth_buffer().clear();
+        ctx.node_exec.dof_sources().reset();
     }
 
     compiled.graph.unfreeze_for_refresh();

@@ -200,7 +200,8 @@ NodeExecResult TextRunNode::execute(
     // is submitted, and would overwrite the fallback upload that completed
     // earlier on its own upload queue. Letting the selected route own the
     // surface keeps the clear and the pixels in one command stream.
-    if (std::getenv("CHRONON3D_PATH_DIAG"))
+    static const bool path_diag = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    if (path_diag)
         spdlog::info("[native-textrun-diag] node={} shape={} surface={} cpu={} opacity={}",
             m_name, static_cast<bool>(m_shape), fb->surface_handle(),
             fb->data() != nullptr, m_opacity_override.value_or(m_render_ref.world_transform.opacity));
@@ -366,7 +367,8 @@ NodeExecResult TextRunNode::execute(
 
         // Temporary, env-gated coordinate-space probe for the text-vis
         // false-positive ticket. Kept out of the hot path unless requested.
-        if (std::getenv("CHRONON3D_TEXT_VIS_DEBUG") != nullptr) {
+        static const bool text_vis_debug = std::getenv("CHRONON3D_TEXT_VIS_DEBUG") != nullptr;
+        if (text_vis_debug) {
             const auto& a = audit.rendered_alpha_bbox;
             spdlog::info(
                 "[text-vis-debug] node={} tight={} fb={}x{} origin=({},{}) "

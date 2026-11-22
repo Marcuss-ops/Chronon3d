@@ -326,7 +326,8 @@ void append_particles_layer_for_scene(
     const Vec2 emitter_center = layer.screen_space
         ? Vec2{layer.size[0] * 0.5f, layer.size[1] * 0.5f}
         : Vec2{0.0f, 0.0f};
-    if (std::getenv("CHRONON3D_PARTICLE_DEBUG") != nullptr) {
+    static const bool particle_debug_legacy = std::getenv("CHRONON3D_PARTICLE_DEBUG") != nullptr;
+    if (particle_debug_legacy) {
         spdlog::info("[particle-mat] route=legacy id={} screen={} size=({},{}) center=({},{}) count={}",
             layer.id, layer.screen_space ? 1 : 0, layer.size[0], layer.size[1],
             emitter_center.x, emitter_center.y, sampled.particles.size());
@@ -756,7 +757,8 @@ void append_text_layer_for_scene(
         .font_engine(font_engine.get());
     if (prepared_text_counters[index])
         text_builder.from_animated_document(prepared_text_counters[index]);
-    if (std::getenv("CHRONON3D_CARET_DEBUG") != nullptr) {
+    static const bool caret_debug_compiler = std::getenv("CHRONON3D_CARET_DEBUG") != nullptr;
+    if (caret_debug_compiler) {
         std::fprintf(stderr, "[caret-compiler] layer='%s' style=%d caret=%d\n",
             layer.id.c_str(), layer.style ? 1 : 0,
             (layer.style && layer.style->text_caret) ? 1 : 0);

@@ -81,7 +81,7 @@ graph::RenderOpResult draw_cached_text_run(
     const TextRunShape& shape,
     const glm::mat4& model_matrix,
     float opacity) {
-    const bool force_software = std::getenv("CHRONON3D_FORCE_SOFTWARE_TEXT") != nullptr;
+    static const bool force_software = std::getenv("CHRONON3D_FORCE_SOFTWARE_TEXT") != nullptr;
     const bool lowerable_gpu_animation =
         !shape.animators.empty() && can_lower_gpu_text_animation(shape);
     const bool unsupported_animation =

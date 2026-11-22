@@ -116,6 +116,9 @@ public:
         const GpuAssetKey& key,
         SurfaceDesc desc,
         std::span<const float> rgba);
+    /// Lookup-only residency probe. It never uploads or allocates; a hit
+    /// refreshes the LRU position exactly like acquire().
+    [[nodiscard]] GpuAssetAcquireResult find(const GpuAssetKey& key);
     void clear() noexcept;
 
     void set_budget_bytes(std::size_t budget_bytes) noexcept;

@@ -217,7 +217,8 @@ std::shared_ptr<Framebuffer> execute_internal(
         execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining,
                        parent_counters, parent_pool, res, compiled);
     }
-    if (std::getenv("CHRONON3D_T05_SURFACE_SNAPSHOT") && ctx.backend &&
+    static const bool surface_snapshot_diag = std::getenv("CHRONON3D_T05_SURFACE_SNAPSHOT") != nullptr;
+    if (surface_snapshot_diag && ctx.backend &&
         ctx.backend->supports_native_video_surface() &&
         !state.surface_content_snapshots.empty()) {
         bool batch_closed = false;

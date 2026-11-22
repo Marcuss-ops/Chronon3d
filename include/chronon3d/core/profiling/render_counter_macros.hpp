@@ -283,6 +283,8 @@ namespace chronon3d {
     X(scene_materialize_wall_us) \
     X(scene_materialize_count) \
     X(scene_materialize_cache_hit_count) \
+    X(scene_path_update_count) \
+    X(silent_cpu_fallback_count) \
     X(pixel_fusion_passes_before) \
     X(pixel_fusion_passes_after) \
     X(pixel_fusion_bytes_saved) \

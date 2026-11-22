@@ -511,7 +511,8 @@ void VulkanBackend::Impl::color_adjust(
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst, src_image);
-        if (std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG")) {
+        static const bool descriptor_diag = std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG") != nullptr;
+        if (descriptor_diag) {
             spdlog::info(
                 "[t05-descriptor] op=color-adjust pass={} set=0x{:x} "
                 "src_image=0x{:x} src_view=0x{:x} src_alloc=0x{:x} "
@@ -551,7 +552,8 @@ void VulkanBackend::Impl::color_transform(
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst, src_image);
-        if (std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG")) {
+        static const bool descriptor_diag = std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG") != nullptr;
+        if (descriptor_diag) {
             spdlog::info(
                 "[t05-descriptor] op=color-transform pass={} set=0x{:x} "
                 "src_image=0x{:x} src_view=0x{:x} src_alloc=0x{:x} "
@@ -629,7 +631,9 @@ void VulkanBackend::Impl::lighting(
     runtime::RenderSurfaceHandle source,
     const Color& multiplier) {
     lighting_points(destination, source, multiplier, {}, 0,
-                    Vec3{0.0f, 0.0f, 1.0f}, 0.0f, 0, 0, 0.0f);
+                    Vec3{0.0f, 0.0f, 1.0f}, 0.0f, 0, 0, 0.0f,
+                    Vec4{0.0f}, Vec4{0.0f},
+                    runtime::kInvalidRenderSurfaceHandle, Vec4{0.0f}, Vec4{0.0f});
 }
 
 void VulkanBackend::Impl::lighting_points(
@@ -644,7 +648,10 @@ void VulkanBackend::Impl::lighting_points(
     int origin_y,
     float diffuse,
     const Vec4& relight_params,
-    const Vec4& relight_specular) {
+    const Vec4& relight_specular,
+    runtime::RenderSurfaceHandle light_wrap,
+    const Vec4& light_wrap_params,
+    const Vec4& light_wrap_raster) {
     constexpr std::size_t kFloatsPerLight = 16;
     constexpr std::uint32_t kMaxGpuLights = 64;
     if (light_count > kMaxGpuLights ||
@@ -653,6 +660,13 @@ void VulkanBackend::Impl::lighting_points(
     }
     auto& dst = resolve_image(destination);
     auto& src_image = resolve_image(source);
+    auto* wrap_image = light_wrap == runtime::kInvalidRenderSurfaceHandle
+        ? &src_image : &resolve_image(light_wrap);
+    if (light_wrap != runtime::kInvalidRenderSurfaceHandle &&
+        (!wrap_image->initialized || wrap_image->view == VK_NULL_HANDLE)) {
+        throw std::invalid_argument(
+            "Vulkan lighting light-wrap surface is not initialized");
+    }
     if (dst.image == src_image.image) {
         throw std::invalid_argument(
             "Vulkan lighting destination aliases its source image: destination=" +
@@ -668,7 +682,8 @@ void VulkanBackend::Impl::lighting_points(
             std::to_string(src_image.height) + " initialized=" +
             (src_image.initialized ? "true" : "false"));
     }
-    if (std::getenv("CHRONON3D_T05_SURFACE_ID_DIAG")) {
+    static const bool surface_id_diag = std::getenv("CHRONON3D_T05_SURFACE_ID_DIAG") != nullptr;
+    if (surface_id_diag) {
         spdlog::info(
             "[t05-surface-identity] op=lighting src={} src_image=0x{:x} "
             "dst={} dst_image=0x{:x} src_init={} dst_init={} pass={} plan={} "
@@ -696,8 +711,9 @@ void VulkanBackend::Impl::lighting_points(
         if (!packed_lights.empty())
             std::memcpy(light_buffer.mapped, packed_lights.data(), packed_lights.size_bytes());
         const auto descriptors = allocate_pass_descriptor_set();
-        write_descriptors(descriptors, dst, src_image);
-        if (std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG")) {
+        write_lighting_descriptors(descriptors, dst, src_image, *wrap_image);
+        static const bool descriptor_diag = std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG") != nullptr;
+        if (descriptor_diag) {
             spdlog::info(
                 "[t05-descriptor] op=lighting pass={} set=0x{:x} "
                 "src_image=0x{:x} src_view=0x{:x} src_alloc=0x{:x} "
@@ -716,7 +732,8 @@ void VulkanBackend::Impl::lighting_points(
         record_lighting(cmd, descriptors, dst, src_image, multiplier, normal,
                         layer_z, origin_x, origin_y, diffuse, light_count,
                         light_buffer.buffer, light_bytes,
-                        relight_params, relight_specular);
+                        relight_params, relight_specular,
+                        *wrap_image, light_wrap_params, light_wrap_raster);
         dst.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;

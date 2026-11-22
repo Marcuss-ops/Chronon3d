@@ -560,7 +560,8 @@ NodeExecResult SourceNode::execute(
                 }
             }
 
-            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+            static const bool typed_diag_draw = std::getenv("CHRONON3D_TYPED_DIAG") != nullptr;
+            if (typed_diag_draw) {
                 std::fprintf(stderr,
                     "[gpu-particles-draw] node='%s' input=%zu drawn=%zu fb=%dx%d surface=%u matrix_t=(%.2f,%.2f) scale=(%.2f,%.2f)\n",
                     m_name.c_str(), m_node.gpu_particle_instances.size(),
@@ -594,7 +595,8 @@ NodeExecResult SourceNode::execute(
                             rendered.error().message}};
                 }
             }
-            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+            static const bool typed_diag_result = std::getenv("CHRONON3D_TYPED_DIAG") != nullptr;
+            if (typed_diag_result) {
                 std::fprintf(stderr,
                     "[gpu-particles-result] node='%s' opaque=%d cleared=%d\n",
                     m_name.c_str(), fb->is_opaque() ? 1 : 0,
@@ -631,7 +633,8 @@ NodeExecResult SourceNode::execute(
                     m_name,
                     "failed to materialize native source surface"};
             }
-            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+            static const bool typed_diag_materialize = std::getenv("CHRONON3D_TYPED_DIAG") != nullptr;
+            if (typed_diag_materialize) {
                 const Mat4 diagnostic_world = m_node.world_transform.to_mat4();
                 const double matrix_scale_x = glm::length(Vec3(diagnostic_world[0]));
                 const double matrix_scale_y = glm::length(Vec3(diagnostic_world[1]));
@@ -697,7 +700,8 @@ NodeExecResult SourceNode::execute(
                     m_name,
                     draw_result.error().message}};
             }
-            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr && fb->data()) {
+            static const bool typed_diag_pixels = std::getenv("CHRONON3D_TYPED_DIAG") != nullptr;
+            if (typed_diag_pixels && fb->data()) {
                 std::size_t nz = 0;
                 for (int yy = 0; yy < fb->height(); ++yy) {
                     const Color* row = fb->pixels_row(yy);
@@ -713,7 +717,8 @@ NodeExecResult SourceNode::execute(
                     m_name.c_str(), nz);
             }
         }
-        if (std::getenv("CHRONON3D_PATH_DIAG"))
+        static const bool path_diag_source = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+        if (path_diag_source)
             spdlog::info("[native-source-diag] frame={} node={} shape_type={} surface={} cpu={} opaque={} size={}x{}",
                 static_cast<int>(ctx.frame_input.frame), m_name,
                 static_cast<int>(m_node.shape.type()), fb->surface_handle(),

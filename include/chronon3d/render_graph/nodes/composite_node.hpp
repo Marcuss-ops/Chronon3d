@@ -29,6 +29,7 @@ public:
         m_world_position = position;
         m_has_world_position = true;
     }
+    void set_world_z(float z) noexcept { m_world_z = z; }
     void set_backdrop_blur(std::optional<BackdropBlurParams> params) {
         m_backdrop_blur = std::move(params);
     }

@@ -132,9 +132,9 @@ bool downscale_for_runtime(image::ImageBuffer& buffer, int max_dimension) {
                  buffer.width, buffer.height, target_width, target_height, cap);
     buffer.width = target_width;
     buffer.height = target_height;
-    return true;
     buffer.pixels = std::move(resized_bytes);
     buffer.linear_pixels = std::move(resized_linear);
+    return true;
 }
 
 Color decode_image_pixel(const image::ImageBuffer& buffer, std::size_t index,

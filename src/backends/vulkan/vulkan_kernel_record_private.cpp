@@ -570,7 +570,16 @@ namespace chronon3d::backends::vulkan {
         std::uint32_t light_count, VkBuffer light_buffer,
         VkDeviceSize light_buffer_bytes,
         const Vec4& relight_params,
-        const Vec4& relight_specular) {
+        const Vec4& relight_specular,
+        const Image& light_wrap,
+        const Vec4& light_wrap_params,
+        const Vec4& light_wrap_raster) {
+        const VkDescriptorImageInfo wrap_info{
+            VK_NULL_HANDLE, light_wrap.view, VK_IMAGE_LAYOUT_GENERAL};
+        const VkWriteDescriptorSet wrap_write{
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 2, 0, 1,
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &wrap_info, nullptr, nullptr};
+        vkUpdateDescriptorSets(device, 1, &wrap_write, 0, nullptr);
         const VkDescriptorBufferInfo light_info{light_buffer, 0, light_buffer_bytes};
         const VkWriteDescriptorSet light_write{
             VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 3, 0, 1,
@@ -586,12 +595,16 @@ namespace chronon3d::backends::vulkan {
             float origin_diffuse_count[4];
             float relight_params[4];
             float relight_specular[4];
+            float light_wrap_params[4];
+            float light_wrap_raster[4];
         } params{{multiplier.r, multiplier.g, multiplier.b, multiplier.a},
                  {normal.x, normal.y, normal.z, layer_z},
                  {static_cast<float>(origin_x), static_cast<float>(origin_y),
                   diffuse, static_cast<float>(light_count)},
                  {relight_params.x, relight_params.y, relight_params.z, relight_params.w},
-                 {relight_specular.x, relight_specular.y, relight_specular.z, relight_specular.w}};
+                 {relight_specular.x, relight_specular.y, relight_specular.z, relight_specular.w},
+                 {light_wrap_params.x, light_wrap_params.y, light_wrap_params.z, light_wrap_params.w},
+                 {light_wrap_raster.x, light_wrap_raster.y, light_wrap_raster.z, light_wrap_raster.w}};
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         const VkBufferMemoryBarrier2KHR light_upload_barrier{

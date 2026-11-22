@@ -492,7 +492,8 @@ NodeExecResult TransformNode::execute(
                     "TransformNode: unable to allocate native affine output handle"));
         }();
         if (created.ok()) {
-            if (std::getenv("CHRONON3D_T05_TRANSFORM_DIAG")) {
+            static const bool transform_diag = std::getenv("CHRONON3D_T05_TRANSFORM_DIAG") != nullptr;
+            if (transform_diag) {
                 spdlog::info(
                     "[t05-transform] node='{}' source={} destination={} "
                     "destination_size={}x{} origin={},{} terminal={} "

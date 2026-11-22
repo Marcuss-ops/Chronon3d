@@ -1,7 +1,9 @@
 // Native effect stack implementation unit.
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/effects/curves.hpp>
 #include <chronon3d/effects/effect_param_animation.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/render_graph/effect_gpu_capability.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
@@ -13,6 +15,7 @@
 #include <bit>
 #include <cmath>
 #include <initializer_list>
+#include <string_view>
 #include <vector>
 
 namespace chronon3d::graph {
@@ -91,7 +94,38 @@ inline bool bulk_true_forward(RenderGraphContext& ctx, Framebuffer& result,
     return true;
 }
 
+inline runtime::RenderSurfaceHandle bulk_upload_aux(RenderGraphContext& ctx,
+                                               int w, int h,
+                                               std::span<const float> rgba);
+
 // Upload a raw RGBA32F span as an aux surface (Curves tables, Lut3D table).
+// The steady-state path below reuses the canonical GpuAssetCache instead:
+// the table is bounded and content-addressed, so a per-frame rebuild does not
+// imply a per-frame create/upload. `cache_owned` tells the caller whether the
+// handle must be released after the dispatch.
+inline runtime::RenderSurfaceHandle bulk_cached_lut_aux(
+    RenderGraphContext& ctx, int w, int h, std::span<const float> rgba,
+    bool& cache_owned) {
+    cache_owned = false;
+    if (ctx.gpu_asset_cache && ctx.backend &&
+        ctx.gpu_asset_cache->backend() == ctx.backend) {
+        const auto digest = assets::sha256_string(std::string_view(
+            reinterpret_cast<const char*>(rgba.data()), rgba.size_bytes()));
+        const runtime::GpuAssetKey key{
+            digest, runtime::PixelFormat::Rgba32Float,
+            static_cast<std::uint32_t>(w), static_cast<std::uint32_t>(h)};
+        auto desc = native_surface_desc(ctx, w, h, false,
+                                        runtime::PixelFormat::Rgba32Float);
+        desc.lifetime = runtime::LifetimeClass::JobPersistent;
+        const auto acquired = ctx.gpu_asset_cache->acquire(key, desc, rgba);
+        if (acquired.ok()) {
+            cache_owned = true;
+            return acquired.handle;
+        }
+    }
+    return bulk_upload_aux(ctx, w, h, rgba);
+}
+
 inline runtime::RenderSurfaceHandle bulk_upload_aux(RenderGraphContext& ctx,
                                                int w, int h,
                                                std::span<const float> rgba) {
@@ -812,13 +846,14 @@ bool try_native_full_frame_lut_bulk(RenderGraphContext& ctx,
         runtime::RenderSurfaceHandle source = runtime::kInvalidRenderSurfaceHandle;
         const auto destination = bulk_alloc_destination(ctx, result, borrowed_source, source);
         if (destination == runtime::kInvalidRenderSurfaceHandle) return false;
-        const auto aux = bulk_upload_aux(ctx, 256, 4, table);
+        bool aux_cached = false;
+        const auto aux = bulk_cached_lut_aux(ctx, 256, 4, table, aux_cached);
         if (aux == runtime::kInvalidRenderSurfaceHandle) {
             bulk_release_surface(ctx, destination);
             return false;
         }
         const auto dispatched = ctx.backend_surface_api()->lut_bulk_surface(destination, source, aux, bulk);
-        bulk_release_surface(ctx, aux);
+        if (!aux_cached) bulk_release_surface(ctx, aux);
         if (!dispatched.ok()) {
             bulk_release_surface(ctx, destination);
             return false;
@@ -870,13 +905,14 @@ bool try_native_full_frame_lut_bulk(RenderGraphContext& ctx,
         runtime::RenderSurfaceHandle source = runtime::kInvalidRenderSurfaceHandle;
         const auto destination = bulk_alloc_destination(ctx, result, borrowed_source, source);
         if (destination == runtime::kInvalidRenderSurfaceHandle) return false;
-        const auto aux = bulk_upload_aux(ctx, dim, dim * dim, table);
+        bool aux_cached = false;
+        const auto aux = bulk_cached_lut_aux(ctx, dim, dim * dim, table, aux_cached);
         if (aux == runtime::kInvalidRenderSurfaceHandle) {
             bulk_release_surface(ctx, destination);
             return false;
         }
         const auto dispatched = ctx.backend_surface_api()->lut_bulk_surface(destination, source, aux, bulk);
-        bulk_release_surface(ctx, aux);
+        if (!aux_cached) bulk_release_surface(ctx, aux);
         if (!dispatched.ok()) {
             bulk_release_surface(ctx, destination);
             return false;

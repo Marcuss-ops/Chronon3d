@@ -163,7 +163,8 @@ void CudaVulkanSurfaceBridge::wait_for_vulkan(CUstream stream) {
     make_current();
     const auto signal_value = m_wait_vulkan_fence
         ? m_wait_vulkan_fence() : (m_timeline ? m_generation->vulkan_to_cuda() : 0);
-    if (std::getenv("CHRONON3D_CUDA_INTEROP_DIAG")) {
+    static const bool cuda_interop_diag = std::getenv("CHRONON3D_CUDA_INTEROP_DIAG") != nullptr;
+    if (cuda_interop_diag) {
         spdlog::info("[cuda-interop-diag] cuda_wait sem={} value={} timeline={} stream={}",
             static_cast<void*>(m_vulkan_to_cuda), signal_value, m_timeline,
             static_cast<void*>(stream ? stream : m_stream));
@@ -191,7 +192,8 @@ void CudaVulkanSurfaceBridge::signal_for_vulkan(CUstream stream) {
     if (m_timeline) {
         params.params.fence.value = m_generation->next_cuda_to_vulkan();
     }
-    if (std::getenv("CHRONON3D_CUDA_INTEROP_DIAG")) {
+    static const bool cuda_interop_diag = std::getenv("CHRONON3D_CUDA_INTEROP_DIAG") != nullptr;
+    if (cuda_interop_diag) {
         spdlog::info("[cuda-interop-diag] cuda_signal sem={} value={} timeline={} stream={}",
             static_cast<void*>(m_cuda_to_vulkan),
             m_timeline ? params.params.fence.value : 0, m_timeline,

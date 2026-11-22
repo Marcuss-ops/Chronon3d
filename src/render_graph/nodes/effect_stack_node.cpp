@@ -30,7 +30,8 @@ NodeExecResult EffectStackNode::execute(
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) {
-    if (std::getenv("CHRONON3D_PATH_DIAG")) {
+    static const bool path_diag = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    if (path_diag) {
         spdlog::info("[native-effect-stack-diag] name={} effects={} inputs={} input_surface={} input_cpu={}",
             name(), m_effects.size(), inputs.size(),
             !inputs.empty() && inputs[0] ? inputs[0]->surface_handle()
@@ -429,7 +430,7 @@ NodeExecResult EffectStackNode::execute(
                     break;
                 }
                 if (!stage_handled) {
-                    if (std::getenv("CHRONON3D_PATH_DIAG")) {
+                    if (path_diag) {
                         spdlog::warn(
                             "[native-effect-stack-diag] stage rejected name={} stage={} effect={} "
                             "source={} source_cpu={} result={}x{}",

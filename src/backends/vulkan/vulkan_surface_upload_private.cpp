@@ -112,7 +112,8 @@ std::uint64_t VulkanBackend::Impl::upload(runtime::RenderSurfaceHandle handle, c
         const VkDeviceSize bytes = static_cast<VkDeviceSize>(runtime::tight_surface_bytes(
             desc.format, desc.width, desc.height));
         if (rgba.size_bytes() != bytes) throw std::invalid_argument("Vulkan upload size does not match surface");
-        if (std::getenv("CHRONON3D_TEXT_COMPOSITE_DIAG")) {
+        static const bool upload_diag = std::getenv("CHRONON3D_TEXT_COMPOSITE_DIAG") != nullptr;
+        if (upload_diag) {
             spdlog::info(
                 "[vk-upload-diag] handle={} image={} view={} fmt={} {}x{} "
                 "init={} exportable={} bytes={} sync={}",

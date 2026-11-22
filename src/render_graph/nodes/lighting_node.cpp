@@ -3,6 +3,8 @@
 #include "native_surface.hpp"
 
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/rendering/image_lighting.hpp>
 
 #include <spdlog/spdlog.h>
@@ -233,7 +235,8 @@ NodeExecResult LightingNode::execute(
     const Color multiplier = rendering::evaluate_lighting_at(
         Color{1.0f, 1.0f, 1.0f, 1.0f}, normal_world,
         Vec3{0.5f, 0.5f, layer_z}, light_context, m_material);
-    if (std::getenv("CHRONON3D_PATH_DIAG")) {
+    static const bool path_diag_env = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    if (path_diag_env) {
         spdlog::info(
             "[lighting-eval] layer={} enabled={} ambient_enabled={} directional_enabled={} point_lights={} normal=({:.4f},{:.4f},{:.4f}) multiplier=({:.4f},{:.4f},{:.4f},{:.4f}) material_accepts={} diffuse={:.4f}",
             m_layer_name, light_context.enabled,
@@ -262,7 +265,7 @@ NodeExecResult LightingNode::execute(
             inputs[0]->width(), inputs[0]->height(), false,
             input_bboxes.empty() ? std::nullopt : input_bboxes[0]);
         result->set_origin(inputs[0]->origin_x(), inputs[0]->origin_y());
-        const bool path_diag = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+        const bool path_diag = path_diag_env;
         if (path_diag) {
             spdlog::info(
                 "[lighting-surface] layer={} phase=before-clear result_ptr={} fb={}x{} handle={} encode_handle={} slot_ptr={} input={}x{}",
@@ -286,6 +289,113 @@ NodeExecResult LightingNode::execute(
                 result->width(), result->height(), result->surface_handle(),
                 output_record ? output_record->desc.width : 0,
                 output_record ? output_record->desc.height : 0);
+        }
+        runtime::RenderSurfaceHandle light_wrap_surface =
+            runtime::kInvalidRenderSurfaceHandle;
+        Vec4 light_wrap_params{0.0f};
+        Vec4 light_wrap_raster{0.0f};
+        if (image_relight && needs_wrap) {
+            if (m_material.image_light_wrap_asset.empty()) {
+                release_native_surface(ctx, *result);
+                return NodeExecResult(NodeExecutionError{
+                    RenderBackendErrorCode::UnsupportedCapability,
+                    std::string(name()),
+                    "2.5D image lighting light wrap requires a background asset "
+                    "on layer '" + m_layer_name + "'"});
+            }
+            const auto load_wrap = [&](const std::string& asset)
+                -> std::shared_ptr<const CachedImage> {
+                if (!ctx.image_cache || asset.empty()) return {};
+                const ImageDecodeOptions options{};
+                auto cached = ctx.asset_resolver
+                    ? ctx.image_cache->find(asset, options, *ctx.asset_resolver)
+                    : ctx.image_cache->find(ctx.resolve_asset(asset), options);
+                if (!cached) {
+                    cached = ctx.asset_resolver
+                        ? ctx.image_cache->get_or_load(asset, options, *ctx.asset_resolver)
+                        : ctx.image_cache->get_or_load(ctx.resolve_asset(asset), options);
+                }
+                return cached;
+            };
+            auto wrap_image = load_wrap(m_material.image_light_wrap_asset);
+            if (!wrap_image || !wrap_image->fb_img ||
+                wrap_image->width <= 0 || wrap_image->height <= 0) {
+                release_native_surface(ctx, *result);
+                return NodeExecResult(NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    std::string(name()),
+                    "2.5D image lighting could not load light-wrap asset '" +
+                    m_material.image_light_wrap_asset + "' for layer '" +
+                    m_layer_name + "'"});
+            }
+            rendering::ImageTexelView wrap_view{
+                .pixels = wrap_image->fb_img->data(),
+                .width = wrap_image->width,
+                .height = wrap_image->height,
+                .stride = static_cast<i32>(wrap_image->fb_img->stride())};
+            if (!wrap_view.valid() || !ctx.gpu_asset_cache) {
+                release_native_surface(ctx, *result);
+                return NodeExecResult(NodeExecutionError{
+                    RenderBackendErrorCode::UnsupportedCapability,
+                    std::string(name()),
+                    "2.5D image lighting light wrap requires a GPU asset cache "
+                    "on layer '" + m_layer_name + "'"});
+            }
+            const i32 wrap_radius = std::clamp(
+                static_cast<i32>(std::lround(std::max(
+                    m_material.image_rim_width_px, 1.0f))), 1, 64);
+            // Identity is the decoded asset digest plus the filter radius.
+            // The blurred payload is produced only on a cache miss, so a
+            // steady-state frame performs neither a CPU blur nor an upload.
+            std::string wrap_key_material(
+                reinterpret_cast<const char*>(wrap_image->gpu_key.content_digest.bytes.data()),
+                wrap_image->gpu_key.content_digest.bytes.size());
+            wrap_key_material += ':';
+            wrap_key_material += std::to_string(wrap_radius);
+            const runtime::GpuAssetKey wrap_key{
+                assets::sha256_string(wrap_key_material),
+                runtime::PixelFormat::Rgba32Float,
+                static_cast<std::uint32_t>(wrap_view.width),
+                static_cast<std::uint32_t>(wrap_view.height)};
+            auto wrap_residency = ctx.gpu_asset_cache->find(wrap_key);
+            if (!wrap_residency.ok()) {
+                const auto blurred_wrap = rendering::blur_image_box(
+                    wrap_view, wrap_radius);
+                const runtime::SurfaceDesc wrap_desc{
+                    wrap_key.width,
+                    wrap_key.height,
+                    wrap_key.format,
+                    runtime::ResourceUsage::Storage,
+                    runtime::LifetimeClass::JobPersistent,
+                    blurred_wrap.size() * sizeof(Color)};
+                wrap_residency = ctx.gpu_asset_cache->acquire(
+                    wrap_key, wrap_desc,
+                    std::span<const float>(
+                        reinterpret_cast<const float*>(blurred_wrap.data()),
+                        blurred_wrap.size() * 4));
+            }
+            if (!wrap_residency.ok()) {
+                release_native_surface(ctx, *result);
+                return NodeExecResult(NodeExecutionError{
+                    RenderBackendErrorCode::UnsupportedCapability,
+                    std::string(name()),
+                    "2.5D image lighting light wrap could not promote its "
+                    "filtered plate: " + wrap_residency.error});
+            }
+            light_wrap_surface = wrap_residency.handle;
+            const f32 canvas_w = ctx.frame_input.width > 0
+                ? static_cast<f32>(ctx.frame_input.width)
+                : static_cast<f32>(result->width());
+            const f32 canvas_h = ctx.frame_input.height > 0
+                ? static_cast<f32>(ctx.frame_input.height)
+                : static_cast<f32>(result->height());
+            light_wrap_params = Vec4{
+                m_material.image_light_wrap_strength,
+                static_cast<f32>(wrap_view.width),
+                static_cast<f32>(wrap_view.height),
+                canvas_w};
+            light_wrap_raster = Vec4{
+                canvas_h, static_cast<f32>(wrap_radius), 0.0f, 0.0f};
         }
         RenderOpResult applied = [&] {
             if (!per_pixel_lights && !image_relight) {
@@ -323,85 +433,10 @@ NodeExecResult LightingNode::execute(
                 static_cast<std::uint32_t>(light_context.point_lights.size()),
                 normal_world, layer_z, inputs[0]->origin_x(),
                 inputs[0]->origin_y(), m_material.diffuse,
-                relight_params, relight_specular);
+                relight_params, relight_specular,
+                light_wrap_surface, light_wrap_params, light_wrap_raster);
         }();
         if (applied.ok()) {
-            if (image_relight && needs_wrap && !m_material.image_light_wrap_asset.empty()) {
-                const auto load_wrap = [&](const std::string& asset) -> std::shared_ptr<const CachedImage> {
-                    if (!ctx.image_cache || asset.empty()) return {};
-                    const ImageDecodeOptions options{};
-                    auto cached = ctx.asset_resolver
-                        ? ctx.image_cache->find(asset, options, *ctx.asset_resolver)
-                        : ctx.image_cache->find(ctx.resolve_asset(asset), options);
-                    if (!cached) {
-                        cached = ctx.asset_resolver
-                            ? ctx.image_cache->get_or_load(asset, options, *ctx.asset_resolver)
-                            : ctx.image_cache->get_or_load(ctx.resolve_asset(asset), options);
-                    }
-                    return cached;
-                };
-                if (auto wrap_image = load_wrap(m_material.image_light_wrap_asset);
-                    wrap_image && wrap_image->fb_img && wrap_image->width > 0 && wrap_image->height > 0) {
-                    rendering::ImageTexelView wrap_view{
-                        .pixels = wrap_image->fb_img->data(),
-                        .width = wrap_image->width,
-                        .height = wrap_image->height,
-                        .stride = static_cast<i32>(wrap_image->fb_img->stride())
-                    };
-                    if (wrap_view.valid()) {
-                        const i32 wrap_radius = std::clamp(
-                            static_cast<i32>(std::lround(std::max(m_material.image_rim_width_px, 1.0f))),
-                            1, 64);
-                        const auto blurred_wrap = rendering::blur_image_box(wrap_view, wrap_radius);
-                        const i32 w = result->width();
-                        const i32 h = result->height();
-                        std::vector<float> rgba(static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 4u, 0.0f);
-                        if (ctx.backend_surface_api()->download_surface(result->surface_handle(), rgba).ok()) {
-                            std::vector<Color> tmp_colors(static_cast<std::size_t>(w) * static_cast<std::size_t>(h));
-                            for (std::size_t i = 0; i < tmp_colors.size(); ++i) {
-                                tmp_colors[i] = Color{rgba[i * 4 + 0], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]};
-                            }
-                            rendering::ImageTexelView alpha_view{
-                                .pixels = tmp_colors.data(),
-                                .width = w,
-                                .height = h,
-                                .stride = w
-                            };
-                            const auto blurred_alpha = rendering::blur_alpha_box(alpha_view, wrap_radius);
-                            const f32 canvas_w = ctx.frame_input.width > 0
-                                ? static_cast<f32>(ctx.frame_input.width) : static_cast<f32>(w);
-                            const f32 canvas_h = ctx.frame_input.height > 0
-                                ? static_cast<f32>(ctx.frame_input.height) : static_cast<f32>(h);
-                            const f32 wrap_str = m_material.image_light_wrap_strength;
-                            for (i32 y = 0; y < h; ++y) {
-                                const f32 cy = static_cast<f32>(result->origin_y() + y) + 0.5f;
-                                const i32 bg_y = std::clamp(static_cast<i32>(cy * static_cast<f32>(wrap_view.height) / canvas_h),
-                                    0, wrap_view.height - 1);
-                                for (i32 x = 0; x < w; ++x) {
-                                    const std::size_t idx = static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x);
-                                    const f32 a = tmp_colors[idx].a;
-                                    if (a <= 0.0f) continue;
-                                    const auto edge = rendering::sample_alpha_edge(blurred_alpha, w, h, x, y, a);
-                                    if (edge.mask <= 0.0f) continue;
-                                    const f32 cx = static_cast<f32>(result->origin_x() + x) + 0.5f;
-                                    const i32 bg_x = std::clamp(static_cast<i32>(cx * static_cast<f32>(wrap_view.width) / canvas_w),
-                                        0, wrap_view.width - 1);
-                                    const Color bg = blurred_wrap[static_cast<std::size_t>(bg_y) *
-                                        static_cast<std::size_t>(wrap_view.width) + static_cast<std::size_t>(bg_x)];
-                                    const f32 k = edge.mask * wrap_str * a;
-                                    // Screen-like soft wrap: adds zero when bg is black.
-                                    rgba[idx * 4 + 0] += bg.r * k * std::max(1.0f - rgba[idx * 4 + 0] * 0.5f, 0.25f);
-                                    rgba[idx * 4 + 1] += bg.g * k * std::max(1.0f - rgba[idx * 4 + 1] * 0.5f, 0.25f);
-                                    rgba[idx * 4 + 2] += bg.b * k * std::max(1.0f - rgba[idx * 4 + 2] * 0.5f, 0.25f);
-                                }
-                            }
-                            if (const auto rec = ctx.surface_registry->lookup(result->surface_handle())) {
-                                (void)ctx.backend_surface_api()->upload_surface(result->surface_handle(), rec->desc, rgba);
-                            }
-                        }
-                    }
-                }
-            }
             result->set_opaque(inputs[0]->is_opaque());
             result->set_content_cleared(inputs[0]->is_content_cleared());
             result->mark_gpu_authoritative();

@@ -159,7 +159,8 @@ void VulkanBackend::Impl::record_composite(
         transform.dispatch_origin_x = x0;
         transform.dispatch_origin_y = y0;
 
-        if (std::getenv("CHRONON3D_T05_TRANSFORM_DIAG")) {
+        static const bool transform_diag = std::getenv("CHRONON3D_T05_TRANSFORM_DIAG") != nullptr;
+        if (transform_diag) {
             spdlog::info(
                 "[t05-transform-dispatch] src={}x{} initialized={} "
                 "dst={}x{} initialized={} pass={} command_plan={} "

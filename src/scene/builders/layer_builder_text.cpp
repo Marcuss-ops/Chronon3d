@@ -245,7 +245,8 @@ Layer LayerBuilder::build() {
             if (shape) {
                 shape->placement_kind = prepared.frame.placement.kind;
                 shape->caret = spec.caret;
-                if (std::getenv("CHRONON3D_CARET_DEBUG") != nullptr) {
+                static const bool caret_debug_builder = std::getenv("CHRONON3D_CARET_DEBUG") != nullptr;
+                if (caret_debug_builder) {
                     std::fprintf(stderr,
                         "[caret-builder] name='%s' enabled=%d byte=%zu\n",
                         spec.name.c_str(), shape->caret.enabled ? 1 : 0,
