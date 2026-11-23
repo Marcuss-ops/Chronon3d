@@ -210,10 +210,28 @@ PreparedTextLayers prepare_text_layers(
     std::vector<std::optional<chronon3d::Vec2>> prepared_text_bounds(
         plan.layers.size());
     const auto assets_root = resolver.mount_root();
+    // CR-16: the workspace stages fonts as `assets/fonts/<face>` (the preset
+    // asset paths), while this resolver used to look only at `<root>/fonts`.
+    // A valid bundle therefore produced "Bundled fonts directory not found" on
+    // every clip and silently degraded to primary-only fallback. Probe the
+    // canonical locations before reporting the path as missing.
+    const auto bundled_fonts_root = [&assets_root]() -> std::filesystem::path {
+        if (assets_root.empty()) {
+            return {};
+        }
+        std::error_code ec;
+        const auto direct = assets_root / "fonts";
+        if (std::filesystem::is_directory(direct, ec)) {
+            return direct;
+        }
+        const auto nested = assets_root / "assets" / "fonts";
+        if (std::filesystem::is_directory(nested, ec)) {
+            return nested;
+        }
+        return direct;
+    }();
     chronon3d::TextCompileServices text_compile_services{
-        font_engine.get(), nullptr,
-        assets_root.empty() ? std::filesystem::path{}
-                            : assets_root / "fonts"};
+        font_engine.get(), nullptr, bundled_fonts_root};
     for (std::size_t index = 0; index < plan.layers.size(); ++index) {
         const auto& layer = plan.layers[index];
         if (layer.type != LayerType::Text) continue;
