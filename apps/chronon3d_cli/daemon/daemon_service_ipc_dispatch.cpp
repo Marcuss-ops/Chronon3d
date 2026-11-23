@@ -51,11 +51,36 @@ ipc::Reply DaemonService::ipc_cache_stats() {
     return ipc::Reply{ipc::Status::Ok, format_cache_stats()};
 }
 
-bool DaemonService::begin_job_status(std::string_view job_id) {
-    if (job_id.empty()) return true;
+DaemonService::JobAdmissionResult DaemonService::begin_job_status(std::string_view job_id) {
+    if (job_id.empty()) return JobAdmissionResult{JobAdmission::Admitted, {}};
     std::lock_guard lock(m_job_status_mutex);
-    return m_job_statuses.emplace(
-        std::string{job_id}, JobStatusRecord{JobState::Prepared, "prepared"}).second;
+    const std::string id{job_id};
+    const auto [it, inserted] = m_job_statuses.try_emplace(
+        id, JobStatusRecord{JobState::Prepared, "prepared"});
+    if (inserted) {
+        return JobAdmissionResult{JobAdmission::Admitted, {}};
+    }
+    switch (it->second.state) {
+    case JobState::Prepared:
+    case JobState::Running:
+        return JobAdmissionResult{JobAdmission::Busy,
+            "RENDER_JOB duplicate active job_id '" + id +
+                "' (state=running); wait for it or retry after it fails"};
+    case JobState::Completed:
+        return JobAdmissionResult{JobAdmission::AlreadyCompleted,
+            "RENDER_JOB duplicate completed job_id '" + id +
+                "' (an identical plan was already rendered; reuse the artifact)"};
+    case JobState::Failed:
+        // The retained entry is the record of the PREVIOUS attempt, not an
+        // admission decision. Drop it from the terminal ring and let the
+        // retry run; the failure message is preserved in the reply of the
+        // call that failed and in the daemon log.
+        std::erase(m_terminal_job_history, id);
+        it->second = JobStatusRecord{JobState::Prepared, "retry after failed attempt"};
+        return JobAdmissionResult{JobAdmission::Admitted, {}};
+    }
+    return JobAdmissionResult{JobAdmission::Busy,
+        "RENDER_JOB duplicate job_id '" + id + "' in an unknown state"};
 }
 
 void DaemonService::update_job_status(

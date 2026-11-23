@@ -179,6 +179,40 @@ public:
                 decoded_frame = media::decoded_frame_if(decoded);
             }
         }
+        // ── EOF clamp (2026-11-23) ─────────────────────────────────────────────
+        // A plan window can end up to one rounding step past the real tail of
+        // the file (Augias r42: a 38,54 s clip requested 39,00 s → frame 924
+        // already EOF). The provider answered ExecutionFailure and killed the
+        // whole job on its last frame. Freezing on the last decodable frame is
+        // the honest contract: the timeline keeps its duration, the caller
+        // gets a WARN naming the overshoot, and one rounded window no longer
+        // discards minutes of render work.
+        if ((!decoded_frame || !decoded_frame->framebuffer) &&
+            media::decode_is_eos(decoded) && source_frame > 0) {
+            constexpr Frame kMaxEofPullbackFrames = 12; // 0,5 s @ 24 fps
+            for (Frame pullback = 1; pullback <= kMaxEofPullbackFrames; ++pullback) {
+                const Frame probe = source_frame - pullback;
+                if (probe < 0) break;
+                decoded = decoder->decode_frame_at_with_color_transform(
+                    resolved_source_path,
+                    RationalTime{probe.integral(), Rational{1, source_fps}},
+                    render_w, render_h,
+                    media::VideoColorTransform{m_source.ocio_config_path,
+                        m_source.ocio_input_space, m_source.ocio_working_space});
+                decoded_frame = media::decoded_frame_if(decoded);
+                if (decoded_frame && decoded_frame->framebuffer) {
+                    if (m_source.duration <= 0 || m_source.duration > source_frame) {
+                        m_source.duration = probe + 1;
+                    }
+                    spdlog::warn(
+                        "[video-node] EOF clamp: requested frame {} is past the decodable tail of '{}'; "
+                        "froze on frame {} instead of failing the render",
+                        source_frame.integral(), m_source.path, probe.integral());
+                    break;
+                }
+                if (!media::decode_is_eos(decoded)) break;
+            }
+        }
         if (!decoded_frame || !decoded_frame->framebuffer) {
             if (media::decode_is_eos(decoded)) {
                 spdlog::error("[video-node] decoder reached EOF before requested frame: path='{}' frame={}",

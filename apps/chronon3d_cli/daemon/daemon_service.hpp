@@ -126,6 +126,16 @@ public:
         JobState state{JobState::Prepared};
         std::string message;
     };
+    /// Admission verdict for a RENDER_JOB job id. The id is a CONTENT key
+    /// (derived from the deterministic plan), while a submission is an
+    /// ATTEMPT: conflating them made a failed render permanently
+    /// unretriable (the daemon kept the id in its terminal ring and answered
+    /// "duplicate active or retained job_id" to the identical retry).
+    enum class JobAdmission : std::uint8_t { Admitted, Busy, AlreadyCompleted };
+    struct JobAdmissionResult {
+        JobAdmission verdict{JobAdmission::Admitted};
+        std::string message;
+    };
 
     DaemonService(const CompositionRegistry& registry, DaemonOptions options);
     ~DaemonService();
@@ -162,7 +172,7 @@ private:
     ipc::Reply ipc_cache_stats();
     ipc::Reply ipc_get_job_status(const std::string& job_id);
     ipc::Reply ipc_assemble_segments(const std::string& payload);
-    [[nodiscard]] bool begin_job_status(std::string_view job_id);
+    [[nodiscard]] JobAdmissionResult begin_job_status(std::string_view job_id);
     void update_job_status(std::string_view job_id, JobState state,
                            std::string message);
     [[nodiscard]] std::shared_ptr<SoftwareRenderer> warm_renderer_for_device(

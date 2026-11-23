@@ -48,9 +48,11 @@ ipc::Reply DaemonService::handle_render_job_request(
                 single_job_guard = std::shared_lock<std::shared_mutex>(
                     m_render_batch_domain_mutex);
             }
-            if (!job_id.empty() && !begin_job_status(job_id)) {
-                return ipc::Reply{ipc::Status::BadRequest,
-                    "RENDER_JOB duplicate active or retained job_id '" + job_id + "'"};
+            if (!job_id.empty()) {
+                const auto admission = begin_job_status(job_id);
+                if (admission.verdict != JobAdmission::Admitted) {
+                    return ipc::Reply{ipc::Status::BadRequest, admission.message};
+                }
             }
             const auto normalized = runtime::job::normalize_render_job(
                 job_request, runtime::job::RuntimeCapabilities{m_backend});
