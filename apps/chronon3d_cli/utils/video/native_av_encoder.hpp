@@ -105,6 +105,7 @@ public:
     void shutdown_noexcept() noexcept;
 
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
+    [[nodiscard]] std::optional<media::video::MediaProbeInfo> output_media_facts() const override;
     /// Cross-item codec session: true when this open adopted a parked session
     /// (CHRONON_ENCODER_SESSION_REUSE=1). Survives close() so tests and
     /// telemetry can pin whether an item actually reused a session.

@@ -1,10 +1,11 @@
 # TICKET-PERF-RECEIPT-CONTRACT-FASTPATH — la verifica dell'artefatto non deve riaprire il file appena scritto
 
-**Stato:** OPEN — 2026-11-20. Ticket di misura + intervento; nessuna modifica al codice in questa sessione.
+**Stato:** DONE (Fase A/B) — 2026-11-24. Fase C `NOT RUN` (`sha256_file` resta 8–15 ms). Fast path attivo per gli export whole-timeline video-only; segmenti e audio senza durata nota ricadono sulla probe. Benchmark runtime 2026-11-24: **2,62–2,80x**, 17,0–20,1 ms risparmiati per artefatto (3 run, MP4 1080p 48 frame, §6.6). Il campo receipt `codec_config_sha256` resta vuoto sul fast path (vedi §6.4).
 **Area:** `src/media/video/output_contract.cpp`, `apps/chronon3d_cli/commands/video/exporters/pipe_export_finalize_encoder.cpp`, `src/verification/render_receipt.cpp`, `src/media/video/mux/packet_assembler_hash_writer.cpp`.
 **Owner:** maintainer output contract / verification.
 **Dipende da:** niente per la fase A. La fase B dipende dalla disponibilità dei fatti dell'encoder/muxer.
 **Non sostituisce:** [`TICKET-PERF-100X-VERIFIED-PLAN`](TICKET-PERF-100X-VERIFIED-PLAN.md); non è il gate della receipt (`fast`/`normal`/`certify`), è il costo del contract check che oggi gira anche in `fast`.
+**Consuntivo di sessione:** [TICKET-PERF-FASTPATH-RUNTIME-2026-11-24](TICKET-PERF-FASTPATH-RUNTIME-2026-11-24.md) — benchmark runtime, verifiche e leve residue.
 
 ---
 
@@ -105,3 +106,90 @@ Sul percorso `receipt_verify=fast`, l'artefatto è stato appena prodotto dal mux
 | **Status** | `ACTIVE` durante la migrazione. |
 
 Nessuna nuova cache: i fatti sono per-job e vengono passati al contract check.
+
+---
+
+## 6. Esito implementazione (2026-11-24)
+
+### 6.1 Cosa è stato implementato
+
+- `OutputContractFacts` + overload `verify_output_contract(artifact, contract, facts)` in `include/chronon3d/media/video/output_contract.hpp` / `src/media/video/output_contract.cpp`.
+- Precondizioni del fast path: `trusted_in_process`, `trailer_finalized`, `!hdr_mastering`, `expected_bytes == file_size`, un solo stream video con codec/pixfmt/width/height/fps/frame_count/durata, e audio con durata quando `audio_required`.
+- Qualsiasi fatto mancante o incoerente → `probe_media`; il risultato espone `contract_fast_path`, `contract_probe_fallback`, `probe_source` (`in_process_mux` / `libavformat` / `fallback`).
+- `MuxSession::finalized()` + `observed_media_facts()`; `NativeAvEncoder::output_media_facts()`; `EncoderCloseResult::output_media_facts`; l'exporter whole-timeline costruisce i fatti da `close_result` + `hash_metrics` (`output_write_bytes - output_overwrite_bytes`).
+- `MuxSession` porta `r_frame_rate`/`avg_frame_rate` sul stream e traccia `video_end_pts_` **prima** di `av_interleaved_write_frame` (la write consuma il packet e ne azzera i campi); la durata viene pubblicata sul stream prima del trailer.
+- Test: 5 casi nuovi in `tests/video/test_output_contract.cpp`, incluso un MP4 H.264 reale scritto da `MuxSession` e verificato con i fatti del muxer.
+
+### 6.2 Evidenza
+
+- `chronon3d_media_video_tests` completa: **160/160 test, 22314/22314 assertion** (include il benchmark gated; senza `CHRONON_BENCH_OUTPUT_CONTRACT` il caso stampa `Skipping` e non misura).
+- Filtro `verify_output_contract*`: **10/10 test, 115/115 assertion**.
+- Fast path reale: `ffprobe_ms` assente (nessuna riapertura), `contract_fast_path=true`, `sha256_ms` ancora presente (digest obbligatorio).
+- Artefatto troncato: fallback + `passed=false`; audio richiesto senza audio: fallback + `copy_eligible=false`; fatti incompleti: fallback alla probe.
+- La suite media completa è stata rieseguita dopo le modifiche a `MuxSession`/`output_contract`.
+
+### 6.3 Gate
+
+| Gate | Esito |
+|---|---|
+| A — provenienza e campi | `probe_source` e `contract_fast_path`/`fallback` esposti; i campi del contract vengono dal muxer/encoder. |
+| B — fast path | `ffprobe_ms` assente sul fast path; fallback testato; truncation/audio restano FAIL. **Non eseguiti**: 20 artefatti golden e benchmark `validation_ms` su job reale. |
+| C — digest incrementale | `NOT RUN`: MP4 classico fa backpatch e invalida l'hash append-only; `sha256_file` resta 8–15 ms. |
+
+### 6.4 Limiti noti
+
+- **`codec_config_sha256`**: l'extradata pre-header dell'encoder non è l'avcC finale scritto dal muxer MP4 (misura: `7065…` vs `d9a3…`). Il fast path non pubblica un digest diverso: lascia il campo vuoto. La receipt fast path non è quindi field-identica alla probe su questo campo; `normal`/`certify` continuano a probarlo. Per chiuderlo serve un capture mirato dell'avcC dal container o una probe parziale.
+- **Audio**: i fatti includono lo stream audio e la sua durata; se la durata non è disponibile, il fast path ricade sulla probe. Non è stato misurato un export audio reale in questa sessione.
+- **Segmenti P4**: restano sulla probe, come previsto dalla fase B (whole-timeline first).
+- **HDR**: escluso dal fast path; usa la probe.
+- **Nessuna nuova cache**: i fatti sono per-job.
+
+### 6.6 Benchmark runtime — 2026-11-24
+
+Comando: `python3 tools/bench_output_contract_fastpath.py --runs 3` (oppure
+`CHRONON_BENCH_OUTPUT_CONTRACT=1` sul test `*runtime fast path benchmark*`).
+L'artefatto è un MP4 H.264 1920×1080, 48 frame, 2.442.431 byte, creato dal test;
+ogni run fa 2 warmup + 9 iterazioni e misura la stessa verifica con la probe e
+con i fatti in-process.
+
+| Sessione | probe p50 | fast p50 | risparmio | speedup |
+|---|---:|---:|---:|---:|
+| 1 | 28,100 ms | 10,551 ms | 17,549 ms | 2,66x |
+| 2 | 31,257 ms | 11,162 ms | 20,095 ms | 2,80x |
+| 3 | 27,493 ms | 10,505 ms | 16,987 ms | 2,62x |
+
+Mediana delle sessioni: **2,66x**, **17,5 ms** per artefatto, circa **1,8 s ogni
+100 item**. Il fast path calcola ancora lo SHA-256 (8–15 ms); il risparmio è la
+probe libavformat, non il digest.
+
+Limiti: un solo artefatto video-only, senza audio, segmenti P4 o HDR. Sui job
+del §0 `validation_ms` è 46–88 ms e `ffprobe_ms` 33–75 ms; il fast path lascia
+8–15 ms di SHA, quindi il risparmio atteso è circa 25–60 ms/item, ma non è
+ancora misurato su un job exporter reale.
+
+### 6.7 Verifica dei lavori recenti — 2026-11-24
+
+`python3 tools/verify_recent_perf.py` esegue benchmark e suite disponibili in
+questa build:
+
+| Controllo | Esito |
+|---|---|
+| benchmark fast path | PASS (3 run) |
+| media/video | 160/160 test, 22.314 asserzioni |
+| CLI contract | 11/11 test, 92 asserzioni |
+| topology animated paths | 1/1 test, 42 asserzioni |
+| DoF graph | 16/16 test, 981 asserzioni |
+| deterministic | 94/94 test, 11.797 asserzioni |
+
+La suite deterministica richiede `CHRONON3D_CLI_BINARY` in questa build dir:
+senza la variabile 3 test falliscono con `chronon3d_cli not found`, con
+`build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli` passano
+94/94. Lo script imposta la variabile automaticamente. Nessun artefatto di
+test è rimasto nel repo.
+
+### 6.5 Prossimi passi
+
+1. Eseguire un job exporter reale e misurare `validation_ms` p50 (target ≤20 ms) su 3 run.
+2. Ripetere il confronto campo-per-campo su 20 artefatti golden; escludere o catturare `codec_config_sha256`.
+3. Valutare il capture dell'avcC dal container per chiudere il campo receipt senza probe.
+4. Estendere i fatti ai segmenti P4 solo dopo il gate whole-timeline.

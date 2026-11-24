@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chronon3d/media/video/media_probe.hpp>
+
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include "bitstream_target_contract.hpp"
 #include "encoder_config_resolution.hpp"
@@ -179,6 +181,13 @@ struct IVideoEncoder {
     [[nodiscard]] virtual std::uint64_t full_file_reread_count() const { return 0; }
     [[nodiscard]] virtual chronon3d::media::MuxHashMetrics hash_metrics() const {
         return {};
+    }
+    /// In-process facts for an artifact this encoder just finalized. The
+    /// output-contract fast path accepts them only when the caller marks them
+    /// trusted; a default nullopt keeps every other encoder on the probe.
+    [[nodiscard]] virtual std::optional<media::video::MediaProbeInfo>
+    output_media_facts() const {
+        return std::nullopt;
     }
 
     // Encoder settings actually applied at open() time (post-default

@@ -8,6 +8,8 @@
 #include <string_view>
 #include <vector>
 
+#include <chronon3d/media/video/media_probe.hpp>
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -264,6 +266,15 @@ public:
     [[nodiscard]] bool checksum_used_reread() const noexcept { return checksum_used_reread_; }
     [[nodiscard]] MuxHashMetrics hash_metrics() const noexcept;
 
+    /// True once `finalize()` wrote the container trailer and closed the
+    /// checksum writer successfully.
+    [[nodiscard]] bool finalized() const noexcept { return finalized_; }
+
+    /// Facts observed from this finalized mux, in the canonical probe shape.
+    /// Empty when the trailer did not finalize. `frame_count` is left to the
+    /// encoder, which owns the authoritative presentation counter.
+    [[nodiscard]] video::MediaProbeInfo observed_media_facts() const;
+
 private:
     /// Writes one already-encoded audio packet to the mux. Shared by the copy
     /// path and the resampler output so both honour the same interleaving and
@@ -289,6 +300,10 @@ private:
     std::string output_checksum_;
     /// P0-5E — container tick a BORROWED producer's output starts at.
     std::int64_t video_origin_{0};
+    /// Highest written video PTS+duration in the video stream time base. The
+    /// muxer does not reliably publish this on the in-memory AVStream, so the
+    /// session tracks it for the in-process output-contract facts.
+    std::int64_t video_end_pts_{0};
     bool checksum_enabled_{false};
     bool fragmented_mp4_{false};
     bool checksum_used_reread_{false};

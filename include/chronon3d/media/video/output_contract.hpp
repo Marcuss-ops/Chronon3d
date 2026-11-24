@@ -101,6 +101,37 @@ struct OutputVerificationResult {
 
     /// Human-readable reason when !passed.
     std::string failure;
+
+    // ── Provenance (TICKET-PERF-RECEIPT-CONTRACT-FASTPATH) ──────────────
+    /// True when the verdict was produced from in-process muxer facts
+    /// (`OutputContractFacts`) instead of reopening the artifact.
+    bool contract_fast_path{false};
+    /// True when the caller supplied facts but the verifier had to fall back
+    /// to the canonical libavformat probe (missing field, size mismatch,
+    /// HDR, unfinalized trailer, ...).
+    bool contract_probe_fallback{false};
+    /// Where the observed media facts came from:
+    /// "libavformat" | "in_process_mux" | "fallback" | "none".
+    std::string probe_source{"none"};
+};
+
+/// In-process facts about an artifact just produced and finalized by this
+/// process. They are accepted only when every precondition holds; otherwise
+/// verification falls back to `probe_media` — absence of a fact is never a
+/// pass.
+struct OutputContractFacts {
+    /// The caller is the process that wrote and closed the artifact.
+    bool trusted_in_process{false};
+    /// The muxer wrote its trailer successfully (`av_write_trailer`).
+    bool trailer_finalized{false};
+    /// HDR mastering metadata requires the libavformat probe for side data.
+    bool hdr_mastering{false};
+    /// Final file size committed by the muxer (0 = unknown). A mismatch means
+    /// the artifact changed after close (for example a truncated file).
+    std::uint64_t expected_bytes{0};
+    /// Facts observed from the muxer/encoder, in the canonical probe shape so
+    /// downstream receipt builders can reuse them without a second probe.
+    MediaProbeInfo media;
 };
 
 /// Resolve the single canonical contract for a named output profile.
@@ -115,5 +146,16 @@ struct OutputVerificationResult {
 [[nodiscard]] OutputVerificationResult verify_output_contract(
     const std::filesystem::path& artifact,
     const OutputContract& contract);
+
+/// Verify an artifact from in-process facts. The fast path is taken only when
+/// `facts.trusted_in_process` and `facts.trailer_finalized` are true, the file
+/// still has `facts.expected_bytes`, the output is not HDR mastering, and the
+/// facts carry every field the contract verdict needs (including audio
+/// duration when audio is required). Any missing or inconsistent fact falls
+/// back to the canonical libavformat probe.
+[[nodiscard]] OutputVerificationResult verify_output_contract(
+    const std::filesystem::path& artifact,
+    const OutputContract& contract,
+    const OutputContractFacts& facts);
 
 } // namespace chronon3d::media::video

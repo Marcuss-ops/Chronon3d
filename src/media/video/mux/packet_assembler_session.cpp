@@ -3,6 +3,8 @@
 
 #include "packet_assembler_hash_writer.hpp"
 
+#include <chronon3d/media/video/canonical_x264.hpp>
+
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
@@ -12,12 +14,31 @@
 
 extern "C" {
 #include <libavutil/dict.h>
+#include <libavutil/pixdesc.h>
+#include <libavutil/samplefmt.h>
 }
 
 namespace chronon3d::media {
 namespace {
 
 constexpr int kMuxAvioBufferSize = 64 * 1024;
+
+[[nodiscard]] constexpr bool valid_av_rational(AVRational value) noexcept {
+    return value.num > 0 && value.den > 0;
+}
+
+[[nodiscard]] constexpr Rational to_rational(AVRational value) noexcept {
+    if (!valid_av_rational(value)) return Rational{0, 1};
+    return Rational{value.num, value.den};
+}
+
+[[nodiscard]] std::optional<RationalTime> stream_duration(const AVStream& stream) {
+    if (stream.duration == AV_NOPTS_VALUE || stream.duration <= 0 ||
+        !valid_av_rational(stream.time_base)) {
+        return std::nullopt;
+    }
+    return RationalTime{stream.duration, to_rational(stream.time_base)};
+}
 
 } // namespace
 
@@ -52,6 +73,7 @@ bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
     checksum_used_reread_ = false;
     finalize_attempted_ = false;
     finalized_ = false;
+    video_end_pts_ = 0;
     if (avformat_alloc_output_context2(&format_, nullptr, nullptr,
                                        config.output_path.c_str()) < 0 || !format_) {
         reason = "failed to allocate output format context";
@@ -80,6 +102,19 @@ bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
         ? config.video_time_base
         : (config.video_codec ? config.video_codec->time_base
                               : AVRational{1, 1000});
+    // Carry the codec's constant frame rate onto the output stream. The
+    // canonical probe reports r_frame_rate/avg_frame_rate; leaving them at 0/1
+    // makes the in-process facts incomplete and forces a full reopen.
+    if (config.video_codec != nullptr) {
+        AVRational rate = config.video_codec->framerate;
+        if (!valid_av_rational(rate) && !explicit_time_base) {
+            rate = av_inv_q(config.video_codec->time_base);
+        }
+        if (valid_av_rational(rate)) {
+            video_stream_->avg_frame_rate = rate;
+            video_stream_->r_frame_rate = rate;
+        }
+    }
     if (config.audio) {
         const auto& audio = *config.audio;
         if (!audio.params) {
@@ -203,7 +238,14 @@ bool MuxSession::submit_video(EncodedPacket encoded,
     av_packet_rescale_ts(&packet, encoded.time_base, video_stream_->time_base);
     packet.stream_index = video_stream_->index;
     if (!place_video_packet(packet, placement)) return false;
+    // av_interleaved_write_frame takes ownership and unreferences the packet,
+    // so capture the end timestamp BEFORE the write.
+    const std::int64_t packet_end =
+        packet.pts != AV_NOPTS_VALUE
+            ? packet.pts + std::max<std::int64_t>(packet.duration, 1)
+            : 0;
     const bool ok = av_interleaved_write_frame(format_, &packet) >= 0;
+    if (ok && packet_end > video_end_pts_) video_end_pts_ = packet_end;
     packet_write_ms_ += std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
     return ok;
@@ -217,7 +259,14 @@ bool MuxSession::submit_video(AVPacket& packet, AVRational source_time_base,
     av_packet_rescale_ts(&packet, source_time_base, video_stream_->time_base);
     packet.stream_index = video_stream_->index;
     if (!place_video_packet(packet, placement)) return false;
+    // av_interleaved_write_frame takes ownership and unreferences the packet,
+    // so capture the end timestamp BEFORE the write.
+    const std::int64_t packet_end =
+        packet.pts != AV_NOPTS_VALUE
+            ? packet.pts + std::max<std::int64_t>(packet.duration, 1)
+            : 0;
     const bool ok = av_interleaved_write_frame(format_, &packet) >= 0;
+    if (ok && packet_end > video_end_pts_) video_end_pts_ = packet_end;
     packet_write_ms_ += std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
     return ok;
@@ -267,6 +316,12 @@ bool MuxSession::finalize() noexcept {
                                           audio_resampler_->output_time_base());
         }
     }
+    // The muxer's in-memory stream does not necessarily carry the duration it
+    // writes to the container. Publish the packet-derived end so the
+    // in-process facts and the header agree.
+    if (video_stream_ != nullptr && video_end_pts_ > 0) {
+        video_stream_->duration = video_end_pts_;
+    }
     const bool trailer_ok = av_write_trailer(format_) >= 0;
     trailer_ms_ += std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
@@ -288,6 +343,121 @@ bool MuxSession::finalize() noexcept {
 
 MuxHashMetrics MuxSession::hash_metrics() const noexcept {
     return writer_ ? writer_->hash_metrics() : MuxHashMetrics{};
+}
+
+video::MediaProbeInfo MuxSession::observed_media_facts() const {
+    video::MediaProbeInfo info;
+    if (!finalized_ || format_ == nullptr || video_stream_ == nullptr ||
+        video_stream_->codecpar == nullptr) {
+        return info;
+    }
+
+    // Match the demuxer names the canonical probe reports for the containers
+    // this mux owns, so the receipt's `container` field is identical to a
+    // probe of the same bytes.
+    if (format_->oformat != nullptr && format_->oformat->name != nullptr) {
+        const std::string_view muxer = format_->oformat->name;
+        if (muxer == "mp4" || muxer == "mov") {
+            info.format_name = "mov,mp4,m4a,3gp,3g2,mj2";
+        } else if (muxer == "matroska") {
+            info.format_name = "matroska,webm";
+        } else {
+            info.format_name = std::string(muxer);
+        }
+    }
+
+    if (format_->duration != AV_NOPTS_VALUE && format_->duration > 0) {
+        info.duration = RationalTime{
+            format_->duration, Rational{1, AV_TIME_BASE}};
+    }
+
+    const auto append_stream = [&info](const AVStream& stream) {
+        const AVCodecParameters* params = stream.codecpar;
+        if (params == nullptr) return;
+
+        video::MediaStreamProbe observed;
+        observed.index = stream.index;
+        observed.time_base = to_rational(stream.time_base);
+        observed.duration = stream_duration(stream);
+        observed.frame_count = stream.nb_frames > 0 ? stream.nb_frames : 0;
+        if (const char* codec = avcodec_get_name(params->codec_id)) {
+            observed.codec = codec;
+        }
+        if (params->extradata != nullptr && params->extradata_size > 0) {
+            observed.codec_config_sha256 = video::canonical_x264_sha256_hex(
+                params->extradata,
+                static_cast<std::size_t>(params->extradata_size));
+        }
+
+        switch (params->codec_type) {
+            case AVMEDIA_TYPE_VIDEO: {
+                observed.kind = video::MediaStreamKind::Video;
+                observed.width = params->width;
+                observed.height = params->height;
+                if (const char* name = av_color_range_name(params->color_range))
+                    observed.color_range = name;
+                if (const char* name = av_color_space_name(params->color_space))
+                    observed.color_space = name;
+                if (const char* name = av_color_transfer_name(params->color_trc))
+                    observed.color_transfer = name;
+                if (const char* name = av_color_primaries_name(params->color_primaries))
+                    observed.color_primaries = name;
+                if (params->format >= 0) {
+                    const char* pixel_format = av_get_pix_fmt_name(
+                        static_cast<AVPixelFormat>(params->format));
+                    if (pixel_format != nullptr) observed.pixel_format = pixel_format;
+                }
+                AVRational rate = stream.r_frame_rate;
+                if (!valid_av_rational(rate)) rate = stream.avg_frame_rate;
+                observed.frame_rate = to_rational(rate);
+                break;
+            }
+            case AVMEDIA_TYPE_AUDIO: {
+                observed.kind = video::MediaStreamKind::Audio;
+                observed.sample_rate = params->sample_rate;
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+                observed.channels = params->ch_layout.nb_channels;
+#else
+                observed.channels = params->channels;
+#endif
+                if (params->format >= 0) {
+                    const char* sample_format = av_get_sample_fmt_name(
+                        static_cast<AVSampleFormat>(params->format));
+                    if (sample_format != nullptr) observed.sample_format = sample_format;
+                }
+                break;
+            }
+            default:
+                observed.kind = video::MediaStreamKind::Other;
+                break;
+        }
+        info.streams.push_back(std::move(observed));
+    };
+
+    append_stream(*video_stream_);
+    if (audio_stream_ != nullptr) append_stream(*audio_stream_);
+
+    if (video_end_pts_ > 0 && video_stream_ != nullptr) {
+        for (auto& stream : info.streams) {
+            if (stream.kind == video::MediaStreamKind::Video &&
+                !stream.duration.has_value()) {
+                stream.duration = RationalTime{
+                    video_end_pts_, to_rational(video_stream_->time_base)};
+                break;
+            }
+        }
+    }
+
+    if (!info.duration.has_value()) {
+        for (const auto& stream : info.streams) {
+            if (!stream.duration.has_value()) continue;
+            if (!info.duration.has_value() ||
+                stream.duration->seconds() > info.duration->seconds()) {
+                info.duration = stream.duration;
+            }
+        }
+    }
+    return info;
 }
 
 MuxOutputSegmentWriter::~MuxOutputSegmentWriter() {

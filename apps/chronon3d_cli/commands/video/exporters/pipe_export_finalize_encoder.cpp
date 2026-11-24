@@ -60,6 +60,7 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     result.native_trailer_ms      = session.encoder->native_trailer_ms();
     result.full_file_reread_count = session.encoder->full_file_reread_count();
     result.hash_metrics = session.encoder->hash_metrics();
+    result.output_media_facts = session.encoder->output_media_facts();
     result.encoder_hwframe_get_buffer_ms = session.encoder->encoder_hwframe_get_buffer_ms();
     result.encoder_surface_acquire_ms    = session.encoder->encoder_surface_acquire_ms();
     // The native-surface lane submits through drain_ready_cuda_frames(), whose
@@ -394,7 +395,27 @@ PipeExportResult make_pipe_export_result(
             !session.opts.gop_source.empty();
         contract.audio_streams = contract.audio_required ? 1 : 0;
 
-        const auto verification = media::video::verify_output_contract(partial_path, contract);
+        media::video::OutputContractFacts facts;
+        facts.trusted_in_process =
+            is_native_encoder_transport(session.opts.encoder.encoder_backend) &&
+            close_result.success;
+        facts.trailer_finalized =
+            close_result.success && close_result.output_media_facts.has_value();
+        facts.hdr_mastering =
+            session.opts.pipe.hdr_mastering_metadata.has_value() ||
+            session.opts.pipe.color_output == "pq" ||
+            session.opts.pipe.color_output == "hlg";
+        if (close_result.hash_metrics.output_write_bytes >=
+            close_result.hash_metrics.output_overwrite_bytes) {
+            facts.expected_bytes =
+                close_result.hash_metrics.output_write_bytes -
+                close_result.hash_metrics.output_overwrite_bytes;
+        }
+        if (close_result.output_media_facts.has_value()) {
+            facts.media = *close_result.output_media_facts;
+        }
+        const auto verification = media::video::verify_output_contract(
+            partial_path, contract, facts);
         result.validation_ms = profiling::duration_ms(validation_t0, profiling::now());
         result.sha256 = verification.sha256;
         result.ffprobe_ms = verification.ffprobe_ms;

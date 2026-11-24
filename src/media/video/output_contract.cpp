@@ -113,10 +113,21 @@ Result<OutputContract, std::string> resolve_output_contract(
     return std::string("unknown output profile: ") + std::string(profile_id);
 }
 
-OutputVerificationResult verify_output_contract(
+namespace {
+
+/// Interpret one already-observed media fact set against the contract. Both
+/// verification entry points share this body so the fast path cannot drift
+/// from the canonical probe verdict.
+OutputVerificationResult verify_from_media(
     const std::filesystem::path& artifact,
-    const OutputContract& contract) {
+    const OutputContract& contract,
+    MediaProbeInfo media,
+    std::optional<double> probe_ms,
+    bool fast_path) {
     OutputVerificationResult result;
+    result.ffprobe_ms = probe_ms;
+    result.contract_fast_path = fast_path;
+    result.probe_source = fast_path ? "in_process_mux" : "libavformat";
 
     std::error_code ec;
     if (!std::filesystem::is_regular_file(artifact, ec) ||
@@ -125,31 +136,18 @@ OutputVerificationResult verify_output_contract(
         return result;
     }
 
-    // All container/stream discovery goes through the canonical probe. The
-    // verifier only interprets those facts against the output contract.
-    const auto probe_t0 = profiling::now();
-    auto probe = probe_media(artifact);
-    result.ffprobe_ms = profiling::elapsed_ms(probe_t0);
-    if (!probe) {
-        const auto& error = probe.error();
-        result.ffprobe_missing =
-            error.code == MediaProbeErrorCode::BackendUnavailable;
-        result.failure = probe_failure(error);
-        return result;
-    }
-
-    const auto& media = probe.value();
-    // Fix 2 (TICKET-OVERLAY-THROUGHPUT): preserve the probe observation so a
+    // Fix 2 (TICKET-OVERLAY-THROUGHPUT): preserve the observation so a
     // downstream receipt builder can reuse it instead of re-probing the same
     // bytes. Published before every verdict, so a contract mismatch still
     // hands over the facts that were actually observed.
-    result.probe_facts = media;
+    result.probe_facts = std::move(media);
+    const auto& observed = *result.probe_facts;
     std::size_t video_streams = 0;
     std::size_t audio_streams = 0;
     const MediaStreamProbe* video_stream = nullptr;
     const MediaStreamProbe* audio_stream = nullptr;
 
-    for (const auto& stream : media.streams) {
+    for (const auto& stream : observed.streams) {
         if (stream.kind == MediaStreamKind::Video) {
             ++video_streams;
             if (video_stream == nullptr) {
@@ -179,7 +177,7 @@ OutputVerificationResult verify_output_contract(
     const std::optional<RationalTime> video_duration =
         video_stream != nullptr && video_stream->duration.has_value()
             ? video_stream->duration
-            : media.duration;
+            : observed.duration;
 
     if (video_duration.has_value()) {
         result.duration_seconds = video_duration->seconds();
@@ -297,6 +295,109 @@ OutputVerificationResult verify_output_contract(
 
     result.copy_eligible = true;
     return result;
+}
+
+} // namespace
+
+OutputVerificationResult verify_output_contract(
+    const std::filesystem::path& artifact,
+    const OutputContract& contract) {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(artifact, ec) ||
+        std::filesystem::file_size(artifact, ec) == 0) {
+        OutputVerificationResult result;
+        result.failure = "artifact missing or empty: " + artifact.string();
+        return result;
+    }
+
+    // All container/stream discovery goes through the canonical probe. The
+    // verifier only interprets those facts against the output contract.
+    const auto probe_t0 = profiling::now();
+    auto probe = probe_media(artifact);
+    const auto probe_ms = profiling::elapsed_ms(probe_t0);
+    if (!probe) {
+        OutputVerificationResult result;
+        result.ffprobe_ms = probe_ms;
+        const auto& error = probe.error();
+        result.ffprobe_missing =
+            error.code == MediaProbeErrorCode::BackendUnavailable;
+        result.failure = probe_failure(error);
+        result.probe_source = "libavformat";
+        return result;
+    }
+
+    auto media = std::move(probe.value());
+    return verify_from_media(artifact, contract, std::move(media), probe_ms, false);
+}
+
+OutputVerificationResult verify_output_contract(
+    const std::filesystem::path& artifact,
+    const OutputContract& contract,
+    const OutputContractFacts& facts) {
+    std::error_code ec;
+    const bool regular = std::filesystem::is_regular_file(artifact, ec);
+    const auto size = regular ? std::filesystem::file_size(artifact, ec) : 0;
+    if (!regular || ec || size == 0) {
+        OutputVerificationResult result;
+        result.failure = "artifact missing or empty: " + artifact.string();
+        return result;
+    }
+
+    const auto fallback = [&]() {
+        auto result = verify_output_contract(artifact, contract);
+        result.contract_probe_fallback = true;
+        result.probe_source = "fallback";
+        return result;
+    };
+
+    // Trust is a conjunction, never a default. A size mismatch means the file
+    // changed after the muxer closed it (truncation), so the in-process facts
+    // no longer describe these bytes.
+    if (!facts.trusted_in_process || !facts.trailer_finalized ||
+        facts.hdr_mastering || facts.expected_bytes == 0 ||
+        size != facts.expected_bytes) {
+        return fallback();
+    }
+
+    const MediaStreamProbe* video = nullptr;
+    const MediaStreamProbe* audio = nullptr;
+    std::size_t video_streams = 0;
+    std::size_t audio_streams = 0;
+    for (const auto& stream : facts.media.streams) {
+        if (stream.kind == MediaStreamKind::Video) {
+            ++video_streams;
+            if (video == nullptr) video = &stream;
+        } else if (stream.kind == MediaStreamKind::Audio) {
+            ++audio_streams;
+            if (audio == nullptr) audio = &stream;
+        }
+    }
+
+    // Every field the verdict below reads must be present; an absent fact is
+    // a fallback, never a pass. codec_config_sha256 is deliberately NOT
+    // required: it is a container fact (the final avcC) that the encoder's
+    // pre-header extradata cannot reproduce, and the contract verdict does not
+    // read it. The fast path leaves it unset rather than publish a different
+    // digest; normal/certify still probe it.
+    const bool video_facts_complete =
+        video_streams == 1 && video != nullptr &&
+        !video->codec.empty() && !video->pixel_format.empty() &&
+        video->width > 0 && video->height > 0 &&
+        video->frame_rate.numerator > 0 && video->frame_rate.denominator > 0 &&
+        video->frame_count > 0 && video->duration.has_value() &&
+        video->duration->ticks() > 0;
+    const bool audio_facts_complete =
+        !contract.audio_required ||
+        (audio_streams == contract.audio_streams &&
+         (contract.audio_streams == 0 ||
+          (audio != nullptr && audio->duration.has_value() &&
+           audio->duration->ticks() > 0)));
+    if (!video_facts_complete || !audio_facts_complete) {
+        return fallback();
+    }
+
+    return verify_from_media(
+        artifact, contract, facts.media, std::nullopt, true);
 }
 
 } // namespace chronon3d::media::video

@@ -1,6 +1,8 @@
 #include "native_av_encoder.hpp"
 #include "native_av_encoder_internal.hpp"
 
+#include <chronon3d/media/video/canonical_x264.hpp>
+
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -399,6 +401,41 @@ void NativeAvEncoder::abort_open() noexcept {
     bitstream_contract_ = BitstreamTargetContract{};
     bitstream_contract_probed_ = false;
     open_complete_ = false;
+}
+
+std::optional<media::video::MediaProbeInfo> NativeAvEncoder::output_media_facts() const {
+    if (mux_ == nullptr || borrows_mux_ || !mux_->finalized()) {
+        return std::nullopt;
+    }
+    auto facts = mux_->observed_media_facts();
+    bool found_video = false;
+    for (auto& stream : facts.streams) {
+        if (stream.kind != media::video::MediaStreamKind::Video) continue;
+        found_video = true;
+        // The encoder's presentation counter is authoritative: it counts
+        // every sample it asked the mux to write, including packet-level
+        // duplicates, and never estimates from duration.
+        stream.frame_count = static_cast<std::int64_t>(frames_written_);
+        // The final avcC is constructed by the MP4 muxer and is a container
+        // fact: the encoder's pre-header extradata is not the byte sequence the
+        // decoder receives. Leave the field unset rather than publish a
+        // different digest; normal/certify still probe it.
+        stream.codec_config_sha256.clear();
+        if (!stream.duration.has_value() && frames_written_ > 0 &&
+            stream.frame_rate.numerator > 0 &&
+            stream.frame_rate.denominator > 0) {
+            stream.duration = chronon3d::RationalTime{
+                static_cast<std::int64_t>(frames_written_),
+                chronon3d::Rational{stream.frame_rate.denominator,
+                                    stream.frame_rate.numerator}};
+        }
+        if (!facts.duration.has_value() && stream.duration.has_value()) {
+            facts.duration = stream.duration;
+        }
+        break;
+    }
+    if (!found_video) return std::nullopt;
+    return facts;
 }
 
 } // namespace chronon3d::cli

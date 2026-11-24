@@ -14,6 +14,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/media/video/canonical_x264.hpp>
 #include <chronon3d/media/video/output_contract.hpp>
 #include <chronon3d/media/video/packet_assembler.hpp>
 
@@ -25,9 +26,11 @@ extern "C" {
 
 #include <atomic>
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -887,6 +890,456 @@ TEST_CASE("verify_output_contract: frame loss fails render verification") {
     CHECK_FALSE(result.copy_eligible);
     CHECK(result.failure.find("frame count mismatch") != std::string::npos);
     CHECK_FALSE(result.sha256.empty());
+
+    std::error_code ec;
+    std::filesystem::remove(artifact, ec);
+}
+
+TEST_CASE("verify_output_contract: in-process facts skip the probe") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg CLI required");
+        return;
+    }
+    const auto artifact = temp_path("fastpath.mp4");
+    const std::string make =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i color=c=black:s=1920x1080:r=24 "
+        "-frames:v 3 -c:v libx264 -pix_fmt yuv420p " + artifact;
+    REQUIRE(std::system(make.c_str()) == 0);
+
+    OutputContract contract;
+    contract.width = 1920;
+    contract.height = 1080;
+    contract.fps = chronon3d::FrameRate{24, 1};
+    contract.video_codec = "h264";
+    contract.pixel_format = "yuv420p";
+    contract.audio_required = false;
+    contract.audio_streams = 0;
+    contract.frame_count = 3;
+
+    const auto probe = chronon3d::media::video::probe_media(artifact);
+    REQUIRE(probe);
+    chronon3d::media::video::OutputContractFacts facts;
+    facts.trusted_in_process = true;
+    facts.trailer_finalized = true;
+    facts.expected_bytes = std::filesystem::file_size(artifact);
+    facts.media = probe.value();
+
+    const auto result = verify_output_contract(artifact, contract, facts);
+    CHECK(result.passed);
+    CHECK(result.copy_eligible);
+    CHECK(result.contract_fast_path);
+    CHECK_FALSE(result.contract_probe_fallback);
+    CHECK(result.probe_source == "in_process_mux");
+    CHECK_FALSE(result.ffprobe_ms.has_value());
+    REQUIRE(result.sha256_ms.has_value());
+    CHECK(result.sha256.size() == 64);
+    REQUIRE(result.probe_facts.has_value());
+    CHECK(result.probe_facts->format_name == facts.media.format_name);
+
+    std::error_code ec;
+    std::filesystem::remove(artifact, ec);
+}
+
+TEST_CASE("verify_output_contract: in-process frame loss fails the fast path") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg CLI required");
+        return;
+    }
+    const auto artifact = temp_path("fastpath_frame_loss.mp4");
+    const std::string make =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i color=c=black:s=1920x1080:r=24 "
+        "-frames:v 3 -c:v libx264 -pix_fmt yuv420p " + artifact;
+    REQUIRE(std::system(make.c_str()) == 0);
+
+    OutputContract contract;
+    contract.width = 1920;
+    contract.height = 1080;
+    contract.fps = chronon3d::FrameRate{24, 1};
+    contract.video_codec = "h264";
+    contract.pixel_format = "yuv420p";
+    contract.audio_required = false;
+    contract.audio_streams = 0;
+    contract.frame_count = 3;
+
+    const auto probe = chronon3d::media::video::probe_media(artifact);
+    REQUIRE(probe);
+    chronon3d::media::video::OutputContractFacts facts;
+    facts.trusted_in_process = true;
+    facts.trailer_finalized = true;
+    facts.expected_bytes = std::filesystem::file_size(artifact);
+    facts.media = probe.value();
+    REQUIRE(facts.media.streams.size() == 1);
+    facts.media.streams[0].frame_count = 4;
+
+    const auto result = verify_output_contract(artifact, contract, facts);
+    CHECK_FALSE(result.passed);
+    CHECK_FALSE(result.copy_eligible);
+    CHECK(result.contract_fast_path);
+    CHECK(result.failure.find("frame count mismatch") != std::string::npos);
+
+    std::error_code ec;
+    std::filesystem::remove(artifact, ec);
+}
+
+TEST_CASE("verify_output_contract: incomplete in-process facts fall back to probe") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg CLI required");
+        return;
+    }
+    const auto artifact = temp_path("fastpath_fallback.mp4");
+    const std::string make =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i color=c=black:s=1920x1080:r=24 "
+        "-frames:v 3 -c:v libx264 -pix_fmt yuv420p " + artifact;
+    REQUIRE(std::system(make.c_str()) == 0);
+
+    OutputContract contract;
+    contract.width = 1920;
+    contract.height = 1080;
+    contract.fps = chronon3d::FrameRate{24, 1};
+    contract.video_codec = "h264";
+    contract.pixel_format = "yuv420p";
+    contract.audio_required = false;
+    contract.audio_streams = 0;
+    contract.frame_count = 3;
+
+    chronon3d::media::video::OutputContractFacts facts;
+    facts.trusted_in_process = true;
+    facts.trailer_finalized = true;
+    facts.expected_bytes = std::filesystem::file_size(artifact);
+    // No media facts: the verifier must probe rather than pass by omission.
+
+    const auto result = verify_output_contract(artifact, contract, facts);
+    CHECK(result.passed);
+    CHECK(result.copy_eligible);
+    CHECK_FALSE(result.contract_fast_path);
+    CHECK(result.contract_probe_fallback);
+    CHECK(result.probe_source == "fallback");
+    REQUIRE(result.ffprobe_ms.has_value());
+
+    std::error_code ec;
+    std::filesystem::remove(artifact, ec);
+}
+
+TEST_CASE("verify_output_contract: artifact changed after close falls back and fails") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg CLI required");
+        return;
+    }
+    const auto artifact = temp_path("fastpath_truncated.mp4");
+    const std::string make =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i color=c=black:s=1920x1080:r=24 "
+        "-frames:v 3 -c:v libx264 -pix_fmt yuv420p " + artifact;
+    REQUIRE(std::system(make.c_str()) == 0);
+
+    OutputContract contract;
+    contract.width = 1920;
+    contract.height = 1080;
+    contract.fps = chronon3d::FrameRate{24, 1};
+    contract.video_codec = "h264";
+    contract.pixel_format = "yuv420p";
+    contract.audio_required = false;
+    contract.audio_streams = 0;
+    contract.frame_count = 3;
+
+    const auto probe = chronon3d::media::video::probe_media(artifact);
+    REQUIRE(probe);
+    chronon3d::media::video::OutputContractFacts facts;
+    facts.trusted_in_process = true;
+    facts.trailer_finalized = true;
+    facts.expected_bytes = std::filesystem::file_size(artifact);
+    facts.media = probe.value();
+
+    std::error_code resize_ec;
+    std::filesystem::resize_file(artifact, facts.expected_bytes / 2, resize_ec);
+    REQUIRE_FALSE(resize_ec);
+
+    const auto result = verify_output_contract(artifact, contract, facts);
+    CHECK(result.contract_probe_fallback);
+    CHECK_FALSE(result.contract_fast_path);
+    CHECK_FALSE(result.passed);
+
+    std::error_code ec;
+    std::filesystem::remove(artifact, ec);
+}
+
+TEST_CASE("verify_output_contract: audio-required facts without audio fall back") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg CLI required");
+        return;
+    }
+    const auto artifact = temp_path("fastpath_audio_missing.mp4");
+    const std::string make =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i color=c=black:s=1920x1080:r=24 "
+        "-frames:v 3 -c:v libx264 -pix_fmt yuv420p " + artifact;
+    REQUIRE(std::system(make.c_str()) == 0);
+
+    OutputContract contract;
+    contract.width = 1920;
+    contract.height = 1080;
+    contract.fps = chronon3d::FrameRate{24, 1};
+    contract.video_codec = "h264";
+    contract.pixel_format = "yuv420p";
+    contract.audio_required = true;
+    contract.audio_streams = 1;
+    contract.frame_count = 3;
+
+    const auto probe = chronon3d::media::video::probe_media(artifact);
+    REQUIRE(probe);
+    chronon3d::media::video::OutputContractFacts facts;
+    facts.trusted_in_process = true;
+    facts.trailer_finalized = true;
+    facts.expected_bytes = std::filesystem::file_size(artifact);
+    facts.media = probe.value();
+
+    const auto result = verify_output_contract(artifact, contract, facts);
+    CHECK(result.contract_probe_fallback);
+    CHECK_FALSE(result.contract_fast_path);
+    CHECK(result.passed);
+    CHECK_FALSE(result.copy_eligible);
+    CHECK(result.failure.find("audio stream mismatch") != std::string::npos);
+
+    std::error_code ec;
+    std::filesystem::remove(artifact, ec);
+}
+
+TEST_CASE("verify_output_contract: real MuxSession facts take the fast path") {
+    const AVCodec* codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+    if (codec == nullptr) {
+        MESSAGE("Skipping — H.264 encoder unavailable");
+        return;
+    }
+
+    const auto artifact = temp_path("muxer_fastpath.mp4");
+    AVCodecContext* codec_ctx = avcodec_alloc_context3(codec);
+    REQUIRE(codec_ctx != nullptr);
+    codec_ctx->width = 64;
+    codec_ctx->height = 48;
+    codec_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+    codec_ctx->time_base = AVRational{1, 24};
+    codec_ctx->framerate = AVRational{24, 1};
+    codec_ctx->gop_size = 12;
+    codec_ctx->max_b_frames = 0;
+    codec_ctx->bit_rate = 200000;
+    codec_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+    REQUIRE(avcodec_open2(codec_ctx, codec, nullptr) >= 0);
+
+    chronon3d::media::MuxSession mux;
+    std::string reason;
+    REQUIRE(mux.open(chronon3d::media::MuxOpenConfig{
+        .output_path = artifact,
+        .video_codec = codec_ctx}, reason));
+
+    AVFrame* frame = av_frame_alloc();
+    REQUIRE(frame != nullptr);
+    frame->format = codec_ctx->pix_fmt;
+    frame->width = codec_ctx->width;
+    frame->height = codec_ctx->height;
+    REQUIRE(av_frame_get_buffer(frame, 0) >= 0);
+
+    AVPacket* packet = av_packet_alloc();
+    REQUIRE(packet != nullptr);
+    int submitted = 0;
+    const auto drain = [&]() {
+        while (avcodec_receive_packet(codec_ctx, packet) >= 0) {
+            const bool key = (packet->flags & AV_PKT_FLAG_KEY) != 0;
+            auto owned = chronon3d::media::OwnedAVPacket(av_packet_alloc());
+            REQUIRE(owned != nullptr);
+            av_packet_move_ref(owned.get(), packet);
+            REQUIRE(mux.submit_video({std::move(owned), codec_ctx->time_base, key}));
+            ++submitted;
+        }
+    };
+    for (int i = 0; i < 3; ++i) {
+        REQUIRE(av_frame_make_writable(frame) >= 0);
+        std::memset(frame->data[0], 16 + i * 16,
+                    static_cast<std::size_t>(frame->linesize[0]) *
+                        static_cast<std::size_t>(frame->height));
+        for (int y = 0; y < frame->height / 2; ++y) {
+            std::memset(frame->data[1] + y * frame->linesize[1], 128,
+                        static_cast<std::size_t>(frame->width / 2));
+            std::memset(frame->data[2] + y * frame->linesize[2], 128,
+                        static_cast<std::size_t>(frame->width / 2));
+        }
+        frame->pts = i;
+        REQUIRE(avcodec_send_frame(codec_ctx, frame) >= 0);
+        drain();
+    }
+    REQUIRE(avcodec_send_frame(codec_ctx, nullptr) >= 0);
+    drain();
+    REQUIRE(submitted >= 3);
+    REQUIRE(mux.finalize());
+
+    REQUIRE(mux.finalized());
+    auto mux_facts = mux.observed_media_facts();
+    const auto probed = chronon3d::media::video::probe_media(artifact);
+    REQUIRE(probed);
+    CHECK(mux_facts.format_name == probed.value().format_name);
+    REQUIRE(mux_facts.streams.size() == 1);
+    REQUIRE(probed.value().streams.size() == 1);
+    auto& mux_video = mux_facts.streams[0];
+    const auto& probe_video = probed.value().streams[0];
+    CHECK(mux_video.kind == chronon3d::media::video::MediaStreamKind::Video);
+    CHECK(probe_video.kind == chronon3d::media::video::MediaStreamKind::Video);
+    CHECK(mux_video.codec == probe_video.codec);
+    CHECK(mux_video.width == probe_video.width);
+    CHECK(mux_video.height == probe_video.height);
+    CHECK(mux_video.pixel_format == probe_video.pixel_format);
+    const auto fps_of = [](const chronon3d::Rational& rate) {
+        return rate.denominator > 0
+            ? static_cast<double>(rate.numerator) / rate.denominator : 0.0;
+    };
+    CHECK(fps_of(mux_video.frame_rate) ==
+          doctest::Approx(fps_of(probe_video.frame_rate)));
+    if (codec_ctx->extradata != nullptr && codec_ctx->extradata_size > 0) {
+        const auto encoder_hash =
+            chronon3d::media::video::canonical_x264_sha256_hex(
+                codec_ctx->extradata,
+                static_cast<std::size_t>(codec_ctx->extradata_size));
+        MESSAGE("encoder extradata hash=" << encoder_hash);
+        MESSAGE("mux extradata hash=" << mux_video.codec_config_sha256);
+        MESSAGE("probe extradata hash=" << probe_video.codec_config_sha256);
+    }
+    CHECK_FALSE(mux_video.codec_config_sha256.empty());
+    // The MP4 muxer builds the final avcC; the pre-header extradata is not the
+    // bytes the decoder receives. The fast path leaves this file-only field
+    // unset instead of publishing a different digest.
+    mux_video.codec_config_sha256.clear();
+    REQUIRE(mux_video.duration.has_value());
+    REQUIRE(probe_video.duration.has_value());
+    CHECK(mux_video.duration->seconds() ==
+          doctest::Approx(probe_video.duration->seconds()));
+
+    // The muxer cannot know the encoder's presentation count; the encoder
+    // overrides it. Everything else must already match the canonical probe.
+    mux_video.frame_count = 3;
+    const auto metrics = mux.hash_metrics();
+    REQUIRE(metrics.output_write_bytes >= metrics.output_overwrite_bytes);
+
+    chronon3d::media::video::OutputContractFacts facts;
+    facts.trusted_in_process = true;
+    facts.trailer_finalized = true;
+    facts.expected_bytes =
+        metrics.output_write_bytes - metrics.output_overwrite_bytes;
+    facts.media = mux_facts;
+
+    OutputContract contract;
+    contract.width = 64;
+    contract.height = 48;
+    contract.fps = chronon3d::FrameRate{24, 1};
+    contract.video_codec = "h264";
+    contract.pixel_format = "yuv420p";
+    contract.audio_required = false;
+    contract.audio_streams = 0;
+    contract.frame_count = 3;
+
+    const auto verification = verify_output_contract(artifact, contract, facts);
+    CHECK(verification.passed);
+    CHECK(verification.copy_eligible);
+    CHECK(verification.contract_fast_path);
+    CHECK_FALSE(verification.contract_probe_fallback);
+    CHECK_FALSE(verification.ffprobe_ms.has_value());
+
+    av_packet_free(&packet);
+    av_frame_free(&frame);
+    avcodec_free_context(&codec_ctx);
+    std::error_code remove_ec;
+    std::filesystem::remove(artifact, remove_ec);
+}
+
+TEST_CASE("verify_output_contract: runtime fast path benchmark") {
+    if (std::getenv("CHRONON_BENCH_OUTPUT_CONTRACT") == nullptr) {
+        MESSAGE("Skipping — set CHRONON_BENCH_OUTPUT_CONTRACT=1 to run");
+        return;
+    }
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg CLI required");
+        return;
+    }
+
+    const auto artifact = temp_path("bench_fastpath.mp4");
+    const std::string make =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i testsrc2=s=1920x1080:r=24 "
+        "-frames:v 48 -c:v libx264 -preset ultrafast -crf 28 "
+        "-pix_fmt yuv420p " + artifact;
+    REQUIRE(std::system(make.c_str()) == 0);
+
+    OutputContract contract;
+    contract.width = 1920;
+    contract.height = 1080;
+    contract.fps = chronon3d::FrameRate{24, 1};
+    contract.video_codec = "h264";
+    contract.pixel_format = "yuv420p";
+    contract.audio_required = false;
+    contract.audio_streams = 0;
+    contract.frame_count = 48;
+
+    // One setup probe builds the fact shape; it is deliberately OUTSIDE the
+    // timed region. The production facts come from the finalized MuxSession
+    // (covered by the real-mux test above).
+    const auto probe = chronon3d::media::video::probe_media(artifact);
+    REQUIRE(probe);
+    chronon3d::media::video::OutputContractFacts facts;
+    facts.trusted_in_process = true;
+    facts.trailer_finalized = true;
+    facts.expected_bytes = std::filesystem::file_size(artifact);
+    facts.media = probe.value();
+    for (auto& stream : facts.media.streams) {
+        if (stream.kind == chronon3d::media::video::MediaStreamKind::Video) {
+            // File-only field; the fast path leaves it unset.
+            stream.codec_config_sha256.clear();
+            break;
+        }
+    }
+
+    const auto run = [&](bool fast) {
+        const auto start = std::chrono::steady_clock::now();
+        const auto result = fast
+            ? verify_output_contract(artifact, contract, facts)
+            : verify_output_contract(artifact, contract);
+        const auto elapsed = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - start).count();
+        REQUIRE(result.passed);
+        CHECK(result.contract_fast_path == fast);
+        return elapsed;
+    };
+
+    for (int i = 0; i < 2; ++i) {
+        (void)run(false);
+        (void)run(true);
+    }
+
+    std::vector<double> probe_ms;
+    std::vector<double> fast_ms;
+    probe_ms.reserve(9);
+    fast_ms.reserve(9);
+    for (int i = 0; i < 9; ++i) {
+        probe_ms.push_back(run(false));
+        fast_ms.push_back(run(true));
+    }
+
+    const auto median = [](std::vector<double> values) {
+        std::sort(values.begin(), values.end());
+        return values[values.size() / 2];
+    };
+    const auto probe_p50 = median(probe_ms);
+    const auto fast_p50 = median(fast_ms);
+    const auto probe_min = *std::min_element(probe_ms.begin(), probe_ms.end());
+    const auto fast_min = *std::min_element(fast_ms.begin(), fast_ms.end());
+    const auto bytes = std::filesystem::file_size(artifact);
+
+    MESSAGE("BENCH frames=48 bytes=" << bytes
+            << " probe_p50_ms=" << probe_p50
+            << " fast_p50_ms=" << fast_p50
+            << " speedup_x=" << (probe_p50 / fast_p50)
+            << " probe_min_ms=" << probe_min
+            << " fast_min_ms=" << fast_min);
+    CHECK(fast_p50 < probe_p50);
 
     std::error_code ec;
     std::filesystem::remove(artifact, ec);

@@ -189,6 +189,7 @@ struct EncoderCloseResult {
     double native_trailer_ms{0.0};
     std::uint64_t full_file_reread_count{0};
     media::MuxHashMetrics hash_metrics{};
+    std::optional<media::video::MediaProbeInfo> output_media_facts;
     double encoder_hwframe_get_buffer_ms{0.0};
     double encoder_surface_acquire_ms{0.0};
     double encoder_nvenc_submit_ms{0.0};
