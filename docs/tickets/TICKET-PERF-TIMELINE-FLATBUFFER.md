@@ -41,7 +41,7 @@ non sono una serie ×3 e non provano un miglioramento.
   item una riga POD (transform/opacity/parametri già risolti), così che il costo
   per frame sia un indice, non una valutazione. Precedente in repo: la camera è
   già baked per tutti i frame (`src/compiler/compiler.cpp:140-144`). Estende la
-  proposta N3 di [`100x-IDEE-NUOVE-2026-10-31.md`](../../../100x-IDEE-NUOVE-2026-10-31.md)
+  proposta N3 di [`100x-IDEE-NUOVE-2026-10-31.md`](../../../docs/archivio/100x-IDEE-NUOVE-2026-10-31.md)
   («pose strip SoA precompilata»)
   dal solo `timeline_eval` all'intero confine scena→grafo. Dove:
   `src/compiler/`, `src/render_plan/`, `composition_frame_single.cpp:52`
@@ -76,7 +76,7 @@ Batch overlay r49 (67,0 s di programma, 1607 frame, RTX A4000), dal receipt
 
 Nello stesso motore, in benchmark, `timeline_eval` è **0,26–0,74 ms**
 (`TICKET-PERF-REVOLUTIONARY-IDEAS` §5b/P4;
-[`100x-IDEE-NUOVE-2026-10-31.md`](../../../100x-IDEE-NUOVE-2026-10-31.md) N3).
+[`100x-IDEE-NUOVE-2026-10-31.md`](../../../docs/archivio/100x-IDEE-NUOVE-2026-10-31.md) N3).
 Discrepanza: **57–163×**, sullo stesso host, con lo stesso motore.
 
 ## Perché questo è il secondo ticket e non il primo

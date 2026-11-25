@@ -65,7 +65,7 @@ stare (la CPU a ≤8 ms/frame, poi più lane).
   130,1 ms di flush a fine job; non c'è nulla da prendere.
 - **Profondità del ring / slot pool**: provato, 232–239 fps contro una banda di
   varianza; nessun movimento (N2 e N6 di
-  [`100x-IDEE-NUOVE-2026-10-31.md`](../../../100x-IDEE-NUOVE-2026-10-31.md)).
+  [`100x-IDEE-NUOVE-2026-10-31.md`](../../../docs/archivio/100x-IDEE-NUOVE-2026-10-31.md)).
 
 ## Decisione collegata
 

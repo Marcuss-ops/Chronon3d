@@ -271,8 +271,8 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 | C15 | Il gate 100/min è FAIL/non certificato; mediana 77,32/min. | `[MISURA]` registrata | `docs/stato/refactored.md` §1; `TICKET-MAX-THROUGHPUT` §9.10. |
 | C16 | Il packed cross-scene ha reso 43,73 item/min ed è stato riportato opt-in. | `[MISURA]` registrata | `docs/stato/refactored.md` §1; `TICKET-MAX-THROUGHPUT` §11.6. |
 | C17 | NVENC: 244,97 fps `slow`, 408,4/422,1 `p4`, 714,6 `p2`. | `[MISURA]` registrata | `TICKET-100X-PERF-WAVES`, aggiornamento 2026-11-02. |
-| C18 | DirectYUV esiste ma non è default/certificato end-to-end. | `[IPOTESI/STATO DICHIARATO]` | `100x-ideas.md` §1 e `TICKET-100X-PERF-WAVES`; da verificare con i 15 gate zero-copy prima di usarlo come leva. |
-| C19 | La cache overlay è installata ma spenta (`not_applicable`, lookup 0–1). | `[IPOTESI/DA VERIFICARE]` | Audit N7 in `100x-IDEE-NUOVE-2026-10-31.md`; il wiring va riletto in `refactored/internal/app/wiring/script_generation_render_cache.go` prima di agire. |
+| C18 | DirectYUV esiste ma non è default/certificato end-to-end. | `[IPOTESI/STATO DICHIARATO]` | `docs/archivio/100x-ideas.md` §1 e `TICKET-100X-PERF-WAVES`; da verificare con i 15 gate zero-copy prima di usarlo come leva. |
+| C19 | La cache overlay è installata ma spenta (`not_applicable`, lookup 0–1). | `[IPOTESI/DA VERIFICARE]` | Audit N7 in `docs/archivio/100x-IDEE-NUOVE-2026-10-31.md`; il wiring va riletto in `refactored/internal/app/wiring/script_generation_render_cache.go` prima di agire. |
 | C20 | 100× via daemon o via render+encode è fisicamente escluso su questo host. | `[ARITMETICA]` da C01/C13/C14/C17 | §1.1–1.2. |
 
 ---
@@ -608,7 +608,7 @@ Nessun punto si chiude con un exit code 0, una build verde o un artefatto carica
 - [`TICKET-PERF-TIMELINE-FLATBUFFER`](TICKET-PERF-TIMELINE-FLATBUFFER.md) — gate `timeline_eval`.
 - [`TICKET-100X-PERF-WAVES`](TICKET-100X-PERF-WAVES.md) — B2/preset NVENC.
 - [`TICKET-MAX-THROUGHPUT-OVERLAY-ARCHITECTURE`](../../../refactored/docs/operations/TICKET-MAX-THROUGHPUT-OVERLAY-ARCHITECTURE.md) — 100/min, VRAM, packed.
-- [`100x-ideas.md`](../../../100x-ideas.md) e [`100x-IDEE-NUOVE-2026-10-31.md`](../../../100x-IDEE-NUOVE-2026-10-31.md) — catalogo delle idee; gains `[IPOTESI]`.
+- [`100x-ideas.md`](../../../docs/archivio/100x-ideas.md) e [`100x-IDEE-NUOVE-2026-10-31.md`](../../../docs/archivio/100x-IDEE-NUOVE-2026-10-31.md) — catalogo delle idee; gains `[IPOTESI]`.
 
 ---
 

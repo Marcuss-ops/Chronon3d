@@ -66,6 +66,8 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/effect_stack_node_native_color.cpp
     nodes/effect_stack_node_native_echo.cpp
     nodes/effect_stack_node_native_bulk.cpp
+    nodes/effect_stack_node_native_radial.cpp
+    nodes/effect_stack_node_native_filter.cpp
     nodes/clear_node.cpp
     nodes/clear_node_execution.cpp
     nodes/clear_policy.cpp

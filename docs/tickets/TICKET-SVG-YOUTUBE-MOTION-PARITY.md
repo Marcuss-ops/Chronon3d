@@ -156,7 +156,7 @@ deve avere un raw gate dedicato.
 3. Gate esterni (Vulkan host, footage reale, CI) non si chiudono localmente: lo Stato
    resta `PARTIAL`/`WAITING EXTERNAL` con prerequisito e owner espliciti.
 4. Non si rimuove nessuna varior fail-closed senza gate di equivalenza; non si
-   implementano primitive P1/P2 senza decisione di scope del parent ticket.5. Chiusura effettiva = tutti i gate **P0** sotto; aggiorna questa sezione `## Stato`, gli indici `docs/CURRENT_STATUS.md` / `docs/FOLLOWUP_TICKETS.md`, e `TODO-RIPRESA-100X-E-TICKET-APER-TI.md`, poi archivia come convenzione repo.
+   implementano primitive P1/P2 senza decisione di scope del parent ticket.5. Chiusura effettiva = tutti i gate **P0** sotto; aggiorna questa sezione `## Stato`, gli indici `docs/CURRENT_STATUS.md` / `docs/FOLLOWUP_TICKETS.md`, e `docs/archivio/TODO-RIPRESA-100X-E-TICKET-APER-TI.md`, poi archivia come convenzione repo.
 
 ## Anti-obiettivi
 

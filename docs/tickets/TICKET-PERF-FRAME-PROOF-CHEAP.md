@@ -127,7 +127,7 @@ Il render loop copre 67,0 s di programma in **74,3 s** (0,88× realtime, 21,1 fp
 Il confronto interno al motore: nella `command_benchmark_saturation` lo stesso
 `timeline_eval` misura **0,26–0,74 ms** per frame
 (`TICKET-PERF-REVOLUTIONARY-IDEAS` §5b/P4;
-[`100x-IDEE-NUOVE-2026-10-31.md`](../../../100x-IDEE-NUOVE-2026-10-31.md) N3). In
+[`100x-IDEE-NUOVE-2026-10-31.md`](../../../docs/archivio/100x-IDEE-NUOVE-2026-10-31.md) N3). In
 produzione, sullo stesso motore, costa **57–163× di più**. Nota che il sidecar
 `diagnostics` riporta `timeline_patch_wall_us` alimentato dallo stesso `eval_us`
 (`composition_frame_single.cpp:62-65`): sono due nomi per una misura sola, non

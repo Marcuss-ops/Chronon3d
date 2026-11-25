@@ -945,6 +945,13 @@ void main() {
         // as the fill, so their softness stays expressed in destination pixels
         // at any layout scale; neither is clipped to the glyph plane.
         if (kSpecHasStrokeAndShadow && effect_ready && (gd.style_flags & 12u) != 0u) {
+            // Per-glyph shadow/glow belong to the glyph that carries them: an
+            // unrevealed typewriter glyph has opacity 0, so its shadow alpha
+            // must vanish too. Without this gate the layer glow effect turns
+            // that orphan shadow alpha into a visible ghost of the still-typed
+            // tail (fill/stroke/background are already gated).
+            const float effect_opacity = clamp(run.opacity *
+                (1.0 + (run.animator_opacity - 1.0) * reveal_weight), 0.0, 1.0);
             float fx_range = uintBitsToFloat(run.distance_range_bits);
             if (!(fx_range > 0.0)) fx_range = 8.0;
             vec2 fx_size = max(effect_plane_max - effect_plane_min, vec2(1e-6));
@@ -967,7 +974,7 @@ void main() {
                     float a = (msd <= 1.0 / 255.0) ? 0.0 :
                         ((soft > 0.0) ? smoothstep(-soft, 0.0, dpx) : step(0.0, dpx));
                     vec4 sh = unpack_color(gd.shadow_color) *
-                        clamp(a * edge * gd.shadow_opacity, 0.0, 1.0);
+                        clamp(a * edge * gd.shadow_opacity * effect_opacity, 0.0, 1.0);
                     if (sh.a > shadow_layer.a) shadow_layer = sh;
                 }
             }
@@ -984,7 +991,7 @@ void main() {
                 float falloff = 1.0 - smoothstep(0.0, max(gd.glow_radius, 1.0),
                                                 length(outside));
                 float a = clamp(edge * falloff *
-                                max(gd.glow_intensity, 0.0), 0.0, 1.0);
+                                max(gd.glow_intensity, 0.0) * effect_opacity, 0.0, 1.0);
                 vec4 glow = unpack_color(gd.glow_color) * a;
                 glow_layer = glow + glow_layer * (1.0 - glow.a);
             }
@@ -1063,7 +1070,8 @@ void main() {
                             ? smoothstep(-shadow_softness_px, 0.0,
                                          shadow_distance_px) * edge_fade
                             : step(0.0, shadow_distance_px));
-                    vec4 glyph_shadow = unpack_color(run.shadow_color) * shadow_alpha;
+                    vec4 glyph_shadow = unpack_color(run.shadow_color) *
+                        (shadow_alpha * mask_opacity);
                     if (glyph_shadow.a > shadow_layer.a) {
                         shadow_layer = glyph_shadow;
                     }

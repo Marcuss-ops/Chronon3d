@@ -15,6 +15,7 @@ if(CHRONON3D_USE_BLEND2D)
 endif()
 target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/software_effect_processors_color.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/software_effect_processors_color_composite.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/software_effect_processors_generation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/software_effect_processors_motion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/software_grid_background_processor.cpp

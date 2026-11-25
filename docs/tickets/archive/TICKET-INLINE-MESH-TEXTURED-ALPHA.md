@@ -4,7 +4,7 @@
 
 ## Protocollo di chiusura completa (2026-10-29)
 
-> Autorità dedicata: sezione **27 — manca lane Vulkan native** di `../../../PIANO-CHIUSURA-TICKET-APER-TI-2026-10-29.md` (fase consigliata **F2** · priorità **P1**).
+> Autorità dedicata: sezione **27 — manca lane Vulkan native** di `../../../../docs/archivio/PIANO-CHIUSURA-TICKET-APER-TI-2026-10-29.md` (fase consigliata **F2** · priorità **P1**).
 > Questo blocco rende la scheda autosufficiente: riporta qui i criteri dedicati alla chiusura e le regole valide per dichiararla `COMPLETE`.
 > Fotografia dell'audit 2026-10-29: prima di eseguire un criterio, verificane l'attualità contro il codice, i test e le evidenze già presenti in questa scheda.
 
