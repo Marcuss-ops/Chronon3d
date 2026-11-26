@@ -141,6 +141,15 @@ struct GpuMetrics {
     std::optional<std::uint64_t> vulkan_cuda_export_fence_wait_us;
     std::optional<std::uint64_t> gpu_readback_bytes;
     std::optional<std::uint64_t> gpu_upload_bytes;
+    // PERFLIVE-01: per-job window over the device-cumulative backend counters.
+    // The plain *_bytes fields above stay cumulative (zero-copy gates read
+    // them); the *_delta fields are what attribute cost to ONE overlay item on
+    // a persistent daemon. Null when the backend exposed no snapshot.
+    std::optional<std::uint64_t> gpu_upload_bytes_delta;
+    std::optional<std::uint64_t> gpu_readback_bytes_delta;
+    std::optional<std::uint64_t> gpu_asset_cache_hits_delta;
+    std::optional<std::uint64_t> gpu_asset_cache_misses_delta;
+    std::optional<std::uint64_t> software_fallback_frames_delta;
     // Allocator-owned device residency sampled from the backend (VMA), not
     // host-wide nvidia-smi. These fields are per-job snapshots used by VRAM
     // admission calibration and are null when the backend has no allocator.

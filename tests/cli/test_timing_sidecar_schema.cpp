@@ -15,12 +15,19 @@
 #include "commands/video/exporters/pipe_timing_sidecar.hpp"
 #include "commands/video/exporters/pipe_timing_sidecar_detail.hpp"
 #include "commands/video/exporters/pipe_timing_sidecar_serialize.hpp"
+#include "commands/video/exporters/video_export_native_support.hpp"
+#include "commands/video/common/pipe_export_session.hpp"
+
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#endif
 
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <string_view>
@@ -29,6 +36,29 @@ namespace {
 
 using chronon3d::cli::pipe_timing::JobTimings;
 using chronon3d::cli::pipe_timing_detail::SidecarContext;
+
+#ifdef CHRONON3D_ENABLE_VULKAN
+class OvlFallbackStub final : public chronon3d::graph::RenderBackend {
+public:
+    void apply_per_pixel_dof(chronon3d::Framebuffer&, std::span<const float>,
+                             const chronon3d::DepthOfFieldSettings&,
+                             const chronon3d::LensModel&,
+                             const std::optional<chronon3d::raster::BBox>&) override {}
+    chronon3d::graph::RenderOpResult draw_node(
+        chronon3d::Framebuffer&, const chronon3d::RenderNode&,
+        const chronon3d::RenderState&, const chronon3d::Camera&, int, int) override {
+        return chronon3d::graph::RenderOpResult{chronon3d::graph::RenderOpOutcome{}};
+    }
+    void apply_effect_stack(chronon3d::Framebuffer&, const chronon3d::EffectStack&,
+                            const chronon3d::effects::EffectExecutionContext&) override {}
+    void composite_layer(chronon3d::Framebuffer&, const chronon3d::Framebuffer&,
+                         chronon3d::BlendMode,
+                         const std::optional<chronon3d::raster::BBox>&,
+                         chronon3d::CompositeOperator) override {}
+    void apply_blur(chronon3d::Framebuffer&, float,
+                    const std::optional<chronon3d::raster::BBox>&) override {}
+};
+#endif
 
 std::set<std::string> keys_of(const nlohmann::json& object) {
     std::set<std::string> keys;
@@ -170,6 +200,7 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     timings.encoder_settings.preset = "p4";
     timings.encoder_settings.async_depth = 3;
     timings.gpu.gpu_readback_bytes = 8192u;
+    timings.gpu.software_fallback_frames_delta = 0u;
     timings.gpu.pending_release_high_water = 12u;
     timings.gpu.retained_bindings_high_water = 8u;
     timings.gpu.release_delay_frames = 10u;
@@ -210,6 +241,7 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     CHECK(job.at("encoder_settings").at("preset") == "p4");
     CHECK(job.at("encoder_settings").at("async_depth") == 3);
     CHECK(job.at("gpu").at("gpu_readback_bytes") == 8192u);
+    CHECK(job.at("gpu").at("software_fallback_frames_delta") == 0u);
     CHECK(job.at("gpu").at("pending_release_high_water") == 12u);
     CHECK(job.at("gpu").at("retained_bindings_high_water") == 8u);
     CHECK(job.at("gpu").at("release_delay_frames") == 10u);
@@ -255,6 +287,7 @@ TEST_CASE("A5 sidecar: an unmeasured job reports null, never a fabricated zero")
     CHECK(job.at("measurement_kind").is_null());
     CHECK(job.at("job_wall_ms").is_null());
     CHECK(job.at("gpu").at("gpu_readback_bytes").is_null());
+    CHECK(job.at("gpu").at("software_fallback_frames_delta").is_null());
     CHECK(job.at("gpu").at("identity_fallback_frames").is_null());
     CHECK(job.at("gpu").at("gpu_execute_ms").is_null());
     CHECK(job.at("text").at("shaping_ms").is_null());
@@ -280,6 +313,42 @@ TEST_CASE("A5 sidecar: an unmeasured job reports null, never a fabricated zero")
     CHECK(job.at("gpu").at("nvenc_frames") == 0u);
     CHECK(job.at("gpu").at("bitstream_copy_frames") == 0u);
 }
+
+#ifdef CHRONON3D_ENABLE_VULKAN
+TEST_CASE("OVL-02: backend fallback is projected as a per-job delta") {
+    using chronon3d::backends::vulkan::VulkanBackend;
+    using chronon3d::cli::FullGraphSession;
+    using chronon3d::cli::PipeExportSession;
+    using chronon3d::cli::pipe_timing_detail::serialize_job_section;
+
+    VulkanBackend backend;
+    backend.attach_fallback_backend(std::make_shared<OvlFallbackStub>());
+
+    auto graph_session = std::make_shared<FullGraphSession>();
+    graph_session->surface_backend = &backend;
+    PipeExportSession session{1};
+    session.full_graph_session = graph_session;
+
+    const auto at_setup = backend.stats().software_fallback_frames;
+    session.gpu_counters_at_setup.emplace("software_fallback_frames", at_setup);
+
+    JobTimings timings;
+    chronon3d::cli::project_render_counters(session, nullptr, timings);
+    REQUIRE(timings.gpu.software_fallback_frames_delta.has_value());
+    CHECK(*timings.gpu.software_fallback_frames_delta == 0u);
+
+    chronon3d::Framebuffer cpu_framebuffer{4, 4};
+    backend.apply_blur(cpu_framebuffer, 1.0f, std::nullopt);
+    timings = JobTimings{};
+    chronon3d::cli::project_render_counters(session, nullptr, timings);
+    REQUIRE(timings.gpu.software_fallback_frames_delta.has_value());
+    CHECK(*timings.gpu.software_fallback_frames_delta == 1u);
+
+    nlohmann::json job = nlohmann::json::object();
+    serialize_job_section(job, timings);
+    CHECK(job.at("gpu").at("software_fallback_frames_delta") == 1u);
+}
+#endif
 
 TEST_CASE("A5 sidecar: the job section key set is frozen") {
     JobTimings timings;

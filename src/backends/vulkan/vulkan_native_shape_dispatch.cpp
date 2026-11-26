@@ -100,6 +100,10 @@ void sync_cpu_to_gpu(VulkanBackend& backend, Framebuffer& fb) {
 } // namespace
 
 void VulkanBackend::note_cpu_fallback() noexcept {
+    // Always-on: the render thread has no thread-local profiling context, yet
+    // this is exactly the thread that performs the fallback. The backend
+    // counter is what the per-job telemetry delta reads.
+    m_software_fallback_frames.fetch_add(1, std::memory_order_relaxed);
     if (profiling::g_current_counters) {
         profiling::g_current_counters->silent_cpu_fallback_count.fetch_add(
             1, std::memory_order_relaxed);

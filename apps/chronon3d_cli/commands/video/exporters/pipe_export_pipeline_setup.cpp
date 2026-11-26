@@ -468,6 +468,16 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         session->full_graph_session->surface_backend = &sw_renderer->backend();
         session->full_graph_session->surface_registry =
             sw_renderer->execution_context().images.surfaces;
+        // PERFLIVE-01: open the per-job GPU window. The backend lives for the
+        // whole daemon, so only the difference between this snapshot and the
+        // end-of-job read belongs to the item being rendered.
+        std::vector<std::pair<std::string, std::uint64_t>> setup_counters;
+        session->full_graph_session->surface_backend->export_gpu_telemetry_counters(
+            setup_counters);
+        session->gpu_counters_at_setup.clear();
+        for (auto& [key, value] : setup_counters) {
+            session->gpu_counters_at_setup.emplace(std::move(key), value);
+        }
     }
     // Exclusive-wall startup is anchored to THIS job, never to the process:
     // in a persistent daemon `process_start_time()` is daemon boot, which

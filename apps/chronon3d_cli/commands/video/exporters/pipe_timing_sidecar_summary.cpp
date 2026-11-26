@@ -379,6 +379,14 @@ void serialize_job_section(nlohmann::json& job,
     put_gpu_u64("vulkan_cuda_export_fence_wait_us", timings.gpu.vulkan_cuda_export_fence_wait_us);
     put_gpu_u64("gpu_readback_bytes", timings.gpu.gpu_readback_bytes);
     put_gpu_u64("gpu_upload_bytes", timings.gpu.gpu_upload_bytes);
+    // PERFLIVE-01: end-minus-start window over the same device-cumulative
+    // counters. This is the per-item attribution key; the cumulative fields
+    // above are retained for the zero-copy gates.
+    put_gpu_u64("gpu_upload_bytes_delta", timings.gpu.gpu_upload_bytes_delta);
+    put_gpu_u64("gpu_readback_bytes_delta", timings.gpu.gpu_readback_bytes_delta);
+    put_gpu_u64("gpu_asset_cache_hits_delta", timings.gpu.gpu_asset_cache_hits_delta);
+    put_gpu_u64("gpu_asset_cache_misses_delta", timings.gpu.gpu_asset_cache_misses_delta);
+    put_gpu_u64("software_fallback_frames_delta", timings.gpu.software_fallback_frames_delta);
     put_gpu_u64("vma_allocation_count", timings.gpu.vma_allocation_count);
     put_gpu_u64("vma_usage_bytes", timings.gpu.vma_usage_bytes);
     put_gpu_u64("vma_budget_bytes", timings.gpu.vma_budget_bytes);

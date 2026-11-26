@@ -56,6 +56,8 @@ VulkanBackendStats VulkanBackend::stats() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl) return VulkanBackendStats{};
     auto s = m_impl->stats.snapshot();
+    s.software_fallback_frames =
+        m_software_fallback_frames.load(std::memory_order_relaxed);
     const auto vma_stats = m_impl->memory_manager.budget_stats();
     s.vma_allocation_bytes = vma_stats.allocation_bytes;
     s.vma_block_bytes = vma_stats.block_bytes;
@@ -143,6 +145,13 @@ void VulkanBackend::export_gpu_telemetry_counters(
             m_impl->surfaces.release_delay_frames_high_water;
         surface_counts.overflow_waits = m_impl->surfaces.overflow_wait_count;
     }
+    // PERFLIVE-01: the silent software-fallback count is the direct signal that
+    // distinguishes a native image path from the canvas/effect-stack fallback.
+    // It is the backend's own always-on counter, NOT the thread-local profiling
+    // counter: the end-of-job read runs on the render thread, where
+    // g_current_counters is null and the key used to disappear from the map.
+    out.emplace_back("software_fallback_frames",
+                     m_software_fallback_frames.load(std::memory_order_relaxed));
     out.emplace_back("gpu_submissions", m_impl->stats.submissions);
     out.emplace_back("passes_executed", m_impl->stats.passes_executed);
     out.emplace_back("gpu_upload_count", m_impl->stats.upload_calls);

@@ -8,7 +8,11 @@
 
 #include <cstdlib>
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -338,6 +342,29 @@ void account_exclusive_wall_timeline(
     timings.startup_unaccounted_ms = session.startup_breakdown.unaccounted_ms;
 }
 
+namespace {
+
+// PERFLIVE-01: one per-job delta read over the backend's cumulative counters.
+// The backend is daemon-persistent, so the value published as
+// `gpu_upload_bytes` grows across items and cannot attribute cost to one item.
+// This subtracts the snapshot taken at job setup. A counter absent from the
+// export leaves the delta null rather than fabricating a 0.
+std::optional<std::uint64_t> job_counter_delta(
+    const PipeExportSession& session,
+    const std::vector<std::pair<std::string, std::uint64_t>>& current,
+    std::string_view name) {
+    const auto before = session.gpu_counter_at_setup(name);
+    if (!before) return std::nullopt;
+    for (const auto& [key, value] : current) {
+        if (key == name) {
+            return value >= *before ? value - *before : std::uint64_t{0};
+        }
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
 void project_render_counters(
     PipeExportSession& session,
     const RenderCounters* counters,
@@ -568,6 +595,22 @@ void project_render_counters(
         timings.runtime.cuda_image_cache_hit = c->cuda_image_cache_hit.load(std::memory_order_relaxed);
         timings.runtime.cuda_image_cache_miss = c->cuda_image_cache_miss.load(std::memory_order_relaxed);
         timings.gpu.software_fallback_nodes = c->gpu_text_fallback_count.load(std::memory_order_relaxed);
+    }
+    // PERFLIVE-01: publish the per-job window for the counters the daemon never
+    // resets. Read once, then diff against the setup snapshot.
+    if (session.full_graph_session && session.full_graph_session->surface_backend) {
+        std::vector<std::pair<std::string, std::uint64_t>> current;
+        session.full_graph_session->surface_backend->export_gpu_telemetry_counters(current);
+        timings.gpu.gpu_upload_bytes_delta =
+            job_counter_delta(session, current, "gpu_upload_bytes");
+        timings.gpu.gpu_readback_bytes_delta =
+            job_counter_delta(session, current, "gpu_readback_bytes");
+        timings.gpu.gpu_asset_cache_hits_delta =
+            job_counter_delta(session, current, "gpu_asset_cache_hits");
+        timings.gpu.gpu_asset_cache_misses_delta =
+            job_counter_delta(session, current, "gpu_asset_cache_misses");
+        timings.gpu.software_fallback_frames_delta =
+            job_counter_delta(session, current, "software_fallback_frames");
     }
     timings.runtime.encoder_open_nvenc_ms = session.startup_breakdown.encoder_open_nvenc_ms;
     if (session.encoder)

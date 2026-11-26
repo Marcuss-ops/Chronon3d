@@ -311,6 +311,12 @@ VulkanBackend& VulkanBackend::operator=(VulkanBackend&& other) noexcept {
 #else
     (void)other;
 #endif
+    // std::atomic is not swappable: move the always-on fallback count by value.
+    const auto fallback_frames = m_software_fallback_frames.load(std::memory_order_relaxed);
+    m_software_fallback_frames.store(
+        other.m_software_fallback_frames.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+    other.m_software_fallback_frames.store(fallback_frames, std::memory_order_relaxed);
     std::swap(m_cpu_fallback_allowed, other.m_cpu_fallback_allowed);
     std::swap(m_fallback_backend, other.m_fallback_backend);
     return *this;

@@ -72,6 +72,11 @@ struct VulkanBackendStats {
     /// per recorded pass (not per vkQueueSubmit), so it stays correct even
     /// when N overlays coalesce into a single command-batch submission.
     std::uint64_t passes_executed{0};
+    /// Cumulative frames that took the silent CPU/canvas fallback instead of a
+    /// native GPU path. Always-on: incremented from note_cpu_fallback() even
+    /// when no thread-local profiling context is installed, so a per-job delta
+    /// can attribute the fallback on the render thread too.
+    std::uint64_t software_fallback_frames{0};
     // ── CPU-side GPU timing (microseconds) ────────────────────────────
     // `gpu_submit_cpu_us` is the CPU cost of vkQueueSubmit (recording is NOT
     // included); `gpu_wait_cpu_us` is CPU blocked on GPU fences — the
@@ -767,6 +772,10 @@ private:
     double m_init_device_ms{0.0};
     double m_init_pipelines_ms{0.0};
 #endif
+    // Always-on fallback frame counter. note_cpu_fallback() runs on render
+    // threads that carry no profiling context, so this count cannot live in
+    // the thread-local RenderCounters.
+    std::atomic<std::uint64_t> m_software_fallback_frames{0};
     bool m_cpu_fallback_allowed{true};
     std::shared_ptr<graph::RenderBackend> m_fallback_backend{};
     void note_cpu_fallback() noexcept;

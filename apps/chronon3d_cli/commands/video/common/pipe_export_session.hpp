@@ -21,9 +21,11 @@
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 #include <optional>
@@ -163,6 +165,19 @@ struct PipeExportSession {
     std::uint64_t cuda_host_upload_bytes_before_setup{0};
     std::uint64_t cuda_host_upload_bytes_at_steady_start{0};
     bool cuda_host_upload_steady_window_started{false};
+
+    // PERFLIVE-01: the Vulkan backend's counters are device-cumulative on the
+    // persistent daemon. Snapshot them when THIS job starts so the sidecar can
+    // publish an end-minus-start delta per item; the cumulative value remains
+    // in the sidecar for the zero-copy gates that consume it.
+    std::map<std::string, std::uint64_t> gpu_counters_at_setup;
+
+    [[nodiscard]] std::optional<std::uint64_t> gpu_counter_at_setup(
+        std::string_view name) const {
+        const auto it = gpu_counters_at_setup.find(std::string(name));
+        if (it == gpu_counters_at_setup.end()) return std::nullopt;
+        return it->second;
+    }
 
     /// Per-job wall anchor for exclusive-wall timing. CLI single-shot
     /// renders anchor at process start; a persistent daemon RENDER_JOB

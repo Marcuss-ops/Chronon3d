@@ -2,6 +2,8 @@
 #include "../../utils/job/cli_render_utils.hpp"
 #include "doctor_report.hpp"
 
+#include <chronon3d/effects/effect_catalog_data.hpp>
+#include <chronon3d/render_graph/effect_gpu_capability.hpp>
 #include <chronon3d/simd/cpu_isa.hpp>
 #include <nlohmann/json.hpp>
 
@@ -76,6 +78,21 @@ int command_doctor(const CompositionRegistry& /*registry*/,
             },
             {"build_sha", git_sha}
         };
+        nlohmann::json gpu_effects = nlohmann::json::array();
+        for (const auto& capability : graph::kGpuEffectCapabilityRows) {
+            const auto& effect = effects::catalog_entry(capability.effect);
+            const bool has_native_route = capability.route ==
+                graph::GpuEffectRoute::NativeZeroReadback;
+            const bool backend_enabled = caps.at("vulkan").get<bool>();
+            gpu_effects.push_back({
+                {"id", effect.id},
+                {"route", has_native_route ? "native_zero_readback" : "unsupported"},
+                {"backend_enabled", backend_enabled},
+                {"supported", backend_enabled && has_native_route},
+                {"diagnostic", capability.diagnostic},
+            });
+        }
+        caps["gpu_effects"] = std::move(gpu_effects);
         const auto cpu = simd::detect_cpu_capabilities();
         const nlohmann::json features = {
             {"blend2d", CHRONON3D_DOCTOR_HAS_BLEND2D != 0},

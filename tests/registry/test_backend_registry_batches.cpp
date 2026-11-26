@@ -115,6 +115,7 @@ TEST_CASE("Vulkan backend exports gpu_submissions and passes_executed telemetry 
     backend.export_gpu_telemetry_counters(exported);
     bool found_submissions = false;
     bool found_passes = false;
+    bool found_fallback = false;
     for (const auto& [name, value] : exported) {
         if (name == "gpu_submissions") {
             CHECK(value == after.submissions);
@@ -122,10 +123,37 @@ TEST_CASE("Vulkan backend exports gpu_submissions and passes_executed telemetry 
         } else if (name == "passes_executed") {
             CHECK(value == after.passes_executed);
             found_passes = true;
+        } else if (name == "software_fallback_frames") {
+            // OVL-02: the key is present even when this native plan never took
+            // the CPU fallback. It used to disappear because the export was
+            // gated on the encoder thread's profiling context.
+            CHECK(value == 0u);
+            found_fallback = true;
         }
     }
     CHECK(found_submissions);
     CHECK(found_passes);
+    CHECK(found_fallback);
+
+    // Exercise the real fallback dispatch on the render thread, where no
+    // encoder thread-local profiling context is installed. A CPU-only
+    // framebuffer avoids any readback or upload in this counter contract test.
+    backend.attach_fallback_backend(std::make_shared<StubBackend>());
+    chronon3d::Framebuffer cpu_framebuffer{4, 4};
+    backend.apply_blur(cpu_framebuffer, 1.0f, std::nullopt);
+    const auto after_fallback = backend.stats();
+    CHECK(after_fallback.software_fallback_frames ==
+          after.software_fallback_frames + 1);
+    exported.clear();
+    backend.export_gpu_telemetry_counters(exported);
+    bool found_fallback_increment = false;
+    for (const auto& [name, value] : exported) {
+        if (name == "software_fallback_frames") {
+            CHECK(value == after_fallback.software_fallback_frames);
+            found_fallback_increment = true;
+        }
+    }
+    CHECK(found_fallback_increment);
 }
 
 TEST_CASE("checkpoint: Background-Transform-Blur-Composite-ColorAdjust is one submission") {

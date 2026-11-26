@@ -37,10 +37,38 @@
 #include "inline_mesh_comp_spv.hpp"
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
+#include <cerrno>
+#include <cstdlib>
 #include <fstream>
 
 
 namespace chronon3d::backends::vulkan {
+
+namespace {
+
+// AUGRENDER-02: the VRAM budget resolver existed but its policy was never
+// installed, so every allocation only saw VMA's reported heap budget and the
+// first hard failure was vmaCreateImage returning VkResult=-2. These env keys
+// give the consolidated single-daemon topology an explicit, per-device cap
+// that is checked BEFORE the allocation reaches VMA. Zero (or an unparsable
+// value) keeps the historical "derive from device budget" behaviour.
+[[nodiscard]] runtime::GpuMemoryBudgetPolicy vram_budget_policy_from_environment() {
+    runtime::GpuMemoryBudgetPolicy policy{};
+    const auto parse_mib = [](const char* name, std::uint64_t& out) {
+        const char* raw = std::getenv(name);
+        if (raw == nullptr || *raw == '\0') return;
+        char* end = nullptr;
+        errno = 0;
+        const unsigned long long mib = std::strtoull(raw, &end, 10);
+        if (errno != 0 || end == raw || *end != '\0' || mib == 0) return;
+        out = static_cast<std::uint64_t>(mib) * 1024ull * 1024ull;
+    };
+    parse_mib("CHRONON_VRAM_HARD_LIMIT_MB", policy.hard_limit_bytes);
+    parse_mib("CHRONON_VRAM_SOFT_LIMIT_MB", policy.soft_limit_bytes);
+    return policy;
+}
+
+} // namespace
 
     VulkanBackend::Impl::Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical, VkQueue graphics,
          std::uint32_t family, VkCommandPool pool,
@@ -58,6 +86,7 @@ namespace chronon3d::backends::vulkan {
         // completion record itself does not become a per-frame allocator.
         completed_frame_timings.reserve(64);
         memory_manager.initialize(instance, physical_device, device);
+        memory_manager.set_budget_policy(vram_budget_policy_from_environment());
         VkPhysicalDeviceProperties device_properties{};
         vkGetPhysicalDeviceProperties(physical_device, &device_properties);
         stats.device_name = device_properties.deviceName;
