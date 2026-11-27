@@ -77,6 +77,12 @@ struct SvgTextMetrics {
     std::unique_ptr<chronon3d::FontEngine>& font_engine,
     std::vector<SvgTextMetrics>& text_metrics,
     std::vector<bool>& text_chunk_boundary_safe);
+[[nodiscard]] std::optional<PlanDecodeError> resolve_svg_text_length_scopes(
+    std::vector<chronon3d::assets::SvgTextRun>& runs,
+    std::vector<SvgTextMetrics>& text_metrics,
+    chronon3d::assets::AssetResolver& resolver,
+    std::unique_ptr<chronon3d::FontEngine>& font_engine,
+    std::size_t layer_index);
 [[nodiscard]] std::optional<PlanDecodeError> append_svg_text_runs(
     LayerPlan& layer, const RenderPlan& plan,
     chronon3d::assets::AssetResolver& resolver, std::size_t layer_index,

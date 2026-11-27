@@ -174,6 +174,8 @@ void attach_software_backend(
                 (runtime.config().gpu_hot_path_mode() == chronon3d::GpuHotPathMode::RequireGpuNative);
             vulkan->set_cpu_fallback_allowed(!strict_gpu);
             if (!strict_gpu) {
+                // The fallback object stays attached on a warm renderer when
+                // later strict jobs temporarily disable its use.
                 vulkan->attach_fallback_backend(make_software_backend_instance(renderer, runtime));
             }
             return backend;

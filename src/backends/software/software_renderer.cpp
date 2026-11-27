@@ -47,6 +47,9 @@
 // ===========================================================================
 
 #include <chronon3d/backends/software/software_renderer.hpp>
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#endif
 // Required for `m_software_registry` (unique_ptr<renderer::SoftwareRegistry>)
 // deleter instantiation in the move ops below — without this the compiler
 // raises "incomplete type" on the unique_ptr dtor path.
@@ -178,6 +181,19 @@ SoftwareRenderer::~SoftwareRenderer() = default;
 void SoftwareRenderer::set_settings(const RenderSettings& settings) {
     m_settings = settings;
     m_execution_context.settings = &m_settings;
+#ifdef CHRONON3D_ENABLE_VULKAN
+    // A warm renderer is reused across IPC jobs. Its Vulkan backend is also
+    // warm, so refresh job-specific strictness here; otherwise a backend
+    // created for a permissive job can keep CPU fallback enabled for a later
+    // gpu_only render.
+    if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(
+            m_execution_context.backend)) {
+        const bool strict_gpu =
+            m_config.gpu_hot_path_mode() == GpuHotPathMode::RequireGpuNative ||
+            m_settings.require_native_gpu;
+        vulkan->set_cpu_fallback_allowed(!strict_gpu);
+    }
+#endif
     m_counters.program_cache_capacity.store(settings.program_cache_capacity, std::memory_order_relaxed);
     m_counters.program_cache_tune.store(settings.program_cache_tune ? 1 : 0, std::memory_order_relaxed);
 }

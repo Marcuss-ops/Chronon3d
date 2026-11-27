@@ -25,6 +25,7 @@ if(CHRONON3D_ENABLE_SVG)
         svg_geometry.cpp
         svg_gradients.cpp
         svg_patterns.cpp
+        svg_pattern_resolution.cpp
         svg_importer.cpp
         svgpp_parser_impl.cpp
     )

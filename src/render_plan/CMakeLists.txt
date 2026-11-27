@@ -56,6 +56,7 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_compiler_svg_text_metrics.cpp
     render_plan_compiler_svg_text_shape.cpp
     render_plan_compiler_svg_text_runs.cpp
+    render_plan_compiler_svg_text_length.cpp
     render_plan_compiler_svg_animations.cpp
     render_plan_compiler_svg_mask.cpp
     render_plan_compiler_svg_validation.cpp

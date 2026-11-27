@@ -434,6 +434,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             }
             warm_renderer->reset_temporal_history();
             warm_renderer->reset_counters();
+            // The daemon keeps the renderer alive across jobs, but the
+            // GPU hot-path mode is part of this job's execution contract.
+            // Refresh it before set_settings() updates the warm Vulkan
+            // backend's per-job CPU-fallback policy.
+            warm_renderer->config().set_gpu_hot_path_mode(opts.gpu_hot_path_mode);
             warm_renderer->set_settings(settings);
             if (session->opts.assets_root) {
                 warm_renderer->execution_context().text.assets->mount(

@@ -311,12 +311,13 @@ public:
     processor_snapshot() const noexcept override;
     [[nodiscard]] bool requires_processor_snapshot() const noexcept override;
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool() override;
-    /// Compatibility lane policy. Strict/certified jobs disable this before
-    /// attaching anything; unsupported operations then fail with a typed
-    /// capability error instead of reading pixels back through the CPU.
+    /// Compatibility lane policy. Strict/certified jobs disable this for the
+    /// current job; unsupported operations then fail with a typed capability
+    /// error instead of reading pixels back through the CPU. A warm renderer
+    /// may keep the fallback backend attached so a later permissive job can
+    /// re-enable it.
     void set_cpu_fallback_allowed(bool allowed) noexcept {
         m_cpu_fallback_allowed = allowed;
-        if (!allowed) m_fallback_backend.reset();
     }
     [[nodiscard]] bool cpu_fallback_allowed() const noexcept {
         return m_cpu_fallback_allowed;
