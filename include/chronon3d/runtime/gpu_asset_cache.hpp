@@ -154,7 +154,8 @@ private:
     /// signals that is_native_surface_valid() already reported the surface
     /// dead, so the release result cannot be trusted to decide accounting.
     void release_and_account(
-        RenderSurfaceHandle handle, std::size_t bytes, bool physical_already_gone);
+        RenderSurfaceHandle handle, std::size_t bytes, bool physical_already_gone,
+        bool count_as_eviction = true);
 
     /// LRU eviction loop.  Must be called WITHOUT `m_mutex` held.
     void evict_to_budget();
@@ -165,6 +166,7 @@ private:
     graph::RenderBackend* m_backend{nullptr};
     std::size_t m_budget_bytes{0};
     std::size_t m_resident_bytes{0};
+    bool m_clearing{false};
     std::unordered_map<GpuAssetKey, Entry, GpuAssetKeyHash> m_entries;
     std::list<GpuAssetKey> m_lru;
     std::unordered_map<GpuAssetKey, InflightUpload, GpuAssetKeyHash> m_inflight;

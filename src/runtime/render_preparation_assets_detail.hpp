@@ -139,6 +139,10 @@ RenderPreparationResult prepare_render_scene(
 
     const auto decode_t0 = profiling::now();
     const ImageCounterSnapshot image_before = snapshot_image_counters(*renderer->counters());
+    // Keep decoded shared references alive through GPU promotion below. The
+    // LRU may evict entries between the parallel decode and the promotion pass.
+    std::vector<std::shared_ptr<const CachedImage>> decoded_tasks;
+    std::vector<std::size_t> reference_task_indices(image_refs_view.size());
     if (options.resources.prepare_images) {
         auto& image_cache = renderer->execution_context().runtime->image_cache();
         struct ImageDecodeTask {
@@ -146,7 +150,6 @@ RenderPreparationResult prepare_render_scene(
             ImageDecodeOptions options;
         };
         std::vector<ImageDecodeTask> decode_tasks;
-        std::vector<std::size_t> reference_task_indices(image_refs_view.size());
         std::unordered_map<ImageAssetKey, std::size_t, ImageAssetKeyHash> task_by_key;
         task_by_key.reserve(image_refs_view.size());
 
@@ -169,8 +172,7 @@ RenderPreparationResult prepare_render_scene(
             reference_task_indices[index] = it->second;
         }
 
-        std::vector<std::shared_ptr<const CachedImage>> decoded_tasks(
-            decode_tasks.size());
+        decoded_tasks.resize(decode_tasks.size());
         const auto decode_range = [&](std::size_t begin, std::size_t end) {
                 profiling::ProfilingGuard worker_profile(
                     renderer->counters(), renderer->framebuffer_pool().get());
@@ -212,11 +214,9 @@ RenderPreparationResult prepare_render_scene(
     if (options.resources.prepare_images && renderer->execution_context().runtime->backend_attached() &&
         renderer->execution_context().runtime->backend().supports_native_surfaces()) {
         auto& cache = renderer->execution_context().runtime->gpu_asset_cache();
-        for (const auto& ref : image_refs_view) {
-            ImageDecodeOptions decode_options{};
-            decode_options.max_dimension = ref.max_dimension;
-            decode_options.color_space = ref.color_space;
-            const auto image = renderer->execution_context().runtime->image_cache().find(ref.path, decode_options);
+        for (std::size_t index = 0; index < image_refs_view.size(); ++index) {
+            const auto& ref = image_refs_view[index];
+            const auto image = decoded_tasks[reference_task_indices[index]];
             if (!image || !image->valid() || image->gpu_rgba_span().empty()) {
                 continue;
             }

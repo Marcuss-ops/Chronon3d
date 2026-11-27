@@ -232,14 +232,11 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
     }
 #endif
 
-    spdlog::warn("[imgprof] decode={:.1f}ms", profiling::elapsed_ms(t0));
     if (downscale_for_runtime(*buffer, options.max_dimension) &&
         profiling::g_current_counters) {
         profiling::g_current_counters->image_post_decode_downscale_count.fetch_add(
             1, std::memory_order_relaxed);
     }
-    spdlog::warn("[imgprof] downscale={:.1f}ms", profiling::elapsed_ms(t0));
-
     auto entry = std::make_shared<CachedImage>();
     entry->width = buffer->width;
     entry->height = buffer->height;
@@ -332,12 +329,10 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
         const std::string_view bytes(
             reinterpret_cast<const char*>(rgba_span.data()),
             rgba_span.size() * sizeof(float));
-        spdlog::warn("[imgprof] convert={:.1f}ms", profiling::elapsed_ms(t0));
         entry->gpu_key = runtime::GpuAssetKey{
             assets::sha256_string(bytes), runtime::PixelFormat::Rgba32Float,
             static_cast<std::uint32_t>(entry->width),
             static_cast<std::uint32_t>(entry->height)};
-        spdlog::warn("[imgprof] sha256={:.1f}ms", profiling::elapsed_ms(t0));
     }
 
     const double convert_us = profiling::duration_us(convert_t0, profiling::now());
@@ -349,15 +344,20 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
     const double load_dur_ms = profiling::elapsed_ms(t0);
     spdlog::info("ImageCache: loaded '{}' ({}x{}) in {:.3f}ms", path, entry->width, entry->height, load_dur_ms);
 
-    // Fase B1: weight now accounts for both BLImage (PRGB32, 4 bytes/px)
-    // and the float Framebuffer (4 floats/px = 16 bytes/px).
-    const size_t weight = static_cast<size_t>(entry->width) * entry->height * 4  // BLImage
+    // Account the storage actually allocated by each representation.  The
+    // float framebuffer exists in every build; BLImage is optional and may
+    // not be populated for linear/float inputs.
+    size_t weight = entry->fb_img ? entry->fb_img->size_bytes() : 0;
 #ifdef CHRONON3D_USE_BLEND2D
-                        + static_cast<size_t>(entry->width) * entry->height * 16 // Framebuffer float
+    if (!entry->bl_img.empty()) {
+        BLImageData bl_data;
+        if (entry->bl_img.getData(&bl_data) == BL_SUCCESS && bl_data.pixelData) {
+            weight += static_cast<size_t>(std::abs(bl_data.stride)) *
+                      static_cast<size_t>(entry->height);
+        }
+    }
 #endif
-                        + (entry->gpu_rgba_is_dense_alias()
-                               ? 0
-                               : entry->gpu_rgba.size() * sizeof(float));
+    weight += entry->gpu_rgba.size() * sizeof(float);
     return {entry, weight};
 }
 

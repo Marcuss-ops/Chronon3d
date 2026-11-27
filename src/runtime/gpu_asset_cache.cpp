@@ -37,7 +37,8 @@ bool GpuAssetCache::release_backend_surface(RenderSurfaceHandle handle) noexcept
 }
 
 void GpuAssetCache::release_and_account(
-    RenderSurfaceHandle handle, std::size_t bytes, bool physical_already_gone) {
+    RenderSurfaceHandle handle, std::size_t bytes, bool physical_already_gone,
+    bool count_as_eviction) {
     // The caller has already removed the entry from m_entries/m_lru and must
     // NOT hold m_mutex here: the backend release below is a device call.
     const bool freed = physical_already_gone || release_backend_surface(handle);
@@ -45,9 +46,11 @@ void GpuAssetCache::release_and_account(
     std::lock_guard lock(m_mutex);
     if (freed) {
         m_resident_bytes = (m_resident_bytes >= bytes) ? (m_resident_bytes - bytes) : 0;
-        ++m_stats.evictions;
-        m_stats.evicted_bytes += bytes;
-        if (profiling::g_current_counters) {
+        if (count_as_eviction) {
+            ++m_stats.evictions;
+            m_stats.evicted_bytes += bytes;
+        }
+        if (count_as_eviction && profiling::g_current_counters) {
             auto* counters = profiling::g_current_counters;
             counters->gpu_asset_cache_evictions.fetch_add(1, std::memory_order_relaxed);
             counters->gpu_asset_cache_evicted_bytes.fetch_add(
@@ -79,7 +82,7 @@ void GpuAssetCache::evict_to_budget() {
         std::size_t bytes{0};
         {
             std::lock_guard lock(m_mutex);
-            if (m_budget_bytes == 0 || m_resident_bytes <= m_budget_bytes ||
+            if (m_clearing || m_budget_bytes == 0 || m_resident_bytes <= m_budget_bytes ||
                 m_lru.empty()) {
                 break;
             }
@@ -91,15 +94,20 @@ void GpuAssetCache::evict_to_budget() {
             }
             handle = it->second.handle;
             bytes = it->second.bytes;
+            // Reserve the key before publishing the miss caused by removing
+            // the entry.  Keeping both operations under m_mutex prevents an
+            // acquire() from starting a duplicate upload in this window.
+            const auto [reservation, inserted] = m_inflight.try_emplace(
+                key, InflightUpload{true, handle});
+            (void)reservation;
+            if (!inserted) {
+                // An in-flight operation already owns this key.  Leave the
+                // cache entry intact and let that operation finish first.
+                m_lru.push_front(key);
+                it->second.lru_position = m_lru.begin();
+                break;
+            }
             m_entries.erase(it);
-        }
-
-        // Reserve the key while the device release runs so a concurrent
-        // acquire of the same key waits for the old surface to be reclaimed
-        // before uploading a replacement.
-        {
-            std::lock_guard lock(m_mutex);
-            m_inflight.emplace(key, InflightUpload{true, handle});
         }
         release_and_account(handle, bytes, false);
         {
@@ -138,6 +146,7 @@ GpuAssetAcquireResult GpuAssetCache::find(const GpuAssetKey& key) {
 GpuAssetAcquireResult GpuAssetCache::acquire(
     const GpuAssetKey& key, SurfaceDesc desc, std::span<const float> rgba) {
     std::unique_lock lock(m_mutex);
+    m_inflight_cv.wait(lock, [&] { return !m_clearing; });
     if (!m_registry || !m_backend) {
         return {kInvalidRenderSurfaceHandle, false, "GPU asset cache is not attached"};
     }
@@ -181,10 +190,23 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
                     !m_backend->is_native_surface_valid(it->second.handle);
                 const RenderSurfaceHandle stale_handle = it->second.handle;
                 const std::size_t stale_bytes = it->second.bytes;
+                const auto [reservation, inserted] = m_inflight.try_emplace(
+                    key, InflightUpload{true, stale_handle});
+                (void)reservation;
+                if (!inserted) {
+                    m_inflight_cv.wait(lock, [&] {
+                        return m_inflight.find(key) == m_inflight.end();
+                    });
+                    continue;
+                }
                 m_lru.erase(it->second.lru_position);
                 m_entries.erase(it);
                 lock.unlock();
                 release_and_account(stale_handle, stale_bytes, physical_already_gone);
+                lock.lock();
+                m_inflight.erase(key);
+                lock.unlock();
+                m_inflight_cv.notify_all();
                 lock.lock();
                 continue;  // fall through to (re)build the asset below
             }
@@ -275,31 +297,24 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
 void GpuAssetCache::clear() noexcept {
     decltype(m_entries) entries;
     {
-        std::lock_guard lock(m_mutex);
+        std::unique_lock lock(m_mutex);
+        m_clearing = true;
+        m_inflight_cv.wait(lock, [&] { return m_inflight.empty(); });
         entries.swap(m_entries);
         m_lru.clear();
-        m_resident_bytes = 0;
-        m_stats.resident_bytes = 0;
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->gpu_asset_cache_resident_bytes.store(
-                0, std::memory_order_relaxed);
-        }
     }
-    // Release device surfaces outside the lock; the cache is being torn down
-    // (or detached), so any remaining backend failure is best-effort.
+    // Release device surfaces outside the lock. Keep failed releases charged
+    // to residency so accounting continues to reflect allocations still owned
+    // by the backend.
     for (const auto& [key, entry] : entries) {
         (void)key;
-        (void)release_backend_surface(entry.handle);
+        release_and_account(entry.handle, entry.bytes, false, false);
     }
-    if (!entries.empty()) {
+    {
         std::lock_guard lock(m_mutex);
-        for (const auto& [key, entry] : entries) {
-            (void)key;
-            if (m_registry) {
-                (void)m_registry->release(entry.handle);
-            }
-        }
+        m_clearing = false;
     }
+    m_inflight_cv.notify_all();
 }
 
 void GpuAssetCache::set_budget_bytes(std::size_t budget_bytes) noexcept {
