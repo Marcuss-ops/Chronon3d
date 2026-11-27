@@ -11,8 +11,6 @@
 #include <atomic>
 #include <span>
 #include <unordered_map>
-#include <tbb/blocked_range.h>
-#include <tbb/parallel_for.h>
 
 namespace chronon3d::runtime::detail {
 namespace {
@@ -139,10 +137,8 @@ RenderPreparationResult prepare_render_scene(
 
     const auto decode_t0 = profiling::now();
     const ImageCounterSnapshot image_before = snapshot_image_counters(*renderer->counters());
-    // Keep decoded shared references alive through GPU promotion below. The
-    // LRU may evict entries between the parallel decode and the promotion pass.
-    std::vector<std::shared_ptr<const CachedImage>> decoded_tasks;
-    std::vector<std::size_t> reference_task_indices(image_refs_view.size());
+    std::uint64_t image_decode_batch_count = 0;
+    std::uint64_t image_decode_peak_bytes = 0;
     if (options.resources.prepare_images) {
         auto& image_cache = renderer->execution_context().runtime->image_cache();
         struct ImageDecodeTask {
@@ -150,6 +146,7 @@ RenderPreparationResult prepare_render_scene(
             ImageDecodeOptions options;
         };
         std::vector<ImageDecodeTask> decode_tasks;
+        std::vector<std::vector<std::size_t>> task_references;
         std::unordered_map<ImageAssetKey, std::size_t, ImageAssetKeyHash> task_by_key;
         task_by_key.reserve(image_refs_view.size());
 
@@ -160,7 +157,7 @@ RenderPreparationResult prepare_render_scene(
             decode_options.color_space = ref.color_space;
             const auto key = image_cache.canonical_key_for(ref.path, decode_options);
             if (!key) {
-                reference_task_indices[index] = decode_tasks.size();
+                task_references.push_back({index});
                 decode_tasks.push_back({ref.path, std::move(decode_options)});
                 continue;
             }
@@ -168,82 +165,77 @@ RenderPreparationResult prepare_render_scene(
                 *key, decode_tasks.size());
             if (inserted) {
                 decode_tasks.push_back({ref.path, std::move(decode_options)});
+                task_references.emplace_back();
             }
-            reference_task_indices[index] = it->second;
+            task_references[it->second].push_back(index);
         }
 
-        decoded_tasks.resize(decode_tasks.size());
-        const auto decode_range = [&](std::size_t begin, std::size_t end) {
-                profiling::ProfilingGuard worker_profile(
-                    renderer->counters(), renderer->framebuffer_pool().get());
-                for (std::size_t task = begin; task != end; ++task) {
-                    decoded_tasks[task] = image_cache.get_or_load(
-                        decode_tasks[task].path, decode_tasks[task].options);
-                }
-        };
-        if (asset_prepare_serial_override_enabled()) {
-            decode_range(0, decode_tasks.size());
-        } else {
-            tbb::parallel_for(
-                tbb::blocked_range<std::size_t>(0, decode_tasks.size(), 1),
-                [&](const tbb::blocked_range<std::size_t>& range) {
-                    decode_range(range.begin(), range.end());
-            });
-        }
+        const bool promote_to_gpu =
+            renderer->execution_context().runtime->backend_attached() &&
+            renderer->execution_context().runtime->backend().supports_native_surfaces();
+        auto& gpu_cache = renderer->execution_context().runtime->gpu_asset_cache();
 
-        for (std::size_t index = 0; index < image_refs_view.size(); ++index) {
-            const auto& ref = image_refs_view[index];
-            const auto& image = decoded_tasks[reference_task_indices[index]];
+        // Decode one unique asset, update all of its manifest owners, and
+        // promote it before loading the next. ImageCache may evict the entry
+        // immediately (or reject it when larger than one shard); this local
+        // shared reference keeps its decoded pixels alive exactly until the
+        // GPU upload finishes, without retaining the whole job's working set.
+        for (std::size_t task = 0; task < decode_tasks.size(); ++task) {
+            profiling::ProfilingGuard worker_profile(
+                renderer->counters(), renderer->framebuffer_pool().get());
+            const auto image = image_cache.get_or_load(
+                decode_tasks[task].path, decode_tasks[task].options);
+            const auto& references = task_references[task];
+            const auto& first_ref = image_refs_view[references.front()];
             if (!image || !image->valid()) {
                 result.preparation_error = make_preparation_error(
                     PreparationError::Code::CorruptedAsset,
-                    "image could not be decoded: " + ref.path,
-                    {}, ref.path, ref.owner, "image");
+                    "image could not be decoded: " + first_ref.path,
+                    {}, first_ref.path, first_ref.owner, "image");
                 return result;
             }
-            if (auto it = result.prepared_assets->images.find(ref.owner);
-                it != result.prepared_assets->images.end()) {
-                it->second.width = image->width;
-                it->second.height = image->height;
-                it->second.content_digest = image->gpu_key.content_digest;
+            ++image_decode_batch_count;
+            image_decode_peak_bytes = std::max(
+                image_decode_peak_bytes,
+                static_cast<std::uint64_t>(image_cache_detail::cached_image_bytes(*image)));
+            for (const auto reference : references) {
+                const auto& ref = image_refs_view[reference];
+                if (auto it = result.prepared_assets->images.find(ref.owner);
+                    it != result.prepared_assets->images.end()) {
+                    it->second.width = image->width;
+                    it->second.height = image->height;
+                    it->second.content_digest = image->gpu_key.content_digest;
+                }
+            }
+            if (promote_to_gpu) {
+                const auto pixels = image->gpu_rgba_span();
+                const auto& key = image->gpu_key;
+                if (pixels.empty() || key.content_digest == assets::ContentDigest{}) {
+                    result.preparation_error = make_preparation_error(
+                        PreparationError::Code::CorruptedAsset,
+                        "static image has no content-addressed GPU payload: " +
+                            first_ref.path,
+                        {}, first_ref.path, first_ref.owner, "gpu-image");
+                    return result;
+                }
+                const runtime::SurfaceDesc desc{
+                    key.width, key.height, key.format,
+                    runtime::ResourceUsage::Storage,
+                    runtime::LifetimeClass::JobPersistent,
+                    pixels.size_bytes()};
+                const auto acquired = gpu_cache.acquire(key, desc, pixels);
+                if (!acquired.ok()) {
+                    result.preparation_error = make_preparation_error(
+                        PreparationError::Code::CorruptedAsset,
+                        "static image GPU promotion failed: " + first_ref.path +
+                            " (" + acquired.error + ")",
+                        {}, first_ref.path, first_ref.owner, "gpu-image");
+                    return result;
+                }
             }
         }
     }
     const ImageCounterSnapshot image_after = snapshot_image_counters(*renderer->counters());
-
-    if (options.resources.prepare_images && renderer->execution_context().runtime->backend_attached() &&
-        renderer->execution_context().runtime->backend().supports_native_surfaces()) {
-        auto& cache = renderer->execution_context().runtime->gpu_asset_cache();
-        for (std::size_t index = 0; index < image_refs_view.size(); ++index) {
-            const auto& ref = image_refs_view[index];
-            const auto image = decoded_tasks[reference_task_indices[index]];
-            if (!image || !image->valid() || image->gpu_rgba_span().empty()) {
-                continue;
-            }
-            const auto& key = image->gpu_key;
-            if (key.content_digest == assets::ContentDigest{}) {
-                result.preparation_error = make_preparation_error(
-                    PreparationError::Code::CorruptedAsset,
-                    "static image has no content-addressed GPU key: " + ref.path,
-                    {}, ref.path, ref.owner, "gpu-image");
-                return result;
-            }
-            const runtime::SurfaceDesc desc{
-                key.width, key.height, key.format,
-                runtime::ResourceUsage::Storage,
-                runtime::LifetimeClass::JobPersistent,
-                image->gpu_rgba_span().size_bytes()};
-            const auto acquired = cache.acquire(key, desc, image->gpu_rgba_span());
-            if (!acquired.ok()) {
-                result.preparation_error = make_preparation_error(
-                    PreparationError::Code::CorruptedAsset,
-                    "static image GPU promotion failed: " + ref.path +
-                        " (" + acquired.error + ")",
-                    {}, ref.path, ref.owner, "gpu-image");
-                return result;
-            }
-        }
-    }
 
     result.timings.asset_decode_ms =
         profiling::duration_ms(decode_t0, profiling::now());
@@ -255,6 +247,10 @@ RenderPreparationResult prepare_render_scene(
         static_cast<double>(image_after.convert_us - image_before.convert_us) / 1000.0;
     result.timings.image_decode_count =
         image_after.decode_count - image_before.decode_count;
+    if (options.resources.prepare_images) {
+        result.timings.image_decode_batch_count = image_decode_batch_count;
+        result.timings.image_decode_peak_bytes = image_decode_peak_bytes;
+    }
     result.timings.image_post_decode_downscale_count =
         image_after.post_decode_downscale_count - image_before.post_decode_downscale_count;
     result.timings.image_cache_hits = image_after.cache_hits - image_before.cache_hits;

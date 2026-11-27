@@ -25,6 +25,7 @@
 #include <span>
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include <utility>
 
 namespace chronon3d::runtime {
@@ -142,6 +143,11 @@ private:
         RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
     };
 
+    struct FailedRelease {
+        RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
+        std::size_t bytes{0};
+    };
+
     /// Releases `handle` through the backend.  Must be called WITHOUT
     /// `m_mutex` held.  Returns true when the device allocation is no longer
     /// owned by this cache (backend reported success, or the backend never
@@ -170,6 +176,8 @@ private:
     std::unordered_map<GpuAssetKey, Entry, GpuAssetKeyHash> m_entries;
     std::list<GpuAssetKey> m_lru;
     std::unordered_map<GpuAssetKey, InflightUpload, GpuAssetKeyHash> m_inflight;
+    // Backend release failures remain resident and are retried by clear().
+    std::vector<FailedRelease> m_failed_releases;
     GpuAssetCacheStats m_stats{};
     /// Torn outside m_mutex (release_backend_surface runs unlocked); folded
     /// into stats() on read.

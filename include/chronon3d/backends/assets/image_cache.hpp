@@ -67,6 +67,12 @@ struct CachedImage {
     }
 };
 
+namespace image_cache_detail {
+/// Total allocated storage retained by one cached image, including row
+/// padding, optional Blend2D pixels, and spare staging-vector capacity.
+[[nodiscard]] std::size_t cached_image_bytes(const CachedImage& image) noexcept;
+} // namespace image_cache_detail
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Fase B B1+B4 — ImageCache is now per-runtime (RuntimeContext-owned).
 //

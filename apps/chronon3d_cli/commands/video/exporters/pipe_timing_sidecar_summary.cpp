@@ -554,6 +554,8 @@ void serialize_job_section(nlohmann::json& job,
         put_optional(image, key, value);
     };
     put_image_u64("decode_count", timings.prepare.image_decode_count);
+    put_image_u64("decode_batch_count", timings.prepare.image_decode_batch_count);
+    put_image_u64("decode_peak_bytes", timings.prepare.image_decode_peak_bytes);
     put_image_u64("post_decode_downscale_count", timings.prepare.image_post_decode_downscale_count);
     put_image_u64("cache_hits", timings.prepare.image_cache_hits);
     put_image_u64("cache_misses", timings.prepare.image_cache_misses);

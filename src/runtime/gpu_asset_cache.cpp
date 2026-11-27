@@ -43,33 +43,33 @@ void GpuAssetCache::release_and_account(
     // NOT hold m_mutex here: the backend release below is a device call.
     const bool freed = physical_already_gone || release_backend_surface(handle);
 
-    std::lock_guard lock(m_mutex);
-    if (freed) {
-        m_resident_bytes = (m_resident_bytes >= bytes) ? (m_resident_bytes - bytes) : 0;
-        if (count_as_eviction) {
-            ++m_stats.evictions;
-            m_stats.evicted_bytes += bytes;
+    {
+        std::lock_guard lock(m_mutex);
+        if (freed) {
+            m_resident_bytes = (m_resident_bytes >= bytes) ? (m_resident_bytes - bytes) : 0;
+            if (count_as_eviction) {
+                ++m_stats.evictions;
+                m_stats.evicted_bytes += bytes;
+            }
+            if (count_as_eviction && profiling::g_current_counters) {
+                auto* counters = profiling::g_current_counters;
+                counters->gpu_asset_cache_evictions.fetch_add(1, std::memory_order_relaxed);
+                counters->gpu_asset_cache_evicted_bytes.fetch_add(
+                    bytes, std::memory_order_relaxed);
+            }
+        } else {
+            // Keep failed device releases charged and retry them from clear().
+            ++m_stats.release_failures;
+            m_failed_releases.push_back(FailedRelease{handle, bytes});
         }
-        if (count_as_eviction && profiling::g_current_counters) {
-            auto* counters = profiling::g_current_counters;
-            counters->gpu_asset_cache_evictions.fetch_add(1, std::memory_order_relaxed);
-            counters->gpu_asset_cache_evicted_bytes.fetch_add(
-                bytes, std::memory_order_relaxed);
+        m_stats.resident_bytes = m_resident_bytes;
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_asset_cache_resident_bytes.store(
+                m_resident_bytes, std::memory_order_relaxed);
         }
-    } else {
-        // The backend could not free the surface.  Keep the bytes charged to
-        // resident accounting (they are still owned by the device) and record
-        // the failure so the divergence is observable instead of silent.
-        ++m_stats.release_failures;
     }
-    m_stats.resident_bytes = m_resident_bytes;
-    if (profiling::g_current_counters) {
-        profiling::g_current_counters->gpu_asset_cache_resident_bytes.store(
-            m_resident_bytes, std::memory_order_relaxed);
-    }
-    // Always drop the logical handle: the cache must not hand out an entry it
-    // no longer tracks.  On a backend release failure the device allocation is
-    // orphaned but reported through release_failures.
+    // Registry has its own synchronization. Keep it outside m_mutex so callers
+    // never acquire registry locks while holding the cache lock.
     if (m_registry) {
         (void)m_registry->release(handle);
     }
@@ -296,11 +296,13 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
 
 void GpuAssetCache::clear() noexcept {
     decltype(m_entries) entries;
+    std::vector<FailedRelease> failed_releases;
     {
         std::unique_lock lock(m_mutex);
         m_clearing = true;
         m_inflight_cv.wait(lock, [&] { return m_inflight.empty(); });
         entries.swap(m_entries);
+        failed_releases.swap(m_failed_releases);
         m_lru.clear();
     }
     // Release device surfaces outside the lock. Keep failed releases charged
@@ -309,6 +311,9 @@ void GpuAssetCache::clear() noexcept {
     for (const auto& [key, entry] : entries) {
         (void)key;
         release_and_account(entry.handle, entry.bytes, false, false);
+    }
+    for (const auto& failed : failed_releases) {
+        release_and_account(failed.handle, failed.bytes, false, false);
     }
     {
         std::lock_guard lock(m_mutex);

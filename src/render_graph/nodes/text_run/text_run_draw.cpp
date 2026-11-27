@@ -90,7 +90,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     // no-op, not an unsupported native capability.  This is the GPU half of
     // the T2-02 frame-0 contract; the software rasterizer mirrors it.
     if (shape.glyphs.empty()) {
-        spdlog::info("[text-route] frame={} route=mtsdf-empty",
+        spdlog::debug("[text-route] frame={} route=mtsdf-empty",
                      ctx.frame_input.frame.integral());
         return graph::RenderOpResult(graph::RenderOpOutcome{0});
     }
@@ -677,7 +677,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     }
     // Positive route evidence for the pixel gate: a successful draw must
     // identify the native path, not merely omit a fallback warning.
-    spdlog::info("[text-route] frame={} route=mtsdf",
+    spdlog::debug("[text-route] frame={} route=mtsdf",
                  ctx.frame_input.frame.integral());
     return graph::RenderOpResult(graph::RenderOpOutcome{items_drawn});
 }

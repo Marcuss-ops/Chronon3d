@@ -491,6 +491,8 @@ TEST_CASE("diagnostics: prepare_breakdown exposes the measured prepare sub-phase
     timings.scene_materialize_count = 3u;
     timings.scene_materialize_cache_hits = 4u;
     timings.prepare.image_decode_ms = 91.0;
+    timings.prepare.image_decode_batch_count = 10u;
+    timings.prepare.image_decode_peak_bytes = 655360u;
     timings.prepare.image_cache_hits = 2u;
     timings.prepare.image_cache_misses = 3u;
     timings.prepare.image_post_decode_downscale_count = 1u;
@@ -515,6 +517,8 @@ TEST_CASE("diagnostics: prepare_breakdown exposes the measured prepare sub-phase
     CHECK(out.at("job").at("prepare").at("scene_materialize_count") == 3u);
     CHECK(out.at("job").at("prepare").at("scene_materialize_cache_hits") == 4u);
     CHECK(out.at("job").at("image").at("cache_hits") == 2u);
+    CHECK(out.at("job").at("image").at("decode_batch_count") == 10u);
+    CHECK(out.at("job").at("image").at("decode_peak_bytes") == 655360u);
     CHECK(out.at("job").at("image").at("cache_misses") == 3u);
     CHECK(out.at("job").at("image").at("post_decode_downscale_count") == 1u);
     CHECK(out.at("job").at("runtime").at("codec_session_adopted") == true);
