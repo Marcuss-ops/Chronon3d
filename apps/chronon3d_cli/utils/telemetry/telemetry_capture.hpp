@@ -30,6 +30,8 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"node_cache_misses", counters.node_cache_misses.load(std::memory_order_relaxed)},
         {"image_cache_hits", counters.image_cache_hits.load(std::memory_order_relaxed)},
         {"image_cache_misses", counters.image_cache_misses.load(std::memory_order_relaxed)},
+        {"image_decode_count", counters.image_decode_count.load(std::memory_order_relaxed)},
+        {"image_decode_wall_us", counters.image_decode_wall_us.load(std::memory_order_relaxed)},
         {"font_cache_hits", counters.font_cache_hits.load(std::memory_order_relaxed)},
         {"font_cache_misses", counters.font_cache_misses.load(std::memory_order_relaxed)},
         {"glyph_cache_hits", counters.glyph_cache_hits.load(std::memory_order_relaxed)},

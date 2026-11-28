@@ -324,6 +324,7 @@ std::string generate_execution_report(const RenderReportContext& ctx) {
     out << "Frames Total:   " << run.frames_total << "\n";
     out << "Wall Time:      " << run.wall_time_ms << " ms\n";
     out << "Render Time:    " << run.render_ms << " ms\n";
+    out << "Image Decode:   " << run.image_decode_wall_ms << " ms\n";
     out << "Effective FPS:  " << run.effective_fps << "\n\n";
 
     out << "--- PERFORMANCE COUNTERS ---\n";
