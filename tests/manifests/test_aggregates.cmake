@@ -31,8 +31,10 @@ chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_authoring_
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_text_health_tests)
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_render_job_contract_tests)
 if(CHRONON3D_USE_BLEND2D)
-    chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_deterministic_tests)
     chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_precomp_tests)
+endif()
+if(CHRONON3D_USE_BLEND2D AND CHRONON3D_BUILD_CLI)
+    chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_deterministic_tests)
 endif()
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_cli_tests)
 # Mandatory gate (issue #51): the registry↔Vulkan parity tests must build and

@@ -9,14 +9,14 @@
       "hidden": false,
       "inherits": "base-linux",
       "displayName": "Linux CI Core Gate",
-      "description": "Pre-merge core gate: tests enabled with CLI, text, video and optional rendering features disabled. Diagnostics and verification follow the canonical test policy.",
+      "description": "Pre-merge core gate: tests enabled with the text core, CLI and video disabled. Blend2D is enabled for the text implementation's required image/font primitives. Diagnostics and verification follow the canonical test policy.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "OFF",
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
-        "CHRONON3D_ENABLE_TEXT": "OFF",
-        "CHRONON3D_USE_BLEND2D": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
         "CHRONON3D_ENABLE_EXR": "OFF",
         "CHRONON3D_ENABLE_VIDEO": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
@@ -26,7 +26,7 @@
         "CHRONON3D_BUILD_DAEMON": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
-        "VCPKG_MANIFEST_FEATURES": "tests;ipc"
+        "VCPKG_MANIFEST_FEATURES": "tests;text;blend2d;ipc"
       }
     },
     {

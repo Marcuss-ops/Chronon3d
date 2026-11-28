@@ -28,8 +28,7 @@ set(CORE_TEST_SOURCES
     core/math/test_clip_with_uv.cpp
     core/math/test_frustum_culling.cpp
     core/geometry/test_geometry.cpp
-    text/test_text_placement_resolver.cpp
-    text/test_timed_text_equivalence.cpp
+    ${CORE_TEXT_CORE_TESTS}
     core/animation/test_animation.cpp
     core/animation/test_interpolate.cpp
     core/animation/test_deterministic_random.cpp
@@ -77,8 +76,6 @@ set(CORE_TEST_SOURCES
     core/test_parallel_render_engines_debug_isolation.cpp
     core/math/test_expression.cpp
     core/math/test_expression_extended.cpp
-    text/test_text_run_umbrella_contract.cpp
-    text/test_text_run_multi_run_failure_policy.cpp
     ${CORE_BLEND2D_TESTS}
     media/test_media_placement.cpp
     media/test_point_tracker.cpp

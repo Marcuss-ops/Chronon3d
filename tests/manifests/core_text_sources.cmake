@@ -1,4 +1,14 @@
 # Blend2D/Text-dependent sources for chronon3d_core_tests.
+set(CORE_TEXT_CORE_TESTS "")
+if(CHRONON3D_ENABLE_TEXT)
+    list(APPEND CORE_TEXT_CORE_TESTS
+        text/test_text_placement_resolver.cpp
+        text/test_timed_text_equivalence.cpp
+        text/test_text_run_umbrella_contract.cpp
+        text/test_text_run_multi_run_failure_policy.cpp
+    )
+endif()
+
 set(CORE_BLEND2D_TESTS "")
 if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
     list(APPEND CORE_BLEND2D_TESTS
